@@ -29,7 +29,9 @@ button:disabled{opacity:.4;cursor:not-allowed}
 #zoomLayer{position:absolute;inset:0;transform-origin:0 0}
 #levelGauge{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
 #live,#ovl,#grid,#afGrid{position:absolute;inset:0;width:100%;height:100%;object-fit:contain}
-#ovl,#grid,#afGrid{pointer-events:none}
+#ovl,#grid,#afGrid,#aidCv{pointer-events:none}
+#aidCv{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;image-rendering:pixelated}
+#histCv{position:absolute;left:8px;bottom:8px;width:160px;height:70px;background:rgba(0,0,0,.45);border:1px solid rgba(255,255,255,.3);pointer-events:none}
 #start{min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:28px;padding:24px 16px}
 #start h1{font-size:30px;font-weight:300;letter-spacing:.02em}
 #tiles{display:grid;grid-template-columns:repeat(2,minmax(0,300px));gap:16px;width:100%;justify-content:center}
@@ -127,9 +129,11 @@ body.single{background:#000;height:100vh;overflow:hidden}
       <img id="ovl" alt="" hidden>
       <canvas id="grid"></canvas>
       <canvas id="afGrid"></canvas>
+      <canvas id="aidCv"></canvas>
       <div id="afMark"></div>
     </div>
     <canvas id="levelGauge"></canvas>
+    <canvas id="histCv" width="160" height="70" hidden></canvas>
     <div id="empty" data-i18n="lv.off">Live view off</div>
   </div>
   <p id="msg" class="mut" data-i18n="msg.ready">Ready.</p>
@@ -140,6 +144,11 @@ body.single{background:#000;height:100vh;overflow:hidden}
       <label><span data-i18n="lv.grid">Displayed Grid</span> <select id="gridType"><option value="" data-i18n="lv.gridOff">Off</option><option value="thirds" data-i18n="lv.gridThirds">Rule of thirds</option><option value="cross" data-i18n="lv.gridCross">Crosshair</option><option value="mesh" data-i18n="lv.gridMesh">Grid</option></select></label>
       <label class="gridAdj" hidden>X <input type="range" id="gridX" min="-50" max="50" value="0"></label>
       <label class="gridAdj" hidden>Y <input type="range" id="gridY" min="-50" max="50" value="0"></label>
+      <label><input type="checkbox" id="aidHist"> <span data-i18n="lv.hist">Histogram</span></label>
+      <label><input type="checkbox" id="aidRgb"> <span data-i18n="lv.histRgb">RGB</span></label>
+      <label><input type="checkbox" id="aidClip"> <span data-i18n="lv.clip">Highlight&amp;Shadow</span></label>
+      <label><input type="checkbox" id="aidPeak"> <span data-i18n="lv.peak">Peaking</span></label>
+      <label><span data-i18n="lv.peakColor">Peaking Settings</span> <select id="aidPeakCol"><option value="white" data-i18n="lv.peakWhite">White</option><option value="black" data-i18n="lv.peakBlack">Black</option><option value="red" data-i18n="lv.peakRed">Red</option><option value="yellow" data-i18n="lv.peakYellow">Yellow</option></select></label>
     </div>
     <div class="row" id="ovlRow" hidden>
       <label><span data-i18n="lv.overlay">Overlay</span> <input type="range" id="ovlOp" min="0" max="100" value="50"></label>
@@ -290,6 +299,15 @@ const I18N={en:{
   "lv.overlayRemove": "Remove",
   "lv.noSignal": "no signal for {s} s",
   "lv.receiving": "receiving {w}×{h}",
+  "lv.hist": "Histogram",
+  "lv.histRgb": "RGB",
+  "lv.clip": "Highlight&Shadow",
+  "lv.peak": "Peaking",
+  "lv.peakColor": "Peaking Settings",
+  "lv.peakWhite": "White",
+  "lv.peakBlack": "Black",
+  "lv.peakRed": "Red",
+  "lv.peakYellow": "Yellow",
   "lv.roll": "Roll {a}° · Pitch {b}°",
   "msg.ready": "Ready.",
   "msg.lvRunning": "Live view running",
@@ -1002,6 +1020,98 @@ function drawGrid(){
   if(t==='mesh'){for(let i=0;i<10;i++){v((i/10+ox+1)%1);h((i/10+oy+1)%1)}}
 }
 ['gridType','gridX','gridY'].forEach(i=>$('#'+i).oninput=drawGrid);
+/* Anzeigehilfen: werden im Browser aus dem Livebild berechnet, keine Kamerabefehle */
+function lumaHistogram(data){ // Rec.709, 256 Klassen
+  const h=new Uint32Array(256);
+  for(let i=0;i<data.length;i+=4) h[Math.min(255,Math.round(.2126*data[i]+.7152*data[i+1]+.0722*data[i+2]))]++;
+  return h;
+}
+function rgbHistogram(data){
+  const h=[new Uint32Array(256),new Uint32Array(256),new Uint32Array(256)];
+  for(let i=0;i<data.length;i+=4){h[0][data[i]]++;h[1][data[i+1]]++;h[2][data[i+2]]++}
+  return h;
+}
+function clipMask(data,hi,lo){ // 1 = Lichter (ein Kanal >= hi), 2 = Schatten (alle Kanäle <= lo)
+  const m=new Uint8Array(data.length>>2);
+  for(let i=0,j=0;i<data.length;i+=4,j++){
+    const r=data[i],g=data[i+1],b=data[i+2];
+    if(r>=hi||g>=hi||b>=hi) m[j]=1; else if(r<=lo&&g<=lo&&b<=lo) m[j]=2;
+  }
+  return m;
+}
+function grayOf(data){
+  const g=new Float32Array(data.length>>2);
+  for(let i=0,j=0;i<data.length;i+=4,j++) g[j]=.2126*data[i]+.7152*data[i+1]+.0722*data[i+2];
+  return g;
+}
+function edgeMagnitude(gray,w,h){ // Sobel, Rand bleibt 0
+  const m=new Float32Array(w*h);
+  for(let y=1;y<h-1;y++)for(let x=1;x<w-1;x++){
+    const i=y*w+x,a=gray[i-w-1],b=gray[i-w],c=gray[i-w+1],d=gray[i-1],f=gray[i+1],e=gray[i+w-1],g=gray[i+w],k=gray[i+w+1];
+    const gx=(c+2*f+k)-(a+2*d+e),gy=(e+2*g+k)-(a+2*b+c);
+    m[i]=Math.sqrt(gx*gx+gy*gy);
+  }
+  return m;
+}
+function edgeThreshold(mag,top,floor){ // Schwelle so, dass etwa der Anteil top der Pixel darüber liegt
+  let max=0; for(let i=0;i<mag.length;i++) if(mag[i]>max) max=mag[i];
+  if(max<=0) return Infinity;
+  const bins=new Uint32Array(256),k=255/max;
+  for(let i=0;i<mag.length;i++) bins[Math.min(255,Math.floor(mag[i]*k))]++;
+  let acc=0,b=255; const want=mag.length*top;
+  for(;b>0;b--){acc+=bins[b]; if(acc>=want) break}
+  return Math.max(floor,b/k);
+}
+const AID_KEY='omcap.aids', AID_IDS=['aidHist','aidRgb','aidClip','aidPeak'];
+const aidOff=document.createElement('canvas'), aidCtx=aidOff.getContext('2d',{willReadFrequently:true});
+const PEAK_RGB={white:[255,255,255],black:[0,0,0],red:[255,40,40],yellow:[255,230,0]};
+function aidSave(){try{const o={col:$('#aidPeakCol').value};AID_IDS.forEach(i=>o[i]=$('#'+i).checked);localStorage.setItem(AID_KEY,JSON.stringify(o))}catch{}}
+(()=>{try{const o=JSON.parse(localStorage.getItem(AID_KEY))||{};
+  AID_IDS.forEach(i=>$('#'+i).checked=!!o[i]); if(PEAK_RGB[o.col]) $('#aidPeakCol').value=o.col}catch{}})();
+function drawHist(data){
+  const c=$('#histCv'),g=c.getContext('2d'),W=c.width,H=c.height;
+  g.clearRect(0,0,W,H);
+  const curve=(h,col)=>{
+    let mx=1; for(let i=1;i<255;i++) if(h[i]>mx) mx=h[i]; // Randklassen nicht skalieren
+    g.strokeStyle=col; g.beginPath();
+    for(let i=0;i<256;i++){const x=i/255*(W-1),y=H-1-Math.min(1,h[i]/mx)*(H-3);i?g.lineTo(x,y):g.moveTo(x,y)}
+    g.stroke();
+  };
+  if($('#aidRgb').checked){const r=rgbHistogram(data);curve(r[0],'rgba(255,70,70,.9)');curve(r[1],'rgba(70,255,70,.9)');curve(r[2],'rgba(90,130,255,.9)')}
+  const l=lumaHistogram(data);
+  let mx=1; for(let i=1;i<255;i++) if(l[i]>mx) mx=l[i];
+  g.fillStyle='rgba(255,255,255,.55)';
+  for(let i=0;i<256;i++){const hh=Math.min(1,l[i]/mx)*(H-3);g.fillRect(i/255*(W-1),H-hh,Math.max(1,W/256),hh)}
+}
+function aidTick(){
+  const wantH=$('#aidHist').checked,wantC=$('#aidClip').checked,wantP=$('#aidPeak').checked;
+  const hc=$('#histCv'),oc=$('#aidCv'),img=$('#live'),nw=img.naturalWidth,nh=img.naturalHeight;
+  hc.hidden=!(wantH&&st.live);
+  if(!st.live||document.hidden||!(wantH||wantC||wantP)||!nw||!nh){
+    if(oc.width) oc.getContext('2d').clearRect(0,0,oc.width,oc.height);
+    return;
+  }
+  const w=Math.min(320,nw),h=Math.max(1,Math.round(w*nh/nw));
+  if(aidOff.width!==w||aidOff.height!==h){aidOff.width=w;aidOff.height=h}
+  let data;
+  try{aidCtx.drawImage(img,0,0,w,h);data=aidCtx.getImageData(0,0,w,h).data}catch{return}
+  if(wantH) drawHist(data);
+  if(oc.width!==w||oc.height!==h){oc.width=w;oc.height=h}
+  const og=oc.getContext('2d');
+  if(!wantC&&!wantP){og.clearRect(0,0,w,h);return}
+  const out=og.createImageData(w,h),o=out.data;
+  if(wantC){
+    const m=clipMask(data,250,5);
+    for(let j=0;j<m.length;j++) if(m[j]){const k=j*4;o[k]=m[j]===1?255:30;o[k+1]=m[j]===1?30:80;o[k+2]=m[j]===1?30:255;o[k+3]=200}
+  }
+  if(wantP){
+    const mag=edgeMagnitude(grayOf(data),w,h),t=edgeThreshold(mag,.03,24),c=PEAK_RGB[$('#aidPeakCol').value]||PEAK_RGB.white;
+    for(let j=0;j<mag.length;j++) if(mag[j]>=t){const k=j*4;o[k]=c[0];o[k+1]=c[1];o[k+2]=c[2];o[k+3]=255}
+  }
+  og.putImageData(out,0,0);
+}
+AID_IDS.concat('aidPeakCol').forEach(i=>$('#'+i).onchange=()=>{aidSave();aidTick()});
+setInterval(aidTick,250); // 4 Bilder/s reichen und halten die CPU niedrig
 new ResizeObserver(()=>{drawGrid();applyZoom();drawAf()}).observe(vp);
 
 /* Überlagerung */
