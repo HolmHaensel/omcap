@@ -236,6 +236,9 @@ body.single{background:#000;height:100vh;overflow:hidden}
     <span class="sp"></span>
     <button data-v="4">4</button><button data-v="9">9</button><button data-v="25">25</button><button data-v="100">100</button>
     <button data-v="cal" data-i18n="card.calendar">Calendar display</button>
+    <button id="galShare" data-feat="share_order" data-i18n="card.share">Share Order</button>
+    <button id="galShareSave" data-feat="share_order" data-i18n="card.shareSave" hidden>Save all to computer</button>
+    <button id="galShareReset" data-feat="share_order" data-i18n="card.shareReset" hidden>Reset Share Order</button>
     <button id="galReload" data-i18n="card.reload">Reload</button>
     <button id="galClose" data-i18n="card.close">Close</button>
   </div>
@@ -403,6 +406,16 @@ const I18N={en:{
   "card.loadingOriginal": " · loading original …",
   "card.smallOnly": " · only a small preview available",
   "card.loadFailed": " · loading failed",
+  "card.share": "Share Order",
+  "card.shareCount": "Share Order: {n} shots",
+  "card.shareNone": "No shots selected for Share Order.",
+  "card.shareSave": "Save all to computer",
+  "card.shareSaving": "Saving {i}/{n} …",
+  "card.shareSaved": "{n} shots saved on the computer",
+  "card.shareReset": "Reset Share Order",
+  "card.shareResetAsk": "Reset Share Order? This deselects all images selected for sharing on the camera's card. It changes the card and cannot be undone.",
+  "card.shareResetDone": "Share Order reset",
+  "card.movLength": "Length {t}",
   "months": "January,February,March,April,May,June,July,August,September,October,November,December",
   "weekdays": "Mon,Tue,Wed,Thu,Fri,Sat,Sun",
   "date.day": "{month} {d}, {y}",
@@ -645,7 +658,7 @@ function groupShots(files){
       size:s.files.reduce((a,f)=>a+f.size,0)};
   });
 }
-let cardShots=null;
+let cardShots=null, shareSet=null;  // shareSet: Pfade der Share Order, null = Filter aus
 async function loadCard(){cardShots=groupShots(await api('/api/images'));loadLens();return cardShots}
 async function downloadShot(s,report){
   for(const f of s.files){
@@ -758,9 +771,14 @@ function renderGal(){
   const body=$('#galBody'); body.innerHTML=''; body.scrollTop=0;
   document.querySelectorAll('[data-v]').forEach(b=>b.classList.toggle('on',gv.mode==='cal'?b.dataset.v==='cal':+b.dataset.v===gv.n));
   const chip=$('#galChip'); chip.hidden=!(gv.day&&gv.mode==='index');
+  if(gv.mode==='cal') shareSet=null;
+  const sh=features.has('share_order');
+  $('#galShare').classList.toggle('on',!!shareSet);
+  $('#galShareSave').hidden=$('#galShareReset').hidden=!(sh&&shareSet);
+  $('#galShareReset').disabled=!canWrite;
   if(gv.mode==='cal'){$('#galCount').textContent=tr('card.shots',{n:cardShots.length});renderCal(body);return}
-  const list=gv.day?cardShots.filter(s=>s.day===gv.day):cardShots;
-  $('#galCount').textContent=tr('card.shots',{n:list.length});
+  const list=shareList();
+  $('#galCount').textContent=shareSet?tr('card.shareCount',{n:list.length}):tr('card.shots',{n:list.length});
   if(gv.day){
     chip.textContent=dayLabel(gv.day)+' ';
     const x=document.createElement('button'); x.textContent=tr('card.all'); x.style.cssText='font-size:11px;padding:0 6px';
@@ -775,6 +793,41 @@ function renderGal(){
   });
   body.append(grid);
 }
+/* Aufnahmen im Index: nach Tag und, wenn aktiv, nur die der Share Order (RAW ist dort nie dabei) */
+function shareList(){
+  let l=gv.day?cardShots.filter(s=>s.day===gv.day):cardShots;
+  if(shareSet) l=l.filter(s=>s.files.some(f=>shareSet.has(f.path)));
+  return l;
+}
+async function toggleShare(){
+  if(shareSet){shareSet=null;renderGal();return}
+  try{
+    const l=await api('/api/shareorder');
+    shareSet=new Set(l.map(e=>e.path));
+    gv.mode='index'; gv.day=null; renderGal();
+    if(!shareList().length) $('#galBody').textContent=tr('card.shareNone');
+  }catch(e){$('#galCount').textContent=e.message}
+}
+async function saveShare(){
+  const l=shareList(); let i=0;
+  try{
+    for(const s of l){
+      $('#galCount').textContent=tr('card.shareSaving',{i:++i,n:l.length});
+      // nur die markierten Dateien laden, nicht das RAW daneben
+      const files=s.files.filter(f=>shareSet.has(f.path));
+      await downloadShot({...s,files,types:files.map(f=>f.name.split('.').pop().toUpperCase()).join('+')},()=>{});
+    }
+    $('#galCount').textContent=tr('card.shareSaved',{n:l.length});
+  }catch(e){$('#galCount').textContent=e.message}
+}
+async function resetShare(){
+  if(!confirm(tr('card.shareResetAsk'))) return;
+  try{await api('/api/shareorder/clear',{});shareSet=new Set();renderGal();$('#galBody').textContent=tr('card.shareNone');$('#galCount').textContent=tr('card.shareResetDone')}
+  catch(e){$('#galCount').textContent=e.message}
+}
+$('#galShare').onclick=toggleShare;
+$('#galShareSave').onclick=saveShare;
+$('#galShareReset').onclick=resetShare;
 function renderCal(body){
   const days=new Map();
   for(const s of cardShots){if(!days.has(s.day))days.set(s.day,[]);days.get(s.day).push(s)}
@@ -831,9 +884,21 @@ function viewerUrl(f){
   if(st.play&&isJpg(f)) return resizeUrl(f,fitSize(Math.max(screen.width,screen.height)*(devicePixelRatio||1)));
   return isJpg(f)?fullUrl(f):null;
 }
+const movLen=new Map();
+const clockLen=sec=>Math.floor(sec/3600)+':'+pad(Math.floor(sec/60)%60)+':'+pad(sec%60);
 async function showShot(){
   const s=vList[vIdx], f=s.preview, token=++vToken, im=$('#vImg');
-  const info=`${vIdx+1}/${vList.length} · ${s.name} · ${s.types} · ${s.dt.y}-${pad(s.dt.m)}-${pad(s.dt.d)} ${pad(s.dt.h)}:${pad(s.dt.mi)} · ${(s.size/1048576).toFixed(1)} MB`;
+  let info=`${vIdx+1}/${vList.length} · ${s.name} · ${s.types} · ${s.dt.y}-${pad(s.dt.m)}-${pad(s.dt.d)} ${pad(s.dt.h)}:${pad(s.dt.mi)} · ${(s.size/1048576).toFixed(1)} MB`;
+  // Filmlänge nur im Modus "play", sonst antwortet die Kamera mit Fehler
+  if(/\.mov$/i.test(f.name)&&st.play&&features.has('share_order')){
+    const k=f.path+'|'+f.size, add=sec=>' · '+tr('card.movLength',{t:clockLen(sec)});
+    if(movLen.has(k)) info+=add(movLen.get(k));
+    else api('/api/movlength?path='+encodeURIComponent(f.path)+'&size='+f.size).then(r=>{
+      if(r.seconds==null) return;
+      movLen.set(k,r.seconds);
+      if(token===vToken){info+=add(r.seconds);$('#vInfo').textContent+=add(r.seconds)}
+    }).catch(()=>{});
+  }
   $('#vInfo').textContent=info;
   $('#vPrev').disabled=vIdx===0; $('#vNext').disabled=vIdx===vList.length-1;
   const big=viewerUrl(f);

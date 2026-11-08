@@ -77,6 +77,45 @@ def parse_capacity(raw):
     return int(text) if m else None
 
 
+def parse_rsvimglist(text):
+    """Share-Order-Liste, defensiv: "dir,name,size,attr,date,time" oder nur ein Pfad pro Zeile."""
+    items = []
+    for line in text.splitlines():
+        line = line.strip()
+        if not line or line.startswith("VER_") or line.startswith("<"):
+            continue
+        parts = [x.strip() for x in line.split(",")]
+        if len(parts) >= 2 and parts[1] and "/" not in parts[1]:
+            d, name = parts[0], parts[1]
+        else:
+            d, _, name = parts[0].rpartition("/")
+        if not name or "." not in name:
+            continue
+        num = lambda i: int(parts[i]) if len(parts) > i and parts[i].isdigit() else 0
+        items.append({"dir": d, "name": name, "size": num(2), "path": d.rstrip("/") + "/" + name})
+    return items
+
+
+def parse_playtime(text):
+    """Filmlänge in Sekunden aus der Antwort von get_movplaytime, None wenn nicht lesbar.
+
+    Erwartet Sekunden oder hh:mm:ss (im XML oder als Klartext); errorcode wird zum Fehler.
+    """
+    m = re.search(r"<errorcode>\s*(\d+)\s*</errorcode>", text)
+    if m and int(m.group(1)):
+        raise CameraError("get_movplaytime: errorcode %s" % m.group(1))
+    body = re.sub(r"<\?.*?\?>", "", text, flags=re.S)
+    m = re.search(r"(\d+):(\d{1,2}):(\d{1,2})", body)
+    if m:
+        h, mi, sec = map(int, m.groups())
+        return h * 3600 + mi * 60 + sec
+    m = re.search(r"(\d+):(\d{1,2})(?!\d)", body)
+    if m:
+        return int(m.group(1)) * 60 + int(m.group(2))
+    m = re.search(r"(\d+(?:\.\d+)?)", re.sub(r"<[^>]*>", " ", body))
+    return int(float(m.group(1))) if m else None
+
+
 class Camera:
     def __init__(self, host=HOST, timeout=8, allow_write=False):
         self.host = host
@@ -233,6 +272,15 @@ class Camera:
                 files.append(e)
         return files
 
+    def share_order(self):
+        """Für Share Order markierte Aufnahmen (nur lesen)."""
+        return parse_rsvimglist(self.get("get_rsvimglist").decode("latin-1"))
+
+    def movie_length(self, path):
+        """Filmlänge in Sekunden; die Kamera antwortet nur im Modus "play" (sonst errorcode 1001)."""
+        _check_path(path)
+        return parse_playtime(self.get("get_movplaytime", DIR=path).decode("latin-1"))
+
     def thumbnail(self, path):
         _check_path(path)
         return self.get("get_thumbnail", DIR=path)
@@ -260,6 +308,10 @@ class Camera:
                 self.write("switch_cammode", mode="play")
                 q["lvqty"] = self.lvqty
         return self.write("switch_cammode", **q)
+
+    def reset_share_order(self):
+        """Share-Order-Markierungen auf der Karte löschen (schreibt auf die Karte)."""
+        return self.write("clear_resvflg")
 
     def set_prop(self, prop, value):
         body = ('<?xml version="1.0"?><set><value>%s</value></set>' % value).encode()
