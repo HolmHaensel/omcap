@@ -129,6 +129,36 @@ class Helpers(unittest.TestCase):
         self.assertEqual(server.bracket_plan(enum, "0.0", 3, 3), ["-1.0", "0.0", "+1.0"])
 
 
+class PowerOff(unittest.TestCase):
+    def test_blocked_without_allow_write(self):
+        with self.assertRaises(WriteBlocked):
+            Camera(allow_write=False).power_off()
+
+    def test_calls_exec_pwoff(self):
+        c = Camera(allow_write=True)
+        calls = []
+        c.write = lambda cgi, data=None, **q: calls.append(cgi) or b""
+        c.power_off()
+        self.assertEqual(calls, ["exec_pwoff"])
+
+    def test_handler_tolerates_dropped_connection(self):
+        class Live:
+            running = True
+            def stop(self): pass
+        class Fake:
+            stage = 0
+            def stop_liveview(self): pass
+            def power_off(self): raise CameraError("connection reset")
+        old = (server.cam, server.live, server.conn_type)
+        server.cam, server.live, server.conn_type = Fake(), Live(), "wifi"
+        try:
+            server.power_off()
+            self.assertIsNone(server.cam)
+            self.assertIsNone(server.conn_type)
+        finally:
+            server.cam, server.live, server.conn_type = old
+
+
 if __name__ == "__main__":
     unittest.main()
 

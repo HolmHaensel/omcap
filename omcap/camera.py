@@ -317,6 +317,10 @@ class Camera:
         body = ('<?xml version="1.0"?><set><value>%s</value></set>' % value).encode()
         return self.write("set_camprop", data=body, com="set", propname=prop)
 
+    def power_off(self):
+        """Kamera ausschalten; die Kamera beendet danach das WLAN."""
+        return self.write("exec_pwoff")
+
     def start_liveview(self, port):
         return self.write("exec_takemisc", com="startliveview", port=str(port))
 
