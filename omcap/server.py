@@ -460,10 +460,13 @@ def reset_share_order():
 
 
 def usb_lens():
-    """USB: Objektiv aus dem neuesten JPG; ohne JPG nur der Brennweitenbereich (d04a)."""
+    """USB: Objektiv aus dem zuletzt gemeldeten JPG, sonst nur der Brennweitenbereich (d04a).
+
+    Die Karte nach dem neuesten JPG zu durchsuchen dauert über USB über 30 s und hält den Live View an.
+    """
     if conn_type != "usb":
         raise CameraError("Lens without a file only over USB")
-    path = cam.newest_jpg()
+    path = getattr(cam, "last_jpg", None)
     info = None
     if path:
         try:

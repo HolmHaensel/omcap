@@ -211,6 +211,7 @@ class UsbCamera:
         self.allow_write = allow_write
         self.stage = 0
         self._new_files = []
+        self.last_jpg = None  # zuletzt von der Kamera gemeldetes JPG
         self._pending = []
         self._files = None
         self._event_log = []
@@ -398,29 +399,6 @@ class UsbCamera:
         """libgphoto2 liest nur ganze Dateien."""
         return self.read_file(path)[:size]
 
-    def newest_jpg(self):
-        """Pfad des neuesten JPG, ohne die ganze Karte zu lesen: nur der letzte DCIM-Ordner.
-
-        Die volle Liste dauert über USB rund 85 s; Ordner- und Dateinamen allein gehen schnell.
-        """
-        self.hold += 1  # Live View pausiert, sonst bricht die Abfrage ab
-        try:
-            folders = []
-            for store in self._list(self._c.folder_list_folders, "/"):
-                base = "/" + store + "/DCIM"
-                try:
-                    folders += [base + "/" + f for f in self._list(self._c.folder_list_folders, base)]
-                except CameraError:
-                    continue
-            for folder in sorted(folders, key=lambda f: f.rsplit("/", 1)[1], reverse=True):
-                jpgs = [n for n in self._list(self._c.folder_list_files, folder)
-                        if n.lower().endswith((".jpg", ".jpeg"))]
-                if jpgs:
-                    return folder + "/" + max(jpgs)
-            return None
-        finally:
-            self.hold -= 1
-
     def lens_focal(self):
         """Brennweitenbereich des Objektivs aus d04a (Bereich = kürzeste/längste, Wert = aktuell)."""
         def read():
@@ -545,6 +523,8 @@ class UsbCamera:
             kind, data = self._call(self._c.wait_for_event, 150)
             if kind == self.gp.GP_EVENT_FILE_ADDED:
                 self._new_files.append("%s/%s" % (data.folder, data.name))
+                if data.name.lower().endswith((".jpg", ".jpeg")):
+                    self.last_jpg = "%s/%s" % (data.folder, data.name)  # für Objektivdaten
                 self._pending.append("%s/%s" % (data.folder, data.name))
             elif kind == self.gp.GP_EVENT_UNKNOWN:
                 self._event_log.append(str(data))

@@ -561,7 +561,7 @@ let lens=null,lensFrom=null;
 async function loadLens(){
   // USB: die Kartenliste kommt nur auf Knopfdruck, der Server holt das neueste JPG selbst
   if(features.has('af_modes')&&!cardShots){
-    try{const l=(await api('/api/lens')).lens; if(l){lens=l;lensFrom='usb';showStatus();renderProps()}}catch{}
+    try{const l=(await api('/api/lens')).lens; if(l&&(l.model||!lens||!lens.model)){lens=l;lensFrom='usb';showStatus();renderProps()}}catch{}
     return;
   }
   const s=cardShots&&cardShots.find(s=>isJpg(s.preview));
@@ -1289,6 +1289,7 @@ $('#shoot').onclick=async()=>{
     await act(tr('msg.taken'),'/api/shutter',{stage:0});
   }else await act(tr('msg.taken'),'/api/shoot',{});
   gallery();local();
+  if(features.has('af_modes')) loadLens(); // USB: Objektiv aus dem neuen JPG
   // Wi-Fi: die Kamera schreibt nach dem Auslösen noch, die erste Liste ist oft ohne das neue Bild
   if(!features.has('af_modes')) setTimeout(()=>gallery(),4000);
 };

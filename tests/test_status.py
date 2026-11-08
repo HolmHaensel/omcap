@@ -95,7 +95,7 @@ class LiveViewSize(unittest.TestCase):
 class UsbLens(unittest.TestCase):
     def test_falls_back_to_focal_range(self):
         class Fake:
-            def newest_jpg(self): return None
+            last_jpg = None
             def lens_focal(self): return 14, 140, 19
         old = (server.cam, server.conn_type)
         server.cam, server.conn_type = Fake(), "usb"
