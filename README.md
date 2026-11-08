@@ -34,45 +34,74 @@ The interface is in English; all texts are in one translation table (`I18N` in
 
 ## Requirements
 
-- Python 3.9 or newer (macOS tested; Wi-Fi uses only the standard library)
-- Olympus OM-D E-M1 Mark I (tested with firmware 4.6)
-- For USB: `pip install gphoto2` (bundles libgphoto2)
+| | Wi-Fi | USB |
+|---|---|---|
+| Camera | OM-D E-M1 Mark I (tested: firmware 4.6) | same |
+| Computer | macOS (tested), Python 3.9 or newer | same |
+| Extra software | none (standard library only) | `gphoto2` Python package (includes libgphoto2) |
+| Cable / network | the camera's own Wi-Fi | USB cable |
 
-## Install and run
+## Installation
 
 ```sh
+git clone https://github.com/HolmHaensel/omcap.git
+cd omcap
 python3 -m venv .venv
-.venv/bin/pip install .          # Wi-Fi only
-.venv/bin/pip install ".[usb]"   # with USB
+.venv/bin/pip install .          # Wi-Fi
+.venv/bin/pip install ".[usb]"   # Wi-Fi and USB
+```
+
+Start (read only without `--allow-write`):
+
+```sh
 .venv/bin/em1-capture --allow-write
 ```
 
-Or straight from the source folder:
+Open <http://127.0.0.1:8765/>; the start screen shows which connection found the camera.
+Pictures saved to the computer go to `captures/` in the current folder (change with `--data-dir`).
 
-```sh
-python3 -m omcap.server --allow-write
-```
+## Using Wi-Fi
 
-Then open <http://127.0.0.1:8765/> and pick the connection on the start screen.
+1. Camera: **Setup Menu → Wi-Fi Settings → Wi-Fi Connect Settings → Private** (once).
+   Remote control only works with Private, not One-Time.
+2. Camera: **Playback Menu → Connection to Smartphone**. The monitor shows SSID and password.
+3. Computer: join that Wi-Fi network (the password is saved; next time it connects by itself).
+4. Start the app and choose **Wi-Fi connection**.
 
-Options: `--host` (camera IP, default `192.168.0.10`), `--port` (default `8765`),
-`--data-dir` (where `captures/` and the preview cache `out/cache/` go; default: current folder).
+### Best Wi-Fi settings
 
-### Wi-Fi
+Measured with the E-M1 Mark I:
 
-1. On the camera, start **Connection to Smartphone** (Playback Menu) with connection type **Private**.
-2. Join the camera's Wi-Fi with your computer.
-3. Start the app and choose **Wi-Fi connection**.
+| Live view size | Frame rate | Use |
+|---|---|---|
+| 640×480 | about 22 fps | smoothest picture |
+| **800×600** (default) | about 18 fps | best balance |
+| 1024×768 | about 9 fps | checking details |
+| 1280×960 | about 7 fps, about 11 % frames dropped | checking focus only |
 
-Opening Playback switches the camera to playback mode for faster medium-size previews; closing it
-returns to shooting mode and restarts live view.
+- Keep the camera within a few metres and do not cover the grip: the Wi-Fi antenna is inside
+  it (manual p. 124). Microwaves and cordless phones nearby slow the connection down.
+- Wi-Fi drains the battery faster; start with a full battery or use the AC adapter.
+- The camera network has no internet. Turn off **Auto-Join** for other known networks
+  (System Settings → Wi-Fi) so the computer does not switch away while you shoot. A cable
+  network can stay connected for internet at the same time.
+- Live view arrives as UDP on port 5555. If the macOS firewall is on, allow incoming
+  connections for Python when asked; otherwise live view shows "no signal".
+- Opening Playback switches the camera to playback mode (live view pauses) for fast
+  medium-size previews; previews are cached, so a second look is instant.
+- Over Wi-Fi the AF Area mode and the movie record mode cannot be changed (no command for it).
 
-### USB (macOS)
+## Using USB (macOS)
 
-1. Quit the Photos app.
-2. Connect the camera; in its USB menu choose the third entry (computer + camera icon).
-3. Start the app and choose **USB connection**. The app stops `ptpcamerad`, which otherwise
-   holds the camera.
+1. Quit the **Photos** app (it grabs the camera).
+2. Camera: **Custom Menu → USB Mode → Auto** (or the computer + camera setting).
+3. Connect the cable; in the camera's USB menu choose the **third entry (computer + camera icon)**.
+4. Start the app and choose **USB connection**. The app stops the macOS service
+   `ptpcamerad`, which would otherwise hold the camera.
+
+Notes: live view runs at about 15 fps with a fixed size. The shooting mode follows the mode
+dial. Settings changed on the camera itself are picked up with **reload** in the LV super
+control panel (rebuilds the USB session, about 9 s).
 
 ## Tests
 
