@@ -81,3 +81,12 @@ class DeviceCache(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class LiveViewSize(unittest.TestCase):
+    def test_d06d_decoding(self):
+        from omcap.usb_camera import lv_size_from_d06d
+        self.assertEqual(lv_size_from_d06d(67109632), (1024, 768))
+        self.assertEqual(lv_size_from_d06d("83887040"), (1280, 960))
+        self.assertEqual(lv_size_from_d06d(0, {"x1": 847, "y1": 636}), (1024, 768))
+        self.assertEqual(lv_size_from_d06d(0, {"x1": 1060, "y1": 796}), (1280, 960))
