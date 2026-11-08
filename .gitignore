@@ -1,0 +1,18 @@
+# Only the app goes into this repository. Everything else in this folder stays local:
+# firmware files, downloads, the camera manual, your pictures (captures/), caches (out/),
+# the Python environment, the firmware research repo and local tool settings.
+/*
+!/.gitignore
+!/omcap/
+!/tests/
+!/README.md
+!/LICENSE
+!/CHANGELOG.md
+!/pyproject.toml
+
+__pycache__/
+*.py[cod]
+.DS_Store
+*.egg-info/
+build/
+dist/

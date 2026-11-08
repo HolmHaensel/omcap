@@ -1,0 +1,1167 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>E-M1 Capture</title>
+<style>
+:root{--bg:#fff;--panel:#f5f5f5;--fg:#1a1a1a;--mut:#666;--line:#ddd;--acc:#0a5cc4;--warn:#b3261e}
+@media(prefers-color-scheme:dark){:root{--bg:#161616;--panel:#212121;--fg:#eee;--mut:#999;--line:#333;--acc:#6aa8ff;--warn:#ff8a80}}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+body{margin:0;background:var(--bg);color:var(--fg);font:14px system-ui,sans-serif}
+header{display:flex;gap:12px;align-items:center;flex-wrap:wrap;padding:10px 16px;border-bottom:1px solid var(--line)}
+h1{font-size:17px;margin:0}
+h2{font-size:13px;margin:0 0 8px;color:var(--mut);font-weight:600}
+main{display:grid;grid-template-columns:minmax(0,1fr) 380px;gap:16px;padding:16px;align-items:start}
+@media(max-width:900px){main{grid-template-columns:minmax(0,1fr)}}
+section{background:var(--panel);border-radius:8px;padding:12px}
+#panels{display:flex;flex-direction:column;gap:12px}
+.mut{color:var(--mut)} .warn{color:var(--warn)} .sp{margin-left:auto}
+button,select,input[type=number]{font:inherit;padding:5px 9px;border:1px solid var(--line);background:var(--bg);color:var(--fg);border-radius:6px}
+input[type=number]{width:76px}
+button{cursor:pointer} button.w{border-color:var(--warn)} button.on{background:var(--acc);border-color:var(--acc);color:var(--bg)}
+button:disabled{opacity:.4;cursor:not-allowed}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:8px}
+.row:last-child{margin-bottom:0}
+.row label{display:flex;gap:4px;align-items:center}
+#viewport{position:relative;overflow:hidden;background:#000;aspect-ratio:4/3;max-height:74vh;margin:0 auto;touch-action:none}
+#zoomLayer{position:absolute;inset:0;transform-origin:0 0}
+#levelGauge{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
+#live,#ovl,#grid,#afGrid{position:absolute;inset:0;width:100%;height:100%;object-fit:contain}
+#ovl,#grid,#afGrid{pointer-events:none}
+#start{min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:28px;padding:24px 16px}
+#start h1{font-size:30px;font-weight:300;letter-spacing:.02em}
+#tiles{display:grid;grid-template-columns:repeat(2,minmax(0,300px));gap:16px;width:100%;justify-content:center}
+@media(max-width:560px){#tiles{grid-template-columns:minmax(0,1fr)}}
+.ctile{display:flex;flex-direction:column;align-items:center;gap:12px;padding:32px 16px 22px;background:var(--panel);border:2px solid var(--line);border-radius:10px;font-size:16px;color:var(--fg)}
+.ctile svg{width:128px;height:72px;color:var(--mut)}
+.ctile.sel{border-color:var(--acc)}
+.ctile.sel svg{color:var(--acc)}
+.ctile small{color:var(--mut);font-size:12px}
+.ctile.found small{color:var(--acc)}
+#startMsg{min-height:1.3em}
+#afMark{display:none;position:absolute;width:48px;height:48px;margin:-24px 0 0 -24px;border:2px solid #fc3;border-radius:4px;pointer-events:none}
+#empty{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#aaa;pointer-events:none}
+#msg{margin:8px 0 0;min-height:1.3em}
+#props{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}
+#props label{display:flex;flex-direction:column;gap:2px;font-size:12px;color:var(--mut);min-width:0}
+#props select{width:100%;padding:4px;color:var(--fg)}
+#gal{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}
+#gal figure{margin:0;font-size:11px;color:var(--mut);min-width:0;overflow-wrap:anywhere}
+#gal img{width:100%;aspect-ratio:4/3;object-fit:cover;background:var(--line)}
+#gal button,#local button{font-size:11px;padding:2px 5px}
+#local div{display:flex;gap:4px;align-items:center;padding:3px 0;font-size:12px}
+#local span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis}
+dialog{background:var(--bg);color:var(--fg);border:1px solid var(--line);border-radius:8px;width:min(420px,calc(100vw - 32px))}
+dialog h2{margin-top:12px}
+.lr{display:flex;gap:6px;align-items:center;padding:2px 0}
+.lr span{flex:1}
+#galOv,#viewer{position:fixed;inset:0;background:var(--bg);display:flex;flex-direction:column;z-index:10}
+#viewer{z-index:11;background:#000;color:#eee}
+.galbar{display:flex;gap:6px;flex-wrap:wrap;align-items:center;padding:8px 12px;border-bottom:1px solid var(--line)}
+#viewer .galbar{border-color:#333}
+#galBody{flex:1;overflow:auto;padding:8px;min-height:0}
+.gidx{display:grid;grid-template-columns:repeat(var(--cols),minmax(0,1fr));gap:4px}
+.tile{position:relative;aspect-ratio:4/3;background:var(--panel);cursor:pointer;overflow:hidden;border-radius:3px}
+.tile img{position:absolute;inset:0;width:100%;height:100%;object-fit:contain}
+.tile .cap{position:absolute;left:0;right:0;bottom:0;padding:2px 5px;font-size:11px;color:#fff;background:#0009;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.calhead,.calgrid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:4px}
+.calhead{color:var(--mut);font-size:12px;text-align:center;padding-bottom:4px}
+.calgrid{max-width:1100px;margin:0 auto}
+.calhead{max-width:1100px;margin:0 auto}
+.cal0{aspect-ratio:4/3;background:var(--panel);opacity:.45;border-radius:3px;padding:3px 6px;font-size:12px;color:var(--mut)}
+.tile .dn{position:absolute;left:0;top:0;padding:1px 6px;font-size:12px;font-weight:600;color:#fff;background:#0009;border-bottom-right-radius:3px}
+.tile .ct{position:absolute;right:0;bottom:0;padding:1px 6px;font-size:11px;color:#fff;background:#0009;border-top-left-radius:3px}
+#vImgBox{flex:1;min-height:0;position:relative}
+#vImg{position:absolute;inset:0;width:100%;height:100%;object-fit:contain}
+#viewer button{background:#222;color:#eee;border-color:#444}
+.chip{display:inline-flex;gap:4px;align-items:center;background:var(--panel);border-radius:12px;padding:3px 10px;font-size:12px}
+body.single{background:#000;height:100vh;overflow:hidden}
+#single{width:100vw;height:100vh;object-fit:contain;display:block}
+</style>
+</head>
+<body>
+<img id="single" alt="" hidden>
+<div id="start" hidden>
+  <h1>E-M1 Capture</h1>
+  <div id="tiles">
+    <button class="ctile" data-conn="usb">
+      <svg viewBox="0 0 128 72" fill="none" stroke="currentColor" stroke-width="3" aria-hidden="true"><rect x="4" y="26" width="38" height="28" rx="3"/><circle cx="23" cy="40" r="7"/><path d="M42 44h30"/><rect x="72" y="14" width="44" height="32" rx="2"/><path d="M64 58h60"/></svg>
+      <span data-i18n="start.usb">USB connection</span>
+      <small data-note="usb" data-i18n="start.searching">searching …</small>
+    </button>
+    <button class="ctile" data-conn="wifi">
+      <svg viewBox="0 0 128 72" fill="none" stroke="currentColor" stroke-width="3" aria-hidden="true"><rect x="4" y="26" width="38" height="28" rx="3"/><circle cx="23" cy="40" r="7"/><path d="M48 22a12 12 0 0 1 12 12M48 10a24 24 0 0 1 24 24"/><rect x="72" y="14" width="44" height="32" rx="2"/><path d="M64 58h60"/></svg>
+      <span data-i18n="start.wifi">Wi-Fi connection</span>
+      <small data-note="wifi" data-i18n="start.searching">searching …</small>
+    </button>
+  </div>
+  <button id="startGo" disabled data-i18n="start.connect">Connect</button>
+  <p id="startMsg" class="mut"></p>
+</div>
+<div id="app" hidden>
+<header>
+  <h1>E-M1 Capture</h1>
+  <span id="status" class="mut" data-i18n="app.connecting">connecting …</span>
+  <button id="discon" class="sp" data-i18n="app.disconnect">Disconnect</button>
+  <button id="layoutBtn" data-i18n="app.layout">Customize layout</button>
+  <button id="reset" class="w" data-i18n="app.reset" data-i18n-title="app.resetTitle">Reset camera</button>
+</header>
+<main>
+<div>
+  <div class="row">
+    <button class="w" id="lvStart" data-i18n="lv.start">Start live view</button>
+    <button id="lvStop" data-i18n="lv.stop">Stop</button>
+    <label data-feat="lvsize"><span data-i18n="lv.size">Size</span> <select id="lvqty">
+      <option>0320x0240</option><option>0640x0480</option><option selected>0800x0600</option><option>1024x0768</option><option>1280x0960</option>
+    </select></label>
+    <span id="lvSize" class="mut"></span>
+    <span class="sp"></span>
+    <button data-z="1">1×</button><button data-z="2">2×</button><button data-z="4">4×</button>
+    <button id="popLive" data-i18n="lv.second">Second monitor</button>
+  </div>
+  <div id="viewport">
+    <div id="zoomLayer">
+      <img id="live" alt="">
+      <img id="ovl" alt="" hidden>
+      <canvas id="grid"></canvas>
+      <canvas id="afGrid"></canvas>
+      <div id="afMark"></div>
+    </div>
+    <canvas id="levelGauge"></canvas>
+    <div id="empty" data-i18n="lv.off">Live view off</div>
+  </div>
+  <p id="msg" class="mut" data-i18n="msg.ready">Ready.</p>
+  <section id="lvTools" style="margin-top:8px" hidden>
+    <div class="row">
+      <label data-feat="level"><input type="checkbox" id="lvlOn" checked> <span data-i18n="lv.level">Level gauge</span></label>
+      <span id="lvlInfo" class="mut" data-feat="level"></span>
+      <label><span data-i18n="lv.grid">Displayed Grid</span> <select id="gridType"><option value="" data-i18n="lv.gridOff">Off</option><option value="thirds" data-i18n="lv.gridThirds">Rule of thirds</option><option value="cross" data-i18n="lv.gridCross">Crosshair</option><option value="mesh" data-i18n="lv.gridMesh">Grid</option></select></label>
+      <label class="gridAdj" hidden>X <input type="range" id="gridX" min="-50" max="50" value="0"></label>
+      <label class="gridAdj" hidden>Y <input type="range" id="gridY" min="-50" max="50" value="0"></label>
+    </div>
+    <div class="row" id="ovlRow" hidden>
+      <label><span data-i18n="lv.overlay">Overlay</span> <input type="range" id="ovlOp" min="0" max="100" value="50"></label>
+      <button id="ovlOff" data-i18n="lv.overlayRemove">Remove</button>
+    </div>
+  </section>
+</div>
+<div id="panels">
+  <section data-id="shutter" data-label="Shutter button" data-i18n-label="panel.shutter">
+    <h2 data-i18n="panel.shutter">Shutter button</h2>
+    <div class="row">
+      <button class="w" id="shoot" data-i18n="shutter.take">Take picture</button>
+      <button class="w" id="half" data-feat="stages" data-i18n="shutter.half">Press halfway</button>
+    </div>
+  </section>
+  <section data-id="movie" data-label="Movie" data-i18n-label="panel.movie" data-feat="movie">
+    <h2 data-i18n="panel.movie">Movie</h2>
+    <div class="row">
+      <button class="w" id="movStart" data-i18n="movie.start">Start recording</button>
+      <button class="w" id="movStop" data-i18n="movie.stop" hidden>Stop recording</button>
+      <span id="movTime" class="warn"></span>
+    </div>
+    <div class="row"><span id="movQuality" class="mut"></span></div>
+  </section>
+  <section data-id="af" data-label="AF Area" data-i18n-label="panel.af" data-feat="af_area">
+    <h2 data-i18n="panel.af">AF Area</h2>
+    <div class="row" id="afModes" data-feat="af_modes">
+      <button class="w" data-af="33024" data-i18n="af.33024">All Targets</button>
+      <button class="w" data-af="33025" data-i18n="af.33025">Single Target</button>
+      <button class="w" data-af="33027" data-i18n="af.33027">Small Target</button>
+      <button class="w" data-af="33026" data-i18n="af.33026">Group Target</button>
+    </div>
+    <div class="row">
+      <label><input type="checkbox" id="afShow" checked> <span data-i18n="af.show">Show AF targets</span></label>
+      <span id="afInfo" class="mut"></span>
+    </div>
+  </section>
+  <section data-id="scp" data-label="LV super control panel" data-i18n-label="panel.scp">
+    <h2><span data-i18n="panel.scp">LV super control panel</span> <button id="propsReload" style="font-size:11px;padding:1px 6px" data-i18n="scp.reload">reload</button></h2>
+    <div id="props"></div>
+  </section>
+  <section data-id="prog" data-label="Shooting options" data-i18n-label="panel.prog">
+    <h2 data-i18n="panel.prog">Shooting options</h2>
+    <div class="row" id="rowIv" hidden>
+      <span data-i18n="prog.timelapse">Time lapse shooting</span>
+      <label><span data-i18n="prog.frame">Frame</span> <input type="number" id="ivCount" min="1" max="999" value="10"></label>
+      <label><span data-i18n="prog.interval">Interval Time</span> <input type="number" id="ivSec" min="5" value="10"> s</label>
+      <button class="w" id="ivStart" data-i18n="prog.start">Start</button>
+    </div>
+    <div class="row" id="rowBr" hidden>
+      <span>AE BKT</span>
+      <select id="brFrames" aria-label="Frames" data-i18n-aria="prog.frames"><option value="3">3f</option><option value="5">5f</option><option value="7">7f</option></select>
+      <select id="brStep" aria-label="Step" data-i18n-aria="prog.step"><option value="1">0.3EV</option><option value="2">0.7EV</option><option value="3" selected>1.0EV</option></select>
+      <button class="w" id="brStart" data-i18n="prog.start">Start</button>
+    </div>
+    <div class="row" id="jobRow" hidden>
+      <button id="jobStop" data-i18n="prog.stop">Stop</button>
+      <span id="jobInfo" class="mut"></span>
+    </div>
+    <div class="row" id="rowLong" hidden>
+      <span id="longName"></span>
+      <button class="w" id="takePrep" hidden data-i18n="prog.prepare">Prepare</button>
+      <button class="w" id="takeStart" data-i18n="prog.start">Start</button><button class="w" id="takeStop" data-i18n="prog.stop">Stop</button>
+      <span id="takeInfo" class="mut"></span>
+    </div>
+  </section>
+  <section data-id="transfer" data-label="Save to" data-i18n-label="panel.transfer">
+    <h2 data-i18n="panel.transfer">Save to</h2>
+    <div class="row">
+      <label><input type="radio" name="tr" value="sd" checked> <span data-i18n="transfer.sd">Card only</span></label>
+      <label><input type="radio" name="tr" value="both"> <span data-i18n="transfer.both">Card and computer</span></label>
+      <button id="popPhoto" data-i18n="transfer.popPhoto">Picture on second monitor</button>
+    </div>
+    <div id="trErr" class="warn"></div>
+  </section>
+  <section data-id="card" data-label="Playback" data-i18n-label="panel.card" data-feat="playback">
+    <h2 data-i18n="panel.card">Playback</h2>
+    <div class="row"><button id="galOpen" data-i18n="card.index">Index display</button><button id="reload" data-i18n="card.reload">Reload</button><span id="count" class="mut"></span></div>
+    <div id="gal"></div>
+  </section>
+  <section data-id="local" data-label="Pictures on the computer" data-i18n-label="panel.local">
+    <h2 data-i18n="local.title">On the computer</h2>
+    <div id="local"></div>
+  </section>
+</div>
+</main>
+</div>
+<div id="galOv" hidden>
+  <div class="galbar">
+    <strong data-i18n="panel.card">Playback</strong>
+    <span id="galCount" class="mut"></span>
+    <span id="galChip" class="chip" hidden></span>
+    <span class="sp"></span>
+    <button data-v="4">4</button><button data-v="9">9</button><button data-v="25">25</button><button data-v="100">100</button>
+    <button data-v="cal" data-i18n="card.calendar">Calendar display</button>
+    <button id="galReload" data-i18n="card.reload">Reload</button>
+    <button id="galClose" data-i18n="card.close">Close</button>
+  </div>
+  <div id="galBody"></div>
+</div>
+<div id="viewer" hidden>
+  <div class="galbar">
+    <button id="vPrev" aria-label="Previous picture" data-i18n-aria="card.prev">‹</button><button id="vNext" aria-label="Next picture" data-i18n-aria="card.next">›</button>
+    <span id="vInfo"></span>
+    <span class="sp"></span>
+    <button id="vGet" data-i18n="card.saveToMac">Save to computer</button><button id="vOvl" data-i18n="card.overlay">Overlay</button><button id="vClose" data-i18n="card.close">Close</button>
+  </div>
+  <div id="vImgBox"><img id="vImg" alt=""></div>
+</div>
+<dialog id="layoutDlg"><form method="dialog">
+  <div id="layoutBody"></div>
+  <div class="row" style="margin-top:12px"><button data-i18n="layout.close">Close</button><button type="button" id="layoutReset" data-i18n="layout.reset">Reset</button></div>
+</form></dialog>
+<script>
+const $=s=>document.querySelector(s);
+/* Übersetzungen: alle Texte der Oberfläche. Weitere Sprache = weiterer Block wie en (fehlende
+   Schlüssel fallen auf en zurück). Begriffe wie im Handbuch EM1_VER4_Eng.pdf.
+   Server-Meldungen kommen englisch; mit einem Schlüssel 'srv.<Meldung>' lassen sie sich übersetzen.
+   Sprache: localStorage 'omcap.lang', sonst Browsersprache, sonst en. */
+const I18N={en:{
+  "start.usb": "USB connection",
+  "start.wifi": "Wi-Fi connection",
+  "start.searching": "searching …",
+  "start.connect": "Connect",
+  "start.found": "Found: {name}",
+  "start.foundCamera": "Camera found",
+  "start.notFound": "not found",
+  "start.connecting": "Connecting …",
+  "app.connecting": "connecting …",
+  "app.disconnect": "Disconnect",
+  "app.layout": "Customize layout",
+  "app.reset": "Reset camera",
+  "app.resetTitle": "If the camera is stuck in shutter mode",
+  "app.write": "write enabled",
+  "app.readOnly": "read only",
+  "lv.start": "Start live view",
+  "lv.stop": "Stop",
+  "lv.size": "Size",
+  "lv.second": "Second monitor",
+  "lv.off": "Live view off",
+  "lv.level": "Level gauge",
+  "lv.grid": "Displayed Grid",
+  "lv.gridOff": "Off",
+  "lv.gridThirds": "Rule of thirds",
+  "lv.gridCross": "Crosshair",
+  "lv.gridMesh": "Grid",
+  "lv.overlay": "Overlay",
+  "lv.overlayRemove": "Remove",
+  "lv.noSignal": "no signal for {s} s",
+  "lv.receiving": "receiving {w}×{h}",
+  "lv.roll": "Roll {a}° · Pitch {b}°",
+  "msg.ready": "Ready.",
+  "msg.lvRunning": "Live view running",
+  "msg.lvStopped": "Live view stopped",
+  "msg.settingsNeedRec": "Settings can only be read in shooting mode: start live view",
+  "msg.focusing": "Focusing …",
+  "msg.inFocus": "In focus",
+  "msg.noFocus": "No AF target reported",
+  "msg.outsideAf": "Outside the AF Area",
+  "msg.overlaySet": "Overlay set",
+  "msg.shooting": "Taking picture …",
+  "msg.taken": "Picture taken",
+  "msg.shutter": "Shutter button",
+  "msg.reset": "Reset done",
+  "msg.rereading": "Re-reading the camera …",
+  "msg.updated": "Camera state updated",
+  "msg.stopping": "Stopping",
+  "msg.saveTo": "Save to",
+  "msg.openedWs": "Opened in OM Workspace",
+  "msg.started": "{name} started",
+  "msg.stopped": "{name} stopped",
+  "msg.lcPrepared": "LIVECOMP prepared",
+  "msg.tlStarted": "Time lapse shooting started",
+  "msg.bktStarted": "AE BKT started",
+  "msg.afArea": "AF Area: {e}",
+  "panel.shutter": "Shutter button",
+  "shutter.take": "Take picture",
+  "shutter.half": "Press halfway",
+  "panel.af": "AF Area",
+  "af.33024": "All Targets",
+  "af.33025": "Single Target",
+  "af.33026": "Group Target",
+  "af.33027": "Small Target",
+  "af.show": "Show AF targets",
+  "af.pos": "Row {r}, column {c}",
+  "panel.scp": "LV super control panel",
+  "scp.reload": "reload",
+  "scp.modeDial": "{label} (Mode dial)",
+  "prop.takemode": "Shooting mode",
+  "prop.shutspeedvalue": "Shutter speed",
+  "prop.focalvalue": "Aperture",
+  "prop.expcomp": "Exposure compensation",
+  "prop.isospeedvalue": "ISO sensitivity",
+  "prop.wbvalue": "White balance",
+  "prop.drivemode": "Sequential shooting/self-timer",
+  "prop.colortone": "Picture Mode",
+  "prop.artfilter": "Art filter",
+  "prop.colorphase": "Partial Color",
+  "panel.prog": "Shooting options",
+  "panel.movie": "Movie",
+  "movie.start": "Start recording",
+  "movie.stop": "Stop recording",
+  "movie.time": "● Recording time {t}",
+  "movie.quality": "Record mode (movie): {q}",
+  "msg.movieStarted": "Recording started",
+  "msg.movieStopped": "Recording stopped",
+  "prop.exposemovie": "Shooting mode (Movie)",
+  "prog.timelapse": "Time lapse shooting",
+  "prog.frame": "Frame",
+  "prog.interval": "Interval Time",
+  "prog.start": "Start",
+  "prog.stop": "Stop",
+  "prog.prepare": "Prepare",
+  "prog.frames": "Frames",
+  "prog.step": "Step",
+  "prog.job": "{name}: {done}/{total}",
+  "prog.running": " running",
+  "prog.error": " Error: {e}",
+  "panel.transfer": "Save to",
+  "transfer.sd": "Card only",
+  "transfer.both": "Card and computer",
+  "transfer.popPhoto": "Picture on second monitor",
+  "panel.card": "Playback",
+  "card.index": "Index display",
+  "card.reload": "Reload",
+  "card.calendar": "Calendar display",
+  "card.close": "Close",
+  "card.shots": "{n} shots",
+  "card.reading": "Reading the card …",
+  "card.paused": " Live view paused",
+  "card.pressReload": "Press Reload to read",
+  "card.save": "Save",
+  "card.overlay": "Overlay",
+  "card.all": "All",
+  "card.none": "No shots.",
+  "card.prevMonth": "Previous month",
+  "card.nextMonth": "Next month",
+  "card.loading": "Loading {name} …",
+  "card.onMac": "On the computer: {name} ({types})",
+  "card.notLoadable": "could not be loaded",
+  "card.prev": "Previous picture",
+  "card.next": "Next picture",
+  "card.saveToMac": "Save to computer",
+  "card.loadingOriginal": " · loading original …",
+  "card.smallOnly": " · only a small preview available",
+  "card.loadFailed": " · loading failed",
+  "months": "January,February,March,April,May,June,July,August,September,October,November,December",
+  "weekdays": "Mon,Tue,Wed,Thu,Fri,Sat,Sun",
+  "date.day": "{month} {d}, {y}",
+  "date.month": "{month} {y}",
+  "date.short": "{mon} {d}, {time}",
+  "panel.local": "Pictures on the computer",
+  "local.title": "On the computer",
+  "local.none": "No files yet.",
+  "local.view": "View",
+  "local.ws": "OM Workspace",
+  "layout.panels": "Panels",
+  "layout.settings": "Settings",
+  "layout.close": "Close",
+  "layout.reset": "Reset"
+}};
+const LANG=(()=>{try{const l=localStorage.getItem('omcap.lang');if(l&&I18N[l])return l}catch{}
+  const n=(navigator.language||'en').slice(0,2);return I18N[n]?n:'en'})();
+function tr(key,vars,fallback){
+  let s=(I18N[LANG]||{})[key]; if(s==null) s=I18N.en[key];
+  if(s==null) return fallback!==undefined?fallback:key;
+  return vars?s.replace(/\{(\w+)\}/g,(m,k)=>vars[k]!=null?vars[k]:m):s;
+}
+function applyI18n(root=document){
+  document.documentElement.lang=LANG;
+  root.querySelectorAll('[data-i18n]').forEach(e=>e.textContent=tr(e.dataset.i18n));
+  root.querySelectorAll('[data-i18n-title]').forEach(e=>e.title=tr(e.dataset.i18nTitle));
+  root.querySelectorAll('[data-i18n-aria]').forEach(e=>e.setAttribute('aria-label',tr(e.dataset.i18nAria)));
+  root.querySelectorAll('[data-i18n-label]').forEach(e=>e.dataset.label=tr(e.dataset.i18nLabel));
+}
+applyI18n();
+const params=new URLSearchParams(location.search);
+async function api(path,body){
+  const r=await fetch(path,body?{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}:{});
+  const txt=await r.text(); let j; try{j=JSON.parse(txt)}catch{j=txt}
+  if(!r.ok){const e=j.error||txt; throw new Error(tr('srv.'+e,null,e))} return j;
+}
+function msg(t,err){const m=$('#msg');m.textContent=t;m.className=err?'warn':'mut'}
+async function act(label,path,body){
+  try{const j=await api(path,body);msg(label+' ✓');await tick();return j}catch(e){msg(label+': '+e.message,true)}
+}
+const clock=s=>Math.floor(s/60)+':'+String(Math.floor(s%60)).padStart(2,'0');
+
+/* Weitere Monitore: eigene Fenster nur mit dem Bild */
+const view=params.get('view');
+if(view){
+  document.body.className='single'; $('#app').hidden=true;
+  const im=$('#single'); im.hidden=false;
+  if(view==='live') im.src='/live.mjpg';
+  else{
+    let last=null;
+    setInterval(async()=>{try{
+      const s=await api('/api/state');
+      if(s.latest&&s.latest!==last){last=s.latest;im.src='/captures/'+encodeURIComponent(last)}
+    }catch{}},1500);
+  }
+}
+const popup=v=>window.open('/?view='+v,'_blank','popup,width=1000,height=760');
+$('#popLive').onclick=()=>popup('live');
+$('#popPhoto').onclick=()=>popup('photo');
+
+/* Zustand */
+let leavingPlay=false;
+let st={stage:0,job:{}},canWrite=false,wasBusy=false,blank=0,connected=false,features=new Set(),af=null;
+async function tick(){
+  if(view||!connected) return;
+  try{st=await api('/api/state')}catch{return}
+  $('#half').classList.toggle('on',st.stage>=1);
+  $('#empty').hidden=st.live;
+  const w=$('#live').naturalWidth, stale=st.live&&st.lv_age>3;
+  // Bild im Fehlerzustand, obwohl Daten kommen: neu verbinden
+  blank=st.live&&!stale&&$('#live').complete&&!w?blank+1:0;
+  if(blank>=2){blank=0;$('#live').src='/live.mjpg?'+Date.now()}
+  const off=st.live&&w&&st.lvqty&&w!==parseInt(st.lvqty,10);
+  $('#lvSize').textContent=stale?tr('lv.noSignal',{s:Math.round(st.lv_age)}):st.live&&w?tr('lv.receiving',{w,h:$('#live').naturalHeight}):'';
+  $('#lvSize').className=off||stale?'warn':'mut';
+  const j=st.job;
+  $('#jobInfo').textContent=j.name?tr('prog.job',{name:j.name,done:j.done,total:j.total})+(j.running?tr('prog.running'):'')+(j.error?tr('prog.error',{e:j.error}):''):'';
+  $('#jobRow').hidden=!j.name; $('#jobStop').hidden=!j.running;
+  $('#takeInfo').textContent=st.take!=null?clock(st.take):'';
+  const rec=st.movie!=null;
+  $('#movStart').hidden=rec; $('#movStop').hidden=!rec;
+  $('#movTime').textContent=rec?tr('movie.time',{t:clock(st.movie)}):'';
+  $('#trErr').textContent=st.transfer_error||'';
+  $('#lvTools').hidden=!st.live;
+  $('#reset').hidden=!(features.has('stages')&&(st.stage>0||propsFailed));
+  applyContext();
+  if(st.stage===0&&focusHit&&focusHit.held) focusHit=null;
+  // Kamera noch im Modus "play", aber Playback zu (z. B. nach Neuladen der Seite): zurück zur Aufnahme
+  if(st.play&&$('#galOv').hidden&&!leavingPlay){leavingPlay=true;api('/api/playback',{action:'leave'}).catch(()=>{}).finally(()=>{leavingPlay=false;props()})}
+  drawAf();
+  // busy: eine Aufnahme-Abfolge läuft noch (Wi-Fi: Moduswechsel, Übertragung auf den Mac)
+  const b=st.stage>0||j.running||st.busy||st.movie!=null;
+  if(wasBusy&&!b){props();gallery();local()}
+  wasBusy=b;
+  pump();
+}
+
+/* Funktionen: nur was die Kamera über WLAN anbietet, Namen wie im Handbuch.
+   show = in welchem Aufnahmemodus sichtbar (Handbuch S. 41, 44, 51, 70). */
+const inMode=(...m)=>p=>m.includes(p.takemode.value);
+const ART_NAMES={popart:'Pop Art',fantasic_focus:'Soft Focus',daydream:'Pale&Light Color',light_tone:'Light Tone',rough_monochrome:'Grainy Film',toy_photo:'Pin Hole',miniature:'Diorama',cross_process:'Cross Process',gentle_sepia:'Gentle Sepia',dramatic_tone:'Dramatic Tone',ligne_clair:'Key Line',pastel:'Watercolor',vintage:'Vintage',partcolor:'Partial Color'};
+const FEATURES={
+  takemode:{names:{movie:'Movie',B:'B',iAuto:'iAUTO',P:'P Program',A:'A Aperture priority',S:'S Shutter priority',M:'M Manual',ART:'ART Art filter'}},
+  shutspeedvalue:{show:inMode('S','M'),skip:(o,p)=>/^live/.test(o)&&p.takemode.value!=='M',names:{livebulb:'BULB',livetime:'LIVE TIME',livecomp:'LIVECOMP'}},
+  // Die Kamera listet immer f/1.0–f/91: auf die Blenden des Objektivs (aus EXIF) begrenzen
+  focalvalue:{show:inMode('A','M'),skip:o=>lens&&lens.aperture_wide&&(parseFloat(o)<lens.aperture_wide-.05||parseFloat(o)>APERTURE_MIN)},
+  expcomp:{show:inMode('P','A','S','ART')},
+  isospeedvalue:{show:inMode('P','A','S','M','ART'),names:{Auto:'AUTO',Low:'LOW'}},
+  wbvalue:{show:inMode('P','A','S','M','ART'),names:{0:'AUTO',18:'5300K',16:'7500K',17:'6000K',20:'3000K',35:'4000K',64:'Underwater',23:'5500K Flash',256:'One-touch 1',257:'One-touch 2',258:'One-touch 3',259:'One-touch 4',512:'CWB'}},
+  drivemode:{names:{normal:'Single','lowvib-normal':'Anti-Shock Single','silent-normal':'Silent Single','continuous-H':'Sequential H','silent-continuous-H':'Silent Sequential H','continuous-L':'Sequential L','lowvib-continuous-L':'Anti-Shock Sequential L','silent-continuous-L':'Silent Sequential L',selftimer:'Self-timer','lowvib-selftimer':'Anti-Shock Self-timer','silent-selftimer':'Silent Self-timer',customselftimer:'Custom Self-timer','lowvib-customselftimer':'Anti-Shock Custom Self-timer','silent-customselftimer':'Silent Custom Self-timer'}},
+  colortone:{show:inMode('P','A','S','M'),names:{ifinish:'i-Enhance',vivid:'Vivid',natural:'Natural',flat:'Muted',portrait:'Portrait',monotone:'Monotone',custom:'Custom',eportrait:'e-Portrait',underwater:'Underwater',colorcreator:'Color Creator',...ART_NAMES}},
+  artfilter:{show:inMode('ART'),names:{...ART_NAMES,program:'ART BKT'}},
+  // Movie-Modus (n): Belichtung für Filme (Handbuch S. 71)
+  exposemovie:{show:inMode('movie'),names:{P:'P Program Auto',A:'A Aperture priority',S:'S Shutter priority',M:'M Manual'}},
+  colorphase:{show:p=>p.takemode.value==='ART'?p.artfilter.value==='partcolor':['P','A','S','M'].includes(p.takemode.value)&&p.colortone.value==='partcolor'},
+};
+let lastProps=null,propsFailed=false;
+/* Objektiv: aus dem EXIF der neuesten Aufnahme, ein Objektivwechsel fällt erst mit dem nächsten Foto auf */
+const APERTURE_MIN=22; // kleinste Blende steht nicht im EXIF, f/22 passt für fast alle mFT-Objektive
+let lens=null,lensFrom=null;
+async function loadLens(){
+  const s=cardShots&&cardShots.find(s=>isJpg(s.preview));
+  if(!s||s.preview.path===lensFrom) return;
+  try{lens=(await api('/api/lens?path='+encodeURIComponent(s.preview.path))).lens;lensFrom=s.preview.path;showStatus();renderProps()}catch{}
+}
+/* Kopfzeile: Kamera · Objektiv · Verbindung · Rechte */
+let statusBase=null;
+function showStatus(){
+  if(!statusBase) return;
+  $('#status').textContent=[statusBase.model,lens&&lens.model,statusBase.conn,statusBase.rights].filter(Boolean).join(' · ');
+}
+async function props(){
+  if(st.stage>0||st.busy||st.play) return; // währenddessen ist die Kamera nicht im Aufnahmemodus
+  try{lastProps=await api('/api/props');propsFailed=false}
+  catch(e){propsFailed=true;msg(tr('msg.settingsNeedRec'),true);applyContext();return}
+  renderProps();
+}
+/* Record mode (movie): QualityMovie2 zeigt auf einen der Sätze PixelSetN/CompSetN/FrameRateSetN */
+function showMovieQuality(p){
+  const n=((p.QualityMovie2||{}).value||'').replace('set',''), v=k=>(p[k+n]||{}).value;
+  const q=[v('PixelSet'),v('CompSet'),v('FrameRateSet')].filter(Boolean).join(' · ');
+  $('#movQuality').textContent=q?tr('movie.quality',{q}):'';
+}
+function renderProps(){
+  const p=lastProps,box=$('#props');
+  if(!p) return;
+  showMovieQuality(p);
+  box.innerHTML='';
+  for(const [k,f] of Object.entries(FEATURES)){
+    const v=p[k];
+    if(k==='takemode'&&v&&!v.writable){ // über USB bestimmt das Modusrad den Modus
+      const l=document.createElement('label'); l.textContent=tr('scp.modeDial',{label:tr('prop.'+k)}); l.dataset.id=k; l.dataset.label=tr('prop.'+k);
+      const s=document.createElement('strong'); s.textContent=(f.names&&f.names[v.value])||v.value; s.style.color='var(--fg)';
+      l.append(s); box.append(l); continue;
+    }
+    if(!v||!v.writable||!v.enum.length||(f.show&&!f.show(p))) continue;
+    // Wertnamen: Tabelle (val.<Einstellung>.<Wert>) vor den Namen der Kamera und aus FEATURES
+    const name=o=>tr('val.'+k+'.'+o,null,'')||(v.names&&v.names[o])||(f.names&&f.names[o])||o;
+    const l=document.createElement('label'); l.textContent=tr('prop.'+k); l.dataset.id=k; l.dataset.label=tr('prop.'+k);
+    const sel=document.createElement('select'); sel.disabled=!canWrite;
+    const opts=v.enum.filter(o=>!(f.skip&&f.skip(o,p)));
+    if(!opts.includes(v.value)) opts.unshift(v.value);
+    for(const o of opts) sel.add(new Option(name(o),o));
+    sel.value=v.value;
+    sel.onchange=()=>api('/api/set',{prop:k,value:sel.value}).then(()=>{
+      v.value=sel.value; msg(tr('prop.'+k)+': '+name(sel.value)); renderProps();
+      if(k==='takemode') setTimeout(props,800);
+    }).catch(e=>{msg(tr('prop.'+k)+': '+e.message,true);sel.value=v.value});
+    l.append(sel); box.append(l);
+  }
+  applyLayout();
+  applyContext();
+}
+/* Aufnahmeoptionen je nach Modus ein- und ausblenden (Handbuch S. 41, 85) */
+function applyContext(){
+  const m=lastProps&&lastProps.takemode.value, sp=lastProps&&lastProps.shutspeedvalue.value;
+  $('#rowIv').hidden=!['P','A','S','M'].includes(m);
+  $('#rowBr').hidden=!['P','A','S'].includes(m);
+  const longExp=features.has('long')&&m==='M'&&/^live/.test(sp||'');
+  $('#rowLong').hidden=!longExp&&st.take==null;
+  if(longExp) $('#longName').textContent=FEATURES.shutspeedvalue.names[sp];
+  $('#takePrep').hidden=!(longExp&&sp==='livecomp'&&features.has('af_modes'));
+  const sec=$('[data-id=prog]');
+  sec.style.display=[...sec.querySelectorAll('.row')].some(r=>!r.hidden)?'':'none';
+}
+
+/* Bilder */
+/* Bild-URLs mit Dateigröße: Server und Browser dürfen sie zwischenspeichern */
+const fileQ=f=>'path='+encodeURIComponent(f.path)+(f.size?'&size='+f.size:'');
+const thumbUrl=f=>'/api/thumb?'+fileQ(f);
+const screenUrl=f=>'/api/screen?'+fileQ(f);
+const fullUrl=f=>'/api/full?'+fileQ(f);
+/* Mittlere Vorschau (1024–2048 px), über Wi-Fi nur im Modus "play" während Playback */
+const resizeUrl=(f,px)=>'/api/resize?'+fileQ(f)+'&px='+px;
+const RESIZE=[1024,1600,1920,2048];
+const fitSize=w=>RESIZE.find(r=>r>=w)||RESIZE[RESIZE.length-1];
+const isJpg=f=>/\.jpe?g$/i.test(f.name);
+/* Größtes Bild, das die Kamera im Aufnahmemodus liefert */
+const bigUrl=s=>isJpg(s.preview)?fullUrl(s.preview):thumbUrl(s.preview);
+/* Datum und Zeit stehen im FAT-Format in get_imglist */
+function parseStamp(e){const d=e.date,t=e.time;return{y:(d>>9)+1980,m:(d>>5)&15,d:d&31,h:t>>11,mi:(t>>5)&63}}
+const pad=n=>String(n).padStart(2,'0');
+/* RAW und JPG einer Aufnahme zu einem Eintrag zusammenfassen, wie an der Kamera */
+function groupShots(files){
+  const m=new Map();
+  for(const f of files){
+    const stem=f.name.replace(/\.[^.]+$/,''), k=f.dir+'/'+stem.toUpperCase();
+    if(!m.has(k)) m.set(k,{name:stem,files:[]});
+    m.get(k).files.push(f);
+  }
+  return [...m.values()].map(s=>{
+    const p=s.files.find(f=>/\.jpe?g$/i.test(f.name))||s.files[0], dt=parseStamp(p);
+    return {...s,preview:p,dt,day:`${dt.y}-${pad(dt.m)}-${pad(dt.d)}`,month:`${dt.y}-${pad(dt.m)}`,
+      types:s.files.map(f=>f.name.split('.').pop().toUpperCase()).join('+'),
+      size:s.files.reduce((a,f)=>a+f.size,0)};
+  });
+}
+let cardShots=null;
+async function loadCard(){cardShots=groupShots(await api('/api/images'));loadLens();return cardShots}
+async function downloadShot(s,report){
+  for(const f of s.files){
+    report(tr('card.loading',{name:f.name}));
+    await api('/api/download',{path:f.path,size:f.size});
+  }
+  report(tr('card.onMac',{name:s.name,types:s.types}));
+  local();
+}
+async function gallery(force){
+  if(!features.has('playback')) return;
+  const g=$('#gal');
+  // Über USB dauert die Liste lange und pausiert den Live View: nur auf Knopfdruck
+  if(features.has('af_modes')&&!force&&!cardShots){$('#count').textContent=tr('card.pressReload');return}
+  if(!cardShots) $('#count').textContent=tr('card.reading')+(features.has('af_modes')?tr('card.paused'):'');
+  try{await loadCard()}catch(e){$('#count').textContent=e.message;return}
+  g.innerHTML=''; $('#count').textContent=tr('card.shots',{n:cardShots.length});
+  for(const s of cardShots.slice(0,12)){
+    const f=document.createElement('figure');
+    const im=new Image(); im.loading='lazy'; im.alt=''; im.src=thumbUrl(s.preview);
+    const get=document.createElement('button'); get.textContent=tr('card.save');
+    get.onclick=()=>downloadShot(s,msg).catch(e=>msg(e.message,true));
+    const ov=document.createElement('button'); ov.textContent=tr('card.overlay');
+    ov.onclick=()=>overlay(bigUrl(s));
+    const n=document.createElement('div'); n.textContent=s.name+' · '+s.types;
+    f.append(im,n,get,ov); g.append(f);
+  }
+  if(!$('#galOv').hidden) renderGal();
+}
+
+/* Galerie: alle Aufnahmen, Bilder werden nur für den sichtbaren Bereich geholt.
+   Die Kamera arbeitet Anfragen nacheinander ab, daher höchstens zwei gleichzeitig. */
+const GAL_KEY='omcap.gallery', MONTHS=tr('months').split(',');
+function loadGal(){try{return JSON.parse(localStorage.getItem(GAL_KEY))||{}}catch{return{}}}
+const gv={n:9,mode:'index',day:null,month:null,...loadGal(),day:null};
+function saveGal(){try{localStorage.setItem(GAL_KEY,JSON.stringify({n:gv.n,mode:gv.mode}))}catch{}}
+const thumbs=new Map(), want=new Map(), better=new Map();
+let loading=0,io=null,vList=[],vIdx=0;
+/* Bild holen, als Object-URL im Speicher behalten (Map je URL); bei Fehler null */
+async function blobUrl(url){
+  if(thumbs.has(url)) return thumbs.get(url);
+  const r=await fetch(url);
+  if(!r.ok) return null;
+  const u=URL.createObjectURL(await r.blob()); thumbs.set(url,u);
+  // Speicher begrenzen: älteste Einträge freigeben (bereits angezeigte Bilder bleiben sichtbar)
+  for(const [k,v] of thumbs){if(thumbs.size<=600)break;URL.revokeObjectURL(v);thumbs.delete(k)}
+  return u;
+}
+/* Große Kacheln (Index 4 oder 9 pro Seite) bekommen nach dem Thumbnail eine mittlere Vorschau */
+function betterUrl(el){
+  const f=el._file; if(!f||!st.play||!isJpg(f)) return null;
+  const w=el.getBoundingClientRect().width*(devicePixelRatio||1);
+  return w>220?resizeUrl(f,fitSize(w)):null;
+}
+async function fillTile(el){
+  const img=el.querySelector('img');
+  if(el.dataset.state==='loading'){                 // Stufe 1: Thumbnail
+    const u=await blobUrl(thumbUrl(el._file));
+    if(!u) throw new Error(tr('card.notLoadable'));
+    img.src=u;
+    const b=betterUrl(el); if(b) better.set(el,b);
+  }else{                                            // Stufe 2: mittlere Vorschau
+    const u=await blobUrl(better.get(el)||'');
+    better.delete(el);
+    if(u) img.src=u;
+  }
+}
+function retryTile(el){
+  el.dataset.state='';
+  el.dataset.tries=+(el.dataset.tries||0)+1;
+  if(+el.dataset.tries<3) setTimeout(()=>{if(el.isConnected&&el.dataset.vis){want.set(el,1);pump()}},2000);
+}
+/* Die Kamera arbeitet Anfragen nacheinander ab: höchstens zwei gleichzeitig, sichtbare Thumbnails zuerst */
+function pump(){
+  while(loading<2&&!(st.stage>0)){
+    let el=want.size?want.keys().next().value:null, stage2=false;
+    if(el) want.delete(el);
+    else{
+      // Einzelansicht offen: Kacheln nicht verbessern, die Kamera gehört dem großen Bild
+      if(!$('#viewer').hidden) break;
+      el=[...better.keys()].find(e=>e.isConnected&&e.dataset.vis&&e.dataset.state==='done'); if(!el) break; stage2=true}
+    if(stage2){el.dataset.state='better'}else el.dataset.state='loading';
+    loading++;
+    fillTile(el).then(()=>{el.dataset.state='done'},()=>stage2?better.delete(el):retryTile(el)).finally(()=>{loading--;pump()});
+  }
+}
+function resetTiles(){
+  if(io) io.disconnect();
+  want.clear(); better.clear();
+  io=new IntersectionObserver(es=>{
+    for(const e of es){
+      e.target.dataset.vis=e.isIntersecting?'1':'';
+      if(e.isIntersecting&&!e.target.dataset.state) want.set(e.target,1);
+      else want.delete(e.target);
+    }
+    pump();
+  },{root:$('#galBody'),rootMargin:'300px'});
+}
+function makeTile(file){
+  const t=document.createElement('div'); t.className='tile'; t._file=file;
+  const im=new Image(); im.alt=''; t.append(im);
+  // schon geladenes Thumbnail sofort zeigen (z. B. nach dem Umschalten 25 -> 4)
+  const known=thumbs.get(thumbUrl(file)); if(known) im.src=known;
+  io.observe(t); return t;
+}
+const dayLabel=k=>{const [y,m,d]=k.split('-').map(Number);return tr('date.day',{month:MONTHS[m-1],d,y})};
+function renderGal(){
+  if(!cardShots) return;
+  resetTiles();
+  const body=$('#galBody'); body.innerHTML=''; body.scrollTop=0;
+  document.querySelectorAll('[data-v]').forEach(b=>b.classList.toggle('on',gv.mode==='cal'?b.dataset.v==='cal':+b.dataset.v===gv.n));
+  const chip=$('#galChip'); chip.hidden=!(gv.day&&gv.mode==='index');
+  if(gv.mode==='cal'){$('#galCount').textContent=tr('card.shots',{n:cardShots.length});renderCal(body);return}
+  const list=gv.day?cardShots.filter(s=>s.day===gv.day):cardShots;
+  $('#galCount').textContent=tr('card.shots',{n:list.length});
+  if(gv.day){
+    chip.textContent=dayLabel(gv.day)+' ';
+    const x=document.createElement('button'); x.textContent=tr('card.all'); x.style.cssText='font-size:11px;padding:0 6px';
+    x.onclick=()=>{gv.day=null;renderGal()}; chip.append(x);
+  }
+  const grid=document.createElement('div'); grid.className='gidx'; grid.style.setProperty('--cols',Math.sqrt(gv.n));
+  list.forEach((s,i)=>{
+    const t=makeTile(s.preview);
+    if(gv.n<=25){const c=document.createElement('div');c.className='cap';c.textContent=`${s.name} · ${s.types} · ${tr('date.short',{mon:MONTHS[s.dt.m-1].slice(0,3),d:s.dt.d,time:pad(s.dt.h)+':'+pad(s.dt.mi)})}`;t.append(c)}
+    t.onclick=()=>openViewer(list,i);
+    grid.append(t);
+  });
+  body.append(grid);
+}
+function renderCal(body){
+  const days=new Map();
+  for(const s of cardShots){if(!days.has(s.day))days.set(s.day,[]);days.get(s.day).push(s)}
+  const months=[...new Set(cardShots.map(s=>s.month))].sort().reverse();
+  if(!months.length){body.textContent=tr('card.none');return}
+  if(!months.includes(gv.month)) gv.month=months[0];
+  const i=months.indexOf(gv.month), [y,m]=gv.month.split('-').map(Number);
+  const nav=document.createElement('div'); nav.className='row'; nav.style.cssText='justify-content:center;margin-bottom:10px';
+  const go=(t,to,label)=>{const b=document.createElement('button');b.textContent=t;b.setAttribute('aria-label',label);b.disabled=to<0||to>=months.length;b.onclick=()=>{gv.month=months[to];renderGal()};return b};
+  const sel=document.createElement('select');
+  for(const k of months){const [a,b]=k.split('-').map(Number);sel.add(new Option(tr('date.month',{month:MONTHS[b-1],y:a}),k))}
+  sel.value=gv.month; sel.onchange=()=>{gv.month=sel.value;renderGal()};
+  nav.append(go('‹',i+1,tr('card.prevMonth')),sel,go('›',i-1,tr('card.nextMonth')));
+  const head=document.createElement('div'); head.className='calhead';
+  for(const d of tr('weekdays').split(',')){const e=document.createElement('div');e.textContent=d;head.append(e)}
+  const grid=document.createElement('div'); grid.className='calgrid';
+  const first=(new Date(y,m-1,1).getDay()+6)%7, count=new Date(y,m,0).getDate();
+  for(let k=0;k<first;k++) grid.append(document.createElement('div'));
+  for(let d=1;d<=count;d++){
+    const key=`${y}-${pad(m)}-${pad(d)}`, shots=days.get(key);
+    if(!shots){const e=document.createElement('div');e.className='cal0';e.textContent=d;grid.append(e);continue}
+    const t=makeTile(shots[0].preview);
+    const n=document.createElement('div');n.className='dn';n.textContent=d;
+    const c=document.createElement('div');c.className='ct';c.textContent=shots.length;
+    t.append(n,c);
+    t.onclick=()=>{gv.day=key;gv.mode='index';saveGal();renderGal()};
+    grid.append(t);
+  }
+  body.append(nav,head,grid);
+}
+async function openGal(){
+  $('#galOv').hidden=false;
+  // Wi-Fi: mittlere Vorschauen gibt es nur im Modus "play"; der Live View pausiert so lange
+  if(canWrite&&!features.has('af_modes')&&!st.play){try{await api('/api/playback',{action:'enter'});await tick()}catch(e){msg(e.message,true)}}
+  if(!cardShots){
+    $('#galCount').textContent=tr('card.reading');
+    try{await loadCard()}catch(e){$('#galCount').textContent=e.message;return}
+  }
+  renderGal();
+}
+function closeGal(){$('#galOv').hidden=true;if(io)io.disconnect();want.clear();better.clear();
+  if(st.play&&!leavingPlay){leavingPlay=true;api('/api/playback',{action:'leave'}).then(()=>{tick();props()}).catch(e=>msg(e.message,true)).finally(()=>leavingPlay=false)}}
+$('#galOpen').onclick=openGal;
+$('#galClose').onclick=closeGal;
+$('#galReload').onclick=()=>{$('#galCount').textContent=tr('card.reading');gallery(true)};
+document.querySelectorAll('[data-v]').forEach(b=>b.onclick=()=>{
+  if(b.dataset.v==='cal'){gv.mode='cal';gv.day=null}else{gv.mode='index';gv.n=+b.dataset.v}
+  saveGal();renderGal();
+});
+/* Einzelbild */
+let vToken=0;
+function viewerUrl(f){
+  // Wi-Fi im Modus "play": verkleinert passend zum Bildschirm, sonst das ganze JPG
+  if(st.play&&isJpg(f)) return resizeUrl(f,fitSize(Math.max(screen.width,screen.height)*(devicePixelRatio||1)));
+  return isJpg(f)?fullUrl(f):null;
+}
+async function showShot(){
+  const s=vList[vIdx], f=s.preview, token=++vToken, im=$('#vImg');
+  const info=`${vIdx+1}/${vList.length} · ${s.name} · ${s.types} · ${s.dt.y}-${pad(s.dt.m)}-${pad(s.dt.d)} ${pad(s.dt.h)}:${pad(s.dt.mi)} · ${(s.size/1048576).toFixed(1)} MB`;
+  $('#vInfo').textContent=info;
+  $('#vPrev').disabled=vIdx===0; $('#vNext').disabled=vIdx===vList.length-1;
+  const big=viewerUrl(f);
+  // sofort das Beste zeigen, was schon da ist (auch eine kleinere Vorschau aus den Kacheln), dann verbessern
+  const have=[big,...[...RESIZE].reverse().map(px=>resizeUrl(f,px)),thumbUrl(f)].find(u=>u&&thumbs.has(u));
+  im.src=have?thumbs.get(have):thumbUrl(f);
+  if(!big){$('#vInfo').textContent=info+tr('card.smallOnly');return}
+  if(thumbs.has(big)){prefetchNeighbors();return}
+  if(!st.play) $('#vInfo').textContent=info+tr('card.loadingOriginal');
+  try{
+    const u=await blobUrl(big);
+    if(token!==vToken) return;
+    if(u){im.src=u;$('#vInfo').textContent=info;prefetchNeighbors()}
+    else $('#vInfo').textContent=info+tr('card.smallOnly');
+  }catch{if(token===vToken) $('#vInfo').textContent=info+tr('card.loadFailed')}
+}
+/* Nächstes und vorheriges Bild im Hintergrund holen (nur mittlere Vorschau, nicht das ganze JPG) */
+function prefetchNeighbors(){
+  if(!st.play) return;
+  for(const d of [1,-1]){
+    const s=vList[vIdx+d]; if(!s) continue;
+    const u=viewerUrl(s.preview); if(u&&!thumbs.has(u)) blobUrl(u).catch(()=>{});
+  }
+}
+function openViewer(list,i){vList=list;vIdx=i;$('#viewer').hidden=false;showShot()}
+function closeViewer(){vToken++;$('#viewer').hidden=true;$('#vImg').removeAttribute('src');pump()}
+function stepViewer(d){const n=vIdx+d;if(n>=0&&n<vList.length){vIdx=n;showShot()}}
+$('#vPrev').onclick=()=>stepViewer(-1);
+$('#vNext').onclick=()=>stepViewer(1);
+$('#vClose').onclick=closeViewer;
+$('#vGet').onclick=()=>downloadShot(vList[vIdx],t=>$('#vInfo').textContent=t).catch(e=>$('#vInfo').textContent=e.message);
+$('#vOvl').onclick=()=>{overlay(bigUrl(vList[vIdx]));closeViewer();closeGal()};
+document.addEventListener('keydown',e=>{
+  if($('#layoutDlg').open) return;
+  if(!$('#viewer').hidden){
+    if(e.key==='ArrowLeft') stepViewer(-1);
+    else if(e.key==='ArrowRight') stepViewer(1);
+    else if(e.key==='Escape') closeViewer();
+  }else if(!$('#galOv').hidden&&e.key==='Escape') closeGal();
+});
+async function local(){
+  const box=$('#local');
+  let files; try{files=await api('/api/local')}catch{return}
+  box.innerHTML=files.length?'':'<span class="mut">'+tr('local.none')+'</span>';
+  for(const i of files.slice(0,30)){
+    const d=document.createElement('div');
+    const n=document.createElement('span'); n.textContent=i.name;
+    const url='/captures/'+encodeURIComponent(i.name);
+    const see=document.createElement('button'); see.textContent=tr('local.view'); see.onclick=()=>window.open(url,'_blank');
+    const ov=document.createElement('button'); ov.textContent=tr('card.overlay'); ov.onclick=()=>overlay(url);
+    const ws=document.createElement('button'); ws.textContent=tr('local.ws'); ws.onclick=()=>act(tr('msg.openedWs'),'/api/open',{name:i.name});
+    d.append(n,see,ov,ws); box.append(d);
+  }
+}
+
+/* Livebild: Zoom, Verschieben, Touch-AF */
+let z=1,px=0,py=0,drag=null;
+const vp=$('#viewport'),layer=$('#zoomLayer');
+function applyZoom(){
+  const r=vp.getBoundingClientRect();
+  px=Math.min(0,Math.max(r.width*(1-z),px)); py=Math.min(0,Math.max(r.height*(1-z),py));
+  layer.style.transform=`translate(${px}px,${py}px) scale(${z})`;
+  document.querySelectorAll('[data-z]').forEach(b=>b.classList.toggle('on',+b.dataset.z===z));
+}
+function setZoom(n,cx,cy){
+  const r=vp.getBoundingClientRect();
+  cx=cx??r.width/2; cy=cy??r.height/2;
+  px=cx-(cx-px)*n/z; py=cy-(cy-py)*n/z; z=n; applyZoom();
+}
+document.querySelectorAll('[data-z]').forEach(b=>b.onclick=()=>setZoom(+b.dataset.z));
+vp.addEventListener('wheel',e=>{e.preventDefault();const r=vp.getBoundingClientRect();
+  setZoom(Math.min(8,Math.max(1,z*(e.deltaY<0?1.2:1/1.2))),e.clientX-r.left,e.clientY-r.top)},{passive:false});
+vp.onpointerdown=e=>{drag={x:e.clientX,y:e.clientY,px,py,moved:false};vp.setPointerCapture(e.pointerId)};
+vp.onpointermove=e=>{if(!drag)return;const dx=e.clientX-drag.x,dy=e.clientY-drag.y;
+  if(Math.hypot(dx,dy)>4)drag.moved=true;
+  if(drag.moved&&z>1){px=drag.px+dx;py=drag.py+dy;applyZoom()}};
+vp.onpointerup=e=>{
+  const d=drag;drag=null;
+  if(!d||d.moved||!st.live) return;
+  pickField(e);
+};
+/* Level Gauge (USB): Wasserwaage, dazu Modusrad beobachten */
+let lvl=null,lvlBusy=false,lvPicked=false;
+async function pollLevel(){
+  if(!connected||lvlBusy||!features.has('af_modes')) return;
+  lvlBusy=true;
+  try{
+    lvl=await api('/api/level');
+    if(lastProps&&lastProps.takemode.value!==lvl.mode&&st.stage===0) props();
+  }catch{lvl=null}finally{lvlBusy=false}
+  drawLevel();
+}
+function drawLevel(){
+  const c=$('#levelGauge'),b=vp.getBoundingClientRect(),d=devicePixelRatio||1;
+  if(c.width!==Math.round(b.width*d)||c.height!==Math.round(b.height*d)){c.width=Math.round(b.width*d);c.height=Math.round(b.height*d)}
+  const g=c.getContext('2d'); g.clearRect(0,0,c.width,c.height);
+  const on=features.has('level')&&lvl&&st.live&&$('#lvlOn').checked;
+  $('#lvlInfo').textContent=on?tr('lv.roll',{a:lvl.a.toFixed(1),b:lvl.b.toFixed(1)}):'';
+  if(!on) return;
+  const W=c.width,H=c.height,cx=W/2,cy=H/2,len=W*.2,roll=lvl.a,pitch=lvl.b,ok=Math.abs(roll)<.5;
+  g.lineCap='round';
+  // Referenzstriche links und rechts, bewegliche Linie kippt mit der Kamera
+  g.strokeStyle='rgba(255,255,255,.75)'; g.lineWidth=2*d;
+  g.beginPath(); g.moveTo(cx-len-30*d,cy); g.lineTo(cx-len-6*d,cy); g.moveTo(cx+len+6*d,cy); g.lineTo(cx+len+30*d,cy); g.stroke();
+  g.save(); g.translate(cx,cy); g.rotate(roll*Math.PI/180);
+  g.strokeStyle=ok?'#3f3':'#fc3'; g.lineWidth=3*d;
+  g.beginPath(); g.moveTo(-len,0); g.lineTo(len,0); g.stroke(); g.restore();
+  // Neigung nach vorn/hinten als Punkt auf einer senkrechten Skala
+  const sx=W-24*d,sh=H*.3,clamp=Math.max(-20,Math.min(20,pitch));
+  g.strokeStyle='rgba(255,255,255,.75)'; g.lineWidth=2*d;
+  g.beginPath(); g.moveTo(sx,cy-sh); g.lineTo(sx,cy+sh); g.moveTo(sx-10*d,cy); g.lineTo(sx+10*d,cy); g.stroke();
+  g.fillStyle=Math.abs(pitch)<.5?'#3f3':'#fc3';
+  g.beginPath(); g.arc(sx,cy-clamp/20*sh,6*d,0,7); g.fill();
+}
+$('#lvlOn').onchange=drawLevel;
+/* AF Area (USB): 9x9-Feldraster wie im Kameradisplay */
+const AF_NAMES={33024:tr('af.33024'),33025:tr('af.33025'),33026:tr('af.33026'),33027:tr('af.33027')};
+async function loadAf(){try{af=await api('/api/afarea');showAf()}catch(e){msg(tr('msg.afArea',{e:e.message}),true)}}
+let focusing=false; // Klicks während des Scharfstellens verwerfen, sonst stauen sie sich
+async function setAf(b){
+  const f=b.field||b.focus;
+  if(f&&focusing) return;
+  if(f){focusing=true;msg(tr('msg.focusing'))}
+  try{
+    af=await api('/api/afarea',b);
+    const hit=focusField(af);
+    focusHit=f&&hit?{field:hit,until:Date.now()+FOCUS_SHOW}:null;
+    showAf();
+    if(f) msg(hit?tr('msg.inFocus'):tr('msg.noFocus'),!hit);
+    if(focusHit) setTimeout(drawAf,FOCUS_SHOW+50);
+  }
+  catch(e){msg(tr('msg.afArea',{e:e.message}),true)}
+  finally{if(f) focusing=false}
+}
+/* Fokusposition der Kamera (1280x960) in eine Feldnummer umrechnen */
+const FOCUS_SHOW=4000;
+let focusHit=null;
+function focusField(a){
+  const p=a&&a.last_af, r=a&&a.area;
+  if(!p||!p.x||!r) return null;
+  const col=Math.floor((p.x-r.x0)/(r.x1-r.x0)*9), row=Math.floor((p.y-r.y0)/(r.y1-r.y0)*9);
+  return col>=0&&col<9&&row>=0&&row<9?row*9+col+1:null;
+}
+function showAf(){
+  if(!af) return;
+  document.querySelectorAll('[data-af]').forEach(b=>b.classList.toggle('on',+b.dataset.af===af.mode));
+  const r=Math.floor((af.field-1)/9)+1,c=(af.field-1)%9+1;
+  const pos=tr('af.pos',{r,c});
+  $('#afInfo').textContent=!af.modes?pos:af.mode===33024?AF_NAMES[af.mode]:`${AF_NAMES[af.mode]} · ${pos}`;
+  drawAf();
+}
+function pickField(e){
+  if(!af||!canWrite) return;
+  const b=layer.getBoundingClientRect(),a=af.area;
+  const x=((e.clientX-b.left)/b.width*a.w-a.x0)/(a.x1-a.x0), y=((e.clientY-b.top)/b.height*a.h-a.y0)/(a.y1-a.y0);
+  if(x<0||x>=1||y<0||y>=1){msg(tr('msg.outsideAf'),true);return}
+  const field=Math.floor(y*9)*9+Math.floor(x*9)+1;
+  // Bei All Targets wählt die Kamera das Feld selbst: der Klick stellt nur scharf
+  setAf(af.mode===33024?{focus:true}:{field});
+}
+function drawAf(){
+  const c=$('#afGrid'),b=vp.getBoundingClientRect(),d=devicePixelRatio||1;
+  if(c.width!==Math.round(b.width*d)||c.height!==Math.round(b.height*d)){c.width=Math.round(b.width*d);c.height=Math.round(b.height*d)}
+  const g=c.getContext('2d'); g.clearRect(0,0,c.width,c.height);
+  if(!af||!st.live||!$('#afShow').checked) return;
+  const a=af.area,X=a.x0/a.w*c.width,Y=a.y0/a.h*c.height,W=(a.x1-a.x0)/a.w*c.width,H=(a.y1-a.y0)/a.h*c.height,cw=W/9,ch=H/9;
+  const row=Math.floor((af.field-1)/9),col=(af.field-1)%9;
+  g.strokeStyle='rgba(255,255,255,.7)'; g.lineWidth=d; g.setLineDash([3*d,3*d]);
+  if(af.mode===33027){
+    // Small Target: 81 einzelne kleine Quadrate, wie im Kameradisplay
+    const s=Math.min(cw,ch)*.75, box=(r,k)=>[X+(k+.5)*cw-s/2,Y+(r+.5)*ch-s/2,s,s];
+    for(let r=0;r<9;r++)for(let k=0;k<9;k++) if(r!==row||k!==col) g.strokeRect(...box(r,k));
+    g.setLineDash([]); g.strokeStyle='#3f3'; g.lineWidth=3*d;
+    g.strokeRect(...box(row,col));
+    return;
+  }
+  g.beginPath();
+  for(let i=0;i<=9;i++){g.moveTo(X+i*cw,Y);g.lineTo(X+i*cw,Y+H);g.moveTo(X,Y+i*ch);g.lineTo(X+W,Y+i*ch)}
+  g.stroke();
+  g.setLineDash([]); g.strokeStyle='#3f3'; g.lineWidth=2*d;
+  if(af.mode===33024){
+    if(focusHit&&Date.now()<focusHit.until){
+      const r=Math.floor((focusHit.field-1)/9),k=(focusHit.field-1)%9;
+      g.strokeRect(X+k*cw,Y+r*ch,cw,ch);
+    }else g.strokeRect(X,Y,W,H);
+    return;
+  }
+  // Group Target: 3x3 um das Feld, am Rand abgeschnitten
+  const n=af.mode===33026?1:0;
+  const r0=Math.max(0,row-n),r1=Math.min(8,row+n),c0=Math.max(0,col-n),c1=Math.min(8,col+n);
+  for(let r=r0;r<=r1;r++)for(let k=c0;k<=c1;k++)g.strokeRect(X+k*cw,Y+r*ch,cw,ch);
+}
+document.querySelectorAll('[data-af]').forEach(b=>b.onclick=()=>setAf({mode:+b.dataset.af}));
+$('#afShow').onchange=drawAf;
+
+/* Raster */
+function drawGrid(){
+  const c=$('#grid'),r=vp.getBoundingClientRect(),d=devicePixelRatio||1;
+  c.width=r.width*d; c.height=r.height*d;
+  const g=c.getContext('2d'),W=c.width,H=c.height,t=$('#gridType').value;
+  document.querySelectorAll('.gridAdj').forEach(e=>e.hidden=!t);
+  const ox=+$('#gridX').value/100,oy=+$('#gridY').value/100;
+  g.strokeStyle='rgba(255,255,255,.65)'; g.lineWidth=d;
+  const line=(a,b,e,f)=>{g.beginPath();g.moveTo(a,b);g.lineTo(e,f);g.stroke()};
+  const v=x=>line(x*W,0,x*W,H), h=y=>line(0,y*H,W,y*H);
+  if(t==='thirds'){v(1/3+ox);v(2/3+ox);h(1/3+oy);h(2/3+oy)}
+  if(t==='cross'){v(.5+ox);h(.5+oy)}
+  if(t==='mesh'){for(let i=0;i<10;i++){v((i/10+ox+1)%1);h((i/10+oy+1)%1)}}
+}
+['gridType','gridX','gridY'].forEach(i=>$('#'+i).oninput=drawGrid);
+new ResizeObserver(()=>{drawGrid();applyZoom();drawAf()}).observe(vp);
+
+/* Überlagerung */
+function overlay(url){const o=$('#ovl');o.src=url;o.hidden=false;o.style.opacity=$('#ovlOp').value/100;$('#ovlRow').hidden=false;msg(tr('msg.overlaySet'))}
+$('#ovlOp').oninput=e=>$('#ovl').style.opacity=e.target.value/100;
+$('#ovlOff').onclick=()=>{const o=$('#ovl');o.hidden=true;o.removeAttribute('src');$('#ovlRow').hidden=true};
+
+/* Anzeige anpassen */
+const KEY='omcap.layout';
+function loadLayout(){try{return JSON.parse(localStorage.getItem(KEY))||{}}catch{return{}}}
+function saveLayout(l){try{localStorage.setItem(KEY,JSON.stringify(l))}catch{}}
+let layout=loadLayout();
+const GROUPS={panels:{title:tr('layout.panels'),el:$('#panels')},tiles:{title:tr('layout.settings'),el:$('#props')}};
+function ordered(g){
+  const items=[...GROUPS[g].el.children].filter(e=>e.dataset.id);
+  const o=(layout[g]&&layout[g].order)||[];
+  const pos=e=>{const i=o.indexOf(e.dataset.id);return i<0?o.length+items.indexOf(e):i};
+  return items.sort((a,b)=>pos(a)-pos(b));
+}
+function applyLayout(){
+  for(const g in GROUPS){
+    const off=(layout[g]&&layout[g].off)||[];
+    ordered(g).forEach((e,i)=>{e.style.order=i;e.hidden=off.includes(e.dataset.id)||(!!e.dataset.feat&&!features.has(e.dataset.feat))});
+  }
+}
+function renderLayout(){
+  const body=$('#layoutBody'); body.innerHTML='';
+  for(const g in GROUPS){
+    const h=document.createElement('h2'); h.textContent=GROUPS[g].title; body.append(h);
+    const items=ordered(g), ids=items.map(e=>e.dataset.id);
+    layout[g]=layout[g]||{off:[]}; layout[g].off=layout[g].off||[];
+    items.forEach((e,i)=>{
+      const r=document.createElement('div'); r.className='lr';
+      const c=document.createElement('input'); c.type='checkbox'; c.checked=!layout[g].off.includes(e.dataset.id);
+      c.onchange=()=>{layout[g].off=layout[g].off.filter(x=>x!==e.dataset.id);if(!c.checked)layout[g].off.push(e.dataset.id);commit()};
+      const n=document.createElement('span'); n.textContent=e.dataset.label;
+      const mv=(t,d)=>{const b=document.createElement('button');b.type='button';b.textContent=t;b.disabled=!ids[i+d];
+        b.onclick=()=>{[ids[i],ids[i+d]]=[ids[i+d],ids[i]];layout[g].order=ids;commit()};return b};
+      r.append(c,n,mv('↑',-1),mv('↓',1)); body.append(r);
+    });
+  }
+}
+function commit(){saveLayout(layout);applyLayout();renderLayout()}
+$('#layoutBtn').onclick=()=>{renderLayout();$('#layoutDlg').showModal()};
+$('#layoutReset').onclick=()=>{layout={};commit()};
+
+/* Knöpfe */
+$('#lvStart').onclick=async()=>{
+  try{await api('/api/liveview',{action:'start',lvqty:features.has('af_modes')&&!lvPicked?null:$('#lvqty').value});$('#live').src='/live.mjpg?'+Date.now();msg(tr('msg.lvRunning'));await tick();if(features.has('af_area'))loadAf();setTimeout(props,1500)}catch(e){msg(e.message,true)}};
+$('#lvqty').onchange=()=>{lvPicked=true;if(st.live)$('#lvStart').click()};
+$('#lvStop').onclick=()=>act(tr('msg.lvStopped'),'/api/liveview',{action:'stop'});
+/* Auslösen: ganze Abfolge. Hält Halfway gerade den Fokus, von dort durchdrücken und loslassen,
+   wie am echten Auslöser. All the way und Loslassen sind darin aufgegangen. */
+$('#shoot').onclick=async()=>{
+  msg(tr('msg.shooting'));
+  if(st.stage>=1){
+    if(!await act(tr('msg.shutter'),'/api/shutter',{stage:2})) return;
+    await act(tr('msg.taken'),'/api/shutter',{stage:0});
+  }else await act(tr('msg.taken'),'/api/shoot',{});
+  gallery();local();
+  // Wi-Fi: die Kamera schreibt nach dem Auslösen noch, die erste Liste ist oft ohne das neue Bild
+  if(!features.has('af_modes')) setTimeout(()=>gallery(),4000);
+};
+$('#half').onclick=async()=>{
+  const pressing=st.stage<1;
+  const j=await act(tr('msg.shutter'),'/api/shutter',{stage:st.stage>=1?0:1});
+  if(!pressing||!j||!af||af.mode!==33024) return;
+  // All Targets: das scharfgestellte Feld zeigen, solange Halfway gehalten wird
+  af={...af,last_af:j.last_af};
+  const hit=focusField(af);
+  focusHit=hit?{field:hit,until:Infinity,held:true}:null;
+  msg(hit?tr('msg.inFocus'):tr('msg.noFocus'),!hit);
+  drawAf();
+};
+$('#reset').onclick=()=>act(tr('msg.reset'),'/api/mode',{mode:'rec'});
+$('#ivStart').onclick=()=>act(tr('msg.tlStarted'),'/api/interval',{count:+$('#ivCount').value,seconds:+$('#ivSec').value});
+$('#brStart').onclick=()=>act(tr('msg.bktStarted'),'/api/bracket',{frames:+$('#brFrames').value,step:+$('#brStep').value});
+$('#jobStop').onclick=()=>act(tr('msg.stopping'),'/api/job/stop',{});
+$('#takePrep').onclick=()=>act(tr('msg.lcPrepared'),'/api/take',{action:'prepare'});
+$('#takeStart').onclick=()=>act(tr('msg.started',{name:$('#longName').textContent}),'/api/take',{action:'start'});
+$('#takeStop').onclick=()=>act(tr('msg.stopped',{name:$('#longName').textContent}),'/api/take',{action:'stop'});
+/* Movie: Start/Stopp wie die R-Taste (Handbuch S. 22); die App schaltet dafür kurz in den Movie-Modus */
+$('#movStart').onclick=()=>act(tr('msg.movieStarted'),'/api/movie',{action:'start'});
+$('#movStop').onclick=async()=>{await act(tr('msg.movieStopped'),'/api/movie',{action:'stop'});
+  if(!features.has('af_modes')) setTimeout(()=>gallery(),4000)};
+document.querySelectorAll('[name=tr]').forEach(r=>r.onchange=()=>act(tr('msg.saveTo'),'/api/transfer',{target:r.value}));
+$('#reload').onclick=gallery;
+$('#propsReload').onclick=async()=>{
+  if(!features.has('af_modes')){props();return}
+  msg(tr('msg.rereading'));
+  try{await api('/api/refresh',{});await props();await loadAf();msg(tr('msg.updated'))}
+  catch(e){msg(e.message,true)}
+};
+
+/* Startbildschirm: USB und Wi-Fi gleichrangig, erkannte Verbindung ist vorausgewählt */
+const LAST_KEY='omcap.connection';
+function lastConn(){try{return localStorage.getItem(LAST_KEY)}catch{return null}}
+let selected=null,pollTimer=null,polling=false,connecting=false;
+function markSelected(){
+  document.querySelectorAll('.ctile').forEach(t=>t.classList.toggle('sel',t.dataset.conn===selected));
+  $('#startGo').disabled=!selected||connecting;
+}
+async function pollConn(){
+  if(polling||connecting||connected) return;
+  polling=true;
+  try{
+    const c=await api('/api/connections');
+    if(c.connected){enterApp();return}
+    for(const k of ['usb','wifi']){
+      document.querySelector(`.ctile[data-conn=${k}]`).classList.toggle('found',c[k]);
+      const name=c.names&&c.names[k];
+      document.querySelector(`[data-note=${k}]`).textContent=c[k]?(name?tr('start.found',{name}):tr('start.foundCamera')):tr('start.notFound');
+    }
+    const last=lastConn();
+    selected=c.usb&&c.wifi?(last==='usb'||last==='wifi'?last:null):c.usb?'usb':c.wifi?'wifi':null;
+    markSelected();
+  }catch{}finally{polling=false}
+}
+async function connectTo(kind){
+  if(connecting) return;
+  connecting=true; selected=kind; markSelected();
+  $('#startMsg').className='mut'; $('#startMsg').textContent=tr('start.connecting');
+  try{
+    await api('/api/connect',{type:kind});
+    try{localStorage.setItem(LAST_KEY,kind)}catch{}
+    enterApp();
+  }catch(e){$('#startMsg').className='warn';$('#startMsg').textContent=e.message}
+  finally{connecting=false;markSelected()}
+}
+document.querySelectorAll('.ctile').forEach(t=>t.onclick=()=>connectTo(t.dataset.conn));
+$('#startGo').onclick=()=>{if(selected)connectTo(selected)};
+document.addEventListener('keydown',e=>{if(!$('#start').hidden&&e.key==='Enter'&&selected&&e.target.tagName!=='BUTTON')connectTo(selected)});
+$('#discon').onclick=async()=>{try{await api('/api/disconnect',{})}catch{}location.reload()};
+function init(){
+  $('#start').hidden=false;
+  pollConn();
+  pollTimer=setInterval(pollConn,2500);
+}
+async function enterApp(){
+  if(connected) return;
+  connected=true; clearInterval(pollTimer);
+  $('#start').hidden=true; $('#app').hidden=false;
+  try{
+    const s=await api('/api/status');
+    canWrite=s.allow_write;
+    features=new Set(s.features);
+    document.querySelectorAll('[data-feat]').forEach(e=>{if(!e.dataset.id)e.hidden=!features.has(e.dataset.feat)});
+    statusBase={model:s.model,conn:s.type==='usb'?'USB':'Wi-Fi',rights:canWrite?tr('app.write'):tr('app.readOnly')};
+    showStatus();
+    if(!canWrite) document.querySelectorAll('button.w').forEach(b=>b.hidden=true);
+    await tick(); await props(); gallery();
+    if(features.has('af_modes')||(features.has('af_area')&&st.live)) loadAf();
+    if(canWrite&&!st.live) $('#lvStart').click();
+    if(st.lvqty) $('#lvqty').value=st.lvqty;
+    else if(features.has('af_modes')) $('#lvqty').value='1024x0768';
+    if(st.live) $('#live').src='/live.mjpg?'+Date.now();
+  }catch(e){$('#status').className='warn';$('#status').textContent=e.message}
+  local(); applyLayout();
+}
+if(!view){init();setInterval(tick,1500)}
+</script>
+</body>
+</html>

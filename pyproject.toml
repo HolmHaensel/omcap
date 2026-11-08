@@ -1,0 +1,34 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "em1-capture"
+version = "0.1.0"
+description = "Local web app to control an Olympus OM-D E-M1 (Mark I) over Wi-Fi or USB"
+readme = "README.md"
+license = { text = "GPL-3.0-or-later" }
+requires-python = ">=3.9"
+# Wi-Fi needs only the Python standard library.
+dependencies = []
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)",
+    "Operating System :: MacOS",
+    "Topic :: Multimedia :: Graphics :: Capture :: Digital Camera",
+]
+
+[project.optional-dependencies]
+# USB (tethering) through libgphoto2
+usb = ["gphoto2"]
+# RAW development / focus stacking helper (omcap.develop, experimental)
+develop = ["rawpy", "numpy", "opencv-python"]
+
+[project.scripts]
+em1-capture = "omcap.server:main"
+
+[tool.setuptools]
+packages = ["omcap"]
+
+[tool.setuptools.package-data]
+omcap = ["web/*.html", "data/*.xml"]
