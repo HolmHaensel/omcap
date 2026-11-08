@@ -89,6 +89,22 @@ def _picture_names(choices):
     return {c: table.get(str(c), c) for c in choices}
 
 
+def parse_battery(value):
+    """Akkustand in Prozent aus dem gphoto2-Wert ('80%', '80', 80), sonst None."""
+    m = re.fullmatch(r"\s*(\d{1,3})\s*%?\s*", str(value))
+    return int(m.group(1)) if m and int(m.group(1)) <= 100 else None
+
+
+def free_kbytes(infos):
+    """Summe des freien Platzes (KB) aus get_storageinfo(), None ohne Angabe."""
+    total = None
+    for i in infos or []:
+        free = getattr(i, "freekbytes", None)
+        if isinstance(free, int) and free >= 0:
+            total = (total or 0) + free
+    return total
+
+
 class UsbLive:
     """Gleiche Schnittstelle wie liveview.LiveView, Bilder kommen per USB."""
 
@@ -280,6 +296,17 @@ class UsbCamera:
             out[key] = {"value": value, "writable": True, "enum": choices,
                         "names": namer([c for c in choices if not c.startswith("live")]) if namer else {}}
         return out
+
+    def free_bytes(self):
+        kb = free_kbytes(self._call(self._c.get_storageinfo))
+        return kb * 1024 if kb is not None else None
+
+    def battery(self):
+        # nur diesen einen Wert lesen, get_value() auf der ganzen Gruppe "other" stürzt libgphoto2 ab
+        try:
+            return parse_battery(self._value("batterylevel"))
+        except CameraError:
+            return None
 
     def level(self):
         """Lagewerte in Grad und aktueller Modus.

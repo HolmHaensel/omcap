@@ -180,6 +180,7 @@ body.single{background:#000;height:100vh;overflow:hidden}
   <section data-id="scp" data-label="LV super control panel" data-i18n-label="panel.scp">
     <h2><span data-i18n="panel.scp">LV super control panel</span> <button id="propsReload" style="font-size:11px;padding:1px 6px" data-i18n="scp.reload">reload</button></h2>
     <div id="props"></div>
+    <div id="roProps" class="mut" hidden></div>
   </section>
   <section data-id="prog" data-label="Shooting options" data-i18n-label="panel.prog">
     <h2 data-i18n="panel.prog">Shooting options</h2>
@@ -327,6 +328,22 @@ const I18N={en:{
   "af.pos": "Row {r}, column {c}",
   "panel.scp": "LV super control panel",
   "scp.reload": "reload",
+  "status.card": "Card: {v} GB free",
+  "status.cardMore": "Card: more than 4 GB free",
+  "status.cardMb": "Card: {v} MB free",
+  "status.battery": "Battery: {v} %",
+  "ro.title": "Camera settings (read only)",
+  "ro.lowvibtime": "Anti-Shock",
+  "ro.SilentTime": "Silent[♥]",
+  "ro.noisereduction": "Noise Reduct.",
+  "ro.SilentNoiseReduction": "Silent[♥] Noise Reduct.",
+  "ro.bulbtimelimit": "BULB/TIME Timer",
+  "ro.digitaltelecon": "Digital Tele-converter",
+  "ro.off": "Off",
+  "ro.on": "On",
+  "ro.auto": "Auto",
+  "ro.ms": "{v} ms",
+  "ro.min": "{v} min",
   "scp.modeDial": "{label} (Mode dial)",
   "prop.takemode": "Shooting mode",
   "prop.shutspeedvalue": "Shutter speed",
@@ -478,7 +495,8 @@ async function tick(){
   drawAf();
   // busy: eine Aufnahme-Abfolge läuft noch (Wi-Fi: Moduswechsel, Übertragung auf den Mac)
   const b=st.stage>0||j.running||st.busy||st.movie!=null;
-  if(wasBusy&&!b){props();gallery();local()}
+  if(wasBusy&&!b){props();gallery();local();loadDevice(true)}
+  else if(Date.now()-deviceAt>30000) loadDevice(false)
   wasBusy=b;
   pump();
 }
@@ -515,7 +533,30 @@ async function loadLens(){
 let statusBase=null;
 function showStatus(){
   if(!statusBase) return;
-  $('#status').textContent=[statusBase.model,lens&&lens.model,statusBase.conn,statusBase.rights].filter(Boolean).join(' · ');
+  // 0xFFFFFFFF: die Kamera meldet höchstens 32 Bit, der echte Platz ist dann unbekannt
+  const c=device.card;
+  const card=c==null?null:c>=4294967295?tr('status.cardMore'):c>=1e9?tr('status.card',{v:(c/1e9).toFixed(1)}):tr('status.cardMb',{v:Math.round(c/1e6)});
+  const bat=device.battery!=null?tr('status.battery',{v:device.battery}):null;
+  $('#status').textContent=[statusBase.model,lens&&lens.model,statusBase.conn,statusBase.rights,card,bat].filter(Boolean).join(' · ');
+}
+/* Kartenplatz und Akku: der Server fragt die Kamera höchstens alle 30 s, fresh=1 nach einer Aufnahme */
+let device={card:null,battery:null},deviceAt=0;
+async function loadDevice(fresh){
+  deviceAt=Date.now();
+  try{device=await api('/api/device'+(fresh?'?fresh=1':''));showStatus()}catch{}
+}
+/* Nur lesbare Kamerawerte aus der Einstellungsliste (nur Wi-Fi) */
+const RO_PROPS=['lowvibtime','SilentTime','noisereduction','SilentNoiseReduction','bulbtimelimit','digitaltelecon'];
+function roValue(k,v){
+  if(k==='lowvibtime'||k==='SilentTime') return v==='-1'?tr('ro.off'):tr('ro.ms',{v});
+  if(k==='bulbtimelimit') return tr('ro.min',{v});
+  return tr('ro.'+v,null,'')||v;
+}
+function renderRo(){
+  const p=lastProps||{},box=$('#roProps');
+  const parts=RO_PROPS.filter(k=>p[k]&&p[k].value!=null&&p[k].value!=='').map(k=>tr('ro.'+k)+': '+roValue(k,p[k].value));
+  box.hidden=!parts.length;
+  box.textContent=parts.length?tr('ro.title')+' – '+parts.join(' · '):'';
 }
 async function props(){
   if(st.stage>0||st.busy||st.play) return; // währenddessen ist die Kamera nicht im Aufnahmemodus
@@ -533,6 +574,7 @@ function renderProps(){
   const p=lastProps,box=$('#props');
   if(!p) return;
   showMovieQuality(p);
+  renderRo();
   box.innerHTML='';
   for(const [k,f] of Object.entries(FEATURES)){
     const v=p[k];
@@ -1152,7 +1194,7 @@ async function enterApp(){
     statusBase={model:s.model,conn:s.type==='usb'?'USB':'Wi-Fi',rights:canWrite?tr('app.write'):tr('app.readOnly')};
     showStatus();
     if(!canWrite) document.querySelectorAll('button.w').forEach(b=>b.hidden=true);
-    await tick(); await props(); gallery();
+    await tick(); await props(); gallery(); loadDevice(true);
     if(features.has('af_modes')||(features.has('af_area')&&st.live)) loadAf();
     if(canWrite&&!st.live) $('#lvStart').click();
     if(st.lvqty) $('#lvqty').value=st.lvqty;
