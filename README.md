@@ -22,6 +22,14 @@ A local web app to control an **Olympus OM-D E-M1 (Mark I)** from a computer, ov
 | Time lapse shooting, AE BKT, BULB / LIVE TIME / LIVECOMP | built, partly tested | built, partly tested |
 | Playback: Index display, Calendar display, single-frame view, save to computer | yes | yes |
 | Save to card only or card and computer | yes | yes |
+| Free card space in the header | yes | built, untested |
+| Battery level | – (no command) | built, untested |
+| Read-only settings (Anti-Shock, Silent, Noise Reduct., BULB/TIME Timer, Digital Tele-converter) | yes | – (unknown) |
+| Share Order: show, save all, reset | yes (in playback) | – |
+| Movie length in single-frame view | yes (in playback) | – |
+| Turn off camera | built, untested | – |
+| Live view aids: Histogram, Highlight&Shadow, Peaking | yes | built, untested |
+| HSL color profiles for ORF/JPG on the computer (`omcap.hsl`) | independent | independent |
 
 The interface is in English; all texts are in one translation table (`I18N` in
 `omcap/web/index.html`), so more languages can be added.
