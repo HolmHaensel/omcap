@@ -30,13 +30,14 @@ LV_PORT = 5555
 MIN_INTERVAL = 5  # eine Aufnahme dauert rund 4 s (Fokus, Auslösen, Speichern)
 
 WIFI_FEATURES = ["liveview", "lvsize", "af_area", "stages", "scp", "time_lapse", "ae_bkt", "movie",
-                 "long", "playback", "transfer"]
+                 "long", "playback", "transfer", "share_order"]
 
 cam = None   # aktive Verbindung, None vor der Auswahl auf dem Startbildschirm
 live = None
 conn_type = None
 options = {"host": "192.168.0.10", "allow_write": False}
 allowed_hosts = set()
+movtime_cache = {}  # (Pfad, Größe) -> Sekunden
 lens_cache = {}  # Kartenpfad -> Objektivdaten aus EXIF
 
 busy = threading.Lock()  # immer nur eine Aufnahme-Abfolge gleichzeitig
@@ -96,6 +97,7 @@ def disconnect():
         cam.close()
     cam, live, conn_type = None, None, None
     lens_cache.clear()
+    movtime_cache.clear()
     state.update(play=None)
     state.update(transfer="sd", latest=None, transfer_error=None, take=None, movie=None,
                  resume_live=False, seen=None, wifi_field=41, wifi_af=None)
@@ -386,6 +388,27 @@ def playback(enter):
             start_live()
 
 
+def movie_length(path, size):
+    """Filmlänge nur im Modus "play" (sonst errorcode 1001), je Pfad und Größe einmal gelesen."""
+    if conn_type != "wifi":
+        raise CameraError("Movie length only over Wi-Fi")
+    if state["play"] is None:
+        raise CameraError("Movie length only in Playback")
+    key = (path, size)
+    if key not in movtime_cache:
+        movtime_cache[key] = cam.movie_length(path)
+    return movtime_cache[key]
+
+
+def reset_share_order():
+    """Share Order zurücksetzen: ändert die Karte, daher nie während einer Aufnahme."""
+    if conn_type != "wifi":
+        raise CameraError("Share Order only over Wi-Fi")
+    if cam.stage or state["take"] or state["movie"] or job["running"] or busy.locked():
+        raise CameraError("Camera is busy")
+    cam.reset_share_order()
+
+
 def lens(path):
     """Objektivdaten der Aufnahme path (JPG auf der Karte), je Pfad nur einmal gelesen."""
     if not path.lower().endswith((".jpg", ".jpeg")):
@@ -496,6 +519,12 @@ class Handler(BaseHTTPRequestHandler):
                 imgs = cam.images(q.get("dir", "/DCIM"))
                 imgs.sort(key=lambda e: (e["date"], e["time"]), reverse=True)
                 return self._send(imgs)
+            if u.path == "/api/shareorder":
+                if conn_type != "wifi":
+                    raise CameraError("Share Order only over Wi-Fi")
+                return self._send(cam.share_order())
+            if u.path == "/api/movlength":
+                return self._send({"seconds": movie_length(q["path"], q.get("size"))})
             if u.path == "/api/lens":
                 return self._send({"lens": lens(q["path"])})
             if u.path == "/api/thumb":
@@ -668,6 +697,8 @@ class Handler(BaseHTTPRequestHandler):
             if b["target"] not in ("sd", "both"):
                 raise ValueError("Unknown target")
             state["transfer"] = b["target"]
+        elif path == "/api/shareorder/clear":
+            reset_share_order()
         elif path == "/api/download":
             return {"saved": save_capture(b["path"], b.get("size"))}
         else:

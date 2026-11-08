@@ -7,7 +7,7 @@ import unittest
 
 import omcap.server as server
 from omcap import exif
-from omcap.camera import Camera, CameraError
+from omcap.camera import Camera, CameraError, WriteBlocked, parse_playtime, parse_rsvimglist
 
 AF_REPLY = (b'<?xml version="1.0"?><response><affocus>ok</affocus>'
             b'<afframepoint>0259x0179</afframepoint><afframesize>0115x0115</afframesize></response>')
@@ -131,3 +131,69 @@ class Helpers(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ShareOrderAndMovieLength(unittest.TestCase):
+    def test_rsvimglist_full_lines(self):
+        t = "VER_100\r\n/DCIM/100OLYMP,P1010001.JPG,1234,32,19000,20000\r\n\r\n"
+        self.assertEqual(parse_rsvimglist(t), [{"dir": "/DCIM/100OLYMP", "name": "P1010001.JPG",
+                                               "size": 1234, "path": "/DCIM/100OLYMP/P1010001.JPG"}])
+
+    def test_rsvimglist_defensive(self):
+        t = "/DCIM/100OLYMP/P1010002.JPG\n<xml/>\n/DCIM/100OLYMP\nfoo,bar"
+        self.assertEqual([e["path"] for e in parse_rsvimglist(t)], ["/DCIM/100OLYMP/P1010002.JPG"])
+        self.assertEqual(parse_rsvimglist(""), [])
+
+    def test_playtime_formats(self):
+        self.assertEqual(parse_playtime("<?xml version=\"1.0\"?><r><playtime>75</playtime></r>"), 75)
+        self.assertEqual(parse_playtime("<r><movplaytime>00:01:15</movplaytime></r>"), 75)
+        self.assertEqual(parse_playtime("2:05"), 125)
+        self.assertIsNone(parse_playtime("<r></r>"))
+
+    def test_playtime_error_code(self):
+        with self.assertRaises(CameraError):
+            parse_playtime("<response><errorcode>1001</errorcode></response>")
+
+    def test_clear_resvflg_needs_allow_write(self):
+        c = Camera(allow_write=False)
+        c._commands = {"clear_resvflg"}
+        with self.assertRaises(WriteBlocked):
+            c.reset_share_order()
+
+    def test_clear_resvflg_with_write(self):
+        c = Camera(allow_write=True)
+        c._commands = {"clear_resvflg"}
+        calls = []
+        c._open = lambda cgi, query=None, data=None, timeout=None: (_ for _ in ()).throw(
+            CameraError(cgi))
+        with self.assertRaises(CameraError) as e:
+            c.reset_share_order()
+        self.assertIn("clear_resvflg.cgi", str(e.exception))
+
+    def test_movie_length_only_in_playback(self):
+        old = (server.cam, server.conn_type, server.state["play"])
+        try:
+            server.cam, server.conn_type, server.state["play"] = Camera(), "wifi", None
+            with self.assertRaises(CameraError):
+                server.movie_length("/DCIM/100OLYMP/P1010003.MOV", "5")
+        finally:
+            server.cam, server.conn_type, server.state["play"] = old
+
+    def test_movie_length_cached(self):
+        old = (server.cam, server.conn_type, server.state["play"])
+        n = []
+        try:
+            c = Camera()
+            c.get = lambda cgi, **q: (n.append(cgi), b"<r><playtime>9</playtime></r>")[1]
+            server.cam, server.conn_type, server.state["play"] = c, "wifi", {"resume": False}
+            server.movtime_cache.clear()
+            self.assertEqual(server.movie_length("/DCIM/100OLYMP/P1010003.MOV", "5"), 9)
+            self.assertEqual(server.movie_length("/DCIM/100OLYMP/P1010003.MOV", "5"), 9)
+            self.assertEqual(len(n), 1)
+        finally:
+            server.cam, server.conn_type, server.state["play"] = old
+            server.movtime_cache.clear()
+
+    def test_feature_flag(self):
+        self.assertIn("share_order", server.WIFI_FEATURES)
+        self.assertNotIn("share_order", server.usb_camera.FEATURES)

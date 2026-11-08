@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Playback over Wi-Fi: Share Order filter with count, Save all to computer and Reset Share Order; movie length in the single-frame view.
+
 ## 0.1.0 – first release
 
 First public version of E-M1 Capture for the Olympus OM-D E-M1 Mark I (firmware 4.6).
