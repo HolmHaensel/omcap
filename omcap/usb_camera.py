@@ -605,14 +605,26 @@ class UsbCamera:
         """Einmal auslösen. Gibt die neuen Dateipfade zurück (JPG und ORF)."""
         self._new_files = []
         self.shooting = True  # der Live View läuft weiter, auch wenn die Kamera nicht auslöst
+        t0 = time.monotonic()
+        marks = []
         try:
             self._shutter(OP_FULL)
             self._shutter(OP_RELEASE)
-            self._events(SHOT_TIMEOUT, "quiet")
-            if self._new_files:
-                self._events(1.5)  # das zweite Format (ORF oder JPG) folgt kurz danach
+            marks.append(("released", time.monotonic() - t0))
+            # Während die Kamera speichert, liefert sie keine Livebilder; capture_preview würde
+            # nur die Sperre blockieren und das Warten auf die Datei-Ereignisse verzögern.
+            self.hold += 1
+            try:
+                self._events(SHOT_TIMEOUT, "quiet")
+                marks.append(("files", time.monotonic() - t0))
+                if self._new_files:
+                    self._events(1.5)  # das zweite Format (ORF oder JPG) folgt kurz danach
+            finally:
+                self.hold -= 1
         finally:
             self.shooting = False
+            marks.append(("done", time.monotonic() - t0))
+            print("USB shot: " + ", ".join("%s %.1f s" % m for m in marks), flush=True)
         new = self.take_new_files()
         if not new:
             raise CameraError("Camera did not release, probably no focus found")
