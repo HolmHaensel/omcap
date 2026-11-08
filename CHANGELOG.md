@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Software HSL colour profiles modelled on the PEN-F COLOR dial (`omcap.hsl`: 12 sectors, H/S/L −7…+7, 3 slots, CLI for ORF/JPG).
+
 ## 0.1.0 – first release
 
 First public version of E-M1 Capture for the Olympus OM-D E-M1 Mark I (firmware 4.6).

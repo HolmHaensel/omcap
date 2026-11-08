@@ -1,0 +1,21 @@
+{
+  "presets": [
+    {"name": "Neutral", "sectors": {}},
+    {"name": "Warm skin / muted greens", "sectors": {
+      "orange": {"h": 1, "s": 1, "l": 2},
+      "red": {"h": 1, "s": -1, "l": 1},
+      "yellow": {"h": 1, "s": -2, "l": 0},
+      "lime": {"h": 1, "s": -3, "l": -1},
+      "green": {"h": 1, "s": -4, "l": -2},
+      "teal": {"h": 0, "s": -2, "l": 0}}},
+    {"name": "Teal & orange", "sectors": {
+      "orange": {"h": 0, "s": 3, "l": 2},
+      "red": {"h": 1, "s": 1, "l": 0},
+      "yellow": {"h": 2, "s": -1, "l": 0},
+      "cyan": {"h": 0, "s": 3, "l": -1},
+      "teal": {"h": 1, "s": 4, "l": -2},
+      "azure": {"h": 0, "s": 2, "l": -2},
+      "blue": {"h": -1, "s": 2, "l": -3},
+      "green": {"h": 3, "s": -3, "l": -1}}}
+  ]
+}

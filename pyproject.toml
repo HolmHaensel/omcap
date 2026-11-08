@@ -23,6 +23,8 @@ classifiers = [
 usb = ["gphoto2"]
 # RAW development / focus stacking helper (omcap.develop, experimental)
 develop = ["rawpy", "numpy", "opencv-python"]
+# Software HSL colour profiles (omcap.hsl)
+film = ["numpy", "rawpy", "imageio"]
 
 [project.scripts]
 em1-capture = "omcap.server:main"
@@ -31,4 +33,4 @@ em1-capture = "omcap.server:main"
 packages = ["omcap"]
 
 [tool.setuptools.package-data]
-omcap = ["web/*.html", "data/*.xml"]
+omcap = ["web/*.html", "data/*.xml", "data/*.json"]

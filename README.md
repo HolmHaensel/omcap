@@ -103,6 +103,20 @@ Notes: live view runs at about 15 fps with a fixed size. The shooting mode follo
 dial. Settings changed on the camera itself are picked up with **reload** in the LV super
 control panel (rebuilds the USB session, about 9 s).
 
+## HSL color profiles (software)
+
+Modelled on the PEN-F front-dial COLOR mode (12 sectors, hue/saturation/lightness −7…+7,
+three profile slots), applied on the computer to ORF or JPG files. Needs `pip install ".[film]"`.
+
+```sh
+python -m omcap.hsl IMG.ORF --profile "Teal & orange" --out out/hsl --sheet
+python -m omcap.hsl IMG.JPG --profile my_profile.json
+```
+
+ORF gives a 16-bit TIFF, JPG a JPEG, always in `--out` (default `out/hsl/`). `--sheet` adds a
+before/after sheet and a colour wheel chart. Presets: `omcap/data/hsl_presets.json`. Sector
+angles and per-step gains are approximations, not the camera's values.
+
 ## Tests
 
 ```sh
