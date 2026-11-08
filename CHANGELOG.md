@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Header shows free card space (Wi-Fi and USB) and battery level (USB); read-only camera settings Anti-Shock, Silent, Noise Reduct., BULB/TIME Timer and Digital Tele-converter under the LV super control panel (Wi-Fi).
+
 ## 0.1.0 – first release
 
 First public version of E-M1 Capture for the Olympus OM-D E-M1 Mark I (firmware 4.6).

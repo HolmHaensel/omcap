@@ -1,0 +1,81 @@
+"""Tests ohne Kamera: Kartenplatz und Akku aus simulierten Antworten."""
+import unittest
+from types import SimpleNamespace
+
+import omcap.server as server
+from omcap import usb_camera
+from omcap.camera import Camera, CameraError, parse_capacity
+
+
+class Capacity(unittest.TestCase):
+    def test_variants(self):
+        cases = [
+            (b'<?xml version="1.0"?><response><unusedcapacity>1234567</unusedcapacity></response>', 1234567),
+            (b'<?xml version="1.0"?>\n<unused>4294967295</unused>', 4294967295),
+            (b'<unusedcapacity>42</unusedcapacity>', 42),
+            (b'<?xml version="1.0"?><response><capacity> 99 </capacity></response>', 99),
+            (b"123456789\r\n", 123456789),
+            ("500", 500),
+            (b"0", 0),
+        ]
+        for raw, want in cases:
+            self.assertEqual(parse_capacity(raw), want, raw)
+
+    def test_unparsable(self):
+        for raw in (b"", None, b"abc", b"<response/>", b"<a><b>x</b></a>", b"<a><b>", b"-5", b"1.5"):
+            self.assertIsNone(parse_capacity(raw), raw)
+
+    def test_wifi_free_bytes_uses_read_cgi(self):
+        cam = Camera()
+        calls = []
+        cam.get = lambda cgi, **q: (calls.append(cgi), b"<r><unusedcapacity>7</unusedcapacity></r>")[1]
+        self.assertEqual(cam.free_bytes(), 7)
+        self.assertEqual(calls, ["get_unusedcapacity"])
+        self.assertIsNone(cam.battery())
+
+
+class Usb(unittest.TestCase):
+    def test_battery(self):
+        for raw, want in (("80%", 80), ("100", 100), (55, 55), (" 7 % ", 7), ("0%", 0)):
+            self.assertEqual(usb_camera.parse_battery(raw), want)
+        for raw in ("Low", "", None, "150%", "-3"):
+            self.assertIsNone(usb_camera.parse_battery(raw))
+
+    def test_free_kbytes(self):
+        infos = [SimpleNamespace(freekbytes=1000), SimpleNamespace(freekbytes=24),
+                 SimpleNamespace(label="x")]
+        self.assertEqual(usb_camera.free_kbytes(infos), 1024)
+        self.assertIsNone(usb_camera.free_kbytes([SimpleNamespace()]))
+        self.assertIsNone(usb_camera.free_kbytes([]))
+
+
+class DeviceCache(unittest.TestCase):
+    def setUp(self):
+        self.old = server.cam
+        self.n = 0
+        outer = self
+
+        class Fake:
+            def free_bytes(self):
+                outer.n += 1
+                return 1000
+
+            def battery(self):
+                raise CameraError("no")
+        server.cam = Fake()
+        server.invalidate_device()
+
+    def tearDown(self):
+        server.cam = self.old
+        server.invalidate_device()
+
+    def test_cached_and_forced(self):
+        self.assertEqual(server.device_status(), {"card": 1000, "battery": None})
+        server.device_status()
+        self.assertEqual(self.n, 1)
+        server.device_status(force=True)
+        self.assertEqual(self.n, 2)
+
+
+if __name__ == "__main__":
+    unittest.main()

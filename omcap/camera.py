@@ -56,6 +56,27 @@ def _parse_commands(raw):
     return {c.get("name") for c in root.iter("cgi")}
 
 
+def parse_capacity(raw):
+    """Freier Kartenplatz in Bytes aus der Antwort von get_unusedcapacity, sonst None.
+
+    Das Format ist nicht bestätigt: erlaubt sind ein XML-Element mit Zahl oder eine reine Zahl.
+    """
+    if isinstance(raw, bytes):
+        raw = raw.decode("latin-1")
+    text = (raw or "").strip()
+    if not text:
+        return None
+    if text.startswith("<"):
+        try:
+            root = ET.fromstring(text.split("?>", 1)[-1] if text.startswith("<?") else text)
+        except ET.ParseError:
+            return None
+        text = next((e.text.strip() for e in root.iter()
+                     if len(e) == 0 and e.text and re.fullmatch(r"\s*\d+\s*", e.text)), "")
+    m = re.fullmatch(r"\d+", text)
+    return int(text) if m else None
+
+
 class Camera:
     def __init__(self, host=HOST, timeout=8, allow_write=False):
         self.host = host
@@ -150,6 +171,12 @@ class Camera:
                 "enum": (d.findtext("enum") or "").split(),
             }
         return out
+
+    def free_bytes(self):
+        return parse_capacity(self.get("get_unusedcapacity"))
+
+    def battery(self):
+        return None  # nur über USB lesbar
 
     def prop(self, name):
         return ET.fromstring(self.get("get_camprop", com="get", propname=name)).findtext("value")

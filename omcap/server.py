@@ -47,6 +47,30 @@ state = {"transfer": "sd", "latest": None, "transfer_error": None,
          "wifi_af": None, "pressing": False, "play": None}
 
 
+DEVICE_TTL = 30  # Sekunden; Kartenplatz und Akku nicht bei jedem Takt abfragen
+device = {"at": 0.0, "card": None, "battery": None}
+
+
+def device_status(force=False):
+    """Freier Kartenplatz (Bytes) und Akku (%), zwischengespeichert; Fehler ergeben None."""
+    now = time.time()
+    if cam is None:
+        return {"card": None, "battery": None}
+    busy_now = busy.locked() or state["pressing"]
+    if (force or now - device["at"] >= DEVICE_TTL) and not busy_now:
+        for key, read in (("card", cam.free_bytes), ("battery", cam.battery)):
+            try:
+                device[key] = read()
+            except (CameraError, ET.ParseError, OSError, ValueError):
+                device[key] = None
+        device["at"] = now
+    return {"card": device["card"], "battery": device["battery"]}
+
+
+def invalidate_device():
+    device["at"] = 0.0
+
+
 # --- Verbindung --------------------------------------------------------------
 def wifi_name():
     """Modellname per get_caminfo (nur lesend) oder None, wenn keine Kamera antwortet."""
@@ -96,6 +120,7 @@ def disconnect():
         cam.close()
     cam, live, conn_type = None, None, None
     lens_cache.clear()
+    device.update(at=0.0, card=None, battery=None)
     state.update(play=None)
     state.update(transfer="sd", latest=None, transfer_error=None, take=None, movie=None,
                  resume_live=False, seen=None, wifi_field=41, wifi_af=None)
@@ -213,6 +238,7 @@ def pull_new(seen):
 
 def shot(seen):
     new = cam.shoot()
+    invalidate_device()  # Kartenplatz hat sich geändert
     if conn_type == "usb":  # USB meldet die neuen Dateien direkt
         if state["transfer"] == "both":
             state["transfer_error"] = None
@@ -488,6 +514,8 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send(af_area())
             if u.path == "/api/state":
                 return self._send(public_state())
+            if u.path == "/api/device":
+                return self._send(device_status(force=q.get("fresh") == "1"))
             if u.path == "/api/props":
                 return self._send(cam.props())
             if u.path == "/api/afframe":
