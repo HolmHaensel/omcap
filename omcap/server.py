@@ -476,9 +476,9 @@ def usb_lens():
     if info is None or not info.get("focal_min"):
         try:
             lo, hi, now = cam.lens_focal()
-            info = dict(info or {}, focal_min=lo, focal_max=hi, focal=now)
-        except CameraError:
-            pass
+            info = dict(info or {}, focal_min=lo or now, focal_max=hi or now, focal=now)
+        except CameraError as e:
+            print("USB lens: d04a not readable:", e)
     return info
 
 

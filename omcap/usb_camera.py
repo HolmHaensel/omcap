@@ -403,8 +403,12 @@ class UsbCamera:
         """Brennweitenbereich des Objektivs aus d04a (Bereich = kürzeste/längste, Wert = aktuell)."""
         def read():
             w = self._c.get_single_config("d04a")
-            lo, hi, _ = w.get_range()
-            return int(lo), int(hi), int(float(w.get_value()))
+            now = int(float(w.get_value()))
+            try:
+                lo, hi, _ = w.get_range()  # nur bei Bereichs-Widgets
+            except Exception:
+                lo = hi = None
+            return (int(lo) if lo else None), (int(hi) if hi else None), now
         return self._call(read)
 
     def _list(self, fn, folder):
