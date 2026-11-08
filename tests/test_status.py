@@ -90,3 +90,16 @@ class LiveViewSize(unittest.TestCase):
         self.assertEqual(lv_size_from_d06d("83887040"), (1280, 960))
         self.assertEqual(lv_size_from_d06d(0, {"x1": 847, "y1": 636}), (1024, 768))
         self.assertEqual(lv_size_from_d06d(0, {"x1": 1060, "y1": 796}), (1280, 960))
+
+
+class UsbLens(unittest.TestCase):
+    def test_falls_back_to_focal_range(self):
+        class Fake:
+            def newest_jpg(self): return None
+            def lens_focal(self): return 14, 140, 19
+        old = (server.cam, server.conn_type)
+        server.cam, server.conn_type = Fake(), "usb"
+        try:
+            self.assertEqual(server.usb_lens(), {"focal_min": 14, "focal_max": 140, "focal": 19})
+        finally:
+            server.cam, server.conn_type = old

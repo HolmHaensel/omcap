@@ -398,6 +398,37 @@ class UsbCamera:
         """libgphoto2 liest nur ganze Dateien."""
         return self.read_file(path)[:size]
 
+    def newest_jpg(self):
+        """Pfad des neuesten JPG, ohne die ganze Karte zu lesen: nur der letzte DCIM-Ordner.
+
+        Die volle Liste dauert über USB rund 85 s; Ordner- und Dateinamen allein gehen schnell.
+        """
+        self.hold += 1  # Live View pausiert, sonst bricht die Abfrage ab
+        try:
+            folders = []
+            for store in self._list(self._c.folder_list_folders, "/"):
+                base = "/" + store + "/DCIM"
+                try:
+                    folders += [base + "/" + f for f in self._list(self._c.folder_list_folders, base)]
+                except CameraError:
+                    continue
+            for folder in sorted(folders, key=lambda f: f.rsplit("/", 1)[1], reverse=True):
+                jpgs = [n for n in self._list(self._c.folder_list_files, folder)
+                        if n.lower().endswith((".jpg", ".jpeg"))]
+                if jpgs:
+                    return folder + "/" + max(jpgs)
+            return None
+        finally:
+            self.hold -= 1
+
+    def lens_focal(self):
+        """Brennweitenbereich des Objektivs aus d04a (Bereich = kürzeste/längste, Wert = aktuell)."""
+        def read():
+            w = self._c.get_single_config("d04a")
+            lo, hi, _ = w.get_range()
+            return int(lo), int(hi), int(float(w.get_value()))
+        return self._call(read)
+
     def _list(self, fn, folder):
         names = self._call(fn, folder)
         return [names.get_name(i) for i in range(names.count())]

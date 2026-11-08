@@ -459,6 +459,26 @@ def reset_share_order():
     cam.reset_share_order()
 
 
+def usb_lens():
+    """USB: Objektiv aus dem neuesten JPG; ohne JPG nur der Brennweitenbereich (d04a)."""
+    if conn_type != "usb":
+        raise CameraError("Lens without a file only over USB")
+    path = cam.newest_jpg()
+    info = None
+    if path:
+        try:
+            info = lens(path)
+        except (CameraError, OSError):
+            info = None
+    if info is None or not info.get("focal_min"):
+        try:
+            lo, hi, now = cam.lens_focal()
+            info = dict(info or {}, focal_min=lo, focal_max=hi, focal=now)
+        except CameraError:
+            pass
+    return info
+
+
 def lens(path):
     """Objektivdaten der Aufnahme path (JPG auf der Karte), je Pfad nur einmal gelesen."""
     if not path.lower().endswith((".jpg", ".jpeg")):
@@ -578,7 +598,7 @@ class Handler(BaseHTTPRequestHandler):
             if u.path == "/api/movlength":
                 return self._send({"seconds": movie_length(q["path"], q.get("size"))})
             if u.path == "/api/lens":
-                return self._send({"lens": lens(q["path"])})
+                return self._send({"lens": lens(q["path"]) if q.get("path") else usb_lens()})
             if u.path == "/api/thumb":
                 return self._image(cached_preview("thumb", q["path"], q.get("size"),
                                                   lambda: cam.thumbnail(q["path"])), q)

@@ -559,6 +559,11 @@ let lastProps=null,propsFailed=false;
 const APERTURE_MIN=22; // kleinste Blende steht nicht im EXIF, f/22 passt für fast alle mFT-Objektive
 let lens=null,lensFrom=null;
 async function loadLens(){
+  // USB: die Kartenliste kommt nur auf Knopfdruck, der Server holt das neueste JPG selbst
+  if(features.has('af_modes')&&!cardShots){
+    try{const l=(await api('/api/lens')).lens; if(l){lens=l;lensFrom='usb';showStatus();renderProps()}}catch{}
+    return;
+  }
   const s=cardShots&&cardShots.find(s=>isJpg(s.preview));
   if(!s||s.preview.path===lensFrom) return;
   try{lens=(await api('/api/lens?path='+encodeURIComponent(s.preview.path))).lens;lensFrom=s.preview.path;showStatus();renderProps()}catch{}
@@ -571,7 +576,9 @@ function showStatus(){
   const c=device.card;
   const card=c==null?null:c>=4294967295?tr('status.cardMore'):c>=1e9?tr('status.card',{v:(c/1e9).toFixed(1)}):tr('status.cardMb',{v:Math.round(c/1e6)});
   const bat=device.battery!=null?tr('status.battery',{v:device.battery}):null;
-  $('#status').textContent=[statusBase.model,lens&&lens.model,statusBase.conn,statusBase.rights,card,bat].filter(Boolean).join(' · ');
+  // ohne Objektivnamen (USB ohne JPG) wenigstens den Brennweitenbereich
+  const lensName=lens&&(lens.model||(lens.focal_min?(lens.focal_min===lens.focal_max?lens.focal_min:lens.focal_min+'–'+lens.focal_max)+' mm':null));
+  $('#status').textContent=[statusBase.model,lensName,statusBase.conn,statusBase.rights,card,bat].filter(Boolean).join(' · ');
 }
 /* Kartenplatz und Akku: der Server fragt die Kamera höchstens alle 30 s, fresh=1 nach einer Aufnahme */
 let device={card:null,battery:null},deviceAt=0;
@@ -1373,7 +1380,7 @@ async function enterApp(){
     statusBase={model:s.model,conn:s.type==='usb'?'USB':'Wi-Fi',rights:canWrite?tr('app.write'):tr('app.readOnly')};
     showStatus();
     if(!canWrite) document.querySelectorAll('button.w').forEach(b=>b.hidden=true);
-    await tick(); await props(); gallery(); loadDevice(true);
+    await tick(); await props(); gallery(); loadDevice(true); if(features.has('af_modes')) loadLens();
     if(features.has('af_modes')||(features.has('af_area')&&st.live)) loadAf();
     if(canWrite&&!st.live) $('#lvStart').click();
     if(st.lvqty) $('#lvqty').value=st.lvqty;
