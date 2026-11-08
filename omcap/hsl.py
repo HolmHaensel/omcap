@@ -171,7 +171,10 @@ def lch_to_srgb(L, C, h):
         return np.where(f ** 3 > _EPS, f ** 3, (116 * f - 16) / _KAPPA)
 
     xyz = np.stack([inv(fx), inv(fy), inv(fz)], axis=-1) * _D65
-    return _linear_to_srgb(xyz @ _MI.T)
+    # numpy mit Apple Accelerate meldet bei matmul gelegentlich falsche FP-Warnungen (Ergebnis ohne NaN geprüft)
+    with np.errstate(invalid="ignore", over="ignore", divide="ignore"):
+        rgb = xyz @ _MI.T
+    return _linear_to_srgb(rgb)
 
 
 # ---------- Anwendung ----------
