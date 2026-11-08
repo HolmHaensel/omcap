@@ -6,6 +6,7 @@
 - Playback over Wi-Fi: Share Order filter with count, Save all to computer and Reset Share Order; movie length in the single-frame view.
 - Wi-Fi: Turn off camera button in the header (`exec_pwoff`, with confirmation); returns to the start screen.
 - Live view aids computed in the browser: Histogram (luma, optional RGB), Highlight&Shadow warning and Peaking with color choice.
+- Software HSL colour profiles modelled on the PEN-F COLOR dial (`omcap.hsl`: 12 sectors, H/S/L −7…+7, 3 slots, CLI for ORF/JPG).
 
 ## 0.1.0 – first release
 
