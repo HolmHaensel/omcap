@@ -105,6 +105,7 @@ body.single{background:#000;height:100vh;overflow:hidden}
   <h1>E-M1 Capture</h1>
   <span id="status" class="mut" data-i18n="app.connecting">connecting …</span>
   <button id="discon" class="sp" data-i18n="app.disconnect">Disconnect</button>
+  <button id="poweroff" class="w" data-feat="poweroff" data-i18n="app.poweroff">Turn off camera</button>
   <button id="layoutBtn" data-i18n="app.layout">Customize layout</button>
   <button id="reset" class="w" data-i18n="app.reset" data-i18n-title="app.resetTitle">Reset camera</button>
 </header>
@@ -270,6 +271,8 @@ const I18N={en:{
   "start.connecting": "Connecting …",
   "app.connecting": "connecting …",
   "app.disconnect": "Disconnect",
+  "app.poweroff": "Turn off camera",
+  "app.poweroffConfirm": "The camera will be turned off and the Wi-Fi connection will end. You have to switch the camera on again at the camera to reconnect. Turn off the camera?",
   "app.layout": "Customize layout",
   "app.reset": "Reset camera",
   "app.resetTitle": "If the camera is stuck in shutter mode",
@@ -1134,6 +1137,7 @@ async function connectTo(kind){
 document.querySelectorAll('.ctile').forEach(t=>t.onclick=()=>connectTo(t.dataset.conn));
 $('#startGo').onclick=()=>{if(selected)connectTo(selected)};
 document.addEventListener('keydown',e=>{if(!$('#start').hidden&&e.key==='Enter'&&selected&&e.target.tagName!=='BUTTON')connectTo(selected)});
+$('#poweroff').onclick=async()=>{if(!confirm(tr('app.poweroffConfirm')))return;try{await api('/api/poweroff',{})}catch(e){alert(e.message||e);return}location.reload()};
 $('#discon').onclick=async()=>{try{await api('/api/disconnect',{})}catch{}location.reload()};
 function init(){
   $('#start').hidden=false;

@@ -30,7 +30,7 @@ LV_PORT = 5555
 MIN_INTERVAL = 5  # eine Aufnahme dauert rund 4 s (Fokus, Auslösen, Speichern)
 
 WIFI_FEATURES = ["liveview", "lvsize", "af_area", "stages", "scp", "time_lapse", "ae_bkt", "movie",
-                 "long", "playback", "transfer"]
+                 "long", "playback", "transfer", "poweroff"]
 
 cam = None   # aktive Verbindung, None vor der Auswahl auf dem Startbildschirm
 live = None
@@ -137,6 +137,24 @@ def set_af_area(mode, field):
 def ensure_idle():
     if cam.stage or state["take"] or state["movie"] or job["running"] or state["play"] is not None:
         raise CameraError("Camera is busy")
+
+
+def power_off():
+    """Kamera per Wi-Fi ausschalten und zum Startbildschirm zurück."""
+    if conn_type != "wifi":
+        raise CameraError("Only available over Wi-Fi")
+    ensure_idle()
+    try:
+        if live.running:
+            cam.stop_liveview()
+    except CameraError:
+        pass  # Liveview ist egal, die Kamera geht gleich aus
+    live.stop()
+    try:
+        cam.power_off()
+    except CameraError:
+        pass  # die Kamera kappt das WLAN, oft ohne Antwort
+    disconnect()
 
 
 def start_live():
@@ -577,6 +595,9 @@ class Handler(BaseHTTPRequestHandler):
             return {"type": conn_type}
         if path == "/api/disconnect":
             disconnect()
+            return None
+        if path == "/api/poweroff":
+            power_off()
             return None
         if path == "/api/open":
             subprocess.run(["open", "-a", "OM Workspace", capture_path(b["name"])], check=True)
