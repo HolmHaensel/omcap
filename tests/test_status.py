@@ -56,6 +56,8 @@ class DeviceCache(unittest.TestCase):
         outer = self
 
         class Fake:
+            stage = 0
+
             def free_bytes(self):
                 outer.n += 1
                 return 1000

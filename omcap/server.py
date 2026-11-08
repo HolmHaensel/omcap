@@ -57,7 +57,8 @@ def device_status(force=False):
     now = time.time()
     if cam is None:
         return {"card": None, "battery": None}
-    busy_now = busy.locked() or state["pressing"]
+    # während Aufnahme, Film, Langzeitbelichtung oder Halbdruck die Kamera nicht fragen
+    busy_now = busy.locked() or state["pressing"] or cam.stage or state["movie"] or state["take"]
     if (force or now - device["at"] >= DEVICE_TTL) and not busy_now:
         for key, read in (("card", cam.free_bytes), ("battery", cam.battery)):
             try:
@@ -171,6 +172,11 @@ def power_off():
     if conn_type != "wifi":
         raise CameraError("Only available over Wi-Fi")
     ensure_idle()
+    # vorher prüfen, damit ein echter Fehler nicht als "WLAN weg" geschluckt wird
+    if not cam.allow_write:
+        raise WriteBlocked("Writing not enabled (--allow-write)")
+    if not cam.supports("exec_pwoff"):
+        raise CameraError("exec_pwoff is not in the camera's command list")
     try:
         if live.running:
             cam.stop_liveview()

@@ -147,6 +147,8 @@ class PowerOff(unittest.TestCase):
             def stop(self): pass
         class Fake:
             stage = 0
+            allow_write = True
+            def supports(self, name): return name == "exec_pwoff"
             def stop_liveview(self): pass
             def power_off(self): raise CameraError("connection reset")
         old = (server.cam, server.live, server.conn_type)
@@ -158,6 +160,25 @@ class PowerOff(unittest.TestCase):
         finally:
             server.cam, server.live, server.conn_type = old
 
+
+
+class PowerOffGuards(unittest.TestCase):
+    def test_missing_command_is_not_swallowed(self):
+        class Live:
+            running = False
+            def stop(self): pass
+        class Fake:
+            stage = 0
+            allow_write = True
+            def supports(self, name): return False
+        old = (server.cam, server.live, server.conn_type)
+        server.cam, server.live, server.conn_type = Fake(), Live(), "wifi"
+        try:
+            with self.assertRaises(CameraError):
+                server.power_off()
+            self.assertEqual(server.conn_type, "wifi")  # nicht getrennt
+        finally:
+            server.cam, server.live, server.conn_type = old
 
 if __name__ == "__main__":
     unittest.main()
