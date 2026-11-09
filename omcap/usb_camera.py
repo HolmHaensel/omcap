@@ -68,6 +68,15 @@ def detect_name():
 LV_SIZES = ((640, 480), (800, 600), (1024, 768), (1280, 960))
 
 
+def af_raster(area):
+    """Raster des AF-Bereichs aus seiner Lage: mittig, also Breite x0+x1 und Höhe y0+y1.
+
+    Auf die nächste übliche Live-View-Größe gerundet (Werte sind auf ±4 px genau).
+    """
+    w, h = area["x0"] + area["x1"], area["y0"] + area["y1"]
+    return min(LV_SIZES, key=lambda s: abs(s[0] - w) + abs(s[1] - h))
+
+
 def lv_size_from_d06d(value, area=None):
     """d06d: Breite in den oberen 16 Bit, Höhe in den unteren (z. B. 0x04000300 = 1024x768).
 
@@ -346,17 +355,12 @@ class UsbCamera:
         area = {"x0": 216, "x1": 1060, "y0": 160, "y1": 796, "w": 1280, "h": 960}
         for key, name in (("x0", "d05a"), ("x1", "d05b"), ("y0", "d071"), ("y1", "d072")):
             area[key] = int(self._value(name))
-        # Die Kamera meldet den AF-Bereich im Raster der Live-View-Größe (d06d), nicht fest 1280x960
-        area["w"], area["h"] = self._lv_size(area)
+        # Der AF-Bereich liegt mittig, sein Raster ist also (x0+x1) × (y0+y1) – wie bei Wi-Fi
+        # (touchactiveframe). d06d taugt nicht: die Kamera meldet den Bereich je nach Sitzung
+        # in 1280×960 oder 1024×768, unabhängig vom aktuellen d06d (gemessen 2026-11-09).
+        area["w"], area["h"] = af_raster(area)
         return {"mode": int(self._value("d00c")), "field": int(self._value("d051")), "area": area,
                 "last_af": self.last_af}
-
-    def _lv_size(self, area):
-        """Live-View-Größe aus d06d (Breite << 16 | Höhe), sonst aus dem AF-Bereich geschlossen."""
-        try:
-            return lv_size_from_d06d(self._value("d06d"), area)
-        except CameraError:
-            return lv_size_from_d06d(0, area)
 
     def preview_frame(self):
         with self._lock:

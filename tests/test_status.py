@@ -114,3 +114,10 @@ class UsbIndex(unittest.TestCase):
                 server.ensure_idle()
         finally:
             server.state["indexing"] = old
+
+
+class AfRaster(unittest.TestCase):
+    def test_both_rasters_seen_on_the_camera(self):
+        from omcap.usb_camera import af_raster
+        self.assertEqual(af_raster({"x0": 216, "x1": 1060, "y0": 160, "y1": 796}), (1280, 960))
+        self.assertEqual(af_raster({"x0": 172, "x1": 847, "y0": 128, "y1": 636}), (1024, 768))

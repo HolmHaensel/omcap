@@ -532,7 +532,7 @@ async function tick(){
   // busy: eine Aufnahme-Abfolge läuft noch (Wi-Fi: Moduswechsel, Übertragung auf den Mac)
   // USB: Kartenverzeichnis wird nach dem Verbinden eingelesen (ca. 1 min), danach Objektiv aus dem neuesten JPG
   if(st.indexing&&!wasIndexing) msg(tr('msg.indexing'));
-  if(wasIndexing&&!st.indexing){msg(tr('msg.indexDone'));loadLens()}
+  if(wasIndexing&&!st.indexing){msg(tr('msg.indexDone'));loadLens();gallery(true)} // wie bei Wi-Fi: Bilderliste gleich laden
   wasIndexing=!!st.indexing;
   const b=st.stage>0||j.running||st.busy||st.movie!=null||st.indexing;
   if(wasBusy&&!b){props();gallery();local();loadDevice(true)}
