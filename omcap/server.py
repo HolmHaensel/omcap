@@ -144,6 +144,8 @@ def af_area():
 
 def set_af_area(mode, field):
     if conn_type == "usb":
+        if field is not None and cam.stage:
+            cam.press(0)  # a latched "Press halfway" would block the new focus
         cam.set_af_area(mode, field)
         if field is not None:
             cam.focus()

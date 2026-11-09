@@ -186,7 +186,7 @@ class UsbLive:
             if data is None:
                 failures += 1
                 if failures >= 10 and not self.camera.shooting:
-                    self.camera.reopen()  # session broken: rebuild
+                    self.camera.reopen("live view failed 10x")  # session broken: rebuild
                     failures = 0
                 time.sleep(0.3)
                 continue
@@ -258,7 +258,9 @@ class UsbCamera:
                 self._c = self.gp.Camera()
         raise CameraError("USB camera not reachable: %s" % error)
 
-    def reopen(self):
+    def reopen(self, reason="?"):
+        # logged: a rebuilt session drops live view for ~9 s and loses libgphoto2's file index
+        print("USB session reopened (%s)" % reason, flush=True)
         with self._lock:
             try:
                 self._c.exit()
