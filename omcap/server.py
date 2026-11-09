@@ -287,6 +287,8 @@ def save_capture(path, size=None):
         dest = os.path.join(CAPTURES, "%s-%d%s" % (stem, n, ext))
     cam.fetch_file(path, dest + ".part")
     os.replace(dest + ".part", dest)
+    if hsl_auto["enabled"] and ext.lower() in (".jpg", ".jpeg", ".orf"):
+        hsl_auto_run(dest)
     if ext.lower() in (".jpg", ".jpeg") or state["latest"] is None or \
             not state["latest"].lower().endswith((".jpg", ".jpeg")):
         state["latest"] = os.path.basename(dest)
@@ -424,6 +426,69 @@ def local_files():
         if name.lower().endswith((".jpg", ".jpeg", ".orf")) and os.path.isfile(p):
             out.append({"name": name, "size": os.path.getsize(p), "mtime": os.path.getmtime(p)})
     return sorted(out, key=lambda e: e["mtime"], reverse=True)
+
+
+# ---------- Software HSL (runs on the computer, so it works over USB and Wi-Fi) ----------
+HSL_OUT = os.path.join(os.getcwd(), "out", "hsl")
+hsl_lock = threading.Lock()      # one render at a time (an ORF needs a few 100 MB)
+hsl_auto = {"enabled": False, "preset": "Neutral", "error": None}
+
+
+def _hsl_module():
+    try:
+        from omcap import hsl
+        import imageio.v2  # noqa: F401
+    except ImportError as e:
+        raise ValueError("HSL needs numpy and imageio (RAW also rawpy): %s" % e)
+    return hsl
+
+
+def hsl_presets():
+    hsl = _hsl_module()
+    with open(hsl.PRESET_FILE, encoding="utf-8") as f:
+        return [p["name"] for p in json.load(f)["presets"]]
+
+
+def hsl_apply(name, profile, tiff=False):
+    """Apply a profile (preset name or profile dict) to a file in captures/.
+
+    Writes <stem>_hsl.jpg (and <stem>_hsl.tif for ORF if tiff) to HSL_OUT, never next to the source.
+    """
+    hsl = _hsl_module()
+    src = capture_path(name)
+    prof = hsl.validate_profile(profile) if isinstance(profile, dict) else hsl.load_profile(profile or "Neutral")
+    import imageio.v2 as imageio
+    import numpy as np
+    with hsl_lock:
+        rgb, is_raw = hsl._read_image(src)
+        res = hsl.apply_hsl(rgb, prof)
+        stem = os.path.splitext(os.path.basename(src))[0]
+        os.makedirs(HSL_OUT, exist_ok=True)
+        out = stem + "_hsl.jpg"
+        imageio.imwrite(os.path.join(HSL_OUT, out), hsl._to_u8(res), quality=95)
+        res_tif = None
+        if is_raw and tiff:
+            res_tif = stem + "_hsl.tif"
+            imageio.imwrite(os.path.join(HSL_OUT, res_tif), (np.clip(res, 0, 1) * 65535 + 0.5).astype("uint16"))
+    return {"name": out, "tiff": res_tif, "source": os.path.basename(src)}
+
+
+def hsl_out_path(name):
+    p = os.path.join(HSL_OUT, os.path.basename(name))
+    if not os.path.isfile(p):
+        raise KeyError("File not found: %s" % name)
+    return p
+
+
+def hsl_auto_run(dest):
+    """After a save to the computer: extra _hsl.jpg in a background thread (errors go to state)."""
+    def run():
+        try:
+            hsl_apply(os.path.basename(dest), hsl_auto["preset"])
+            hsl_auto["error"] = None
+        except (ValueError, KeyError, OSError) as e:
+            hsl_auto["error"] = str(e)
+    threading.Thread(target=run, daemon=True).start()
 
 
 def capture_path(name):
@@ -617,6 +682,12 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send(connections())
             if u.path == "/api/local":
                 return self._send(local_files())
+            if u.path == "/api/hsl/presets":
+                return self._send({"presets": hsl_presets(), "auto": dict(hsl_auto)})
+            if u.path.startswith("/out-hsl/"):
+                p = hsl_out_path(urllib.parse.unquote(u.path[len("/out-hsl/"):]))
+                with open(p, "rb") as f:
+                    return self._send(f.read(), "image/tiff" if p.lower().endswith(".tif") else "image/jpeg")
             if u.path.startswith("/captures/"):
                 p = preview_path(capture_path(urllib.parse.unquote(u.path[len("/captures/"):])))
                 if p.lower().endswith(".orf"):
@@ -751,6 +822,13 @@ class Handler(BaseHTTPRequestHandler):
         if path == "/api/open":
             subprocess.run(["open", "-a", "OM Workspace", capture_path(b["name"])], check=True)
             return None
+        if path == "/api/hsl":
+            return hsl_apply(b["name"], b.get("profile"), bool(b.get("tiff")))
+        if path == "/api/hslauto":
+            if b.get("enabled"):
+                hsl_presets()   # clear error if numpy is missing
+            hsl_auto.update(enabled=bool(b.get("enabled")), preset=str(b.get("preset") or "Neutral"))
+            return {"auto": dict(hsl_auto)}
         if cam is None:
             raise CameraError("Not connected")
         if path == "/api/refresh":
@@ -847,7 +925,7 @@ class Handler(BaseHTTPRequestHandler):
 
 
 def main():
-    global CAPTURES, PREVIEW_CACHE
+    global CAPTURES, PREVIEW_CACHE, HSL_OUT
     p = argparse.ArgumentParser(prog="em1-capture", description="Local web app to control an Olympus OM-D E-M1 over Wi-Fi or USB.")
     p.add_argument("--version", action="version", version="%(prog)s " + __version__)
     p.add_argument("--host", default="192.168.0.10", help="camera IP in the camera's Wi-Fi (default 192.168.0.10)")
@@ -859,6 +937,7 @@ def main():
     a = p.parse_args()
     CAPTURES = os.path.join(a.data_dir, "captures")
     PREVIEW_CACHE = os.path.join(a.data_dir, "out", "cache", "previews")
+    HSL_OUT = os.path.join(a.data_dir, "out", "hsl")
     options.update(host=a.host, allow_write=a.allow_write)
     allowed_hosts.update({"127.0.0.1:%d" % a.port, "localhost:%d" % a.port})
     print("em1-capture %s  http://127.0.0.1:%d  (%s)" % (__version__, a.port, "WRITE ENABLED" if a.allow_write else "read only"))
