@@ -1078,6 +1078,8 @@ async function setAf(b){
   const f=b.field||b.focus;
   if(f&&focusing) return;
   if(f){focusing=true;msg(tr('msg.focusing'))}
+  // show the tapped field at once; the camera needs 0.4-1.5 s to focus (measured over Wi-Fi)
+  if(b.field&&af){af={...af,field:b.field,last_af:null};focusHit=null;showAf()}
   try{
     af=await api('/api/afarea',b);
     const hit=focusField(af);
