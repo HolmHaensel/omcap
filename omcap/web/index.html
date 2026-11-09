@@ -1344,7 +1344,10 @@ async function showLast(before,retry,before2){
   // Wi-Fi: right after a shot the card list may fail or lack the new file: try again (up to 3x, 4 s apart)
   if(!features.has('af_modes')&&!local&&!shot&&n<4) setTimeout(()=>showLast(before,n+1,before2),3000);
   if(!src) return;
-  lastOpen=shot; img.src=src; img.hidden=false;
+  lastOpen=shot; img.hidden=false;
+  // the camera may still be busy right after the shot: retry a failed thumbnail a few times
+  let tries=0; img.onerror=()=>{if(++tries<4) setTimeout(()=>{img.src=src+(src.includes('?')?'&':'?')+'r='+tries},3000)};
+  img.src=src;
 }
 $('#lastShot').onclick=()=>{
   if(lastOpen) openViewer([lastOpen],0);
