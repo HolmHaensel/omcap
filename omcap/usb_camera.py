@@ -16,6 +16,7 @@ import time
 from .camera import CameraError, WriteBlocked
 
 AF_MODES = (33024, 33025, 33026, 33027)
+AF_ALL = 33024
 EXPOSURE_PROGRAM = {"1": "M", "2": "P", "3": "A", "4": "S", "8": "movie", "11": "B"}
 WB_NAMES = ["AUTO", "5300K", "7500K", "6000K", "3000K", "4000K", "Underwater", "5500K Flash",
             "One-touch 1", "One-touch 2", "One-touch 3", "One-touch 4", "CWB"]
@@ -368,7 +369,8 @@ class UsbCamera:
         # (touchactiveframe). d06d is no good: depending on the session the camera reports the area
         # in 1280×960 or 1024×768, independent of the current d06d (measured 2026-11-09).
         area["w"], area["h"] = af_raster(area)
-        return {"mode": int(self._value("d00c")), "field": int(self._value("d051")), "area": area,
+        self.af_mode = int(self._value("d00c"))
+        return {"mode": self.af_mode, "field": int(self._value("d051")), "area": area,
                 "last_af": focus_in_raster(self.last_af, area), "focus_ok": getattr(self, "focus_ok", None)}
 
     def preview_frame(self):
@@ -525,6 +527,7 @@ class UsbCamera:
             if int(mode) not in AF_MODES:
                 raise CameraError("Unknown AF mode: %r" % mode)
             self._set("d00c", int(mode))
+            self.af_mode = int(mode)
         if field is not None:
             if not 1 <= int(field) <= 81:
                 raise CameraError("AF point must be between 1 and 81")
@@ -644,12 +647,14 @@ class UsbCamera:
         try:
             with self._lock:  # let an in-flight preview request finish
                 pass
-            self._events(0.3)  # collect old events, otherwise the wait ends too early
+            self._events(0.1)  # collect old events, otherwise the wait ends too early
             self._event_log = []
             self._shutter(OP_FIRST)
             try:
                 self.focus_ok = bool(self._events(FOCUS_WAIT, "c003"))
-                self._read_focus_position()
+                # the position is only used for All Targets; reading it costs up to 1.5 s
+                if getattr(self, "af_mode", AF_ALL) == AF_ALL:
+                    self._read_focus_position()
             finally:
                 self._shutter(OP_RELEASE)
             self._events(0.2)
