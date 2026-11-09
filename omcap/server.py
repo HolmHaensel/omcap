@@ -707,7 +707,8 @@ class Handler(BaseHTTPRequestHandler):
                     for p in jpg_last(new):
                         save_capture(p)
             if stage == 1:
-                return {"last_af": cam.last_af}
+                # same grid as /api/afarea (focus position comes in 1280x960)
+                return {"last_af": cam.af_area()["last_af"]}
         elif stage == 0:
             if state["seen"] is not None:
                 pull_new(state["seen"])
