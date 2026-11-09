@@ -607,21 +607,22 @@ class UsbCamera:
         self.shooting = True  # der Live View läuft weiter, auch wenn die Kamera nicht auslöst
         t0 = time.monotonic()
         marks = []
+        # Live View schon vor dem Auslösen anhalten: Eine Vorschau-Anfrage, die während des
+        # Speicherns läuft, blockiert die USB-Verbindung bis zu einer Minute (gemessen 2026-11-09).
+        self.hold += 1
         try:
+            with self._lock:  # laufende Vorschau-Anfrage zu Ende kommen lassen
+                pass
+            marks.append(("paused", time.monotonic() - t0))
             self._shutter(OP_FULL)
             self._shutter(OP_RELEASE)
             marks.append(("released", time.monotonic() - t0))
-            # Während die Kamera speichert, liefert sie keine Livebilder; capture_preview würde
-            # nur die Sperre blockieren und das Warten auf die Datei-Ereignisse verzögern.
-            self.hold += 1
-            try:
-                self._events(SHOT_TIMEOUT, "quiet")
-                marks.append(("files", time.monotonic() - t0))
-                if self._new_files:
-                    self._events(1.5)  # das zweite Format (ORF oder JPG) folgt kurz danach
-            finally:
-                self.hold -= 1
+            self._events(SHOT_TIMEOUT, "quiet")
+            marks.append(("files", time.monotonic() - t0))
+            if self._new_files:
+                self._events(1.5)  # das zweite Format (ORF oder JPG) folgt kurz danach
         finally:
+            self.hold -= 1
             self.shooting = False
             marks.append(("done", time.monotonic() - t0))
             print("USB shot: " + ", ".join("%s %.1f s" % m for m in marks), flush=True)
