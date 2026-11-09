@@ -5,6 +5,7 @@
 !/.gitignore
 !/omcap/
 !/tests/
+!/tools/
 !/README.md
 !/LICENSE
 !/CHANGELOG.md
