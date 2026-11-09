@@ -45,6 +45,7 @@ button:disabled{opacity:.4;cursor:not-allowed}
 #startMsg{min-height:1.3em}
 #afMark{display:none;position:absolute;width:48px;height:48px;margin:-24px 0 0 -24px;border:2px solid #fc3;border-radius:4px;pointer-events:none}
 #empty{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#aaa;pointer-events:none}
+#timerCount{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:20vmin;font-weight:700;color:#fff;text-shadow:0 0 12px #000;pointer-events:none;z-index:2}
 #msg{margin:8px 0 0;min-height:1.3em}
 #props{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}
 #props label{display:flex;flex-direction:column;gap:2px;font-size:12px;color:var(--mut);min-width:0}
@@ -135,6 +136,7 @@ body.single{background:#000;height:100vh;overflow:hidden}
     </div>
     <canvas id="levelGauge"></canvas>
     <canvas id="histCv" width="160" height="70" hidden></canvas>
+    <div id="timerCount" hidden></div>
     <div id="empty" data-i18n="lv.off">Live view off</div>
   </div>
   <p id="msg" class="mut" data-i18n="msg.ready">Ready.</p>
@@ -162,6 +164,9 @@ body.single{background:#000;height:100vh;overflow:hidden}
     <h2 data-i18n="panel.shutter">Shutter button</h2>
     <div class="row">
       <button class="w" id="shoot" data-i18n="shutter.take">Take picture</button>
+      <label><span data-i18n="timer.label">Self-timer</span> <select id="timerSel">
+        <option value="0" data-i18n="timer.off">Off</option><option value="2" data-i18n="timer.s2">2 s</option><option value="10" data-i18n="timer.s10">10 s</option>
+      </select></label>
       <button class="w" id="half" data-feat="stages" data-i18n="shutter.half">Press halfway</button>
     </div>
   </section>
@@ -344,6 +349,12 @@ const I18N={en:{
   "msg.afArea": "AF Area: {e}",
   "panel.shutter": "Shutter button",
   "shutter.take": "Take picture",
+  "timer.label": "Self-timer",
+  "timer.off": "Off",
+  "timer.s2": "2 s",
+  "timer.s10": "10 s",
+  "timer.cancelled": "Self-timer cancelled",
+  "timer.running": "Self-timer running, click Take picture again to cancel",
   "shutter.half": "Press halfway",
   "panel.af": "AF Area",
   "af.33024": "All Targets",
@@ -1288,7 +1299,20 @@ $('#lvqty').onchange=()=>{lvPicked=true;if(st.live)$('#lvStart').click()};
 $('#lvStop').onclick=()=>act(tr('msg.lvStopped'),'/api/liveview',{action:'stop'});
 /* Auslösen: ganze Abfolge. Hält Halfway gerade den Fokus, von dort durchdrücken und loslassen,
    wie am echten Auslöser. All the way und Loslassen sind darin aufgegangen. */
+/* Self-timer: purely client-side countdown, then the normal take-picture path */
+let timerId=null,timerRes=null;
+function timerStop(){clearInterval(timerId);timerId=null;$('#timerCount').hidden=true}
+function timerStart(sec){
+  return new Promise(res=>{
+    let n=sec; const box=$('#timerCount'); box.textContent=n; box.hidden=false; msg(tr('timer.running'));
+    timerRes=res;
+    timerId=setInterval(()=>{n--;if(n>0){box.textContent=n;return}timerStop();timerRes=null;res(true)},1000);
+  });
+}
 $('#shoot').onclick=async()=>{
+  if(timerId!==null){timerStop();timerRes&&timerRes(false);timerRes=null;msg(tr('timer.cancelled'));return}
+  const sec=+$('#timerSel').value;
+  if(sec&&!await timerStart(sec)) return;
   msg(tr('msg.shooting'));
   if(st.stage>=1){
     if(!await act(tr('msg.shutter'),'/api/shutter',{stage:2})) return;

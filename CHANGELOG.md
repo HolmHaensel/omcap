@@ -8,6 +8,8 @@
 - Live view aids computed in the browser: Histogram (luma, optional RGB), Highlight&Shadow warning and Peaking with color choice.
 - Software HSL colour profiles modelled on the PEN-F COLOR dial (`omcap.hsl`: 12 sectors, H/S/L −7…+7, 3 slots, CLI for ORF/JPG).
 
+- Self-timer (Off / 2 s / 10 s) next to Take picture with a countdown over the live view; click again to cancel.
+
 ## 0.1.0 – first release
 
 First public version of E-M1 Capture for the Olympus OM-D E-M1 Mark I (firmware 4.6).
