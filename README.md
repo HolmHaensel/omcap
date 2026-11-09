@@ -8,6 +8,19 @@ A local web app to control an **Olympus OM-D E-M1 (Mark I)** from a computer, ov
 > Olympus. "Olympus", "OM-D" and "OI.Share" are trademarks of their respective owners.
 > Use at your own risk.
 
+## Why this project
+
+I love Olympus cameras. The OM-D E-M1 Mark I is a fantastic camera to learn photography with:
+you can get one for about 129 € and it has a huge feature set. Sadly its software is no longer
+maintained — OI.Share, OM Workspace and OM Capture feel slow, and there was never Wi-Fi tethering
+on the computer, although the phone app (OI.Share) has always used it.
+
+So I simply tried to build it, with hardly any programming experience. E-M1 Capture is my
+contribution to the community, so these great cameras can keep taking pictures for many years.
+Maybe OM System finds an idea or two here for their future cameras.
+
+Contributions, tests with other bodies and ideas are very welcome.
+
 ## Features
 
 | Feature | Wi-Fi | USB |
