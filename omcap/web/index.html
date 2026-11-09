@@ -46,6 +46,7 @@ button:disabled{opacity:.4;cursor:not-allowed}
 #afMark{display:none;position:absolute;width:48px;height:48px;margin:-24px 0 0 -24px;border:2px solid #fc3;border-radius:4px;pointer-events:none}
 #empty{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#aaa;pointer-events:none}
 #timerCount{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:20vmin;font-weight:700;color:#fff;text-shadow:0 0 12px #000;pointer-events:none;z-index:2}
+#lastShot{position:absolute;right:8px;bottom:8px;width:22%;max-height:30%;object-fit:contain;background:#000;border:2px solid #fff;border-radius:4px;cursor:pointer;z-index:3}
 #msg{margin:8px 0 0;min-height:1.3em}
 #props{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}
 #props label{display:flex;flex-direction:column;gap:2px;font-size:12px;color:var(--mut);min-width:0}
@@ -137,6 +138,7 @@ body.single{background:#000;height:100vh;overflow:hidden}
     <canvas id="levelGauge"></canvas>
     <canvas id="histCv" width="160" height="70" hidden></canvas>
     <div id="timerCount" hidden></div>
+    <img id="lastShot" alt="" hidden data-i18n-title="last.title">
     <div id="empty" data-i18n="lv.off">Live view off</div>
   </div>
   <p id="msg" class="mut" data-i18n="msg.ready">Ready.</p>
@@ -349,6 +351,7 @@ const I18N={en:{
   "msg.afArea": "AF Area: {e}",
   "panel.shutter": "Shutter button",
   "shutter.take": "Take picture",
+  "last.title": "Last shot, click to open",
   "timer.label": "Self-timer",
   "timer.off": "Off",
   "timer.s2": "2 s",
@@ -1309,15 +1312,44 @@ function timerStart(sec){
     timerId=setInterval(()=>{n--;if(n>0){box.textContent=n;return}timerStop();timerRes=null;res(true)},1000);
   });
 }
+/* Last shot thumbnail in the live view corner. Source: Wi-Fi reloads the card list (newest first);
+   USB asks the server for the JPG the camera just reported; a JPG saved to the computer is preferred. */
+let lastOpen=null;
+async function showLast(before,retry){
+  const img=$('#lastShot');
+  let shot=null,src=null;
+  try{
+    if(features.has('af_modes')){
+      const p=(await api('/api/lastshot')).path;
+      if(p){const name=p.split('/').pop(),dir=p.slice(0,p.lastIndexOf('/')),d=new Date();
+        const f={path:p,name,dir,size:0,date:((d.getFullYear()-1980)<<9)|((d.getMonth()+1)<<5)|d.getDate(),time:(d.getHours()<<11)|(d.getMinutes()<<5)};
+        shot={name:name.replace(/\.[^.]+$/,''),files:[f],preview:f,dt:parseStamp(f),types:'JPG',size:0}}
+    }else{
+      await loadCard(); shot=cardShots&&cardShots.find(x=>isJpg(x.preview))||null;
+    }
+    const lst=(await api('/api/state')).latest;
+    const local=lst&&/\.jpe?g$/i.test(lst)&&lst!==before?'/captures/'+encodeURIComponent(lst):null;
+    src=local||(shot&&thumbUrl(shot.preview));
+  }catch{}
+  if(!src) return;
+  lastOpen=shot; img.src=src; img.hidden=false;
+  if(!features.has('af_modes')&&!retry) setTimeout(()=>showLast(before,true),4000); // the card writes on after the shot
+}
+$('#lastShot').onclick=()=>{
+  if(lastOpen) openViewer([lastOpen],0);
+  else window.open($('#lastShot').src,'_blank');
+};
 $('#shoot').onclick=async()=>{
   if(timerId!==null){timerStop();timerRes&&timerRes(false);timerRes=null;msg(tr('timer.cancelled'));return}
   const sec=+$('#timerSel').value;
   if(sec&&!await timerStart(sec)) return;
   msg(tr('msg.shooting'));
+  const latestBefore=st.latest;
   if(st.stage>=1){
     if(!await act(tr('msg.shutter'),'/api/shutter',{stage:2})) return;
     await act(tr('msg.taken'),'/api/shutter',{stage:0});
-  }else await act(tr('msg.taken'),'/api/shoot',{});
+  }else if(!await act(tr('msg.taken'),'/api/shoot',{})) return;
+  showLast(latestBefore);
   gallery();local();
   if(features.has('af_modes')) loadLens(); // USB: Objektiv aus dem neuen JPG
   // Wi-Fi: die Kamera schreibt nach dem Auslösen noch, die erste Liste ist oft ohne das neue Bild

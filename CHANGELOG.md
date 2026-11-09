@@ -7,8 +7,8 @@
 - Wi-Fi: Turn off camera button in the header (`exec_pwoff`, with confirmation); returns to the start screen.
 - Live view aids computed in the browser: Histogram (luma, optional RGB), Highlight&Shadow warning and Peaking with color choice.
 - Software HSL colour profiles modelled on the PEN-F COLOR dial (`omcap.hsl`: 12 sectors, H/S/L −7…+7, 3 slots, CLI for ORF/JPG).
-
 - Self-timer (Off / 2 s / 10 s) next to Take picture with a countdown over the live view; click again to cancel.
+- Last shot thumbnail in the live view corner after Take picture (click opens the single-frame view; Wi-Fi and USB).
 
 ## 0.1.0 – first release
 

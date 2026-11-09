@@ -117,6 +117,16 @@ class Helpers(unittest.TestCase):
     def test_jpg_last(self):
         self.assertEqual(server.jpg_last(["a.JPG", "a.ORF"]), ["a.ORF", "a.JPG"])
 
+    def test_newest_jpg_and_last_shot(self):
+        self.assertEqual(server.newest_jpg(["/D/P1.ORF", "/D/P1.JPG"]), "/D/P1.JPG")
+        self.assertIsNone(server.newest_jpg(["/D/P1.ORF"]))
+        server.state["last_shot"] = None
+        server.remember_shot(["/D/P2.ORF"])
+        self.assertIsNone(server.state["last_shot"])
+        server.remember_shot(["/D/P2.ORF", "/D/P2.JPG"])
+        self.assertEqual(server.state["last_shot"], "/D/P2.JPG")
+        server.state["last_shot"] = None
+
     def test_preview_path_prefers_jpg(self):
         d = tempfile.mkdtemp()
         for n in ("P1.ORF", "P1.JPG", "P2.ORF"):

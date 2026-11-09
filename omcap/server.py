@@ -45,7 +45,8 @@ stop_job = threading.Event()
 job = {"name": None, "running": False, "done": 0, "total": 0, "error": None}
 state = {"transfer": "sd", "latest": None, "transfer_error": None,
          "take": None, "movie": None, "resume_live": False, "seen": None, "wifi_field": 41,
-         "wifi_af": None, "pressing": False, "indexing": False, "play": None}
+         "wifi_af": None, "pressing": False, "indexing": False, "play": None,
+         "last_shot": None}
 
 
 DEVICE_TTL = 30  # Sekunden; Kartenplatz und Akku nicht bei jedem Takt abfragen
@@ -128,7 +129,7 @@ def disconnect():
     movtime_cache.clear()
     state.update(play=None, indexing=False)
     state.update(transfer="sd", latest=None, transfer_error=None, take=None, movie=None,
-                 resume_live=False, seen=None, wifi_field=41, wifi_af=None)
+                 resume_live=False, seen=None, wifi_field=41, wifi_af=None, last_shot=None)
 
 
 def af_area():
@@ -241,6 +242,19 @@ def jpg_last(items, name=lambda x: x):
     return sorted(items, key=lambda x: name(x).lower().endswith((".jpg", ".jpeg")))
 
 
+def newest_jpg(paths):
+    """Card path of the JPG among the new files of one shot, or None (RAW only)."""
+    jpgs = [p for p in paths if p.lower().endswith((".jpg", ".jpeg"))]
+    return jpgs[-1] if jpgs else None
+
+
+def remember_shot(paths):
+    """USB: keep the newest JPG of the last shot for the "last shot" thumbnail."""
+    p = newest_jpg(paths)
+    if p:
+        state["last_shot"] = p
+
+
 def save_capture(path, size=None):
     """Datei von der Karte holen, ohne Vorhandenes zu überschreiben."""
     os.makedirs(CAPTURES, exist_ok=True)
@@ -287,6 +301,7 @@ def shot(seen):
     new = cam.shoot()
     invalidate_device()  # Kartenplatz hat sich geändert
     if conn_type == "usb":  # USB meldet die neuen Dateien direkt
+        remember_shot(new)
         if state["transfer"] == "both":
             state["transfer_error"] = None
             try:
@@ -621,6 +636,9 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send(cam.share_order())
             if u.path == "/api/movlength":
                 return self._send({"seconds": movie_length(q["path"], q.get("size"))})
+            if u.path == "/api/lastshot":
+                # USB knows the new files of a shot at once; Wi-Fi reloads the card list instead
+                return self._send({"path": state["last_shot"]})
             if u.path == "/api/lens":
                 return self._send({"lens": lens(q["path"]) if q.get("path") else usb_lens()})
             if u.path == "/api/thumb":
@@ -682,9 +700,12 @@ class Handler(BaseHTTPRequestHandler):
         cam.press(stage)
         if conn_type == "usb":  # der Live View läuft über USB einfach weiter
             state["resume_live"] = False
-            if stage == 0 and state["transfer"] == "both":
-                for p in jpg_last(cam.take_new_files()):
-                    save_capture(p)
+            if stage == 0:
+                new = cam.take_new_files()
+                remember_shot(new)
+                if state["transfer"] == "both":
+                    for p in jpg_last(new):
+                        save_capture(p)
             if stage == 1:
                 return {"last_af": cam.last_af}
         elif stage == 0:
