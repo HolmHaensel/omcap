@@ -9,6 +9,7 @@
 - Software HSL colour profiles modelled on the PEN-F COLOR dial (`omcap.hsl`: 12 sectors, H/S/L −7…+7, 3 slots, CLI for ORF/JPG).
 - Self-timer (Off / 2 s / 10 s) next to Take picture with a countdown over the live view; click again to cancel.
 - Last shot thumbnail in the live view corner after Take picture (click opens the single-frame view; Wi-Fi and USB).
+- Webcam view `/?view=webcam` (live image only, black background, optional `&w=&h=`) for an OBS Browser Source; README section "Use as webcam (OBS)".
 
 ## 0.1.0 – first release
 

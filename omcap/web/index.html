@@ -82,6 +82,7 @@ dialog h2{margin-top:12px}
 #viewer button{background:#222;color:#eee;border-color:#444}
 .chip{display:inline-flex;gap:4px;align-items:center;background:var(--panel);border-radius:12px;padding:3px 10px;font-size:12px}
 body.single{background:#000;height:100vh;overflow:hidden}
+body.webcam{cursor:none;display:flex;align-items:center;justify-content:center}
 #single{width:100vw;height:100vh;object-fit:contain;display:block}
 </style>
 </head>
@@ -500,7 +501,12 @@ const view=params.get('view');
 if(view){
   document.body.className='single'; $('#app').hidden=true;
   const im=$('#single'); im.hidden=false;
-  if(view==='live') im.src='/live.mjpg';
+  if(view==='webcam'){ // clean live view for an OBS Browser Source; optional &w=&h= letterbox size
+    const w=parseInt(params.get('w'),10),h=parseInt(params.get('h'),10);
+    document.body.classList.add('webcam');
+    if(w>0&&h>0){im.style.width=w+'px';im.style.height=h+'px'}
+    im.src='/live.mjpg';
+  }else if(view==='live') im.src='/live.mjpg';
   else{
     let last=null;
     setInterval(async()=>{try{

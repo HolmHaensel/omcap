@@ -128,6 +128,18 @@ ORF gives a 16-bit TIFF, JPG a JPEG, always in `--out` (default `out/hsl/`). `--
 before/after sheet and a colour wheel chart. Presets: `omcap/data/hsl_presets.json`. Sector
 angles and per-step gains are approximations, not the camera's values.
 
+## Use as webcam (OBS)
+
+Works with Wi-Fi and USB. Start the app, connect, and press **Start live view**; the
+live view must keep running. Then:
+
+1. In OBS add a **Browser Source** with the URL `http://127.0.0.1:8765/?view=webcam`
+   (optional letterbox size: `http://127.0.0.1:8765/?view=webcam&w=1280&h=720`; set the same
+   width and height in the source). The page shows only the live image on black, scaled to fit.
+2. In OBS press **Start Virtual Camera**; video apps (Zoom, Teams, browsers) then list
+   "OBS Virtual Camera".
+3. Audio is not part of the camera stream: add a microphone as a separate audio source in OBS.
+
 ## Tests
 
 ```sh
