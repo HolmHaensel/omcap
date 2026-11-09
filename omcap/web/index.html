@@ -126,6 +126,7 @@ body.webcam{cursor:none;display:flex;align-items:center;justify-content:center}
     <span class="sp"></span>
     <button data-z="1">1×</button><button data-z="2">2×</button><button data-z="4">4×</button>
     <button id="popLive" data-i18n="lv.second">Second monitor</button>
+    <button id="popCam" data-i18n="lv.webcam">Webcam (OBS)</button>
   </div>
   <div id="viewport">
     <div id="zoomLayer">
@@ -303,6 +304,9 @@ const I18N={en:{
   "lv.stop": "Stop",
   "lv.size": "Size",
   "lv.second": "Second monitor",
+  "lv.webcam": "Webcam (OBS)",
+  "msg.webcamCopied": "Webcam window opened. Link copied: {url}",
+  "msg.webcamNoClip": "Webcam window opened. Copy this link into OBS: {url}",
   "lv.off": "Live view off",
   "lv.level": "Level gauge",
   "lv.grid": "Displayed Grid",
@@ -518,6 +522,12 @@ if(view){
 }
 const popup=v=>window.open('/?view='+v,'_blank','popup,width=1000,height=760');
 $('#popLive').onclick=()=>popup('live');
+$('#popCam').onclick=async()=>{ // window for checking; the link (with host/port) goes to the clipboard for the OBS Browser Source
+  const url=location.origin+'/?view=webcam';
+  popup('webcam');
+  try{await navigator.clipboard.writeText(url);msg(tr('msg.webcamCopied',{url}))}
+  catch{msg(tr('msg.webcamNoClip',{url}))}
+};
 $('#popPhoto').onclick=()=>popup('photo');
 
 /* State */

@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Webcam (OBS) button next to Second monitor: opens the webcam view and copies its link to the clipboard.
+
 ## 0.2.0 – 2026-11-09
 
 - Header shows free card space (Wi-Fi and USB) and battery level (USB); read-only camera settings Anti-Shock, Silent, Noise Reduct., BULB/TIME Timer and Digital Tele-converter under the LV super control panel (Wi-Fi).
