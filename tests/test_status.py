@@ -121,3 +121,11 @@ class AfRaster(unittest.TestCase):
         from omcap.usb_camera import af_raster
         self.assertEqual(af_raster({"x0": 216, "x1": 1060, "y0": 160, "y1": 796}), (1280, 960))
         self.assertEqual(af_raster({"x0": 172, "x1": 847, "y0": 128, "y1": 636}), (1024, 768))
+
+
+class FocusRaster(unittest.TestCase):
+    def test_scaled_to_1024(self):
+        from omcap.usb_camera import focus_in_raster
+        area = {"w": 1024, "h": 768}
+        self.assertEqual(focus_in_raster({"x": 1280, "y": 960}, area), {"x": 1024.0, "y": 768.0})
+        self.assertIsNone(focus_in_raster({"x": 0, "y": 0}, area))

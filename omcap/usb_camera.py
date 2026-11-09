@@ -77,6 +77,13 @@ def af_raster(area):
     return min(LV_SIZES, key=lambda s: abs(s[0] - w) + abs(s[1] - h))
 
 
+def focus_in_raster(pos, area):
+    """Focus position (d05d/d05e) is always in 1280×960 (its PTP range); map it to the AF area grid."""
+    if not pos or not (pos.get("x") or pos.get("y")):
+        return None  # 0,0: the camera found no focus
+    return {"x": pos["x"] * area["w"] / 1280.0, "y": pos["y"] * area["h"] / 960.0}
+
+
 def lv_size_from_d06d(value, area=None):
     """d06d: width in the upper 16 bits, height in the lower (e.g. 0x04000300 = 1024x768).
 
@@ -360,7 +367,7 @@ class UsbCamera:
         # in 1280×960 or 1024×768, independent of the current d06d (measured 2026-11-09).
         area["w"], area["h"] = af_raster(area)
         return {"mode": int(self._value("d00c")), "field": int(self._value("d051")), "area": area,
-                "last_af": self.last_af}
+                "last_af": focus_in_raster(self.last_af, area)}
 
     def preview_frame(self):
         with self._lock:
