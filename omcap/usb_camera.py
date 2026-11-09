@@ -597,7 +597,7 @@ class UsbCamera:
         if stage == self.stage:
             return
         if self.stage == 0:
-            self.last_af = None
+            # keep last_af: _read_focus_position waits until the camera reports a new position
             self._shutter(OP_FIRST)
             self.stage = 1
             if stage == 1:
@@ -626,12 +626,18 @@ class UsbCamera:
         """Focus position in the 1280x960 grid, valid only during half press.
 
         The camera only reports it once focus is locked.
+        The value lags behind: right after AF it often still holds the previous position
+        (measured 2026-11-09). So wait until it differs from the last known one; if it never
+        changes within the wait (same spot again), keep it.
         """
+        prev = (self.last_af or {}).get("x"), (self.last_af or {}).get("y")
         x = y = 0
         end = time.monotonic() + FOCUS_POSITION_WAIT
-        while not (x or y) and time.monotonic() < end:
+        while time.monotonic() < end:
             self._events(0.1)
             x, y = int(float(self._value("d05d"))), int(float(self._value("d05e")))
+            if (x or y) and (x, y) != prev:
+                break
         self.last_af = {"x": x, "y": y}
 
     def focus(self):
