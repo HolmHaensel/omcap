@@ -11,6 +11,9 @@
 - Last shot thumbnail in the live view corner after Take picture (click opens the single-frame view; Wi-Fi and USB).
 - Webcam view `/?view=webcam` (live image only, black background, optional `&w=&h=`) for an OBS Browser Source; README section "Use as webcam (OBS)".
 
+### Known issues
+- USB, All Targets + Press halfway: the green AF field may not match where the camera focused.
+
 ## 0.1.0 – first release
 
 First public version of E-M1 Capture for the Olympus OM-D E-M1 Mark I (firmware 4.6).
