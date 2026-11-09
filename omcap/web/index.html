@@ -387,6 +387,7 @@ const I18N={en:{
   "ro.min": "{v} min",
   "scp.modeDial": "{label} (Mode dial)",
   "prop.takemode": "Shooting mode",
+  "val.takemode.usbP": "P Program / iAUTO",
   "prop.shutspeedvalue": "Shutter speed",
   "prop.focalvalue": "Aperture",
   "prop.expcomp": "Exposure compensation",
@@ -647,7 +648,8 @@ function renderProps(){
     const v=p[k];
     if(k==='takemode'&&v&&!v.writable){ // over USB the mode dial determines the mode
       const l=document.createElement('label'); l.textContent=tr('scp.modeDial',{label:tr('prop.'+k)}); l.dataset.id=k; l.dataset.label=tr('prop.'+k);
-      const s=document.createElement('strong'); s.textContent=(f.names&&f.names[v.value])||v.value; s.style.color='var(--fg)';
+      const s=document.createElement('strong'); // over USB the camera reports iAUTO as P (d006 = 2, no other property differs)
+      s.textContent=v.value==='P'?tr('val.takemode.usbP'):((f.names&&f.names[v.value])||v.value); s.style.color='var(--fg)';
       l.append(s); box.append(l); continue;
     }
     if(!v||!v.writable||!v.enum.length||(f.show&&!f.show(p))) continue;
