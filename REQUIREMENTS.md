@@ -118,3 +118,15 @@ Thema: stabil und alltagstauglich mit USB und Wi-Fi. Größeres (Design-System, 
 | **Neu:** letztes Bild sofort zeigen | F16 | ⬜ |
 | **Neu:** Webcam-Ansicht für OBS | D05 | ⬜ |
 | USB-Werte-Lauscher (Werkzeug, Lauf später) | R01 | 🟡 |
+
+## Version 0.3 (Umfang, 2026-11-09)
+
+| In 0.3 | REQ | Stand |
+|---|---|---|
+| Angetipptes AF-Feld sofort markieren | F04 | 🟡 gebaut (`focus-speed`) |
+| Webcam-Knopf (öffnet Ansicht, kopiert OBS-Link) | D05 | ⬜ |
+| Speicherort in der App wählbar, Dateinamen-Schema | F17 | ⬜ |
+| HSL in der App: Einzelansicht, „On the computer“, optional beim Speichern | I01, I04 | ⬜ |
+| Kartenplatz über Wi-Fi (`errorcode 1001`) | F19 | ⬜ |
+
+Danach (0.4+): Design-System, iPhone/Watch, Antippen und auslösen, Film-Looks, USB-Werte-Lauscher.
