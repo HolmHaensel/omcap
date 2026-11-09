@@ -129,3 +129,19 @@ class FocusRaster(unittest.TestCase):
         area = {"w": 1024, "h": 768}
         self.assertEqual(focus_in_raster({"x": 1280, "y": 960}, area), {"x": 1024.0, "y": 768.0})
         self.assertIsNone(focus_in_raster({"x": 0, "y": 0}, area))
+
+
+class WifiNewest(unittest.TestCase):
+    def test_newest_folder_and_number(self):
+        class Fake:
+            def listdir(self, d):
+                if d == "/DCIM":
+                    return [{"name": "100OLYMP", "isdir": True}, {"name": "111OLYMP", "isdir": True},
+                            {"name": "108_PANA", "isdir": True}]
+                return [{"name": n, "isdir": False} for n in ("PB082150.JPG", "_B092177.JPG", "_B092177.ORF")]
+        old = server.cam
+        server.cam = Fake()
+        try:
+            self.assertEqual(server.wifi_newest_jpg(), "/DCIM/111OLYMP/_B092177.JPG")
+        finally:
+            server.cam = old

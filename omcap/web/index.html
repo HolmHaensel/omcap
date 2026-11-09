@@ -1325,25 +1325,24 @@ function timerStart(sec){
 /* Last shot thumbnail in the live view corner. Source: Wi-Fi reloads the card list (newest first);
    USB asks the server for the JPG the camera just reported; a JPG saved to the computer is preferred. */
 let lastOpen=null;
-async function showLast(before,retry){
+async function showLast(before,retry,before2){
   const img=$('#lastShot'), n=retry|0;
   let shot=null,local=null;
   // a JPG saved to the computer is the quickest source and does not depend on the camera
   try{const lst=(await api('/api/state')).latest;
     if(lst&&/\.jpe?g$/i.test(lst)&&lst!==before) local='/captures/'+encodeURIComponent(lst)}catch{}
   try{
-    if(features.has('af_modes')){
+    {
       const p=(await api('/api/lastshot')).path;
+      if(p&&p===before2) throw new Error('not yet on the card'); // Wi-Fi: still the previous picture
       if(p){const name=p.split('/').pop(),dir=p.slice(0,p.lastIndexOf('/')),d=new Date();
         const f={path:p,name,dir,size:0,date:((d.getFullYear()-1980)<<9)|((d.getMonth()+1)<<5)|d.getDate(),time:(d.getHours()<<11)|(d.getMinutes()<<5)};
         shot={name:name.replace(/\.[^.]+$/,''),files:[f],preview:f,dt:parseStamp(f),types:'JPG',size:0}}
-    }else{
-      await loadCard(); shot=cardShots&&cardShots.find(x=>isJpg(x.preview))||null;
     }
   }catch{}
   const src=local||(shot&&thumbUrl(shot.preview));
   // Wi-Fi: right after a shot the card list may fail or lack the new file: try again (up to 3x, 4 s apart)
-  if(!features.has('af_modes')&&!local&&n<3) setTimeout(()=>showLast(before,n+1),4000);
+  if(!features.has('af_modes')&&!local&&!shot&&n<4) setTimeout(()=>showLast(before,n+1,before2),3000);
   if(!src) return;
   lastOpen=shot; img.src=src; img.hidden=false;
 }
@@ -1356,12 +1355,12 @@ $('#shoot').onclick=async()=>{
   const sec=+$('#timerSel').value;
   if(sec&&!await timerStart(sec)) return;
   msg(tr('msg.shooting'));
-  const latestBefore=st.latest;
+  const latestBefore=st.latest, newestBefore=lastOpen&&lastOpen.preview.path||(cardShots&&(cardShots.find(x=>isJpg(x.preview))||{preview:{}}).preview.path);
   if(st.stage>=1){
     if(!await act(tr('msg.shutter'),'/api/shutter',{stage:2})) return;
     await act(tr('msg.taken'),'/api/shutter',{stage:0});
   }else if(!await act(tr('msg.taken'),'/api/shoot',{})) return;
-  showLast(latestBefore);
+  showLast(latestBefore,0,newestBefore);
   gallery();local();
   if(features.has('af_modes')) loadLens(); // USB: lens from the new JPG
   // Wi-Fi: the camera is still writing after the shot, the first list often lacks the new image

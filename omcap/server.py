@@ -244,6 +244,23 @@ def jpg_last(items, name=lambda x: x):
     return sorted(items, key=lambda x: name(x).lower().endswith((".jpg", ".jpeg")))
 
 
+def dcf_number(name):
+    """DCF file number (characters 5-8, e.g. PB082156 / _B082156 -> 2156); -1 if not numeric."""
+    digits = name[4:8]
+    return int(digits) if digits.isdigit() else -1
+
+
+def wifi_newest_jpg():
+    """Wi-Fi: newest JPG on the card from the newest DCIM folder only (one or two requests)."""
+    folders = [e for e in cam.listdir("/DCIM") if e["isdir"] and e["name"][:3].isdigit()]
+    for folder in sorted(folders, key=lambda e: e["name"][:3], reverse=True):
+        path = "/DCIM/" + folder["name"]
+        jpgs = [e for e in cam.listdir(path) if e["name"].lower().endswith((".jpg", ".jpeg"))]
+        if jpgs:
+            return path + "/" + max(jpgs, key=lambda e: dcf_number(e["name"]))["name"]
+    return None
+
+
 def newest_jpg(paths):
     """Card path of the JPG among the new files of one shot, or None (RAW only)."""
     jpgs = [p for p in paths if p.lower().endswith((".jpg", ".jpeg"))]
@@ -639,8 +656,9 @@ class Handler(BaseHTTPRequestHandler):
             if u.path == "/api/movlength":
                 return self._send({"seconds": movie_length(q["path"], q.get("size"))})
             if u.path == "/api/lastshot":
-                # USB knows the new files of a shot at once; Wi-Fi reloads the card list instead
-                return self._send({"path": state["last_shot"]})
+                # USB knows the new files of a shot at once; Wi-Fi lists only the newest folder
+                # (the whole card list takes ~18 s with 2000 shots)
+                return self._send({"path": wifi_newest_jpg() if conn_type == "wifi" else state["last_shot"]})
             if u.path == "/api/lens":
                 return self._send({"lens": lens(q["path"]) if q.get("path") else usb_lens()})
             if u.path == "/api/thumb":
