@@ -3,6 +3,7 @@
 ## Unreleased
 
 - Webcam (OBS) button next to Second monitor: opens the webcam view and copies its link to the clipboard.
+- Save to: choose the folder on the computer and the file naming (original / date_time_original / prefix + original); stored in `omcap-settings.json` in the data folder; never overwrites.
 
 ## 0.2.0 – 2026-11-09
 

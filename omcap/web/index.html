@@ -233,6 +233,20 @@ body.webcam{cursor:none;display:flex;align-items:center;justify-content:center}
       <label><input type="radio" name="tr" value="both"> <span data-i18n="transfer.both">Card and computer</span></label>
       <button id="popPhoto" data-i18n="transfer.popPhoto">Picture on second monitor</button>
     </div>
+    <div class="row">
+      <label><span data-i18n="save.folder">Folder on the computer</span> <input id="svDir" type="text" size="34" placeholder="~/Pictures/omcap"></label>
+    </div>
+    <div class="row">
+      <label><span data-i18n="save.scheme">File naming</span>
+        <select id="svScheme">
+          <option value="original" data-i18n="save.original">Original name</option>
+          <option value="datetime" data-i18n="save.datetime">Date_time_original name</option>
+          <option value="prefix" data-i18n="save.prefix">Prefix + original name</option>
+        </select></label>
+      <input id="svPrefix" type="text" size="12" data-i18n-ph="save.prefixPh" placeholder="Prefix" hidden>
+      <button id="svApply" data-i18n="save.apply">Apply</button>
+    </div>
+    <div id="svInfo" class="mut"></div>
     <div id="trErr" class="warn"></div>
   </section>
   <section data-id="card" data-label="Playback" data-i18n-label="panel.card" data-feat="playback">
@@ -305,6 +319,16 @@ const I18N={en:{
   "lv.size": "Size",
   "lv.second": "Second monitor",
   "lv.webcam": "Webcam (OBS)",
+  "save.folder": "Folder on the computer",
+  "save.scheme": "File naming",
+  "save.original": "Original name",
+  "save.datetime": "Date_time_original name",
+  "save.prefix": "Prefix + original name",
+  "save.prefixPh": "Prefix",
+  "save.apply": "Apply",
+  "save.now": "Saving to {dir}",
+  "save.example": "e.g. {name}",
+  "msg.saveCfg": "Save settings applied",
   "msg.webcamCopied": "Webcam window opened. Link copied: {url}",
   "msg.webcamNoClip": "Webcam window opened. Copy this link into OBS: {url}",
   "lv.off": "Live view off",
@@ -484,6 +508,7 @@ function tr(key,vars,fallback){
 function applyI18n(root=document){
   document.documentElement.lang=LANG;
   root.querySelectorAll('[data-i18n]').forEach(e=>e.textContent=tr(e.dataset.i18n));
+  root.querySelectorAll('[data-i18n-ph]').forEach(e=>e.placeholder=tr(e.dataset.i18nPh));
   root.querySelectorAll('[data-i18n-title]').forEach(e=>e.title=tr(e.dataset.i18nTitle));
   root.querySelectorAll('[data-i18n-aria]').forEach(e=>e.setAttribute('aria-label',tr(e.dataset.i18nAria)));
   root.querySelectorAll('[data-i18n-label]').forEach(e=>e.dataset.label=tr(e.dataset.i18nLabel));
@@ -1403,6 +1428,19 @@ $('#takeStop').onclick=()=>act(tr('msg.stopped',{name:$('#longName').textContent
 $('#movStart').onclick=()=>act(tr('msg.movieStarted'),'/api/movie',{action:'start'});
 $('#movStop').onclick=async()=>{await act(tr('msg.movieStopped'),'/api/movie',{action:'stop'});
   if(!features.has('af_modes')) setTimeout(()=>gallery(),4000)};
+function showSaveCfg(c){
+  $('#svDir').value=c.dir; $('#svScheme').value=c.scheme; $('#svPrefix').value=c.prefix;
+  $('#svPrefix').hidden=c.scheme!=='prefix';
+  const ex=c.scheme==='datetime'?'20261109_091412_PB092179.JPG':c.scheme==='prefix'?(c.prefix||'')+'PB092179.JPG':'PB092179.JPG';
+  $('#svInfo').textContent=tr('save.now',{dir:c.effective_dir})+' ('+tr('save.example',{name:ex})+')';
+}
+$('#svScheme').onchange=()=>{$('#svPrefix').hidden=$('#svScheme').value!=='prefix'};
+$('#svApply').onclick=async()=>{
+  try{const j=await api('/api/savecfg',{dir:$('#svDir').value,scheme:$('#svScheme').value,prefix:$('#svPrefix').value});
+    showSaveCfg(j.cfg);msg(tr('msg.saveCfg'));local()}
+  catch(e){msg(e.message,true)}
+};
+api('/api/savecfg').then(showSaveCfg).catch(()=>{});
 document.querySelectorAll('[name=tr]').forEach(r=>r.onchange=()=>act(tr('msg.saveTo'),'/api/transfer',{target:r.value}));
 $('#reload').onclick=gallery;
 $('#propsReload').onclick=async()=>{
