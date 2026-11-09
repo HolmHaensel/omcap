@@ -45,7 +45,7 @@ stop_job = threading.Event()
 job = {"name": None, "running": False, "done": 0, "total": 0, "error": None}
 state = {"transfer": "sd", "latest": None, "transfer_error": None,
          "take": None, "movie": None, "resume_live": False, "seen": None, "wifi_field": 41,
-         "wifi_af": None, "pressing": False, "play": None}
+         "wifi_af": None, "pressing": False, "indexing": False, "play": None}
 
 
 DEVICE_TTL = 30  # Sekunden; Kartenplatz und Akku nicht bei jedem Takt abfragen
@@ -58,7 +58,8 @@ def device_status(force=False):
     if cam is None:
         return {"card": None, "battery": None}
     # während Aufnahme, Film, Langzeitbelichtung oder Halbdruck die Kamera nicht fragen
-    busy_now = busy.locked() or state["pressing"] or cam.stage or state["movie"] or state["take"]
+    busy_now = (busy.locked() or state["pressing"] or cam.stage or state["movie"] or state["take"]
+                or state["indexing"])
     if (force or now - device["at"] >= DEVICE_TTL) and not busy_now:
         for key, read in (("card", cam.free_bytes), ("battery", cam.battery)):
             try:
@@ -103,6 +104,7 @@ def connect(kind):
     elif kind == "usb":
         c = usb_camera.UsbCamera(allow_write=options["allow_write"])
         cam, live = c, c.live
+        start_index(c)
     else:
         raise ValueError("Unknown connection")
     conn_type = kind
@@ -124,7 +126,7 @@ def disconnect():
     lens_cache.clear()
     device.update(at=0.0, card=None, battery=None)
     movtime_cache.clear()
-    state.update(play=None)
+    state.update(play=None, indexing=False)
     state.update(transfer="sd", latest=None, transfer_error=None, take=None, movie=None,
                  resume_live=False, seen=None, wifi_field=41, wifi_af=None)
 
@@ -163,8 +165,27 @@ def set_af_area(mode, field):
 
 # --- Aufnahme-Abläufe --------------------------------------------------------
 def ensure_idle():
+    if state["indexing"]:
+        raise CameraError("Reading the card index, please wait")
     if cam.stage or state["take"] or state["movie"] or job["running"] or state["play"] is not None:
         raise CameraError("Camera is busy")
+
+
+def start_index(c):
+    """USB: Kartenverzeichnis im Hintergrund einlesen (ca. 1 min), danach geht jedes Foto schnell."""
+    state["indexing"] = True
+
+    def run():
+        t0 = time.monotonic()
+        try:
+            newest = c.warm_index()
+            print("USB card index: %.1f s, newest JPG %s" % (time.monotonic() - t0, newest), flush=True)
+        except Exception as e:  # Einlesen ist nur eine Beschleunigung
+            print("USB card index failed:", e, flush=True)
+        finally:
+            if cam is c:
+                state["indexing"] = False
+    threading.Thread(target=run, daemon=True).start()
 
 
 def power_off():
@@ -506,7 +527,7 @@ def public_state():
     now = time.time()
     return {
         # busy: Aufnahme-Abfolge oder Auslöser-Befehl läuft (Kamera evtl. nicht im Modus "rec")
-        "stage": cam.stage, "busy": busy.locked() or state["pressing"], "live": live.running, "lv_age": live.age, "lvqty": cam.lvqty, "job": job,
+        "stage": cam.stage, "busy": busy.locked() or state["pressing"], "indexing": state["indexing"], "live": live.running, "lv_age": live.age, "lvqty": cam.lvqty, "job": job,
         "transfer": state["transfer"], "latest": state["latest"], "play": state["play"] is not None,
         "transfer_error": state["transfer_error"],
         "take": now - state["take"] if state["take"] else None,

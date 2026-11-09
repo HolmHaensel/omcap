@@ -103,3 +103,14 @@ class UsbLens(unittest.TestCase):
             self.assertEqual(server.usb_lens(), {"focal_min": 14, "focal_max": 140, "focal": 19})
         finally:
             server.cam, server.conn_type = old
+
+
+class UsbIndex(unittest.TestCase):
+    def test_busy_while_indexing(self):
+        old = server.state["indexing"]
+        server.state["indexing"] = True
+        try:
+            with self.assertRaises(server.CameraError):
+                server.ensure_idle()
+        finally:
+            server.state["indexing"] = old

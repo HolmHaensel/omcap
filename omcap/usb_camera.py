@@ -399,6 +399,37 @@ class UsbCamera:
         """libgphoto2 liest nur ganze Dateien."""
         return self.read_file(path)[:size]
 
+    def warm_index(self):
+        """Kartenverzeichnis einmal einlesen, damit das erste Foto der Sitzung nicht ~60 s wartet.
+
+        libgphoto2 liest beim ersten neuen Bild die ganze Karte ein (gemessen: 1. Foto 60 s,
+        2. Foto 6 s). Das Auflisten des neuesten DCIM-Ordners löst dasselbe Einlesen aus.
+        Gibt das neueste JPG zurück (für die Objektivdaten) oder None.
+        """
+        self.hold += 1  # Live View pausiert, sonst bricht das Einlesen ab
+        try:
+            folders = []
+            for store in self._list(self._c.folder_list_folders, "/"):
+                base = "/" + store + "/DCIM"
+                try:
+                    folders += [base + "/" + f for f in self._list(self._c.folder_list_folders, base)]
+                except CameraError:
+                    continue
+            newest = None
+            # DCF-Ordner beginnen mit der Nummer (100…999): der höchste ist der aktuelle
+            for folder in sorted(folders, key=lambda f: f.rsplit("/", 1)[1][:3], reverse=True):
+                jpgs = [n for n in self._list(self._c.folder_list_files, folder)
+                        if n.lower().endswith((".jpg", ".jpeg"))]
+                if jpgs:
+                    # DCF-Dateinummer steht in den Zeichen 5–8 (PB082156, _B082156)
+                    newest = folder + "/" + max(jpgs, key=lambda n: n[4:8])
+                    break
+            if newest and not self.last_jpg:
+                self.last_jpg = newest
+            return newest
+        finally:
+            self.hold -= 1
+
     def lens_focal(self):
         """Brennweitenbereich des Objektivs aus d04a (Bereich = kürzeste/längste, Wert = aktuell)."""
         def read():

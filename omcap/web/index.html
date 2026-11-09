@@ -317,6 +317,8 @@ const I18N={en:{
   "lv.peakYellow": "Yellow",
   "lv.roll": "Roll {a}° · Pitch {b}°",
   "msg.ready": "Ready.",
+  "msg.indexing": "Reading the card index (once per USB session, about 1 min) …",
+  "msg.indexDone": "Card index read: pictures are now saved quickly",
   "msg.lvRunning": "Live view running",
   "msg.lvStopped": "Live view stopped",
   "msg.settingsNeedRec": "Settings can only be read in shooting mode: start live view",
@@ -498,7 +500,7 @@ $('#popLive').onclick=()=>popup('live');
 $('#popPhoto').onclick=()=>popup('photo');
 
 /* Zustand */
-let leavingPlay=false;
+let leavingPlay=false, wasIndexing=false;
 let st={stage:0,job:{}},canWrite=false,wasBusy=false,blank=0,connected=false,features=new Set(),af=null;
 async function tick(){
   if(view||!connected) return;
@@ -528,7 +530,11 @@ async function tick(){
   if(st.play&&$('#galOv').hidden&&!leavingPlay){leavingPlay=true;api('/api/playback',{action:'leave'}).catch(()=>{}).finally(()=>{leavingPlay=false;props()})}
   drawAf();
   // busy: eine Aufnahme-Abfolge läuft noch (Wi-Fi: Moduswechsel, Übertragung auf den Mac)
-  const b=st.stage>0||j.running||st.busy||st.movie!=null;
+  // USB: Kartenverzeichnis wird nach dem Verbinden eingelesen (ca. 1 min), danach Objektiv aus dem neuesten JPG
+  if(st.indexing&&!wasIndexing) msg(tr('msg.indexing'));
+  if(wasIndexing&&!st.indexing){msg(tr('msg.indexDone'));loadLens()}
+  wasIndexing=!!st.indexing;
+  const b=st.stage>0||j.running||st.busy||st.movie!=null||st.indexing;
   if(wasBusy&&!b){props();gallery();local();loadDevice(true)}
   else if(Date.now()-deviceAt>30000) loadDevice(false)
   wasBusy=b;
