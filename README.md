@@ -90,6 +90,9 @@ Measured with the E-M1 Mark I:
 - Keep the camera within a few metres and do not cover the grip: the Wi-Fi antenna is inside
   it (manual p. 124). Microwaves and cordless phones nearby slow the connection down.
 - Wi-Fi drains the battery faster; start with a full battery or use the AC adapter.
+- Mac settings for the camera network (System Settings → Wi-Fi → Details of the camera's network):
+  **Private Wi-Fi address: Off** (no rotating address) and **Limit IP address tracking: Off**.
+  Keep other background network features to a minimum; then the connection is fast and steady.
 - The camera network has no internet. Turn off **Auto-Join** for other known networks
   (System Settings → Wi-Fi) so the computer does not switch away while you shoot. A cable
   network can stay connected for internet at the same time.
