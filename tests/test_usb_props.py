@@ -1,4 +1,4 @@
-"""USB-Werte-Lauscher: Zusammenfassung lesen und vergleichen (ohne Kamera)."""
+"""USB value listener: read and compare the summary (no camera)."""
 import os
 import sys
 import unittest

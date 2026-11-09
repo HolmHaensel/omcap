@@ -1,4 +1,4 @@
-"""Tests fuer omcap.hsl mit synthetischen Bildern (keine Fotos)."""
+"""Tests for omcap.hsl with synthetic images (no photos)."""
 import os
 import tempfile
 import unittest
@@ -46,7 +46,7 @@ class HslTests(unittest.TestCase):
         r_out = hsl.apply_hsl(patch(red), p)[0, 0]
         b_out = hsl.apply_hsl(patch(blue), p)[0, 0]
         h0, h1 = lch(red)[2], lch(tuple(r_out))[2]
-        # positiv = Richtung Rose = fallender LCh-Winkel, ca. 9 Grad
+        # positive = towards rose = falling LCh angle, about 9 degrees
         self.assertLess(h1, h0)
         self.assertAlmostEqual(h0 - h1, 9.0, delta=1.5)
         self.assertLess(np.abs(b_out - np.array(blue)).max(), 1e-4)

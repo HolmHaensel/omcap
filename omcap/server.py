@@ -1,9 +1,9 @@
-"""Lokale Weboberfläche für die E-M1 (nur auf 127.0.0.1).
+"""Local web UI for the E-M1 (on 127.0.0.1 only).
 
-  .venv/bin/python -m omcap.server                 # nur lesen
-  .venv/bin/python -m omcap.server --allow-write   # Auslösen/Einstellungen möglich
+  .venv/bin/python -m omcap.server                 # read only
+  .venv/bin/python -m omcap.server --allow-write   # shooting/settings possible
 
-Die Verbindung (USB oder Wi-Fi) wird auf dem Startbildschirm gewählt.
+The connection (USB or Wi-Fi) is chosen on the start screen.
 """
 import argparse
 import contextlib
@@ -21,26 +21,26 @@ from .camera import Camera, CameraError, WriteBlocked
 from .liveview import LiveView
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
-# Arbeitsordner (--data-dir, Standard: aktueller Ordner): Aufnahmen und Vorschau-Cache liegen darunter
+# working folder (--data-dir, default: current folder): shots and preview cache live below it
 CAPTURES = os.path.join(os.getcwd(), "captures")
-PREVIEW_CACHE = os.path.join(os.getcwd(), "out", "cache", "previews")  # Vorschauen von der Karte
-PREVIEW_CACHE_MAX = 500 << 20  # Bytes; darüber fliegen die ältesten Vorschauen raus
-IMAGE_MAX_AGE = 7 * 24 * 3600  # Bild-URLs enthalten die Dateigröße, ändern sich also mit der Datei
+PREVIEW_CACHE = os.path.join(os.getcwd(), "out", "cache", "previews")  # previews from the card
+PREVIEW_CACHE_MAX = 500 << 20  # bytes; above that the oldest previews are dropped
+IMAGE_MAX_AGE = 7 * 24 * 3600  # image URLs contain the file size, so they change with the file
 LV_PORT = 5555
-MIN_INTERVAL = 5  # eine Aufnahme dauert rund 4 s (Fokus, Auslösen, Speichern)
+MIN_INTERVAL = 5  # one shot takes about 4 s (focus, release, save)
 
 WIFI_FEATURES = ["liveview", "lvsize", "af_area", "stages", "scp", "time_lapse", "ae_bkt", "movie",
                  "long", "playback", "transfer", "share_order", "poweroff"]
 
-cam = None   # aktive Verbindung, None vor der Auswahl auf dem Startbildschirm
+cam = None   # active connection, None before the choice on the start screen
 live = None
 conn_type = None
 options = {"host": "192.168.0.10", "allow_write": False}
 allowed_hosts = set()
-movtime_cache = {}  # (Pfad, Größe) -> Sekunden
-lens_cache = {}  # Kartenpfad -> Objektivdaten aus EXIF
+movtime_cache = {}  # (path, size) -> seconds
+lens_cache = {}  # card path -> lens data from EXIF
 
-busy = threading.Lock()  # immer nur eine Aufnahme-Abfolge gleichzeitig
+busy = threading.Lock()  # only one shooting sequence at a time
 stop_job = threading.Event()
 job = {"name": None, "running": False, "done": 0, "total": 0, "error": None}
 state = {"transfer": "sd", "latest": None, "transfer_error": None,
@@ -49,16 +49,16 @@ state = {"transfer": "sd", "latest": None, "transfer_error": None,
          "last_shot": None}
 
 
-DEVICE_TTL = 30  # Sekunden; Kartenplatz und Akku nicht bei jedem Takt abfragen
+DEVICE_TTL = 30  # seconds; do not query card space and battery on every tick
 device = {"at": 0.0, "card": None, "battery": None}
 
 
 def device_status(force=False):
-    """Freier Kartenplatz (Bytes) und Akku (%), zwischengespeichert; Fehler ergeben None."""
+    """Free card space (bytes) and battery (%), cached; errors give None."""
     now = time.time()
     if cam is None:
         return {"card": None, "battery": None}
-    # während Aufnahme, Film, Langzeitbelichtung oder Halbdruck die Kamera nicht fragen
+    # do not ask the camera during a shot, movie, long exposure or half press
     busy_now = (busy.locked() or state["pressing"] or cam.stage or state["movie"] or state["take"]
                 or state["indexing"])
     if (force or now - device["at"] >= DEVICE_TTL) and not busy_now:
@@ -77,7 +77,7 @@ def invalidate_device():
 
 # --- Verbindung --------------------------------------------------------------
 def wifi_name():
-    """Modellname per get_caminfo (nur lesend) oder None, wenn keine Kamera antwortet."""
+    """Model name via get_caminfo (read-only) or None if no camera answers."""
     try:
         return Camera(options["host"], timeout=1).caminfo() or "Camera"
     except (CameraError, WriteBlocked, ET.ParseError):
@@ -85,7 +85,7 @@ def wifi_name():
 
 
 def connections():
-    """Erkannte Verbindungen mit Kameranamen für den Startbildschirm."""
+    """Detected connections with camera names for the start screen."""
     if conn_type is not None:
         return {"connected": conn_type, "wifi": conn_type == "wifi", "usb": conn_type == "usb",
                 "names": {}}
@@ -100,7 +100,7 @@ def connect(kind):
     if kind == "wifi":
         c = Camera(options["host"], allow_write=options["allow_write"])
         c.features = WIFI_FEATURES
-        c.caminfo()  # meldet sofort, wenn die Kamera nicht antwortet
+        c.caminfo()  # reports at once if the camera does not answer
         cam, live = c, LiveView(LV_PORT)
     elif kind == "usb":
         c = usb_camera.UsbCamera(allow_write=options["allow_write"])
@@ -133,7 +133,7 @@ def disconnect():
 
 
 def af_area():
-    """Über Wi-Fi gibt es keinen AF-Modus-Befehl: dort immer ein einzelnes Feld."""
+    """Over Wi-Fi there is no AF mode command: always a single field there."""
     if conn_type == "usb":
         return {**cam.af_area(), "modes": True}
     f = cam.touch_frame()
@@ -159,12 +159,12 @@ def set_af_area(mode, field):
     res = cam.af_focus((a["x0"] + (col + .5) / 9 * (a["x1"] - a["x0"])) / a["w"],
                        (a["y0"] + (row + .5) / 9 * (a["y1"] - a["y0"])) / a["h"])
     state["wifi_field"] = field
-    # Nur bei affocus=ok die Rahmenmitte melden, die Oberfläche färbt das Feld dann grün
+    # Report the frame centre only for affocus=ok; the UI then colours the field green
     if res["ok"] and res["x"] is not None:
         state["wifi_af"] = {"x": res["x"], "y": res["y"]}
 
 
-# --- Aufnahme-Abläufe --------------------------------------------------------
+# --- Shooting sequences ------------------------------------------------------
 def ensure_idle():
     if state["indexing"]:
         raise CameraError("Reading the card index, please wait")
@@ -173,7 +173,7 @@ def ensure_idle():
 
 
 def start_index(c):
-    """USB: Kartenverzeichnis im Hintergrund einlesen (ca. 1 min), danach geht jedes Foto schnell."""
+    """USB: read the card directory in the background (about 1 min), after that every photo is fast."""
     state["indexing"] = True
 
     def run():
@@ -181,7 +181,7 @@ def start_index(c):
         try:
             newest = c.warm_index()
             print("USB card index: %.1f s, newest JPG %s" % (time.monotonic() - t0, newest), flush=True)
-        except Exception as e:  # Einlesen ist nur eine Beschleunigung
+        except Exception as e:  # reading it in is only a speed-up
             print("USB card index failed:", e, flush=True)
         finally:
             if cam is c:
@@ -190,11 +190,11 @@ def start_index(c):
 
 
 def power_off():
-    """Kamera per Wi-Fi ausschalten und zum Startbildschirm zurück."""
+    """Switch the camera off via Wi-Fi and return to the start screen."""
     if conn_type != "wifi":
         raise CameraError("Only available over Wi-Fi")
     ensure_idle()
-    # vorher prüfen, damit ein echter Fehler nicht als "WLAN weg" geschluckt wird
+    # check first so that a real error is not swallowed as "Wi-Fi gone"
     if not cam.allow_write:
         raise WriteBlocked("Writing not enabled (--allow-write)")
     if not cam.supports("exec_pwoff"):
@@ -203,18 +203,18 @@ def power_off():
         if live.running:
             cam.stop_liveview()
     except CameraError:
-        pass  # Liveview ist egal, die Kamera geht gleich aus
+        pass  # live view does not matter, the camera is about to switch off
     live.stop()
     try:
         cam.power_off()
     except CameraError:
-        pass  # die Kamera kappt das WLAN, oft ohne Antwort
+        pass  # the camera cuts the Wi-Fi, often without an answer
     disconnect()
 
 
 def start_live():
     if conn_type == "usb":
-        cam.start_liveview(LV_PORT)  # prüft die Schreibfreigabe
+        cam.start_liveview(LV_PORT)  # checks the write permission
         live.start()
     else:
         live.start()
@@ -223,7 +223,7 @@ def start_live():
 
 @contextlib.contextmanager
 def capture():
-    """Sperrt die Kamera für eine Abfolge und startet danach den Liveview neu."""
+    """Locks the camera for a sequence and restarts the live view afterwards."""
     if not busy.acquire(blocking=False):
         raise CameraError("Camera is busy")
     was_live = live.running
@@ -231,14 +231,14 @@ def capture():
         yield
     finally:
         try:
-            if was_live:  # Moduswechsel beendet den Liveview
+            if was_live:  # a mode switch ends the live view
                 start_live()
         finally:
             busy.release()
 
 
 def jpg_last(items, name=lambda x: x):
-    """JPG zuletzt, damit es als neuestes Bild angezeigt wird."""
+    """JPG last, so that it is shown as the newest image."""
     return sorted(items, key=lambda x: name(x).lower().endswith((".jpg", ".jpeg")))
 
 
@@ -256,7 +256,7 @@ def remember_shot(paths):
 
 
 def save_capture(path, size=None):
-    """Datei von der Karte holen, ohne Vorhandenes zu überschreiben."""
+    """Fetch a file from the card without overwriting existing ones."""
     os.makedirs(CAPTURES, exist_ok=True)
     stem, ext = os.path.splitext(os.path.basename(path))
     dest = os.path.join(CAPTURES, stem + ext)
@@ -281,7 +281,7 @@ def card_snapshot():
 
 
 def pull_new(seen):
-    """Neue Dateien von der Karte holen; die Karte braucht nach dem Auslösen etwas."""
+    """Fetch new files from the card; the card needs a moment after the shot."""
     state["transfer_error"] = None
     try:
         for attempt in range(3):
@@ -299,8 +299,8 @@ def pull_new(seen):
 
 def shot(seen):
     new = cam.shoot()
-    invalidate_device()  # Kartenplatz hat sich geändert
-    if conn_type == "usb":  # USB meldet die neuen Dateien direkt
+    invalidate_device()  # card space has changed
+    if conn_type == "usb":  # USB reports the new files directly
         remember_shot(new)
         if state["transfer"] == "both":
             state["transfer_error"] = None
@@ -353,7 +353,7 @@ def start_interval(count, seconds):
 
 
 def bracket_plan(enum, current, frames, step):
-    """Belichtungswerte einer Reihe, step in Drittelstufen des Kamera-Rasters."""
+    """Exposure values of a series, step in thirds of the camera grid."""
     if frames not in (3, 5, 7) or step not in (1, 2, 3):
         raise ValueError("Bracketing: 3, 5 or 7 frames, step 1 to 3")
     i = enum.index(current)
@@ -382,7 +382,7 @@ def start_bracket(frames, step):
 
 
 def orf_preview(path):
-    """Größtes eingebettetes JPEG einer ORF-Datei (Browser können ORF nicht zeigen)."""
+    """Largest embedded JPEG of an ORF file (browsers cannot show ORF)."""
     with open(path, "rb") as f:
         data = f.read()
     best, i = b"", data.find(b"\xff\xd8\xff")
@@ -415,9 +415,9 @@ def capture_path(name):
 
 
 def cached_preview(kind, path, size, fetch):
-    """Vorschau von der Karte, auf der Platte gemerkt (Schlüssel: Pfad, Dateigröße, Art).
+    """Preview from the card, cached on disk (key: path, file size, kind).
 
-    Ohne Dateigröße wird nichts gemerkt, weil sich hinter dem Pfad ein anderes Bild verbergen könnte.
+    Without a file size nothing is cached, because a different image could hide behind the path.
     """
     if not size:
         return fetch()
@@ -437,7 +437,7 @@ def cached_preview(kind, path, size, fetch):
 
 
 def prune_preview_cache():
-    """Cache auf PREVIEW_CACHE_MAX begrenzen, älteste Dateien zuerst löschen (bis 80 %)."""
+    """Limit the cache to PREVIEW_CACHE_MAX, deleting the oldest files first (down to 80 %)."""
     files = [e for e in os.scandir(PREVIEW_CACHE) if e.is_file()]
     total = sum(e.stat().st_size for e in files)
     if total <= PREVIEW_CACHE_MAX:
@@ -450,9 +450,9 @@ def prune_preview_cache():
 
 
 def playback(enter):
-    """Wi-Fi: Für Playback in den Modus "play", nur dort liefert die Kamera mittlere Vorschauen.
+    """Wi-Fi: for playback switch to mode "play", only there the camera delivers medium previews.
 
-    Der Live View pausiert so lange und läuft beim Verlassen wieder an.
+    The live view pauses meanwhile and resumes on leaving.
     """
     if conn_type != "wifi":
         return
@@ -475,7 +475,7 @@ def playback(enter):
 
 
 def movie_length(path, size):
-    """Filmlänge nur im Modus "play" (sonst errorcode 1001), je Pfad und Größe einmal gelesen."""
+    """Movie length only in mode "play" (otherwise errorcode 1001), read once per path and size."""
     if conn_type != "wifi":
         raise CameraError("Movie length only over Wi-Fi")
     if state["play"] is None:
@@ -487,7 +487,7 @@ def movie_length(path, size):
 
 
 def reset_share_order():
-    """Share Order zurücksetzen: ändert die Karte, daher nie während einer Aufnahme."""
+    """Reset Share Order: changes the card, so never during a shot."""
     if conn_type != "wifi":
         raise CameraError("Share Order only over Wi-Fi")
     if cam.stage or state["take"] or state["movie"] or job["running"] or busy.locked():
@@ -496,9 +496,9 @@ def reset_share_order():
 
 
 def usb_lens():
-    """USB: Objektiv aus dem zuletzt gemeldeten JPG, sonst nur der Brennweitenbereich (d04a).
+    """USB: lens from the last reported JPG, otherwise only the focal length range (d04a).
 
-    Die Karte nach dem neuesten JPG zu durchsuchen dauert über USB über 30 s und hält den Live View an.
+    Searching the card for the newest JPG takes over 30 s over USB and stops the live view.
     """
     if conn_type != "usb":
         raise CameraError("Lens without a file only over USB")
@@ -519,7 +519,7 @@ def usb_lens():
 
 
 def lens(path):
-    """Objektivdaten der Aufnahme path (JPG auf der Karte), je Pfad nur einmal gelesen."""
+    """Lens data of the shot path (JPG on the card), read only once per path."""
     if not path.lower().endswith((".jpg", ".jpeg")):
         raise CameraError("Lens data only from JPG files")
     if path not in lens_cache:
@@ -528,7 +528,7 @@ def lens(path):
 
 
 def preview_path(path):
-    """Für Vorschauen das JPG derselben Aufnahme nehmen, falls vorhanden (statt der kleinen Vorschau im ORF)."""
+    """For previews use the JPG of the same shot if present (instead of the small preview in the ORF)."""
     stem, ext = os.path.splitext(path)
     if ext.lower() != ".orf":
         return path
@@ -541,7 +541,7 @@ def preview_path(path):
 def public_state():
     now = time.time()
     return {
-        # busy: Aufnahme-Abfolge oder Auslöser-Befehl läuft (Kamera evtl. nicht im Modus "rec")
+        # busy: shooting sequence or shutter command running (camera may not be in mode "rec")
         "stage": cam.stage, "busy": busy.locked() or state["pressing"], "indexing": state["indexing"], "live": live.running, "lv_age": live.age, "lvqty": cam.lvqty, "job": job,
         "transfer": state["transfer"], "latest": state["latest"], "play": state["play"] is not None,
         "transfer_error": state["transfer_error"],
@@ -565,7 +565,7 @@ class Handler(BaseHTTPRequestHandler):
         self.wfile.write(body)
 
     def _image(self, body, q):
-        """JPG senden; mit Dateigröße in der URL darf der Browser es eine Woche behalten."""
+        """Send JPG; with the file size in the URL the browser may keep it for a week."""
         self.send_response(200)
         self.send_header("Content-Type", "image/jpeg")
         self.send_header("Content-Length", str(len(body)))
@@ -579,7 +579,7 @@ class Handler(BaseHTTPRequestHandler):
         return json.loads(self.rfile.read(n) or b"{}")
 
     def _trusted(self):
-        """Nur die eigene Oberfläche darf die Kamera steuern, keine fremde Webseite."""
+        """Only our own UI may control the camera, no foreign web page."""
         if self.headers.get("Host") not in allowed_hosts:
             return False
         origin = self.headers.get("Origin")
@@ -644,13 +644,13 @@ class Handler(BaseHTTPRequestHandler):
             if u.path == "/api/thumb":
                 return self._image(cached_preview("thumb", q["path"], q.get("size"),
                                                   lambda: cam.thumbnail(q["path"])), q)
-            if u.path == "/api/resize":  # nur im Modus "play" (Playback über Wi-Fi)
+            if u.path == "/api/resize":  # only in mode "play" (playback over Wi-Fi)
                 px = q.get("px", "1024")
                 return self._image(cached_preview("r" + px, q["path"], q.get("size"),
                                                   lambda: cam.resizeimg(q["path"], px)), q)
             if u.path == "/api/screen":
                 return self._image(cam.screennail(q["path"]), q)
-            if u.path == "/api/full":  # im Aufnahmemodus gibt es keine großen Vorschauen
+            if u.path == "/api/full":  # in shooting mode there are no large previews
                 if not q["path"].lower().endswith((".jpg", ".jpeg")):
                     raise CameraError("Only JPG files can be shown this way")
                 return self._image(cam.read_file(q["path"]), q)
@@ -665,7 +665,7 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("Content-Type", "multipart/x-mixed-replace; boundary=f")
         self.end_headers()
         seq = 0
-        stream = live  # bleibt gültig, auch wenn die Verbindung gewechselt wird
+        stream = live  # stays valid even if the connection is switched
         try:
             while live is stream:
                 seq, frame = stream.wait_frame(seq)
@@ -692,13 +692,13 @@ class Handler(BaseHTTPRequestHandler):
             self._send({"error": str(e)}, code=502)
 
     def _shutter(self, stage):
-        """Auslöser-Stufe setzen: 0 loslassen, 1 halb, 2 voll."""
+        """Set shutter stage: 0 release, 1 half, 2 full."""
         if cam.stage == 0 and stage:
             ensure_idle()
             state["resume_live"] = live.running
-            state["seen"] = card_snapshot()  # im Modus "shutter" nicht mehr lesbar
+            state["seen"] = card_snapshot()  # no longer readable in mode "shutter"
         cam.press(stage)
-        if conn_type == "usb":  # der Live View läuft über USB einfach weiter
+        if conn_type == "usb":  # over USB the live view simply keeps running
             state["resume_live"] = False
             if stage == 0:
                 new = cam.take_new_files()
@@ -739,7 +739,7 @@ class Handler(BaseHTTPRequestHandler):
             cam.refresh()
             return None
         if path == "/api/afarea":
-            if b.get("focus") and conn_type == "usb":  # All Targets: nur scharfstellen
+            if b.get("focus") and conn_type == "usb":  # All Targets: focus only
                 cam.focus()
             else:
                 set_af_area(b.get("mode"), b.get("field"))
@@ -759,7 +759,7 @@ class Handler(BaseHTTPRequestHandler):
                 cam.press(0)
             cam.set_mode(b["mode"])
             if b["mode"] == "rec":
-                cam.stage = 0  # Notausgang, falls die Kamera in "shutter" hängt
+                cam.stage = 0  # emergency exit in case the camera is stuck in "shutter"
         elif path == "/api/set":
             cam.set_prop(b["prop"], b["value"])
         elif path == "/api/shoot":
@@ -793,7 +793,7 @@ class Handler(BaseHTTPRequestHandler):
                     state["take"] = None
         elif path == "/api/movie":
             if b.get("action") == "start":
-                # Über Wi-Fi nimmt die Kamera Filme nur im Movie-Modus (n) auf: kurz umschalten
+                # Over Wi-Fi the camera only records movies in Movie mode (n): switch briefly
                 ensure_idle()
                 before = cam.prop("takemode")
                 if before != "movie":

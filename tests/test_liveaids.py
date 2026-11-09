@@ -1,4 +1,4 @@
-"""Anzeigehilfen im Livebild: Funktionen und Texte sind in index.html vorhanden (kein node nötig)."""
+"""Live view aids: functions and texts are present in index.html (no node needed)."""
 import re
 import unittest
 from pathlib import Path

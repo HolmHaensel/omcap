@@ -1,8 +1,8 @@
-"""Client für die Olympus OI.Share-Schnittstelle (E-M1, Protokoll 2.60).
+"""Client for the Olympus OI.Share interface (E-M1, protocol 2.60).
 
-Lesende CGIs gehen über Camera.get(). Alles, was die Kamera verändert
-(Auslösen, Einstellungen, Moduswechsel, Liveview), geht nur über
-Camera.write() und nur, wenn der Client mit allow_write=True erzeugt wurde.
+Read-only CGIs go through Camera.get(). Everything that changes the camera
+(shooting, settings, mode switch, live view) goes only through
+Camera.write() and only if the client was created with allow_write=True.
 """
 import os
 import re
@@ -15,51 +15,51 @@ import xml.etree.ElementTree as ET
 
 HOST = "192.168.0.10"
 HEADERS = {"User-Agent": "OlympusCameraKit"}
-# Befehlsliste der E-M1 (Firmware 4.6), mitgeliefert als Rückfallebene für den Modus "shutter"
+# E-M1 command list (firmware 4.6), bundled as a fallback for mode "shutter"
 SAVED_COMMANDS = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "commandlist.xml")
 
-FOCUS_WAIT = 2.0       # Zeit zwischen 1stpush und 2ndpush
-SAVE_WAIT = 1.5        # Speichern abwarten, bevor der Modus zurückwechselt
-LIST_RETRIES = 6       # get_imglist bei HTTP 520 so oft wiederholen (Kamera schreibt noch)
-LIST_RETRY_WAIT = 1.0  # Sekunden zwischen den Versuchen
+FOCUS_WAIT = 2.0       # time between 1stpush and 2ndpush
+SAVE_WAIT = 1.5        # wait for the camera to finish saving before switching the mode back
+LIST_RETRIES = 6       # retry get_imglist this many times on HTTP 520 (camera is still writing)
+LIST_RETRY_WAIT = 1.0  # seconds between attempts
 
-# Siehe CLAUDE.md: nur diese CGIs sind ohne Rückfrage erlaubt.
+# See CLAUDE.md: only these CGIs are allowed without asking.
 READ_CGIS = {
     "get_connectmode", "get_caminfo", "get_activate", "get_camprop",
     "get_imglist", "get_thumbnail", "get_screennail", "get_resizeimg",
     "get_movplaytime", "get_rsvimglist", "get_unusedcapacity",
     "get_dcffilenum", "get_gpsdivunit", "get_commandlist",
 }
-RESIZE_SIZES = ("1024", "1600", "1920", "2048")  # laut Befehlsliste
+RESIZE_SIZES = ("1024", "1600", "1920", "2048")  # as in the command list
 SHUTTER_STEPS = {"1stpush", "2ndpush", "1st2ndpush", "2nd1strelease", "2ndrelease", "1strelease"}
 
 
 class WriteBlocked(Exception):
-    """Schreibender Befehl ohne Freigabe."""
+    """Write command without permission."""
 
 
 class CameraError(Exception):
     def __init__(self, message, code=None):
         super().__init__(message)
-        self.code = code  # HTTP-Status der Kamera, z. B. 520
+        self.code = code  # HTTP status of the camera, e.g. 520
 
 
 def _pair(text):
-    """'0259x0179' -> (259, 179), sonst None."""
+    """'0259x0179' -> (259, 179), else None."""
     m = re.fullmatch(r"(\d+)x(\d+)", (text or "").strip())
     return (int(m.group(1)), int(m.group(2))) if m else None
 
 
 def _parse_commands(raw):
-    # Die Kamera deklariert Shift-JIS, ET kennt das nicht; Inhalt ist ASCII.
+    # The camera declares Shift-JIS, which ET does not know; the content is ASCII.
     root = ET.fromstring(raw.split("?>", 1)[-1])
     return {c.get("name") for c in root.iter("cgi")}
 
 
 def parse_capacity(raw):
-    """Freier Kartenplatz in Bytes aus der Antwort von get_unusedcapacity, sonst None.
+    """Free card space in bytes from the get_unusedcapacity answer, else None.
 
-    Das Format ist nicht bestätigt: erlaubt sind ein XML-Element mit Zahl oder eine reine Zahl.
+    The format is unconfirmed: an XML element with a number or a bare number is accepted.
     """
     if isinstance(raw, bytes):
         raw = raw.decode("latin-1")
@@ -78,7 +78,7 @@ def parse_capacity(raw):
 
 
 def parse_rsvimglist(text):
-    """Share-Order-Liste, defensiv: "dir,name,size,attr,date,time" oder nur ein Pfad pro Zeile."""
+    """Share order list, defensive: "dir,name,size,attr,date,time" or just a path per line."""
     items = []
     for line in text.splitlines():
         line = line.strip()
@@ -97,9 +97,9 @@ def parse_rsvimglist(text):
 
 
 def parse_playtime(text):
-    """Filmlänge in Sekunden aus der Antwort von get_movplaytime, None wenn nicht lesbar.
+    """Movie length in seconds from the get_movplaytime answer, None if unreadable.
 
-    Erwartet Sekunden oder hh:mm:ss (im XML oder als Klartext); errorcode wird zum Fehler.
+    Expects seconds or hh:mm:ss (in XML or plain text); errorcode becomes an error.
     """
     m = re.search(r"<errorcode>\s*(\d+)\s*</errorcode>", text)
     if m and int(m.group(1)):
@@ -121,11 +121,11 @@ class Camera:
         self.host = host
         self.timeout = timeout
         self.allow_write = allow_write
-        self.stage = 0      # Auslöser: 0 offen, 1 halb, 2 voll
-        self.lvqty = None   # zuletzt gewählte Liveview-Größe
+        self.stage = 0      # shutter: 0 open, 1 half, 2 full
+        self.lvqty = None   # last chosen live view size
         self._lock = threading.Lock()
         self._commands = None
-        self._touch = None  # (lvqty, touch_frame()), die Kamera ändert ihn nur mit lvqty
+        self._touch = None  # (lvqty, touch_frame()); the camera only changes it together with lvqty
 
     # --- Transport -------------------------------------------------------
     def _open(self, cgi, query=None, data=None, timeout=None):
@@ -158,7 +158,7 @@ class Camera:
             return r.read()
 
     def fetch_file(self, path, dest, chunk=1 << 16):
-        """Datei von der Karte lokal speichern (nur lesen auf der Kamera)."""
+        """Save a file from the card locally (read-only on the camera)."""
         _check_path(path)
         with self._lock, self._open(path.lstrip("/"), timeout=30) as r, open(dest, "wb") as f:
             while True:
@@ -168,26 +168,26 @@ class Camera:
                 f.write(b)
 
     def read_file(self, path):
-        """Datei von der Karte in den Speicher lesen (nur lesen auf der Kamera)."""
+        """Read a file from the card into memory (read-only on the camera)."""
         _check_path(path)
         with self._lock, self._open(path.lstrip("/"), timeout=30) as r:
             return r.read()
 
     def read_head(self, path, size):
-        """Nur den Anfang einer Datei lesen, z. B. für EXIF (nur lesen auf der Kamera)."""
+        """Read only the start of a file, e.g. for EXIF (read-only on the camera)."""
         _check_path(path)
         with self._lock, self._open(path.lstrip("/"), timeout=15) as r:
             return r.read(size)
 
-    # --- Befehlsliste ----------------------------------------------------
+    # --- Command list ----------------------------------------------------
     def commandlist(self):
         if self._commands is not None:
             return self._commands
         try:
             raw = self.get("get_commandlist").decode("ascii", "replace")
         except CameraError:
-            # Im Modus "shutter" beantwortet die Kamera get_* mit HTTP 520. Ohne
-            # die gespeicherte Liste käme man dann nicht mehr auf "rec" zurück.
+            # In mode "shutter" the camera answers get_* with HTTP 520. Without
+            # the stored list there would be no way back to "rec".
             with open(SAVED_COMMANDS, encoding="ascii", errors="replace") as f:
                 return _parse_commands(f.read())
         self._commands = _parse_commands(raw)
@@ -196,7 +196,7 @@ class Camera:
     def supports(self, name):
         return name in self.commandlist()
 
-    # --- Lesen -----------------------------------------------------------
+    # --- Read ------------------------------------------------------------
     def caminfo(self):
         return ET.fromstring(self.get("get_caminfo")).findtext("model")
 
@@ -215,16 +215,16 @@ class Camera:
         return parse_capacity(self.get("get_unusedcapacity"))
 
     def battery(self):
-        return None  # nur über USB lesbar
+        return None  # readable over USB only
 
     def prop(self, name):
         return ET.fromstring(self.get("get_camprop", com="get", propname=name)).findtext("value")
 
     def touch_frame(self):
-        """Bereich für Touch-AF. Format x-y_BxH, liegt mittig im Liveview-Bild.
+        """Area for touch AF. Format x-y_BxH, centred in the live view image.
 
-        Hängt nur von der Live-View-Größe ab und wird deshalb je lvqty gemerkt:
-        Ein Klick ins Raster braucht sonst drei zusätzliche Anfragen.
+        Depends only on the live view size and is therefore remembered per lvqty:
+        a click into the grid would otherwise need three extra requests.
         """
         if self._touch and self._touch[0] == self.lvqty:
             return self._touch[1]
@@ -237,10 +237,10 @@ class Camera:
         return frame
 
     def listdir(self, directory):
-        """Einträge als dict(dir, name, size, isdir, date, time)."""
+        """Entries as dict(dir, name, size, isdir, date, time)."""
         _check_path(directory)
-        # Direkt nach dem Auslösen schreibt die Kamera noch auf die Karte und
-        # antwortet kurz mit 520. Dann einige Male nachfragen.
+        # Right after a shot the camera is still writing to the card and
+        # briefly answers 520. Ask again a few times.
         for attempt in range(LIST_RETRIES + 1):
             try:
                 text = self.get("get_imglist", DIR=directory).decode("latin-1")
@@ -273,11 +273,11 @@ class Camera:
         return files
 
     def share_order(self):
-        """Für Share Order markierte Aufnahmen (nur lesen)."""
+        """Shots marked for Share Order (read-only)."""
         return parse_rsvimglist(self.get("get_rsvimglist").decode("latin-1"))
 
     def movie_length(self, path):
-        """Filmlänge in Sekunden; die Kamera antwortet nur im Modus "play" (sonst errorcode 1001)."""
+        """Movie length in seconds; the camera only answers in mode "play" (otherwise errorcode 1001)."""
         _check_path(path)
         return parse_playtime(self.get("get_movplaytime", DIR=path).decode("latin-1"))
 
@@ -290,27 +290,27 @@ class Camera:
         return self.get("get_screennail", DIR=path)
 
     def resizeimg(self, path, size):
-        """Verkleinertes JPG (lange Seite size), nur im Modus "play" (sonst HTTP 520)."""
+        """Reduced JPG (long side size), only in mode "play" (otherwise HTTP 520)."""
         _check_path(path)
         if str(size) not in RESIZE_SIZES:
             raise CameraError("Unknown preview size: %r" % size)
         return self.get("get_resizeimg", DIR=path, size=str(size))
 
-    # --- Schreiben (nur mit allow_write) -----------------------------------
+    # --- Write (only with allow_write) -------------------------------------
     def set_mode(self, mode, lvqty=None):
         q = {"mode": mode}
         if mode == "rec":
-            self._touch = None  # nach jedem Moduswechsel einmal neu lesen
+            self._touch = None  # re-read once after every mode switch
             self.lvqty = lvqty or self.lvqty
             if self.lvqty:
-                # Die Kamera übernimmt lvqty nur beim Wechsel von "play" nach "rec".
-                # Sonst bleibt die alte Größe, aus "shutter" kommend sogar 320x240.
+                # The camera takes lvqty only on a switch from "play" to "rec".
+                # Otherwise the old size stays, coming from "shutter" even 320x240.
                 self.write("switch_cammode", mode="play")
                 q["lvqty"] = self.lvqty
         return self.write("switch_cammode", **q)
 
     def reset_share_order(self):
-        """Share-Order-Markierungen auf der Karte löschen (schreibt auf die Karte)."""
+        """Clear the Share Order marks on the card (writes to the card)."""
         return self.write("clear_resvflg")
 
     def set_prop(self, prop, value):
@@ -318,7 +318,7 @@ class Camera:
         return self.write("set_camprop", data=body, com="set", propname=prop)
 
     def power_off(self):
-        """Kamera ausschalten; die Kamera beendet danach das WLAN."""
+        """Switch the camera off; the camera then ends the Wi-Fi."""
         return self.write("exec_pwoff")
 
     def start_liveview(self, port):
@@ -328,11 +328,11 @@ class Camera:
         return self.write("exec_takemisc", com="stopliveview")
 
     def af_focus(self, fx, fy):
-        """Touch-AF. fx, fy: Position im Livebild als Anteil 0..1.
+        """Touch AF. fx, fy: position in the live image as a fraction 0..1.
 
-        assignafframe antwortet mit affocus (ok/ng), afframepoint (linke obere Ecke)
-        und afframesize, alles im Raster base_w × base_h. takeready antwortet leer.
-        Rückgabe: {"ok": bool, "x", "y": Rahmenmitte oder None}.
+        assignafframe answers with affocus (ok/ng), afframepoint (top left corner)
+        and afframesize, all in the grid base_w × base_h. takeready answers empty.
+        Returns {"ok": bool, "x", "y": frame centre or None}.
         """
         f = self.touch_frame()
         x, y = round(float(fx) * f["base_w"]), round(float(fy) * f["base_h"])
@@ -356,15 +356,15 @@ class Camera:
         return self.write("exec_shutter", com=step)
 
     def press(self, stage):
-        """Auslöser unabhängig bedienen: 0 loslassen, 1 halb, 2 voll."""
+        """Operate the shutter button independently: 0 release, 1 half, 2 full."""
         if stage not in (0, 1, 2):
             raise CameraError("Unknown shutter position: %r" % stage)
         if stage == self.stage:
             return
         if self.stage == 0:
-            # exec_shutter wird nur im Modus "shutter" angenommen (sonst HTTP 520).
+            # exec_shutter is only accepted in mode "shutter" (otherwise HTTP 520).
             self.set_mode("shutter")
-            self.stage = 1  # ab hier muss press(0) aufräumen, auch nach einem Fehler
+            self.stage = 1  # from here on press(0) must clean up, even after an error
             self.shutter("1stpush")
             if stage == 2:
                 time.sleep(FOCUS_WAIT)
@@ -390,7 +390,7 @@ class Camera:
         self.stage = 0
         if full:
             time.sleep(SAVE_WAIT)
-        self.set_mode("rec")  # in "shutter" lehnt die Kamera get_*-Befehle ab
+        self.set_mode("rec")  # in "shutter" the camera rejects get_* commands
         if error:
             raise error
 
@@ -404,7 +404,7 @@ class Camera:
             self.press(0)
 
     def take_start(self, exposuremin=None, upperlimit=None):
-        """Langzeitbelichtung starten (Parameter laut Befehlsliste, Werte ungetestet)."""
+        """Start a long exposure (parameters per the command list, values untested)."""
         q = {"com": "starttake"}
         if exposuremin:
             q["exposuremin"] = str(int(exposuremin))

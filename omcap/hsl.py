@@ -1,23 +1,23 @@
-"""Software-HSL-Farbprofil nach dem Vorbild des PEN-F-Frontrad-Modus COLOR.
+"""Software HSL colour profile modelled on the PEN-F front dial mode COLOR.
 
-Zahlen (12 Sektoren, Reihenfolge, Slider -7..+7, H_native = -1000 x H,
-L-Tabelle -300..+300) stammen aus oly_fw_analysis/docs/color/pen-f/HSL_TABLES.md
-und docs/color/MODES.md. Es wird kein Code aus der dortigen GPL-Forschung
-uebernommen, nur die dokumentierten Werte.
+The numbers (12 sectors, order, slider -7..+7, H_native = -1000 x H,
+L table -300..+300) come from oly_fw_analysis/docs/color/pen-f/HSL_TABLES.md
+and docs/color/MODES.md. No code from the GPL research there is
+taken over, only the documented values.
 
-Wahl des Farbraums: CIELAB-LCh aus linearem sRGB (D65). Die Doku sagt, die
-Sektoren liegen in einem Chroma-Raum und nicht auf RGB-Winkeln; LCh ist
-wahrnehmungsnah genug, damit gleiche Schritte aehnlich stark wirken.
+Choice of colour space: CIELAB LCh from linear sRGB (D65). The docs say the
+sectors lie in a chroma space and not on RGB angles; LCh is perceptual
+enough that equal steps look similarly strong.
 
-Naeherungen (nicht die Kamerawerte):
-- Sektormitten als LCh-Winkel (siehe SECTOR_ANGLES), von Hand gesetzt.
-- Hue: 3 Grad pro Schritt konstant. Positiv = zum naechsten Sektor in
-  Raddrehung (Gelb -> Orange -> Rot -> ...), also fallender LCh-Winkel.
-- Saturation: +-6 % Chroma pro Schritt, in allen Sektoren gleich (die Kamera
-  nutzt sektorabhaengige Verstaerkung, hier nicht nachgebaut).
+Approximations (not the camera values):
+- Sector centres as LCh angles (see SECTOR_ANGLES), set by hand.
+- Hue: constant 3 degrees per step. Positive = towards the next sector in
+  wheel direction (yellow -> orange -> red -> ...), i.e. falling LCh angle.
+- Saturation: +-6 % chroma per step, equal in all sectors (the camera
+  uses sector-dependent gain, not reproduced here).
 - Lightness: L_native/1000 x 25 L* (+-300 -> +-7.5 L*).
-- Gewichte: Raised-Cosine zwischen benachbarten Sektormitten (Summe = 1,
-  keine harten Kanten), zusaetzlich mit der Chroma gewichtet (Grau bleibt).
+- Weights: raised cosine between neighbouring sector centres (sum = 1,
+  no hard edges), additionally weighted by chroma (grey stays).
 """
 import json
 import os
@@ -27,8 +27,8 @@ import numpy as np
 SECTORS = ["yellow", "orange", "red", "rose", "magenta", "violet",
            "blue", "azure", "cyan", "teal", "green", "lime"]
 
-# LCh-Winkel (Grad) der Sektormitten, Naeherungen. sRGB: Rot ~40, Gelb ~102,
-# Gruen ~136, Cyan ~196, Blau ~265, Magenta ~328.
+# LCh angle (degrees) of the sector centres, approximations. sRGB: red ~40, yellow ~102,
+# green ~136, cyan ~196, blue ~265, magenta ~328.
 SECTOR_ANGLES = [100.0, 65.0, 40.0, 10.0, 335.0, 300.0,
                  265.0, 235.0, 195.0, 170.0, 140.0, 118.0]
 
@@ -36,9 +36,9 @@ SLIDER_MIN, SLIDER_MAX = -7, 7
 HUE_DEG_PER_STEP = 3.0
 SAT_GAIN_PER_STEP = 0.06
 L_STAR_PER_1000 = 25.0
-# Slider -7..+7 -> L_native (aus HSL_TABLES.md)
+# Slider -7..+7 -> L_native (from HSL_TABLES.md)
 L_NATIVE = [-300, -250, -200, -150, -100, -50, -25, 0, 25, 50, 100, 150, 200, 250, 300]
-# Chroma-Gewicht: unter C_LO unberuehrt, ab C_HI voll
+# Chroma weight: untouched below C_LO, full from C_HI
 C_LO, C_HI = 2.0, 14.0
 
 _D65 = np.array([0.95047, 1.0, 1.08883])
@@ -52,14 +52,14 @@ DATA_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data")
 PRESET_FILE = os.path.join(DATA_DIR, "hsl_presets.json")
 
 
-# ---------- Profil ----------
+# ---------- Profile ----------
 
 def neutral_profile(name="Neutral"):
     return {"name": name, "sectors": {s: {"h": 0, "s": 0, "l": 0} for s in SECTORS}}
 
 
 def validate_profile(profile):
-    """Gibt ein normalisiertes Profil zurueck, ValueError bei Fehlern."""
+    """Returns a normalised profile, ValueError on errors."""
     if not isinstance(profile, dict):
         raise ValueError("profile must be a dict")
     out = neutral_profile(str(profile.get("name", "Profile")))
@@ -83,7 +83,7 @@ def validate_profile(profile):
 
 
 def set_all(profile, h=None, s=None, l=None):
-    """'ALL'-Operation: setzt die angegebenen Regler in allen 12 Sektoren."""
+    """'ALL' operation: sets the given controls in all 12 sectors."""
     out = validate_profile(profile)
     for name in SECTORS:
         for k, v in (("h", h), ("s", s), ("l", l)):
@@ -93,7 +93,7 @@ def set_all(profile, h=None, s=None, l=None):
 
 
 def load_slots(path):
-    """Datei mit drei Profilplaetzen (COLOR1-3): {"slots": [p1, p2, p3]}."""
+    """File with three profile slots (COLOR1-3): {"slots": [p1, p2, p3]}."""
     with open(path, encoding="utf-8") as f:
         data = json.load(f)
     slots = data.get("slots")
@@ -117,8 +117,8 @@ def save_profile(path, profile):
 
 
 def load_profile(path_or_name):
-    """Name eines Presets (hsl_presets.json), oder Pfad zu Profil-/Slot-JSON.
-    Bei einer Slot-Datei zaehlt der erste Platz; 'datei.json#2' waehlt Platz 2."""
+    """Name of a preset (hsl_presets.json), or path to a profile/slot JSON.
+    For a slot file the first slot counts; 'file.json#2' picks slot 2."""
     ref = str(path_or_name)
     path, _, slot = ref.partition("#")
     if os.path.isfile(path):
@@ -140,7 +140,7 @@ def load_profile(path_or_name):
                      % (ref, ", ".join(p["name"] for p in presets)))
 
 
-# ---------- Farbraum ----------
+# ---------- Colour space ----------
 
 def _srgb_to_linear(c):
     return np.where(c <= 0.04045, c / 12.92, ((c + 0.055) / 1.055) ** 2.4)
@@ -171,21 +171,21 @@ def lch_to_srgb(L, C, h):
         return np.where(f ** 3 > _EPS, f ** 3, (116 * f - 16) / _KAPPA)
 
     xyz = np.stack([inv(fx), inv(fy), inv(fz)], axis=-1) * _D65
-    # numpy mit Apple Accelerate meldet bei matmul gelegentlich falsche FP-Warnungen (Ergebnis ohne NaN geprüft)
+    # numpy with Apple Accelerate occasionally reports false FP warnings on matmul (result checked for NaN)
     with np.errstate(invalid="ignore", over="ignore", divide="ignore"):
         rgb = xyz @ _MI.T
     return _linear_to_srgb(rgb)
 
 
-# ---------- Anwendung ----------
+# ---------- Application ----------
 
 def _sector_weights(h):
-    """Pro Winkel: Sektor a, Nachbar b (naechste Mitte mit groesserem Winkel)
-    und Gewicht t des Nachbarn (Raised-Cosine, a bekommt 1-t)."""
+    """Per angle: sector a, neighbour b (next centre with a larger angle)
+    and weight t of the neighbour (raised cosine, a gets 1-t)."""
     order = sorted(range(12), key=lambda i: SECTOR_ANGLES[i])
     ang = np.array([SECTOR_ANGLES[i] for i in order])
     idx = np.array(order)
-    pos = np.searchsorted(ang, h, side="right") - 1   # -1 = Umlauf
+    pos = np.searchsorted(ang, h, side="right") - 1   # -1 = wrap around
     lo = ang[pos % 12] - np.where(pos < 0, 360.0, 0.0)
     nxt = (pos + 1) % 12
     hi = ang[nxt] + np.where(pos + 1 >= 12, 360.0, 0.0)
@@ -195,7 +195,7 @@ def _sector_weights(h):
 
 
 def apply_hsl(rgb_float, profile):
-    """rgb_float: H x W x 3 (oder ... x 3), sRGB 0..1. Gibt gleiche Form zurueck."""
+    """rgb_float: H x W x 3 (or ... x 3), sRGB 0..1. Returns the same shape."""
     prof = validate_profile(profile)
     rgb = np.asarray(rgb_float, dtype=np.float64)
     if rgb.shape[-1] != 3:
@@ -220,11 +220,11 @@ def apply_hsl(rgb_float, profile):
     return lch_to_srgb(L2, C2, h2).reshape(rgb.shape)
 
 
-# ---------- Testbilder, Ein-/Ausgabe ----------
+# ---------- Test images, input/output ----------
 
 def wheel_chart(profile, size=360):
-    """12-Sektor-Farbrad (L*=65, Chroma steigt nach aussen): (vorher, nachher).
-    Gelb oben, im Uhrzeigersinn in Raddrehung."""
+    """12-sector colour wheel (L*=65, chroma rises outwards): (before, after).
+    Yellow on top, clockwise in wheel direction."""
     ys, xs = np.mgrid[0:size, 0:size]
     dx, dy = xs - (size - 1) / 2, (size - 1) / 2 - ys
     r = np.hypot(dx, dy) / (size / 2)
@@ -244,7 +244,7 @@ def wheel_chart(profile, size=360):
 def _read_image(path):
     ext = os.path.splitext(path)[1].lower()
     if ext in (".orf", ".dng", ".raw"):
-        import rawpy   # nur fuer RAW noetig
+        import rawpy   # only needed for RAW
         with rawpy.imread(path) as raw:
             rgb = raw.postprocess(use_camera_wb=True, no_auto_bright=True,
                                   output_bps=16, output_color=rawpy.ColorSpace.sRGB)

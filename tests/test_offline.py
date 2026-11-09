@@ -1,4 +1,4 @@
-"""Tests ohne Kamera: Antworten der Kamera werden simuliert."""
+"""Tests without a camera: the camera answers are simulated."""
 import os
 import struct
 import tempfile
@@ -60,12 +60,12 @@ class CameraParsing(unittest.TestCase):
 
 
 def make_exif_jpeg(lens_model):
-    """Kleinstes JPG mit EXIF-IFD und LensModel (0xA434)."""
+    """Smallest JPG with an Exif IFD and LensModel (0xA434)."""
     model = lens_model.encode() + b"\0"
     tiff = bytearray(b"II*\0" + struct.pack("<I", 8))
-    # IFD0: ein Eintrag, Zeiger auf das Exif-IFD
+    # IFD0: one entry, pointer to the Exif IFD
     tiff += struct.pack("<H", 1) + struct.pack("<HHII", 0x8769, 4, 1, 26) + struct.pack("<I", 0)
-    # Exif-IFD bei Offset 26: LensModel als ASCII, Daten bei Offset 44
+    # Exif IFD at offset 26: LensModel as ASCII, data at offset 44
     tiff += struct.pack("<H", 1) + struct.pack("<HHII", 0xA434, 2, len(model), 44) + struct.pack("<I", 0)
     tiff += model
     app1 = b"Exif\0\0" + bytes(tiff)
@@ -186,7 +186,7 @@ class PowerOffGuards(unittest.TestCase):
         try:
             with self.assertRaises(CameraError):
                 server.power_off()
-            self.assertEqual(server.conn_type, "wifi")  # nicht getrennt
+            self.assertEqual(server.conn_type, "wifi")  # not disconnected
         finally:
             server.cam, server.live, server.conn_type = old
 

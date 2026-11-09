@@ -1,16 +1,16 @@
-"""USB-Werte-Lauscher für die E-M1 Mark I: welche PTP-Eigenschaft gehört zu welchem Menüpunkt?
+"""USB value listener for the E-M1 Mark I: which PTP property belongs to which menu item?
 
-Nur lesend: liest die Kamera-Zusammenfassung (wie `gphoto2 --summary`), nie set_config,
-nie Auslösen, nie Live View. Die Kamera aktualisiert ihre Werte nur beim Aufbau einer
-USB-Sitzung, deshalb baut `watch` vor jeder Messung die Sitzung neu auf.
+Read only: reads the camera summary (like `gphoto2 --summary`), never set_config,
+never shooting, never live view. The camera only updates its values when a
+USB session is established, so `watch` rebuilds the session before every measurement.
 
-  python tools/usb_props.py snapshot NAME        # Werte speichern
-  python tools/usb_props.py diff A B             # zwei Stände vergleichen
+  python tools/usb_props.py snapshot NAME        # save values
+  python tools/usb_props.py diff A B             # compare two snapshots
   python tools/usb_props.py watch [--kill-ptpcamerad]
-      # Grundstand, dann je Runde: an der Kamera EINE Einstellung ändern, Namen eingeben,
-      # Enter -> neu verbinden, vergleichen, Ergebnis in mapping.md anhängen
+      # baseline, then per round: change ONE setting on the camera, enter a name,
+      # Enter -> reconnect, compare, append the result to mapping.md
 
-Ablage: out/research/usb_props/ (ohne Seriennummer). Die App darf dabei nicht per USB verbunden sein.
+Storage: out/research/usb_props/ (without serial number). The app must not be connected via USB meanwhile.
 """
 import argparse
 import datetime
@@ -27,7 +27,7 @@ SECRET = re.compile(r"(?i)serien|serial")
 
 
 def parse_summary(text):
-    """Eigenschaften aus der Zusammenfassung: {code: {label, access, type, form, value}}."""
+    """Properties from the summary: {code: {label, access, type, form, value}}."""
     props = {}
     for line in text.splitlines():
         if SECRET.search(line):
@@ -40,14 +40,14 @@ def parse_summary(text):
         if rest.startswith(("Enumeration", "Range")):
             form, _, value = rest.partition(" value: ")
         elif rest.startswith("a["):
-            form, value = rest.split(" ", 1)[0], "(array)"  # lange Byte-Felder nicht vergleichen
+            form, value = rest.split(" ", 1)[0], "(array)"  # do not compare long byte fields
         props[m["code"].lower()] = {"label": m["label"].strip(), "access": m["access"],
                                     "type": m["type"].strip(), "form": form.strip(), "value": value.strip()}
     return props
 
 
 def read_summary(kill=False):
-    """Eine USB-Sitzung aufbauen, Zusammenfassung lesen, Sitzung schließen."""
+    """Build a USB session, read the summary, close the session."""
     import gphoto2 as gp
     if kill:
         subprocess.run(["killall", "-9", "ptpcamerad"], capture_output=True)
@@ -83,7 +83,7 @@ def load(name):
 
 
 def diff(a, b):
-    """Geänderte Werte und Wertebereiche: [(code, label, alt, neu, access, form)]."""
+    """Changed values and value ranges: [(code, label, old, new, access, form)]."""
     out = []
     for code in sorted(set(a) | set(b)):
         x, y = a.get(code), b.get(code)

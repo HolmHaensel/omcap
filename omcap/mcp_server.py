@@ -1,7 +1,7 @@
-"""MCP-Server (stdio) für die E-M1, nur Standardbibliothek.
+"""MCP server (stdio) for the E-M1, standard library only.
 
-Schreibende Werkzeuge funktionieren nur, wenn OMCAP_ALLOW_WRITE=1 gesetzt ist.
-Claude Desktop fragt zusätzlich vor jedem Werkzeugaufruf nach.
+Writing tools only work if OMCAP_ALLOW_WRITE=1 is set.
+Claude Desktop additionally asks before every tool call.
 """
 import base64
 import json
@@ -12,7 +12,7 @@ import time
 from .camera import Camera, CameraError, WriteBlocked
 from .liveview import LiveView
 
-CAPTURES = os.path.join(os.getcwd(), "captures")  # Aufnahmen im aktuellen Ordner
+CAPTURES = os.path.join(os.getcwd(), "captures")  # shots in the current folder
 LV_PORT = 5555
 
 cam = Camera(os.environ.get("OMCAP_HOST", "192.168.0.10"),
@@ -42,7 +42,7 @@ def liveview_snapshot(a):
             if f:
                 n += 1
                 frame = f
-                if n >= 40:  # Belichtung einpegeln lassen
+                if n >= 40:  # let the exposure settle
                     break
     finally:
         try:

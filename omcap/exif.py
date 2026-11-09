@@ -1,10 +1,10 @@
-"""Objektivdaten aus dem EXIF-Kopf einer Olympus-JPG.
+"""Lens data from the EXIF header of an Olympus JPG.
 
-Die Kamera meldet über Wi-Fi keine Objektivdaten (focalvalue listet immer
-f/1.0 bis f/91). In jeder Aufnahme stehen sie aber: Standard-EXIF LensModel
-und in der Olympus-MakerNote die Gruppe Equipment (0x2010).
+Over Wi-Fi the camera reports no lens data (focalvalue always lists
+f/1.0 to f/91). Every shot contains it though: standard EXIF LensModel
+and the Equipment group (0x2010) in the Olympus MakerNote.
 
-Es reichen die ersten rund 128 KB der Datei.
+The first ~128 KB of the file are enough.
 """
 import struct
 
@@ -18,7 +18,7 @@ _EQ_FOCAL_MIN, _EQ_FOCAL_MAX, _EQ_AP_NOW = 0x0207, 0x0208, 0x020A
 
 
 class _Tiff:
-    """Minimaler IFD-Leser, Offsets relativ zu base."""
+    """Minimal IFD reader, offsets relative to base."""
 
     def __init__(self, data, base, order):
         self.data, self.base, self.e = data, base, "<" if order == b"II" else ">"
@@ -35,7 +35,7 @@ class _Tiff:
             else:
                 start = base + struct.unpack(e + "I", val)[0]
                 raw = d[start:start + size]
-                if len(raw) < size:  # liegt hinter dem gelesenen Kopf
+                if len(raw) < size:  # lies beyond the bytes read
                     continue
             out[tag] = (typ, cnt, raw)
         return out
@@ -56,16 +56,16 @@ class _Tiff:
 
 
 def _fnumber(v):
-    """Olympus speichert Blenden als 512 * log2(F)."""
+    """Olympus stores apertures as 512 * log2(F)."""
     return round(2 ** (v / 512), 1) if v else None
 
 
 def lens_info(head):
-    """Objektivdaten als dict oder None, wenn nichts Lesbares drin ist.
+    """Lens data as dict, or None if nothing readable is inside.
 
-    Schlüssel: model, focal_min, focal_max (mm), aperture_wide, aperture_tele
-    (offene Blende am kurzen/langen Ende), focal, aperture_now (Brennweite und
-    offene Blende bei der Aufnahme).
+    Keys: model, focal_min, focal_max (mm), aperture_wide, aperture_tele
+    (maximum aperture at the short/long end), focal, aperture_now (focal length and
+    maximum aperture at the time of the shot).
     """
     try:
         t = head.index(b"Exif\0\0") + 6
@@ -79,7 +79,7 @@ def lens_info(head):
     note = exif.get(0x927C)
     if note and note[2][:8] == b"OLYMPUS\0":
         try:
-            # Offsets der MakerNote zählen ab ihrem eigenen Anfang
+            # MakerNote offsets count from its own start
             mn = _Tiff(head, head.index(note[2][:16], t), note[2][8:10])
             eq = mn.ifd(mn.value(mn.ifd(12)[0x2010]))
             get = lambda tag: mn.value(eq[tag]) if tag in eq else None

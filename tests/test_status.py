@@ -1,4 +1,4 @@
-"""Tests ohne Kamera: Kartenplatz und Akku aus simulierten Antworten."""
+"""Tests without a camera: card space and battery from simulated answers."""
 import unittest
 from types import SimpleNamespace
 

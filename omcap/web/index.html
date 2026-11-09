@@ -277,10 +277,10 @@ body.webcam{cursor:none;display:flex;align-items:center;justify-content:center}
 </form></dialog>
 <script>
 const $=s=>document.querySelector(s);
-/* Übersetzungen: alle Texte der Oberfläche. Weitere Sprache = weiterer Block wie en (fehlende
-   Schlüssel fallen auf en zurück). Begriffe wie im Handbuch EM1_VER4_Eng.pdf.
-   Server-Meldungen kommen englisch; mit einem Schlüssel 'srv.<Meldung>' lassen sie sich übersetzen.
-   Sprache: localStorage 'omcap.lang', sonst Browsersprache, sonst en. */
+/* Translations: all UI texts. Another language = another block like en (missing
+      keys fall back to en). Terms as in the manual EM1_VER4_Eng.pdf.
+      Server messages are English; with a key 'srv.<message>' they can be translated.
+      Language: localStorage 'omcap.lang', else browser language, else en. */
 const I18N={en:{
   "start.usb": "USB connection",
   "start.wifi": "Wi-Fi connection",
@@ -496,7 +496,7 @@ async function act(label,path,body){
 }
 const clock=s=>Math.floor(s/60)+':'+String(Math.floor(s%60)).padStart(2,'0');
 
-/* Weitere Monitore: eigene Fenster nur mit dem Bild */
+/* More monitors: own windows with the image only */
 const view=params.get('view');
 if(view){
   document.body.className='single'; $('#app').hidden=true;
@@ -519,7 +519,7 @@ const popup=v=>window.open('/?view='+v,'_blank','popup,width=1000,height=760');
 $('#popLive').onclick=()=>popup('live');
 $('#popPhoto').onclick=()=>popup('photo');
 
-/* Zustand */
+/* State */
 let leavingPlay=false, wasIndexing=false;
 let st={stage:0,job:{}},canWrite=false,wasBusy=false,blank=0,connected=false,features=new Set(),af=null;
 async function tick(){
@@ -528,7 +528,7 @@ async function tick(){
   $('#half').classList.toggle('on',st.stage>=1);
   $('#empty').hidden=st.live;
   const w=$('#live').naturalWidth, stale=st.live&&st.lv_age>3;
-  // Bild im Fehlerzustand, obwohl Daten kommen: neu verbinden
+  // image in error state although data arrives: reconnect
   blank=st.live&&!stale&&$('#live').complete&&!w?blank+1:0;
   if(blank>=2){blank=0;$('#live').src='/live.mjpg?'+Date.now()}
   const off=st.live&&w&&st.lvqty&&w!==parseInt(st.lvqty,10);
@@ -546,13 +546,13 @@ async function tick(){
   $('#reset').hidden=!(features.has('stages')&&(st.stage>0||propsFailed));
   applyContext();
   if(st.stage===0&&focusHit&&focusHit.held) focusHit=null;
-  // Kamera noch im Modus "play", aber Playback zu (z. B. nach Neuladen der Seite): zurück zur Aufnahme
+  // camera still in mode "play" but playback closed (e.g. after reloading the page): back to shooting
   if(st.play&&$('#galOv').hidden&&!leavingPlay){leavingPlay=true;api('/api/playback',{action:'leave'}).catch(()=>{}).finally(()=>{leavingPlay=false;props()})}
   drawAf();
-  // busy: eine Aufnahme-Abfolge läuft noch (Wi-Fi: Moduswechsel, Übertragung auf den Mac)
-  // USB: Kartenverzeichnis wird nach dem Verbinden eingelesen (ca. 1 min), danach Objektiv aus dem neuesten JPG
+  // busy: a shooting sequence is still running (Wi-Fi: mode switch, transfer to the Mac)
+  // USB: card directory is read after connecting (about 1 min), then the lens from the newest JPG
   if(st.indexing&&!wasIndexing) msg(tr('msg.indexing'));
-  if(wasIndexing&&!st.indexing){msg(tr('msg.indexDone'));loadLens();gallery(true)} // wie bei Wi-Fi: Bilderliste gleich laden
+  if(wasIndexing&&!st.indexing){msg(tr('msg.indexDone'));loadLens();gallery(true)} // as with Wi-Fi: load the image list right away
   wasIndexing=!!st.indexing;
   const b=st.stage>0||j.running||st.busy||st.movie!=null||st.indexing;
   if(wasBusy&&!b){props();gallery();local();loadDevice(true)}
@@ -561,14 +561,14 @@ async function tick(){
   pump();
 }
 
-/* Funktionen: nur was die Kamera über WLAN anbietet, Namen wie im Handbuch.
-   show = in welchem Aufnahmemodus sichtbar (Handbuch S. 41, 44, 51, 70). */
+/* Functions: only what the camera offers over Wi-Fi, names as in the manual.
+      show = in which shooting mode visible (manual p.41, 44, 51, 70). */
 const inMode=(...m)=>p=>m.includes(p.takemode.value);
 const ART_NAMES={popart:'Pop Art',fantasic_focus:'Soft Focus',daydream:'Pale&Light Color',light_tone:'Light Tone',rough_monochrome:'Grainy Film',toy_photo:'Pin Hole',miniature:'Diorama',cross_process:'Cross Process',gentle_sepia:'Gentle Sepia',dramatic_tone:'Dramatic Tone',ligne_clair:'Key Line',pastel:'Watercolor',vintage:'Vintage',partcolor:'Partial Color'};
 const FEATURES={
   takemode:{names:{movie:'Movie',B:'B',iAuto:'iAUTO',P:'P Program',A:'A Aperture priority',S:'S Shutter priority',M:'M Manual',ART:'ART Art filter'}},
   shutspeedvalue:{show:inMode('S','M'),skip:(o,p)=>/^live/.test(o)&&p.takemode.value!=='M',names:{livebulb:'BULB',livetime:'LIVE TIME',livecomp:'LIVECOMP'}},
-  // Die Kamera listet immer f/1.0–f/91: auf die Blenden des Objektivs (aus EXIF) begrenzen
+  // The camera always lists f/1.0–f/91: limit to the apertures of the lens (from EXIF)
   focalvalue:{show:inMode('A','M'),skip:o=>lens&&lens.aperture_wide&&(parseFloat(o)<lens.aperture_wide-.05||parseFloat(o)>APERTURE_MIN)},
   expcomp:{show:inMode('P','A','S','ART')},
   isospeedvalue:{show:inMode('P','A','S','M','ART'),names:{Auto:'AUTO',Low:'LOW'}},
@@ -576,16 +576,16 @@ const FEATURES={
   drivemode:{names:{normal:'Single','lowvib-normal':'Anti-Shock Single','silent-normal':'Silent Single','continuous-H':'Sequential H','silent-continuous-H':'Silent Sequential H','continuous-L':'Sequential L','lowvib-continuous-L':'Anti-Shock Sequential L','silent-continuous-L':'Silent Sequential L',selftimer:'Self-timer','lowvib-selftimer':'Anti-Shock Self-timer','silent-selftimer':'Silent Self-timer',customselftimer:'Custom Self-timer','lowvib-customselftimer':'Anti-Shock Custom Self-timer','silent-customselftimer':'Silent Custom Self-timer'}},
   colortone:{show:inMode('P','A','S','M'),names:{ifinish:'i-Enhance',vivid:'Vivid',natural:'Natural',flat:'Muted',portrait:'Portrait',monotone:'Monotone',custom:'Custom',eportrait:'e-Portrait',underwater:'Underwater',colorcreator:'Color Creator',...ART_NAMES}},
   artfilter:{show:inMode('ART'),names:{...ART_NAMES,program:'ART BKT'}},
-  // Movie-Modus (n): Belichtung für Filme (Handbuch S. 71)
+  // Movie mode (n): exposure for movies (manual p.71)
   exposemovie:{show:inMode('movie'),names:{P:'P Program Auto',A:'A Aperture priority',S:'S Shutter priority',M:'M Manual'}},
   colorphase:{show:p=>p.takemode.value==='ART'?p.artfilter.value==='partcolor':['P','A','S','M'].includes(p.takemode.value)&&p.colortone.value==='partcolor'},
 };
 let lastProps=null,propsFailed=false;
-/* Objektiv: aus dem EXIF der neuesten Aufnahme, ein Objektivwechsel fällt erst mit dem nächsten Foto auf */
-const APERTURE_MIN=22; // kleinste Blende steht nicht im EXIF, f/22 passt für fast alle mFT-Objektive
+/* Lens: from the EXIF of the newest shot, a lens change is only noticed with the next photo */
+const APERTURE_MIN=22; // smallest aperture is not in the EXIF, f/22 fits almost all mFT lenses
 let lens=null,lensFrom=null;
 async function loadLens(){
-  // USB: die Kartenliste kommt nur auf Knopfdruck, der Server holt das neueste JPG selbst
+  // USB: the card list only comes on a button press, the server fetches the newest JPG itself
   if(features.has('af_modes')&&!cardShots){
     try{const l=(await api('/api/lens')).lens; if(l&&(l.model||!lens||!lens.model)){lens=l;lensFrom='usb';showStatus();renderProps()}}catch{}
     return;
@@ -594,25 +594,25 @@ async function loadLens(){
   if(!s||s.preview.path===lensFrom) return;
   try{lens=(await api('/api/lens?path='+encodeURIComponent(s.preview.path))).lens;lensFrom=s.preview.path;showStatus();renderProps()}catch{}
 }
-/* Kopfzeile: Kamera · Objektiv · Verbindung · Rechte */
+/* Header: camera · lens · connection · permissions */
 let statusBase=null;
 function showStatus(){
   if(!statusBase) return;
-  // 0xFFFFFFFF: die Kamera meldet höchstens 32 Bit, der echte Platz ist dann unbekannt
+  // 0xFFFFFFFF: the camera reports at most 32 bits, the real space is then unknown
   const c=device.card;
   const card=c==null?null:c===4294967295?tr('status.cardMore'):c>=1e9?tr('status.card',{v:(c/1e9).toFixed(1)}):tr('status.cardMb',{v:Math.round(c/1e6)});
   const bat=device.battery!=null?tr('status.battery',{v:device.battery}):null;
-  // ohne Objektivnamen (USB ohne JPG) wenigstens den Brennweitenbereich
+  // without a lens name (USB without JPG) at least the focal length range
   const lensName=lens&&(lens.model||(lens.focal_min?(lens.focal_min===lens.focal_max?lens.focal_min:lens.focal_min+'–'+lens.focal_max)+' mm':null));
   $('#status').textContent=[statusBase.model,lensName,statusBase.conn,statusBase.rights,card,bat].filter(Boolean).join(' · ');
 }
-/* Kartenplatz und Akku: der Server fragt die Kamera höchstens alle 30 s, fresh=1 nach einer Aufnahme */
+/* Card space and battery: the server asks the camera at most every 30 s, fresh=1 after a shot */
 let device={card:null,battery:null},deviceAt=0;
 async function loadDevice(fresh){
   deviceAt=Date.now();
   try{device=await api('/api/device'+(fresh?'?fresh=1':''));showStatus()}catch{}
 }
-/* Nur lesbare Kamerawerte aus der Einstellungsliste (nur Wi-Fi) */
+/* Readable camera values only from the settings list (Wi-Fi only) */
 const RO_PROPS=['lowvibtime','SilentTime','noisereduction','SilentNoiseReduction','bulbtimelimit','digitaltelecon'];
 function roValue(k,v){
   if(k==='lowvibtime'||k==='SilentTime') return v==='-1'?tr('ro.off'):tr('ro.ms',{v});
@@ -626,12 +626,12 @@ function renderRo(){
   box.textContent=parts.length?tr('ro.title')+' – '+parts.join(' · '):'';
 }
 async function props(){
-  if(st.stage>0||st.busy||st.play) return; // währenddessen ist die Kamera nicht im Aufnahmemodus
+  if(st.stage>0||st.busy||st.play) return; // meanwhile the camera is not in shooting mode
   try{lastProps=await api('/api/props');propsFailed=false}
   catch(e){propsFailed=true;msg(tr('msg.settingsNeedRec'),true);applyContext();return}
   renderProps();
 }
-/* Record mode (movie): QualityMovie2 zeigt auf einen der Sätze PixelSetN/CompSetN/FrameRateSetN */
+/* Record mode (movie): QualityMovie2 points to one of the sets PixelSetN/CompSetN/FrameRateSetN */
 function showMovieQuality(p){
   const n=((p.QualityMovie2||{}).value||'').replace('set',''), v=k=>(p[k+n]||{}).value;
   const q=[v('PixelSet'),v('CompSet'),v('FrameRateSet')].filter(Boolean).join(' · ');
@@ -645,13 +645,13 @@ function renderProps(){
   box.innerHTML='';
   for(const [k,f] of Object.entries(FEATURES)){
     const v=p[k];
-    if(k==='takemode'&&v&&!v.writable){ // über USB bestimmt das Modusrad den Modus
+    if(k==='takemode'&&v&&!v.writable){ // over USB the mode dial determines the mode
       const l=document.createElement('label'); l.textContent=tr('scp.modeDial',{label:tr('prop.'+k)}); l.dataset.id=k; l.dataset.label=tr('prop.'+k);
       const s=document.createElement('strong'); s.textContent=(f.names&&f.names[v.value])||v.value; s.style.color='var(--fg)';
       l.append(s); box.append(l); continue;
     }
     if(!v||!v.writable||!v.enum.length||(f.show&&!f.show(p))) continue;
-    // Wertnamen: Tabelle (val.<Einstellung>.<Wert>) vor den Namen der Kamera und aus FEATURES
+    // Value names: table (val.<setting>.<value>) before the camera names and from FEATURES
     const name=o=>tr('val.'+k+'.'+o,null,'')||(v.names&&v.names[o])||(f.names&&f.names[o])||o;
     const l=document.createElement('label'); l.textContent=tr('prop.'+k); l.dataset.id=k; l.dataset.label=tr('prop.'+k);
     const sel=document.createElement('select'); sel.disabled=!canWrite;
@@ -668,7 +668,7 @@ function renderProps(){
   applyLayout();
   applyContext();
 }
-/* Aufnahmeoptionen je nach Modus ein- und ausblenden (Handbuch S. 41, 85) */
+/* Show and hide shooting options depending on the mode (manual p.41, 85) */
 function applyContext(){
   const m=lastProps&&lastProps.takemode.value, sp=lastProps&&lastProps.shutspeedvalue.value;
   $('#rowIv').hidden=!['P','A','S','M'].includes(m);
@@ -681,23 +681,23 @@ function applyContext(){
   sec.style.display=[...sec.querySelectorAll('.row')].some(r=>!r.hidden)?'':'none';
 }
 
-/* Bilder */
-/* Bild-URLs mit Dateigröße: Server und Browser dürfen sie zwischenspeichern */
+/* Images */
+/* Image URLs with file size: server and browser may cache them */
 const fileQ=f=>'path='+encodeURIComponent(f.path)+(f.size?'&size='+f.size:'');
 const thumbUrl=f=>'/api/thumb?'+fileQ(f);
 const screenUrl=f=>'/api/screen?'+fileQ(f);
 const fullUrl=f=>'/api/full?'+fileQ(f);
-/* Mittlere Vorschau (1024–2048 px), über Wi-Fi nur im Modus "play" während Playback */
+/* Medium preview (1024–2048 px), over Wi-Fi only in mode "play" during playback */
 const resizeUrl=(f,px)=>'/api/resize?'+fileQ(f)+'&px='+px;
 const RESIZE=[1024,1600,1920,2048];
 const fitSize=w=>RESIZE.find(r=>r>=w)||RESIZE[RESIZE.length-1];
 const isJpg=f=>/\.jpe?g$/i.test(f.name);
-/* Größtes Bild, das die Kamera im Aufnahmemodus liefert */
+/* Largest image the camera delivers in shooting mode */
 const bigUrl=s=>isJpg(s.preview)?fullUrl(s.preview):thumbUrl(s.preview);
-/* Datum und Zeit stehen im FAT-Format in get_imglist */
+/* Date and time are in FAT format in get_imglist */
 function parseStamp(e){const d=e.date,t=e.time;return{y:(d>>9)+1980,m:(d>>5)&15,d:d&31,h:t>>11,mi:(t>>5)&63}}
 const pad=n=>String(n).padStart(2,'0');
-/* RAW und JPG einer Aufnahme zu einem Eintrag zusammenfassen, wie an der Kamera */
+/* Merge RAW and JPG of a shot into one entry, as on the camera */
 function groupShots(files){
   const m=new Map();
   for(const f of files){
@@ -712,7 +712,7 @@ function groupShots(files){
       size:s.files.reduce((a,f)=>a+f.size,0)};
   });
 }
-let cardShots=null, shareSet=null;  // shareSet: Pfade der Share Order, null = Filter aus
+let cardShots=null, shareSet=null;  // shareSet: paths of the Share Order, null = filter off
 async function loadCard(){cardShots=groupShots(await api('/api/images'));loadLens();return cardShots}
 async function downloadShot(s,report){
   for(const f of s.files){
@@ -725,7 +725,7 @@ async function downloadShot(s,report){
 async function gallery(force){
   if(!features.has('playback')) return;
   const g=$('#gal');
-  // Über USB dauert die Liste lange und pausiert den Live View: nur auf Knopfdruck
+  // Over USB the list takes long and pauses the live view: only on a button press
   if(features.has('af_modes')&&!force&&!cardShots){$('#count').textContent=tr('card.pressReload');return}
   if(!cardShots) $('#count').textContent=tr('card.reading')+(features.has('af_modes')?tr('card.paused'):'');
   try{await loadCard()}catch(e){$('#count').textContent=e.message;return}
@@ -743,25 +743,25 @@ async function gallery(force){
   if(!$('#galOv').hidden) renderGal();
 }
 
-/* Galerie: alle Aufnahmen, Bilder werden nur für den sichtbaren Bereich geholt.
-   Die Kamera arbeitet Anfragen nacheinander ab, daher höchstens zwei gleichzeitig. */
+/* Gallery: all shots, images are fetched only for the visible area.
+      The camera works through requests one by one, hence at most two at a time. */
 const GAL_KEY='omcap.gallery', MONTHS=tr('months').split(',');
 function loadGal(){try{return JSON.parse(localStorage.getItem(GAL_KEY))||{}}catch{return{}}}
 const gv={n:9,mode:'index',day:null,month:null,...loadGal(),day:null};
 function saveGal(){try{localStorage.setItem(GAL_KEY,JSON.stringify({n:gv.n,mode:gv.mode}))}catch{}}
 const thumbs=new Map(), want=new Map(), better=new Map();
 let loading=0,io=null,vList=[],vIdx=0;
-/* Bild holen, als Object-URL im Speicher behalten (Map je URL); bei Fehler null */
+/* Fetch image, keep it in memory as an object URL (Map per URL); null on error */
 async function blobUrl(url){
   if(thumbs.has(url)) return thumbs.get(url);
   const r=await fetch(url);
   if(!r.ok) return null;
   const u=URL.createObjectURL(await r.blob()); thumbs.set(url,u);
-  // Speicher begrenzen: älteste Einträge freigeben (bereits angezeigte Bilder bleiben sichtbar)
+  // limit memory: release the oldest entries (images already shown stay visible)
   for(const [k,v] of thumbs){if(thumbs.size<=600)break;URL.revokeObjectURL(v);thumbs.delete(k)}
   return u;
 }
-/* Große Kacheln (Index 4 oder 9 pro Seite) bekommen nach dem Thumbnail eine mittlere Vorschau */
+/* Large tiles (index 4 or 9 per page) get a medium preview after the thumbnail */
 function betterUrl(el){
   const f=el._file; if(!f||!st.play||!isJpg(f)) return null;
   const w=el.getBoundingClientRect().width*(devicePixelRatio||1);
@@ -769,12 +769,12 @@ function betterUrl(el){
 }
 async function fillTile(el){
   const img=el.querySelector('img');
-  if(el.dataset.state==='loading'){                 // Stufe 1: Thumbnail
+  if(el.dataset.state==='loading'){                 // stage 1: thumbnail
     const u=await blobUrl(thumbUrl(el._file));
     if(!u) throw new Error(tr('card.notLoadable'));
     img.src=u;
     const b=betterUrl(el); if(b) better.set(el,b);
-  }else{                                            // Stufe 2: mittlere Vorschau
+  }else{                                            // stage 2: medium preview
     const u=await blobUrl(better.get(el)||'');
     better.delete(el);
     if(u) img.src=u;
@@ -785,13 +785,13 @@ function retryTile(el){
   el.dataset.tries=+(el.dataset.tries||0)+1;
   if(+el.dataset.tries<3) setTimeout(()=>{if(el.isConnected&&el.dataset.vis){want.set(el,1);pump()}},2000);
 }
-/* Die Kamera arbeitet Anfragen nacheinander ab: höchstens zwei gleichzeitig, sichtbare Thumbnails zuerst */
+/* The camera works through requests one by one: at most two at a time, visible thumbnails first */
 function pump(){
   while(loading<2&&!(st.stage>0)){
     let el=want.size?want.keys().next().value:null, stage2=false;
     if(el) want.delete(el);
     else{
-      // Einzelansicht offen: Kacheln nicht verbessern, die Kamera gehört dem großen Bild
+      // single view open: do not improve tiles, the camera belongs to the large image
       if(!$('#viewer').hidden) break;
       el=[...better.keys()].find(e=>e.isConnected&&e.dataset.vis&&e.dataset.state==='done'); if(!el) break; stage2=true}
     if(stage2){el.dataset.state='better'}else el.dataset.state='loading';
@@ -814,7 +814,7 @@ function resetTiles(){
 function makeTile(file){
   const t=document.createElement('div'); t.className='tile'; t._file=file;
   const im=new Image(); im.alt=''; t.append(im);
-  // schon geladenes Thumbnail sofort zeigen (z. B. nach dem Umschalten 25 -> 4)
+  // show an already loaded thumbnail at once (e.g. after switching 25 -> 4)
   const known=thumbs.get(thumbUrl(file)); if(known) im.src=known;
   io.observe(t); return t;
 }
@@ -847,7 +847,7 @@ function renderGal(){
   });
   body.append(grid);
 }
-/* Aufnahmen im Index: nach Tag und, wenn aktiv, nur die der Share Order (RAW ist dort nie dabei) */
+/* Shots in the index: by day and, if active, only those of the Share Order (RAW is never included there) */
 function shareList(){
   let l=gv.day?cardShots.filter(s=>s.day===gv.day):cardShots;
   if(shareSet) l=l.filter(s=>s.files.some(f=>shareSet.has(f.path)));
@@ -867,7 +867,7 @@ async function saveShare(){
   try{
     for(const s of l){
       $('#galCount').textContent=tr('card.shareSaving',{i:++i,n:l.length});
-      // nur die markierten Dateien laden, nicht das RAW daneben
+      // load only the marked files, not the RAW next to them
       const files=s.files.filter(f=>shareSet.has(f.path));
       await downloadShot({...s,files,types:files.map(f=>f.name.split('.').pop().toUpperCase()).join('+')},()=>{});
     }
@@ -914,7 +914,7 @@ function renderCal(body){
 }
 async function openGal(){
   $('#galOv').hidden=false;
-  // Wi-Fi: mittlere Vorschauen gibt es nur im Modus "play"; der Live View pausiert so lange
+  // Wi-Fi: medium previews only exist in mode "play"; the live view pauses meanwhile
   if(canWrite&&!features.has('af_modes')&&!st.play){try{await api('/api/playback',{action:'enter'});await tick()}catch(e){msg(e.message,true)}}
   if(!cardShots){
     $('#galCount').textContent=tr('card.reading');
@@ -931,10 +931,10 @@ document.querySelectorAll('[data-v]').forEach(b=>b.onclick=()=>{
   if(b.dataset.v==='cal'){gv.mode='cal';gv.day=null}else{gv.mode='index';gv.n=+b.dataset.v}
   saveGal();renderGal();
 });
-/* Einzelbild */
+/* Single image */
 let vToken=0;
 function viewerUrl(f){
-  // Wi-Fi im Modus "play": verkleinert passend zum Bildschirm, sonst das ganze JPG
+  // Wi-Fi in mode "play": reduced to fit the screen, otherwise the whole JPG
   if(st.play&&isJpg(f)) return resizeUrl(f,fitSize(Math.max(screen.width,screen.height)*(devicePixelRatio||1)));
   return isJpg(f)?fullUrl(f):null;
 }
@@ -943,7 +943,7 @@ const clockLen=sec=>Math.floor(sec/3600)+':'+pad(Math.floor(sec/60)%60)+':'+pad(
 async function showShot(){
   const s=vList[vIdx], f=s.preview, token=++vToken, im=$('#vImg');
   let info=`${vIdx+1}/${vList.length} · ${s.name} · ${s.types} · ${s.dt.y}-${pad(s.dt.m)}-${pad(s.dt.d)} ${pad(s.dt.h)}:${pad(s.dt.mi)} · ${(s.size/1048576).toFixed(1)} MB`;
-  // Filmlänge nur im Modus "play", sonst antwortet die Kamera mit Fehler
+  // movie length only in mode "play", otherwise the camera answers with an error
   if(/\.mov$/i.test(f.name)&&st.play&&features.has('share_order')){
     const k=f.path+'|'+f.size, add=sec=>' · '+tr('card.movLength',{t:clockLen(sec)});
     if(movLen.has(k)) info+=add(movLen.get(k));
@@ -956,7 +956,7 @@ async function showShot(){
   $('#vInfo').textContent=info;
   $('#vPrev').disabled=vIdx===0; $('#vNext').disabled=vIdx===vList.length-1;
   const big=viewerUrl(f);
-  // sofort das Beste zeigen, was schon da ist (auch eine kleinere Vorschau aus den Kacheln), dann verbessern
+  // show the best available at once (also a smaller preview from the tiles), then improve
   const have=[big,...[...RESIZE].reverse().map(px=>resizeUrl(f,px)),thumbUrl(f)].find(u=>u&&thumbs.has(u));
   im.src=have?thumbs.get(have):thumbUrl(f);
   if(!big){$('#vInfo').textContent=info+tr('card.smallOnly');return}
@@ -969,7 +969,7 @@ async function showShot(){
     else $('#vInfo').textContent=info+tr('card.smallOnly');
   }catch{if(token===vToken) $('#vInfo').textContent=info+tr('card.loadFailed')}
 }
-/* Nächstes und vorheriges Bild im Hintergrund holen (nur mittlere Vorschau, nicht das ganze JPG) */
+/* Fetch next and previous image in the background (medium preview only, not the whole JPG) */
 function prefetchNeighbors(){
   if(!st.play) return;
   for(const d of [1,-1]){
@@ -1008,7 +1008,7 @@ async function local(){
   }
 }
 
-/* Livebild: Zoom, Verschieben, Touch-AF */
+/* Live image: zoom, pan, touch AF */
 let z=1,px=0,py=0,drag=null;
 const vp=$('#viewport'),layer=$('#zoomLayer');
 function applyZoom(){
@@ -1034,7 +1034,7 @@ vp.onpointerup=e=>{
   if(!d||d.moved||!st.live) return;
   pickField(e);
 };
-/* Level Gauge (USB): Wasserwaage, dazu Modusrad beobachten */
+/* Level Gauge (USB): spirit level, also watch the mode dial */
 let lvl=null,lvlBusy=false,lvPicked=false;
 async function pollLevel(){
   if(!connected||lvlBusy||!features.has('af_modes')) return;
@@ -1054,13 +1054,13 @@ function drawLevel(){
   if(!on) return;
   const W=c.width,H=c.height,cx=W/2,cy=H/2,len=W*.2,roll=lvl.a,pitch=lvl.b,ok=Math.abs(roll)<.5;
   g.lineCap='round';
-  // Referenzstriche links und rechts, bewegliche Linie kippt mit der Kamera
+  // reference marks left and right, the movable line tilts with the camera
   g.strokeStyle='rgba(255,255,255,.75)'; g.lineWidth=2*d;
   g.beginPath(); g.moveTo(cx-len-30*d,cy); g.lineTo(cx-len-6*d,cy); g.moveTo(cx+len+6*d,cy); g.lineTo(cx+len+30*d,cy); g.stroke();
   g.save(); g.translate(cx,cy); g.rotate(roll*Math.PI/180);
   g.strokeStyle=ok?'#3f3':'#fc3'; g.lineWidth=3*d;
   g.beginPath(); g.moveTo(-len,0); g.lineTo(len,0); g.stroke(); g.restore();
-  // Neigung nach vorn/hinten als Punkt auf einer senkrechten Skala
+  // forward/backward tilt as a dot on a vertical scale
   const sx=W-24*d,sh=H*.3,clamp=Math.max(-20,Math.min(20,pitch));
   g.strokeStyle='rgba(255,255,255,.75)'; g.lineWidth=2*d;
   g.beginPath(); g.moveTo(sx,cy-sh); g.lineTo(sx,cy+sh); g.moveTo(sx-10*d,cy); g.lineTo(sx+10*d,cy); g.stroke();
@@ -1068,10 +1068,10 @@ function drawLevel(){
   g.beginPath(); g.arc(sx,cy-clamp/20*sh,6*d,0,7); g.fill();
 }
 $('#lvlOn').onchange=drawLevel;
-/* AF Area (USB): 9x9-Feldraster wie im Kameradisplay */
+/* AF Area (USB): 9x9 field grid as on the camera display */
 const AF_NAMES={33024:tr('af.33024'),33025:tr('af.33025'),33026:tr('af.33026'),33027:tr('af.33027')};
 async function loadAf(){try{af=await api('/api/afarea');showAf()}catch(e){msg(tr('msg.afArea',{e:e.message}),true)}}
-let focusing=false; // Klicks während des Scharfstellens verwerfen, sonst stauen sie sich
+let focusing=false; // discard clicks while focusing, otherwise they pile up
 async function setAf(b){
   const f=b.field||b.focus;
   if(f&&focusing) return;
@@ -1087,7 +1087,7 @@ async function setAf(b){
   catch(e){msg(tr('msg.afArea',{e:e.message}),true)}
   finally{if(f) focusing=false}
 }
-/* Fokusposition der Kamera (1280x960) in eine Feldnummer umrechnen */
+/* Convert the camera focus position (1280x960) to a field number */
 const FOCUS_SHOW=4000;
 let focusHit=null;
 function focusField(a){
@@ -1110,7 +1110,7 @@ function pickField(e){
   const x=((e.clientX-b.left)/b.width*a.w-a.x0)/(a.x1-a.x0), y=((e.clientY-b.top)/b.height*a.h-a.y0)/(a.y1-a.y0);
   if(x<0||x>=1||y<0||y>=1){msg(tr('msg.outsideAf'),true);return}
   const field=Math.floor(y*9)*9+Math.floor(x*9)+1;
-  // Bei All Targets wählt die Kamera das Feld selbst: der Klick stellt nur scharf
+  // With All Targets the camera picks the field itself: the click only focuses
   setAf(af.mode===33024?{focus:true}:{field});
 }
 function drawAf(){
@@ -1122,7 +1122,7 @@ function drawAf(){
   const row=Math.floor((af.field-1)/9),col=(af.field-1)%9;
   g.strokeStyle='rgba(255,255,255,.7)'; g.lineWidth=d; g.setLineDash([3*d,3*d]);
   if(af.mode===33027){
-    // Small Target: 81 einzelne kleine Quadrate, wie im Kameradisplay
+    // Small Target: 81 individual small squares, as on the camera display
     const s=Math.min(cw,ch)*.75, box=(r,k)=>[X+(k+.5)*cw-s/2,Y+(r+.5)*ch-s/2,s,s];
     for(let r=0;r<9;r++)for(let k=0;k<9;k++) if(r!==row||k!==col) g.strokeRect(...box(r,k));
     g.setLineDash([]); g.strokeStyle='#3f3'; g.lineWidth=3*d;
@@ -1140,7 +1140,7 @@ function drawAf(){
     }else g.strokeRect(X,Y,W,H);
     return;
   }
-  // Group Target: 3x3 um das Feld, am Rand abgeschnitten
+  // Group Target: 3x3 around the field, clipped at the edge
   const n=af.mode===33026?1:0;
   const r0=Math.max(0,row-n),r1=Math.min(8,row+n),c0=Math.max(0,col-n),c1=Math.min(8,col+n);
   for(let r=r0;r<=r1;r++)for(let k=c0;k<=c1;k++)g.strokeRect(X+k*cw,Y+r*ch,cw,ch);
@@ -1148,7 +1148,7 @@ function drawAf(){
 document.querySelectorAll('[data-af]').forEach(b=>b.onclick=()=>setAf({mode:+b.dataset.af}));
 $('#afShow').onchange=drawAf;
 
-/* Raster */
+/* Grid */
 function drawGrid(){
   const c=$('#grid'),r=vp.getBoundingClientRect(),d=devicePixelRatio||1;
   c.width=r.width*d; c.height=r.height*d;
@@ -1163,8 +1163,8 @@ function drawGrid(){
   if(t==='mesh'){for(let i=0;i<10;i++){v((i/10+ox+1)%1);h((i/10+oy+1)%1)}}
 }
 ['gridType','gridX','gridY'].forEach(i=>$('#'+i).oninput=drawGrid);
-/* Anzeigehilfen: werden im Browser aus dem Livebild berechnet, keine Kamerabefehle */
-function lumaHistogram(data){ // Rec.709, 256 Klassen
+/* Display aids: computed in the browser from the live image, no camera commands */
+function lumaHistogram(data){ // Rec.709, 256 bins
   const h=new Uint32Array(256);
   for(let i=0;i<data.length;i+=4) h[Math.min(255,Math.round(.2126*data[i]+.7152*data[i+1]+.0722*data[i+2]))]++;
   return h;
@@ -1174,7 +1174,7 @@ function rgbHistogram(data){
   for(let i=0;i<data.length;i+=4){h[0][data[i]]++;h[1][data[i+1]]++;h[2][data[i+2]]++}
   return h;
 }
-function clipMask(data,hi,lo){ // 1 = Lichter (ein Kanal >= hi), 2 = Schatten (alle Kanäle <= lo)
+function clipMask(data,hi,lo){ // 1 = highlights (one channel >= hi), 2 = shadows (all channels <= lo)
   const m=new Uint8Array(data.length>>2);
   for(let i=0,j=0;i<data.length;i+=4,j++){
     const r=data[i],g=data[i+1],b=data[i+2];
@@ -1187,7 +1187,7 @@ function grayOf(data){
   for(let i=0,j=0;i<data.length;i+=4,j++) g[j]=.2126*data[i]+.7152*data[i+1]+.0722*data[i+2];
   return g;
 }
-function edgeMagnitude(gray,w,h){ // Sobel, Rand bleibt 0
+function edgeMagnitude(gray,w,h){ // Sobel, border stays 0
   const m=new Float32Array(w*h);
   for(let y=1;y<h-1;y++)for(let x=1;x<w-1;x++){
     const i=y*w+x,a=gray[i-w-1],b=gray[i-w],c=gray[i-w+1],d=gray[i-1],f=gray[i+1],e=gray[i+w-1],g=gray[i+w],k=gray[i+w+1];
@@ -1196,7 +1196,7 @@ function edgeMagnitude(gray,w,h){ // Sobel, Rand bleibt 0
   }
   return m;
 }
-function edgeThreshold(mag,top,floor){ // Schwelle so, dass etwa der Anteil top der Pixel darüber liegt
+function edgeThreshold(mag,top,floor){ // threshold such that about the fraction top of the pixels lies above it
   let max=0; for(let i=0;i<mag.length;i++) if(mag[i]>max) max=mag[i];
   if(max<=0) return Infinity;
   const bins=new Uint32Array(256),k=255/max;
@@ -1215,7 +1215,7 @@ function drawHist(data){
   const c=$('#histCv'),g=c.getContext('2d'),W=c.width,H=c.height;
   g.clearRect(0,0,W,H);
   const curve=(h,col)=>{
-    let mx=1; for(let i=1;i<255;i++) if(h[i]>mx) mx=h[i]; // Randklassen nicht skalieren
+    let mx=1; for(let i=1;i<255;i++) if(h[i]>mx) mx=h[i]; // do not scale the edge bins
     g.strokeStyle=col; g.beginPath();
     for(let i=0;i<256;i++){const x=i/255*(W-1),y=H-1-Math.min(1,h[i]/mx)*(H-3);i?g.lineTo(x,y):g.moveTo(x,y)}
     g.stroke();
@@ -1254,15 +1254,15 @@ function aidTick(){
   og.putImageData(out,0,0);
 }
 AID_IDS.concat('aidPeakCol').forEach(i=>$('#'+i).onchange=()=>{aidSave();aidTick()});
-setInterval(aidTick,250); // 4 Bilder/s reichen und halten die CPU niedrig
+setInterval(aidTick,250); // 4 frames/s are enough and keep the CPU low
 new ResizeObserver(()=>{drawGrid();applyZoom();drawAf()}).observe(vp);
 
-/* Überlagerung */
+/* Overlay */
 function overlay(url){const o=$('#ovl');o.src=url;o.hidden=false;o.style.opacity=$('#ovlOp').value/100;$('#ovlRow').hidden=false;msg(tr('msg.overlaySet'))}
 $('#ovlOp').oninput=e=>$('#ovl').style.opacity=e.target.value/100;
 $('#ovlOff').onclick=()=>{const o=$('#ovl');o.hidden=true;o.removeAttribute('src');$('#ovlRow').hidden=true};
 
-/* Anzeige anpassen */
+/* Adjust display */
 const KEY='omcap.layout';
 function loadLayout(){try{return JSON.parse(localStorage.getItem(KEY))||{}}catch{return{}}}
 function saveLayout(l){try{localStorage.setItem(KEY,JSON.stringify(l))}catch{}}
@@ -1301,13 +1301,13 @@ function commit(){saveLayout(layout);applyLayout();renderLayout()}
 $('#layoutBtn').onclick=()=>{renderLayout();$('#layoutDlg').showModal()};
 $('#layoutReset').onclick=()=>{layout={};commit()};
 
-/* Knöpfe */
+/* Buttons */
 $('#lvStart').onclick=async()=>{
   try{await api('/api/liveview',{action:'start',lvqty:features.has('af_modes')&&!lvPicked?null:$('#lvqty').value});$('#live').src='/live.mjpg?'+Date.now();msg(tr('msg.lvRunning'));await tick();if(features.has('af_area'))loadAf();setTimeout(props,1500)}catch(e){msg(e.message,true)}};
 $('#lvqty').onchange=()=>{lvPicked=true;if(st.live)$('#lvStart').click()};
 $('#lvStop').onclick=()=>act(tr('msg.lvStopped'),'/api/liveview',{action:'stop'});
-/* Auslösen: ganze Abfolge. Hält Halfway gerade den Fokus, von dort durchdrücken und loslassen,
-   wie am echten Auslöser. All the way und Loslassen sind darin aufgegangen. */
+/* Shooting: the whole sequence. If Halfway is just holding focus, press through from there and release,
+      as on the real shutter button. All the way and release are merged into it. */
 /* Self-timer: purely client-side countdown, then the normal take-picture path */
 let timerId=null,timerRes=null;
 function timerStop(){clearInterval(timerId);timerId=null;$('#timerCount').hidden=true}
@@ -1357,15 +1357,15 @@ $('#shoot').onclick=async()=>{
   }else if(!await act(tr('msg.taken'),'/api/shoot',{})) return;
   showLast(latestBefore);
   gallery();local();
-  if(features.has('af_modes')) loadLens(); // USB: Objektiv aus dem neuen JPG
-  // Wi-Fi: die Kamera schreibt nach dem Auslösen noch, die erste Liste ist oft ohne das neue Bild
+  if(features.has('af_modes')) loadLens(); // USB: lens from the new JPG
+  // Wi-Fi: the camera is still writing after the shot, the first list often lacks the new image
   if(!features.has('af_modes')) setTimeout(()=>gallery(),4000);
 };
 $('#half').onclick=async()=>{
   const pressing=st.stage<1;
   const j=await act(tr('msg.shutter'),'/api/shutter',{stage:st.stage>=1?0:1});
   if(!pressing||!j||!af||af.mode!==33024) return;
-  // All Targets: das scharfgestellte Feld zeigen, solange Halfway gehalten wird
+  // All Targets: show the focused field as long as Halfway is held
   af={...af,last_af:j.last_af};
   const hit=focusField(af);
   focusHit=hit?{field:hit,until:Infinity,held:true}:null;
@@ -1379,7 +1379,7 @@ $('#jobStop').onclick=()=>act(tr('msg.stopping'),'/api/job/stop',{});
 $('#takePrep').onclick=()=>act(tr('msg.lcPrepared'),'/api/take',{action:'prepare'});
 $('#takeStart').onclick=()=>act(tr('msg.started',{name:$('#longName').textContent}),'/api/take',{action:'start'});
 $('#takeStop').onclick=()=>act(tr('msg.stopped',{name:$('#longName').textContent}),'/api/take',{action:'stop'});
-/* Movie: Start/Stopp wie die R-Taste (Handbuch S. 22); die App schaltet dafür kurz in den Movie-Modus */
+/* Movie: start/stop like the R button (manual p.22); the app briefly switches to Movie mode for it */
 $('#movStart').onclick=()=>act(tr('msg.movieStarted'),'/api/movie',{action:'start'});
 $('#movStop').onclick=async()=>{await act(tr('msg.movieStopped'),'/api/movie',{action:'stop'});
   if(!features.has('af_modes')) setTimeout(()=>gallery(),4000)};
@@ -1392,7 +1392,7 @@ $('#propsReload').onclick=async()=>{
   catch(e){msg(e.message,true)}
 };
 
-/* Startbildschirm: USB und Wi-Fi gleichrangig, erkannte Verbindung ist vorausgewählt */
+/* Start screen: USB and Wi-Fi equal, detected connection is preselected */
 const LAST_KEY='omcap.connection';
 function lastConn(){try{return localStorage.getItem(LAST_KEY)}catch{return null}}
 let selected=null,pollTimer=null,polling=false,connecting=false;

@@ -1,10 +1,10 @@
-"""RAW entwickeln und Focus-Stacks zusammenrechnen (Etappe 3).
+"""Develop RAW and merge focus stacks (stage 3).
 
   python3 -m omcap.develop raw  captures/P1010001.ORF out/P1010001.png
-  python3 -m omcap.develop stack out/stack.png captures/*.ORF   # oder .JPG
+  python3 -m omcap.develop stack out/stack.png captures/*.ORF   # or .JPG
 
-Braucht: pip install rawpy numpy opencv-python-headless
-Liest nur; schreibt ausschließlich die angegebene Ausgabedatei.
+Needs: pip install rawpy numpy opencv-python-headless
+Only reads; writes only the given output file.
 """
 import argparse
 import os
@@ -22,7 +22,7 @@ def _deps():
 
 
 def load(path, cv2, np, rawpy):
-    """Gibt ein 16-bit-BGR-Bild zurück."""
+    """Returns a 16-bit BGR image."""
     if path.lower().endswith((".orf", ".dng")):
         with rawpy.imread(path) as raw:
             rgb = raw.postprocess(use_camera_wb=True, no_auto_bright=True, output_bps=16)
@@ -42,7 +42,7 @@ def safe_out(out, inputs):
 
 
 def align(ref, img, cv2, np):
-    """Grobe Ausrichtung per ECC (Fokusverschiebung ändert den Maßstab leicht)."""
+    """Rough alignment via ECC (focus shift changes the scale slightly)."""
     g1 = cv2.cvtColor((ref >> 8).astype(np.uint8), cv2.COLOR_BGR2GRAY)
     g2 = cv2.cvtColor((img >> 8).astype(np.uint8), cv2.COLOR_BGR2GRAY)
     warp = np.eye(2, 3, dtype=np.float32)
