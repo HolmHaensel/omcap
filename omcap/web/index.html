@@ -1326,8 +1326,11 @@ function timerStart(sec){
    USB asks the server for the JPG the camera just reported; a JPG saved to the computer is preferred. */
 let lastOpen=null;
 async function showLast(before,retry){
-  const img=$('#lastShot');
-  let shot=null,src=null;
+  const img=$('#lastShot'), n=retry|0;
+  let shot=null,local=null;
+  // a JPG saved to the computer is the quickest source and does not depend on the camera
+  try{const lst=(await api('/api/state')).latest;
+    if(lst&&/\.jpe?g$/i.test(lst)&&lst!==before) local='/captures/'+encodeURIComponent(lst)}catch{}
   try{
     if(features.has('af_modes')){
       const p=(await api('/api/lastshot')).path;
@@ -1337,13 +1340,12 @@ async function showLast(before,retry){
     }else{
       await loadCard(); shot=cardShots&&cardShots.find(x=>isJpg(x.preview))||null;
     }
-    const lst=(await api('/api/state')).latest;
-    const local=lst&&/\.jpe?g$/i.test(lst)&&lst!==before?'/captures/'+encodeURIComponent(lst):null;
-    src=local||(shot&&thumbUrl(shot.preview));
   }catch{}
+  const src=local||(shot&&thumbUrl(shot.preview));
+  // Wi-Fi: right after a shot the card list may fail or lack the new file: try again (up to 3x, 4 s apart)
+  if(!features.has('af_modes')&&!local&&n<3) setTimeout(()=>showLast(before,n+1),4000);
   if(!src) return;
   lastOpen=shot; img.src=src; img.hidden=false;
-  if(!features.has('af_modes')&&!retry) setTimeout(()=>showLast(before,true),4000); // the card writes on after the shot
 }
 $('#lastShot').onclick=()=>{
   if(lastOpen) openViewer([lastOpen],0);
