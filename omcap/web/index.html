@@ -580,7 +580,7 @@ function showStatus(){
   if(!statusBase) return;
   // 0xFFFFFFFF: die Kamera meldet höchstens 32 Bit, der echte Platz ist dann unbekannt
   const c=device.card;
-  const card=c==null?null:c>=4294967295?tr('status.cardMore'):c>=1e9?tr('status.card',{v:(c/1e9).toFixed(1)}):tr('status.cardMb',{v:Math.round(c/1e6)});
+  const card=c==null?null:c===4294967295?tr('status.cardMore'):c>=1e9?tr('status.card',{v:(c/1e9).toFixed(1)}):tr('status.cardMb',{v:Math.round(c/1e6)});
   const bat=device.battery!=null?tr('status.battery',{v:device.battery}):null;
   // ohne Objektivnamen (USB ohne JPG) wenigstens den Brennweitenbereich
   const lensName=lens&&(lens.model||(lens.focal_min?(lens.focal_min===lens.focal_max?lens.focal_min:lens.focal_min+'–'+lens.focal_max)+' mm':null));
