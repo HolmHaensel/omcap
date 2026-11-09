@@ -185,7 +185,7 @@ class UsbLive:
             data = self.camera.preview_frame()
             if data is None:
                 failures += 1
-                if failures >= 10 and not self.camera.shooting:
+                if failures >= 10 and not self.camera.shooting and not self.camera.stage:
                     self.camera.reopen("live view failed 10x")  # session broken: rebuild
                     failures = 0
                 time.sleep(0.3)
@@ -369,7 +369,7 @@ class UsbCamera:
         # in 1280×960 or 1024×768, independent of the current d06d (measured 2026-11-09).
         area["w"], area["h"] = af_raster(area)
         return {"mode": int(self._value("d00c")), "field": int(self._value("d051")), "area": area,
-                "last_af": focus_in_raster(self.last_af, area)}
+                "last_af": focus_in_raster(self.last_af, area), "focus_ok": getattr(self, "focus_ok", None)}
 
     def preview_frame(self):
         with self._lock:
@@ -632,18 +632,30 @@ class UsbCamera:
         self.last_af = {"x": x, "y": y}
 
     def focus(self):
-        """Focus like half press and release."""
+        """Focus like half press and release. Returns True when the camera confirmed focus (event c003).
+
+        Live view is paused meanwhile: during AF the camera delivers no preview frames, and ten
+        failed frames would make the live view loop rebuild the whole session (~9 s, file index lost).
+        """
+        self.focus_ok = None
         if self.stage:
-            return
-        self._events(0.3)  # collect old events, otherwise the wait ends too early
-        self._event_log = []
-        self._shutter(OP_FIRST)
+            return None
+        self.hold += 1
         try:
-            self._events(FOCUS_WAIT, "c003")
-            self._read_focus_position()
+            with self._lock:  # let an in-flight preview request finish
+                pass
+            self._events(0.3)  # collect old events, otherwise the wait ends too early
+            self._event_log = []
+            self._shutter(OP_FIRST)
+            try:
+                self.focus_ok = bool(self._events(FOCUS_WAIT, "c003"))
+                self._read_focus_position()
+            finally:
+                self._shutter(OP_RELEASE)
+            self._events(0.2)
         finally:
-            self._shutter(OP_RELEASE)
-        self._events(0.2)
+            self.hold -= 1
+        return self.focus_ok
 
     def shoot(self):
         """Release once. Returns the new file paths (JPG and ORF)."""

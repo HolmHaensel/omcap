@@ -1093,6 +1093,8 @@ async function setAf(b){
 const FOCUS_SHOW=4000;
 let focusHit=null;
 function focusField(a){
+  // USB Single/Group/Small: the chosen field is the focus point; the reported position lags behind
+  if(a&&a.modes&&a.mode!==33024&&a.focus_ok!=null) return a.focus_ok?a.field:null;
   const p=a&&a.last_af, r=a&&a.area;
   if(!p||!p.x||!r) return null;
   const col=Math.floor((p.x-r.x0)/(r.x1-r.x0)*9), row=Math.floor((p.y-r.y0)/(r.y1-r.y0)*9);
