@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.2.0 – 2026-11-09
 
 - Header shows free card space (Wi-Fi and USB) and battery level (USB); read-only camera settings Anti-Shock, Silent, Noise Reduct., BULB/TIME Timer and Digital Tele-converter under the LV super control panel (Wi-Fi).
 - Playback over Wi-Fi: Share Order filter with count, Save all to computer and Reset Share Order; movie length in the single-frame view.
@@ -10,6 +10,9 @@
 - Self-timer (Off / 2 s / 10 s) next to Take picture with a countdown over the live view; click again to cancel.
 - Last shot thumbnail in the live view corner after Take picture (click opens the single-frame view; Wi-Fi and USB).
 - Webcam view `/?view=webcam` (live image only, black background, optional `&w=&h=`) for an OBS Browser Source; README section "Use as webcam (OBS)".
+
+- USB: card index read after connecting (first picture fast), AF grid and focus position in the right grid, lens name, picture list loads automatically, "P Program / iAUTO" (the camera reports both as P), live view no longer drops during AF.
+- Code comments in English for contributors; read-only USB property listener `tools/usb_props.py`.
 
 ### Known issues
 - USB, All Targets + Press halfway: the green AF field may not match where the camera focused.
