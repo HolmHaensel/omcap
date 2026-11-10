@@ -1,13 +1,14 @@
 # Changelog
 
-## Unreleased (0.3.0, branch `release-0.3`)
+## 0.2.1 – 2026-11-10
 
 - Easy start: double-click `E-M1 Capture.command` (macOS) or `E-M1 Capture.bat` (Windows, Wi-Fi only, untested); the browser opens by itself (`--no-browser` to skip).
 - Starting a second time no longer fails with "Address already in use": it opens the browser and says the app is already running; another program on the port gets a hint to use `--port`.
 - Clear message with the start command instead of "Failed to fetch" when the app is not running, also under the USB/Wi-Fi choice when `index.html` was opened as a file.
 - The tapped AF field is marked at once while the camera focuses (Wi-Fi and USB).
 - README: everyday start and stop, offline use.
-- Planned for 0.3.0, built but not merged yet: Webcam (OBS) button, selectable save folder and file names, HSL in the app.
+
+Next (0.3.0): Webcam (OBS) button, selectable save folder and file names, HSL in the app.
 
 ## 0.2.0 – 2026-11-09
 
