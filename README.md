@@ -81,6 +81,18 @@ Start (read only without `--allow-write`):
 Open <http://127.0.0.1:8765/>; the start screen shows which connection found the camera.
 Pictures saved to the computer go to `captures/` in the current folder (change with `--data-dir`).
 
+Every later start (for example after a restart of the computer):
+
+```sh
+cd omcap
+.venv/bin/em1-capture --allow-write
+```
+
+- Keep the Terminal window open while you use the app; stop it with **Ctrl+C**.
+- `Address already in use` means the app is already running: just open the address above.
+- The app works **offline**. It runs only on your computer and loads nothing from the internet;
+  internet is needed once for the installation.
+
 ## Using Wi-Fi
 
 1. Camera: **Setup Menu → Wi-Fi Settings → Wi-Fi Connect Settings → Private** (once).
