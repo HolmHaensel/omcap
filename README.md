@@ -43,6 +43,7 @@ Contributions, tests with other bodies and ideas are very welcome.
 | Turn off camera | built, untested | – |
 | Live view aids: Histogram, Highlight&Shadow, Peaking | yes | yes |
 | HSL color profiles for ORF/JPG on the computer (`omcap.hsl`) | independent | independent |
+| Start by double-click, browser opens by itself | yes | yes |
 
 The interface is in English; all texts are in one translation table (`I18N` in
 `omcap/web/index.html`), so more languages can be added.
@@ -58,7 +59,7 @@ The interface is in English; all texts are in one translation table (`I18N` in
 | | Wi-Fi | USB |
 |---|---|---|
 | Camera | OM-D E-M1 Mark I (tested: firmware 4.6) | same |
-| Computer | macOS (tested), Python 3.9 or newer | same |
+| Computer | macOS (tested), Python 3.9 or newer; Windows probably works (not tested) | macOS only (libgphoto2 is not available on Windows) |
 | Extra software | none (standard library only) | `gphoto2` Python package (includes libgphoto2) |
 | Cable / network | the camera's own Wi-Fi | USB cable |
 

@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased (0.3.0, branch `release-0.3`)
+
+- Easy start: double-click `E-M1 Capture.command` (macOS) or `E-M1 Capture.bat` (Windows, Wi-Fi only, untested); the browser opens by itself (`--no-browser` to skip).
+- Starting a second time no longer fails with "Address already in use": it opens the browser and says the app is already running; another program on the port gets a hint to use `--port`.
+- Clear message with the start command instead of "Failed to fetch" when the app is not running, also under the USB/Wi-Fi choice when `index.html` was opened as a file.
+- The tapped AF field is marked at once while the camera focuses (Wi-Fi and USB).
+- README: everyday start and stop, offline use.
+- Planned for 0.3.0, built but not merged yet: Webcam (OBS) button, selectable save folder and file names, HSL in the app.
+
 ## 0.2.0 – 2026-11-09
 
 - Header shows free card space (Wi-Fi and USB) and battery level (USB); read-only camera settings Anti-Shock, Silent, Noise Reduct., BULB/TIME Timer and Digital Tele-converter under the LV super control panel (Wi-Fi).
@@ -7,7 +16,7 @@
 - Wi-Fi: Turn off camera button in the header (`exec_pwoff`, with confirmation); returns to the start screen.
 - Live view aids computed in the browser: Histogram (luma, optional RGB), Highlight&Shadow warning and Peaking with color choice.
 - Software HSL colour profiles modelled on the PEN-F COLOR dial (`omcap.hsl`: 12 sectors, H/S/L −7…+7, 3 slots, CLI for ORF/JPG).
-- Self-timer (Off / 2 s / 10 s) next to Take picture with a countdown over the live view; click again to cancel.
+- Self-timer (Off / 2 s / 12 s) next to Take picture with a countdown over the live view; click again to cancel.
 - Last shot thumbnail in the live view corner after Take picture (click opens the single-frame view; Wi-Fi and USB).
 - Webcam view `/?view=webcam` (live image only, black background, optional `&w=&h=`) for an OBS Browser Source; README section "Use as webcam (OBS)".
 
