@@ -72,26 +72,27 @@ python3 -m venv .venv
 .venv/bin/pip install ".[usb]"   # Wi-Fi and USB
 ```
 
-Start (read only without `--allow-write`):
+### Start
 
-```sh
-.venv/bin/em1-capture --allow-write
-```
+**Double-click** `E-M1 Capture.command` (macOS) in the `omcap` folder. The app starts and opens
+the browser at <http://127.0.0.1:8765/>; the start screen shows which connection found the camera.
+On Windows use `E-M1 Capture.bat` (Wi-Fi only, not tested yet).
 
-Open <http://127.0.0.1:8765/>; the start screen shows which connection found the camera.
-Pictures saved to the computer go to `captures/` in the current folder (change with `--data-dir`).
-
-Every later start (for example after a restart of the computer):
+Or in the Terminal (read only without `--allow-write`):
 
 ```sh
 cd omcap
 .venv/bin/em1-capture --allow-write
 ```
 
-- Keep the Terminal window open while you use the app; stop it with **Ctrl+C**.
-- `Address already in use` means the app is already running: just open the address above.
+- Keep the window open while you use the app; stop it with **Ctrl+C** or close the window.
+- Starting a second time just opens the browser again; the app tells you it is already running.
+- `--no-browser` starts without opening the browser.
+- The launcher files start with `--allow-write`; remove it there for a read-only start.
 - The app works **offline**. It runs only on your computer and loads nothing from the internet;
   internet is needed once for the installation.
+
+Pictures saved to the computer go to `captures/` in the current folder (change with `--data-dir`).
 
 ## Using Wi-Fi
 

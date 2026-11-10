@@ -7,12 +7,15 @@ The connection (USB or Wi-Fi) is chosen on the start screen.
 """
 import argparse
 import contextlib
+import errno
 import json
 import os
 import subprocess
 import threading
 import time
 import urllib.parse
+import urllib.request
+import webbrowser
 import xml.etree.ElementTree as ET
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
@@ -613,6 +616,10 @@ class Handler(BaseHTTPRequestHandler):
             if u.path == "/":
                 with open(os.path.join(ROOT, "web", "index.html"), "rb") as f:
                     return self._send(f.read(), "text/html; charset=utf-8")
+            if u.path == "/api/app":
+                # Lets a second start recognise that this app already runs on the port.
+                return self._send({"app": APP_ID, "version": __version__,
+                                   "allow_write": options.get("allow_write", False)})
             if u.path == "/api/connections":
                 return self._send(connections())
             if u.path == "/api/local":
@@ -846,7 +853,25 @@ class Handler(BaseHTTPRequestHandler):
             return False
 
 
-def main():
+APP_ID = "em1-capture"
+
+
+def running_app(port, timeout=1.5):
+    """Info dict if E-M1 Capture already answers on this port, else None."""
+    try:
+        with urllib.request.urlopen("http://127.0.0.1:%d/api/app" % port, timeout=timeout) as r:
+            info = json.loads(r.read().decode("utf-8"))
+    except (OSError, ValueError):
+        return None
+    return info if isinstance(info, dict) and info.get("app") == APP_ID else None
+
+
+def open_browser(url, delay=0.6):
+    """Open the app in the default browser shortly after the server is up."""
+    threading.Timer(delay, webbrowser.open, (url,)).start()
+
+
+def main(argv=None):
     global CAPTURES, PREVIEW_CACHE
     p = argparse.ArgumentParser(prog="em1-capture", description="Local web app to control an Olympus OM-D E-M1 over Wi-Fi or USB.")
     p.add_argument("--version", action="version", version="%(prog)s " + __version__)
@@ -856,14 +881,40 @@ def main():
                    help="allow taking pictures and changing settings (default: read only)")
     p.add_argument("--data-dir", default=os.getcwd(),
                    help="folder for saved pictures (captures/) and the preview cache (out/cache/); default: current folder")
-    a = p.parse_args()
+    p.add_argument("--no-browser", action="store_true", help="do not open the browser at start")
+    a = p.parse_args(argv)
+    url = "http://127.0.0.1:%d/" % a.port
+    try:
+        server = ThreadingHTTPServer(("127.0.0.1", a.port), Handler)
+    except OSError as e:
+        if e.errno != errno.EADDRINUSE:
+            raise
+        info = running_app(a.port)
+        if info is None:
+            print("Port %d is used by another program. Start with --port 8766 (or another free port)." % a.port)
+            return 1
+        print("E-M1 Capture is already running: %s (%s)" % (url, "WRITE ENABLED" if info.get("allow_write") else "read only"))
+        if a.allow_write and not info.get("allow_write"):
+            print("It runs read only. To take pictures, stop it (Ctrl+C in its window) and start again.")
+        if not a.no_browser:
+            webbrowser.open(url)
+        return 0
     CAPTURES = os.path.join(a.data_dir, "captures")
     PREVIEW_CACHE = os.path.join(a.data_dir, "out", "cache", "previews")
     options.update(host=a.host, allow_write=a.allow_write)
     allowed_hosts.update({"127.0.0.1:%d" % a.port, "localhost:%d" % a.port})
-    print("em1-capture %s  http://127.0.0.1:%d  (%s)" % (__version__, a.port, "WRITE ENABLED" if a.allow_write else "read only"))
-    ThreadingHTTPServer(("127.0.0.1", a.port), Handler).serve_forever()
+    print("em1-capture %s  %s  (%s)" % (__version__, url, "WRITE ENABLED" if a.allow_write else "read only"))
+    print("Keep this window open while you use the app; stop with Ctrl+C.")
+    if not a.no_browser:
+        open_browser(url)
+    try:
+        server.serve_forever()
+    except KeyboardInterrupt:
+        print("\nE-M1 Capture stopped.")
+    finally:
+        server.server_close()
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

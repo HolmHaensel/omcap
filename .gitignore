@@ -12,6 +12,8 @@
 !/LICENSE
 !/CHANGELOG.md
 !/pyproject.toml
+!/E-M1 Capture.command
+!/E-M1 Capture.bat
 
 __pycache__/
 *.py[cod]

@@ -16,6 +16,8 @@ Agenten arbeiten gegen diese Liste.
 | REQ-G02 | **USB und Wi-Fi gleichwertig, möglichst 1:1.** Jede Funktion für beide Verbindungen bauen oder begründen, warum nicht; Abgleich-Tabelle in HANDOVER.md und README pflegen. | Nutzer | 🟡 |
 | REQ-G03 | Bedienung auch vom **iPhone** (direkt über Kamera-WLAN, ohne Mac) und von der **Apple Watch** (über das iPhone). | Nutzer | ⬜ |
 | REQ-G04 | **Modernes, stilvolles Design**, das der Kamera „neues Leben“ gibt; angelehnt (nicht kopiert) an aktuelle OM-System-Menüs und Super Control Panel, Insta360 und die iOS-Kamera. | Nutzer | ⬜ |
+| REQ-G06 | **Windows über Wi-Fi:** gleiche App mit `.bat`-Startdatei; „Open in OM Workspace“ ohne macOS-Befehl `open -a`. Test durch jemanden mit Windows-PC. | Nutzer | ⬜ (0.4) |
+| REQ-G07 | Windows über USB: libgphoto2 fehlt unter Windows; Weg über WPD (eigene PTP-Befehle) oder WSL2 + usbipd prüfen. Nicht über Zadig/pyusb (Explorer sieht Kamera dann nicht). | Nutzer | ⬜ später |
 | REQ-G05 | Begriffe wie im Handbuch `EM1_VER4_Eng.pdf`; Oberfläche englisch, alle Texte in einer Übersetzungstabelle, weitere Sprachen folgen. „computer“ statt „Mac“. | Nutzer | ✅ |
 
 ## 2. Sicherheit und Regeln (immer gültig)
@@ -97,8 +99,11 @@ Agenten arbeiten gegen diese Liste.
 | ID | Anforderung | Stand |
 |---|---|---|
 | REQ-Q01 | Tests ohne Kamera für jede Funktion (`python -B -m unittest discover -s tests`). | ✅ |
-| REQ-Q02 | Privates Repo HolmHaensel/omcap, Releases mit CHANGELOG; Merge nach `main` und Push erst nach Test und Freigabe durch den Nutzer. | ✅ |
+| REQ-Q02 | Öffentliches Repo HolmHaensel/omcap (seit 2026-11-10), Releases mit CHANGELOG; Merge nach `main` und Push erst nach Test und Freigabe durch den Nutzer. | ✅ |
 | REQ-Q03 | Kurze Anleitung (README): Requirements, Installation, Wi-Fi- und USB-Nutzung, beste Wi-Fi-Einstellungen. | ✅ |
+| REQ-Q05 | **Einfacher Start:** Startdatei zum Doppelklicken (`E-M1 Capture.command`, Windows `.bat`), Browser öffnet sich selbst, zweiter Start öffnet nur den Browser statt Fehler. | 🟡 gebaut (0.3) |
+| REQ-Q06 | Mac-App `E-M1 Capture.app` mit Symbol in der Menüleiste (Öffnen, Beenden, verbunden?), optional Start beim Kamera-WLAN; Schalter „Nur ansehen“ / „Steuern erlaubt“. | ⬜ (0.4) |
+| REQ-Q07 | Installation mit einem Befehl (`pipx install em1-capture` oder Skript), später `.dmg`. | ⬜ |
 | REQ-Q04 | Arbeit mit Agenten (feste Modelle, siehe HANDOVER), sparsam mit Tokens. | ✅ |
 
 ## Version 0.2 (Umfang, 2026-11-09)
@@ -124,9 +129,10 @@ Thema: stabil und alltagstauglich mit USB und Wi-Fi. Größeres (Design-System, 
 | In 0.3 | REQ | Stand |
 |---|---|---|
 | Angetipptes AF-Feld sofort markieren | F04 | 🟡 gebaut (`focus-speed`) |
-| Webcam-Knopf (öffnet Ansicht, kopiert OBS-Link) | D05 | ⬜ |
-| Speicherort in der App wählbar, Dateinamen-Schema | F17 | ⬜ |
-| HSL in der App: Einzelansicht, „On the computer“, optional beim Speichern | I01, I04 | ⬜ |
+| Webcam-Knopf (öffnet Ansicht, kopiert OBS-Link) | D05 | 🟡 gebaut, Test offen |
+| Speicherort in der App wählbar, Dateinamen-Schema | F17 | 🟡 gebaut, Test offen |
+| HSL in der App: Einzelansicht, „On the computer“, optional beim Speichern | I01, I04 | 🟡 gebaut, Test offen |
+| Einfacher Start (Doppelklick, Browser öffnet sich, läuft schon) | Q05 | 🟡 gebaut |
 | Kartenplatz über Wi-Fi (`errorcode 1001`) | F19 | ⬜ |
 
-Danach (0.4+): Design-System, iPhone/Watch, Antippen und auslösen, Film-Looks, USB-Werte-Lauscher.
+Danach (0.4+): Mac-App mit Menüleiste (Q06), Windows über Wi-Fi (G06), Design-System, iPhone/Watch, Antippen und auslösen, Film-Looks, USB-Werte-Lauscher.
