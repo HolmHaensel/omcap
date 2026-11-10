@@ -15,6 +15,9 @@ you can get one for about 129 € and it has a huge feature set. Sadly its softw
 maintained — OI.Share, OM Workspace and OM Capture feel slow, and there was never Wi-Fi tethering
 on the computer, although the phone app (OI.Share) has always used it.
 
+Over Wi-Fi you also no longer need the camera's special Olympus USB cable, which is hard to find
+and expensive today, and you still get full remote control from the computer.
+
 So I simply tried to build it, with hardly any programming experience. E-M1 Capture is my
 contribution to the community, so these great cameras can keep taking pictures for many years.
 Maybe OM System finds an idea or two here for their future cameras.
