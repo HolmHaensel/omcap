@@ -103,7 +103,7 @@ body.webcam{cursor:none;display:flex;align-items:center;justify-content:center}
     </button>
   </div>
   <button id="startGo" disabled data-i18n="start.connect">Connect</button>
-  <p id="startMsg" class="mut"></p>
+  <p id="startMsg" class="mut" style="text-align:center;max-width:560px;margin:8px auto"></p>
 </div>
 <div id="app" hidden>
 <header>
@@ -282,6 +282,7 @@ const $=s=>document.querySelector(s);
       Server messages are English; with a key 'srv.<message>' they can be translated.
       Language: localStorage 'omcap.lang', else browser language, else en. */
 const I18N={en:{
+  'start.openUrl':'Then open http://127.0.0.1:8765 in the browser (not the index.html file).',
   'srv.offline':'E-M1 Capture is not running. Start it again: double-click “E-M1 Capture.command” in the omcap folder, or in the Terminal:\ncd omcap && .venv/bin/em1-capture --allow-write',
   "start.usb": "USB connection",
   "start.wifi": "Wi-Fi connection",
@@ -1427,7 +1428,13 @@ async function pollConn(){
     const last=lastConn();
     selected=c.usb&&c.wifi?(last==='usb'||last==='wifi'?last:null):c.usb?'usb':c.wifi?'wifi':null;
     markSelected();
-  }catch{}finally{polling=false}
+    if($('#startMsg').dataset.offline){$('#startMsg').textContent='';$('#startMsg').className='mut';delete $('#startMsg').dataset.offline}
+  }catch(e){
+    // Server not running, or index.html opened as a file: say how to start the app
+    if(e.message!==tr('srv.offline'))return;
+    const m=$('#startMsg');m.className='warn';m.dataset.offline='1';
+    m.textContent=e.message+(location.protocol!=='http:'?'\n'+tr('start.openUrl'):'');
+  }finally{polling=false}
 }
 async function connectTo(kind){
   if(connecting) return;
