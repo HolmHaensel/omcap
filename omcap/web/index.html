@@ -17,12 +17,7 @@ main{display:grid;grid-template-columns:minmax(0,1fr) 380px;gap:16px;padding:16p
 @media(max-width:900px){main{grid-template-columns:minmax(0,1fr)}}
 section{background:var(--panel);border-radius:8px;padding:12px}
 #panels{display:flex;flex-direction:column;gap:12px}
-.mut{color:var(--mut)} .warn{color:var(--warn)}
-#offline{position:fixed;inset:0;z-index:100;display:flex;align-items:center;justify-content:center;padding:16px;background:rgba(0,0,0,.55)}
-#offline[hidden]{display:none}
-#offline>div{max-width:520px;background:var(--bg);color:var(--fg);border:2px solid var(--warn);border-radius:10px;padding:20px}
-#offline h2{margin:0 0 8px;color:var(--warn);font-size:18px}
-#offline code{display:block;margin:6px 0 12px;padding:8px 10px;background:var(--panel);border-radius:6px;font-size:13px;overflow-wrap:anywhere;user-select:all} .sp{margin-left:auto}
+.mut{color:var(--mut)} .warn{color:var(--warn);white-space:pre-line} .sp{margin-left:auto}
 button,select,input[type=number]{font:inherit;padding:5px 9px;border:1px solid var(--line);background:var(--bg);color:var(--fg);border-radius:6px}
 input[type=number]{width:76px}
 button{cursor:pointer} button.w{border-color:var(--warn)} button.on{background:var(--acc);border-color:var(--acc);color:var(--bg)}
@@ -92,13 +87,6 @@ body.webcam{cursor:none;display:flex;align-items:center;justify-content:center}
 </style>
 </head>
 <body>
-<div id="offline" hidden role="alertdialog" aria-live="assertive"><div>
-  <h2 data-i18n="offline.title">E-M1 Capture is not running</h2>
-  <p data-i18n="offline.text">The app on this computer was stopped or its window was closed. Start it again:</p>
-  <p class="mut" data-i18n="offline.double">Double-click “E-M1 Capture.command” in the omcap folder, or in the Terminal:</p>
-  <code>cd omcap &amp;&amp; .venv/bin/em1-capture --allow-write</code>
-  <p class="mut" data-i18n="offline.wait">This page reconnects by itself as soon as the app runs again.</p>
-</div></div>
 <img id="single" alt="" hidden>
 <div id="start" hidden>
   <h1>E-M1 Capture</h1>
@@ -294,11 +282,7 @@ const $=s=>document.querySelector(s);
       Server messages are English; with a key 'srv.<message>' they can be translated.
       Language: localStorage 'omcap.lang', else browser language, else en. */
 const I18N={en:{
-  'offline.title':'E-M1 Capture is not running',
-  'offline.text':'The app on this computer was stopped or its window was closed. Start it again:',
-  'offline.double':'Double-click “E-M1 Capture.command” in the omcap folder, or in the Terminal:',
-  'offline.wait':'This page reconnects by itself as soon as the app runs again.',
-  'srv.offline':'E-M1 Capture is not running',
+  'srv.offline':'E-M1 Capture is not running. Start it again: double-click “E-M1 Capture.command” in the omcap folder, or in the Terminal:\ncd omcap && .venv/bin/em1-capture --allow-write',
   "start.usb": "USB connection",
   "start.wifi": "Wi-Fi connection",
   "start.searching": "searching …",
@@ -503,22 +487,10 @@ function applyI18n(root=document){
 }
 applyI18n();
 const params=new URLSearchParams(location.search);
-// Shown when the local server does not answer at all (stopped, window closed); a browser
-// "Failed to fetch" means nothing to users. Polls /api/app and reloads once the app is back.
-let offlineTimer=null;
-function serverOffline(){
-  const box=$('#offline');
-  if(params.get('view')==='webcam'||!box)return;  // keep the OBS picture clean
-  box.hidden=false;
-  if(offlineTimer)return;
-  offlineTimer=setInterval(async()=>{
-    try{const r=await fetch('/api/app',{cache:'no-store'});if(r.ok){clearInterval(offlineTimer);location.reload()}}catch{}
-  },2000);
-}
 async function api(path,body){
   let r;
   try{r=await fetch(path,body?{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}:{})}
-  catch(e){serverOffline();throw new Error(tr('srv.offline'))}
+  catch(e){throw new Error(tr('srv.offline'))}  // the server does not answer at all
   const txt=await r.text(); let j; try{j=JSON.parse(txt)}catch{j=txt}
   if(!r.ok){const e=j.error||txt; throw new Error(tr('srv.'+e,null,e))} return j;
 }
@@ -556,7 +528,7 @@ let leavingPlay=false, wasIndexing=false;
 let st={stage:0,job:{}},canWrite=false,wasBusy=false,blank=0,connected=false,features=new Set(),af=null;
 async function tick(){
   if(view||!connected) return;
-  try{st=await api('/api/state')}catch{return}
+  try{st=await api('/api/state')}catch(e){if(e.message===tr('srv.offline'))msg(e.message,true);return}
   $('#half').classList.toggle('on',st.stage>=1);
   $('#empty').hidden=st.live;
   const w=$('#live').naturalWidth, stale=st.live&&st.lv_age>3;
