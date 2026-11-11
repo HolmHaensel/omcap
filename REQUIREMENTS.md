@@ -112,6 +112,8 @@ Agenten arbeiten gegen diese Liste.
 | REQ-Q05 | **Einfacher Start:** Startdatei zum Doppelklicken (`E-M1 Capture.command`, Windows `.bat`), Browser öffnet sich selbst, zweiter Start öffnet nur den Browser statt Fehler. | 🟡 gebaut (0.3) |
 | REQ-Q06 | Mac-App `E-M1 Capture.app` mit Symbol in der Menüleiste (Öffnen, Beenden, verbunden?), optional Start beim Kamera-WLAN; Schalter „Nur ansehen“ / „Steuern erlaubt“. | ⬜ (0.4) |
 | REQ-Q07 | Installation mit einem Befehl (`pipx install em1-capture` oder Skript), später `.dmg`. | ⬜ |
+| REQ-Q08 | **Community auf GitHub:** CONTRIBUTING (Sicherheitsregeln, Setup, Konventionen), Issue-Vorlagen (Bug, Feature, Kameratest), PR-Vorlage, SECURITY, Verhaltenskodex, Discussions, Labels, CI-Tests ohne Kamera. | 🟡 Einstellungen aktiv, Dateien warten auf Push |
+| REQ-Q09 | **Sauber und schlank:** Peer-Review (`peer-reviewer`) vor jedem Merge; kein Ballast, keine Doppelungen, Doku und REQ-Rückverfolgung aktuell. | ✅ |
 | REQ-Q04 | Arbeit mit Agenten (feste Modelle, siehe HANDOVER), sparsam mit Tokens. | ✅ |
 
 ## Version 0.2 (Umfang, 2026-11-09)
