@@ -168,5 +168,18 @@ class ExifEndpoint(unittest.TestCase):
         self.assertNotEqual(code, 200)
 
 
+class PlaybackPage(unittest.TestCase):
+    """The page has the playback controls and texts (no browser here)."""
+    def test_page(self):
+        import re
+        from pathlib import Path
+        html = (Path(__file__).resolve().parent.parent / "omcap" / "web" / "index.html").read_text(encoding="utf-8")
+        for i in ("galExif", "galSelect", "vInfoBtn", "vFit", "vPanel", "vStrip", "vExif"):
+            self.assertIn('id="%s"' % i, html)
+        for k in ("info.image", "info.simple", "info.overall", "exif.mode", "exif.picture", "card.sizeS"):
+            self.assertRegex(html, r'"%s": "' % re.escape(k))
+        self.assertIn("/api/exif?path=", html)
+
+
 if __name__ == "__main__":
     unittest.main()

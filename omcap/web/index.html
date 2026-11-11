@@ -183,6 +183,17 @@ dialog h2{margin-top:12px}
 .galbar{display:flex;gap:6px;flex-wrap:wrap;align-items:center;padding:8px 12px;border-bottom:1px solid var(--line)}
 #viewer .galbar{border-color:#333}
 #galBody{flex:1;overflow:auto;padding:8px;min-height:0}
+.gseg{display:flex}
+.galbar .seg button{width:auto;padding:0 12px;height:34px}
+.galbar .tog{height:34px}
+.dayh{margin:var(--s4) 0 var(--s2);font-size:var(--fs-label);font-weight:600;color:var(--muted);letter-spacing:.3px;display:flex;gap:var(--s2);align-items:baseline}
+.dayh:first-child{margin-top:0}
+.tile .bd{position:absolute;right:6px;top:6px;padding:1px 7px;border-radius:var(--r-pill);background:var(--overlay);font-size:11px;font-family:var(--font-value)}
+.tile.sel{outline:2px solid var(--accent);outline-offset:-2px}
+.tile.sel::after{content:'✓';position:absolute;left:6px;top:6px;width:20px;height:20px;border-radius:50%;background:var(--accent);color:var(--accent-ink);font-size:13px;font-weight:700;display:flex;align-items:center;justify-content:center}
+.tile .exl{position:absolute;left:0;right:0;bottom:20px;padding:1px 6px;font:11px var(--font-value);color:var(--text);background:var(--overlay);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tile{border-radius:var(--r-sm)}
+.cal0{border-radius:var(--r-sm);border:1px dashed var(--line)}
 .gidx{display:grid;grid-template-columns:repeat(var(--cols),minmax(0,1fr));gap:4px}
 .tile{position:relative;aspect-ratio:4/3;background:var(--panel);cursor:pointer;overflow:hidden;border-radius:3px}
 .tile img{position:absolute;inset:0;width:100%;height:100%;object-fit:contain}
@@ -194,8 +205,19 @@ dialog h2{margin-top:12px}
 .cal0{aspect-ratio:4/3;background:var(--panel);opacity:.45;border-radius:3px;padding:3px 6px;font-size:12px;color:var(--mut)}
 .tile .dn{position:absolute;left:0;top:0;padding:1px 6px;font-size:12px;font-weight:600;color:#fff;background:#0009;border-bottom-right-radius:3px}
 .tile .ct{position:absolute;right:0;bottom:0;padding:1px 6px;font-size:11px;color:#fff;background:#0009;border-top-left-radius:3px}
-#vImgBox{flex:1;min-height:0;position:relative}
+#vBody{flex:1;min-height:0;display:flex}
+#vImgBox{flex:1;min-height:0;min-width:0;position:relative}
 #vImg{position:absolute;inset:0;width:100%;height:100%;object-fit:contain}
+#vImgBox.full{overflow:auto}
+#vImgBox.full #vImg{position:static;width:auto;height:auto;max-width:none;object-fit:none}
+#vStrip{position:absolute;left:0;right:0;bottom:0;padding:10px 18px;display:flex;gap:22px;flex-wrap:wrap;align-items:center;background:linear-gradient(0deg,rgba(0,0,0,.8),rgba(0,0,0,0));font:500 17px var(--font-value);pointer-events:none}
+#vStrip .m{color:var(--accent);font-weight:600} #vStrip .nm{margin-left:auto;color:var(--muted);font-size:14px}
+#vPanel{width:320px;flex-shrink:0;overflow:auto;padding:var(--s3) var(--s4);border-left:1px solid var(--line);background:var(--surface)}
+#vPanel canvas{width:100%;height:80px;background:var(--ground);border-radius:var(--r-sm);display:block;margin-bottom:var(--s3)}
+#vPanel dl{margin:0;display:grid;grid-template-columns:auto 1fr;gap:6px 12px;font-size:13px}
+#vPanel dt{color:var(--muted)} #vPanel dd{margin:0;font-family:var(--font-value);text-align:right;overflow-wrap:anywhere}
+@media(max-width:800px){#vBody{flex-direction:column}#vPanel{width:auto;max-height:45%;border-left:0;border-top:1px solid var(--line)}}
+
 #viewer button{background:var(--surface);color:var(--text);border-color:var(--line)}
 #viewer button.on{background:var(--accent);color:var(--accent-ink)}
 .chip{display:inline-flex;gap:6px;align-items:center;background:var(--surface);border:1px solid var(--line);border-radius:var(--r-pill);padding:3px 10px;font-size:var(--fs-label)}
@@ -233,7 +255,7 @@ body.webcam{cursor:none;display:flex;align-items:center;justify-content:center}
   <span class="sp"></span>
   <span id="hdrCard" class="mut" style="font-family:var(--font-value);font-size:13px"></span>
   <span id="hdrBat" class="mut" style="font-family:var(--font-value);font-size:13px"></span>
-  <button id="hdrPlay" class="hbtn" data-feat="playback" data-i18n="card.index">Index display</button>
+  <button id="hdrPlay" class="hbtn" data-feat="playback" data-i18n="panel.card">Playback</button>
   <button id="hdrLocal" class="hbtn" data-i18n="local.title">On the computer</button>
   <button id="layoutBtn" class="hbtn quiet" data-i18n="app.layout">Customize layout</button>
   <button id="reset" class="hbtn w" data-i18n="app.reset" data-i18n-title="app.resetTitle">Reset camera</button>
@@ -403,8 +425,15 @@ body.webcam{cursor:none;display:flex;align-items:center;justify-content:center}
     <span id="galCount" class="mut"></span>
     <span id="galChip" class="chip" hidden></span>
     <span class="sp"></span>
-    <button data-v="4">4</button><button data-v="9">9</button><button data-v="25">25</button><button data-v="100">100</button>
-    <button data-v="cal" data-i18n="card.calendar">Calendar display</button>
+    <div class="seg" role="group" data-i18n-aria="card.display" aria-label="Display">
+      <button data-v="index" data-i18n="card.index">Index display</button><button data-v="cal" data-i18n="card.calendar">Calendar display</button>
+    </div>
+    <div class="seg" id="galSizes" role="group" data-i18n-aria="card.sizes" aria-label="Thumbnail size">
+      <button data-sz="25" data-i18n="card.sizeS">S</button><button data-sz="9" data-i18n="card.sizeM">M</button><button data-sz="4" data-i18n="card.sizeL">L</button>
+    </div>
+    <label class="tog" id="galExifTog" data-na="na.exifLine"><input type="checkbox" id="galExif"> <span data-i18n="card.exifLine">Shooting data</span></label>
+    <button id="galSelect" data-i18n="card.select">Select</button>
+    <button id="galSaveSel" hidden data-i18n="card.saveSel">Save selected</button>
     <button id="galShare" data-feat="share_order" data-na="na.share" data-i18n="card.share">Share Order</button>
     <button id="galShareSave" data-feat="share_order" data-i18n="card.shareSave" hidden>Save all to computer</button>
     <button id="galShareReset" data-feat="share_order" data-i18n="card.shareReset" hidden>Reset Share Order</button>
@@ -418,9 +447,14 @@ body.webcam{cursor:none;display:flex;align-items:center;justify-content:center}
     <button id="vPrev" aria-label="Previous picture" data-i18n-aria="card.prev">‹</button><button id="vNext" aria-label="Next picture" data-i18n-aria="card.next">›</button>
     <span id="vInfo"></span>
     <span class="sp"></span>
+    <button id="vInfoBtn" data-i18n-title="info.title"></button>
+    <button id="vFit" data-i18n="view.fit">Fit</button>
     <button id="vGet" data-i18n="card.saveToMac">Save to computer</button><button id="vHsl" data-i18n="hsl.btn">HSL</button><button id="vOvl" data-i18n="card.overlay">Overlay</button><button id="vClose" data-i18n="card.close">Close</button>
   </div>
-  <div id="vImgBox"><img id="vImg" alt=""></div>
+  <div id="vBody">
+    <div id="vImgBox"><img id="vImg" alt=""><div id="vStrip" hidden></div></div>
+    <aside id="vPanel" hidden><canvas id="vHist" width="288" height="80"></canvas><dl id="vExif"></dl></aside>
+  </div>
 </div>
 <dialog id="hslDlg"><form method="dialog" id="hslForm">
   <strong data-i18n="hsl.title">HSL colour profile</strong> <span id="hslName" class="mut"></span>
@@ -454,6 +488,43 @@ const $=s=>document.querySelector(s);
       Server messages are English; with a key 'srv.<message>' they can be translated.
       Language: localStorage 'omcap.lang', else browser language, else en. */
 const I18N={en:{
+  "card.display": "Display",
+  "card.sizes": "Thumbnail size",
+  "card.sizeS": "S",
+  "card.sizeM": "M",
+  "card.sizeL": "L",
+  "card.exifLine": "Shooting data",
+  "na.exifLine": "Shooting data on thumbnails: Wi-Fi only (over USB every file would be read completely)",
+  "card.select": "Select",
+  "card.selectDone": "Done",
+  "card.saveSel": "Save selected ({n})",
+  "card.saveSelDone": "{n} shots saved on the computer",
+  "info.image": "Image only",
+  "info.simple": "Simplified display",
+  "info.overall": "Overall display",
+  "info.title": "Picture information (INFO button on the camera)",
+  "view.fit": "Fit",
+  "view.full": "100 %",
+  "exif.mode": "Shooting mode",
+  "exif.shutter": "Shutter speed",
+  "exif.aperture": "Aperture value",
+  "exif.comp": "Exposure compensation",
+  "exif.iso": "ISO",
+  "exif.wb": "White balance",
+  "exif.metering": "Metering mode",
+  "exif.flash": "Flash",
+  "exif.focal": "Focal length",
+  "exif.lens": "Lens",
+  "exif.picture": "Picture Mode",
+  "exif.colorspace": "Color space",
+  "exif.pixels": "Pixel count",
+  "exif.datetime": "Date/time",
+  "exif.file": "File number",
+  "exif.flashOn": "Fired",
+  "exif.flashOff": "Did not fire",
+  "exif.none": "No shooting data in this file.",
+  "exif.loading": "Reading shooting data …",
+  "exif.jpgOnly": "Shooting data only from JPG files.",
   "movie.rec": "REC {t}",
   "na.movie": "Movie: Wi-Fi only",
   "na.poweroff": "Turn off camera: Wi-Fi only",
@@ -1026,8 +1097,24 @@ async function gallery(force){
       The camera works through requests one by one, hence at most two at a time. */
 const GAL_KEY='omcap.gallery', MONTHS=tr('months').split(',');
 function loadGal(){try{return JSON.parse(localStorage.getItem(GAL_KEY))||{}}catch{return{}}}
-const gv={n:9,mode:'index',day:null,month:null,...loadGal(),day:null};
-function saveGal(){try{localStorage.setItem(GAL_KEY,JSON.stringify({n:gv.n,mode:gv.mode}))}catch{}}
+const gv={n:9,mode:'index',day:null,month:null,exif:false,info:'simple',...loadGal(),day:null};
+if(![4,9,25].includes(gv.n)) gv.n=gv.n>25?25:9; // older versions also had 100 per page
+if(!['image','simple','overall'].includes(gv.info)) gv.info='simple';
+function saveGal(){try{localStorage.setItem(GAL_KEY,JSON.stringify({n:gv.n,mode:gv.mode,exif:gv.exif,info:gv.info}))}catch{}}
+/* Shooting data (EXIF) per path, one request each; the thumbnail line only over Wi-Fi (USB reads whole files) */
+const exifCache=new Map();
+async function exifOf(f){
+  if(!isJpg(f)) return null;
+  const k=f.path;
+  if(!exifCache.has(k)){
+    try{exifCache.set(k,(await api('/api/exif?path='+encodeURIComponent(k))).exif||null)}
+    catch{return null} // not cached: try again later
+  }
+  return exifCache.get(k);
+}
+const fnum=a=>'F'+(+a).toFixed(1).replace(/\.0$/,'.0');
+function exifLine(x){return x?[x.mode,x.shutter,x.aperture!=null&&fnum(x.aperture),x.iso!=null&&'ISO '+x.iso].filter(Boolean).join(' '):''}
+let selMode=false; const selSet=new Set();
 const thumbs=new Map(), want=new Map(), better=new Map();
 let loading=0,io=null,vList=[],vIdx=0;
 /* Fetch image, keep it in memory as an object URL (Map per URL); null on error */
@@ -1072,13 +1159,32 @@ function pump(){
     else{
       // single view open: do not improve tiles, the camera belongs to the large image
       if(!$('#viewer').hidden) break;
-      el=[...better.keys()].find(e=>e.isConnected&&e.dataset.vis&&e.dataset.state==='done'); if(!el) break; stage2=true}
+      el=[...better.keys()].find(e=>e.isConnected&&e.dataset.vis&&e.dataset.state==='done');
+      if(!el){
+        const x=exifTile(); if(!x) break;
+        x.dataset.ex='1'; loading++;
+        exifOf(x._file).then(i=>{if(i&&x.isConnected) setExifLine(x,i)}).finally(()=>{loading--;pump()});
+        continue;
+      }
+      stage2=true}
     if(stage2){el.dataset.state='better'}else el.dataset.state='loading';
     loading++;
     fillTile(el).then(()=>{el.dataset.state='done'},()=>stage2?better.delete(el):retryTile(el)).finally(()=>{loading--;pump()});
   }
 }
+/* Next visible tile whose thumbnail is there and that still needs its shooting data line */
+function exifTile(){
+  if(!gv.exif||features.has('af_modes')||st.stage>0) return null;
+  for(const [e] of ioTiles) if(e.isConnected&&e.dataset.vis&&e.dataset.state==='done'&&!e.dataset.ex&&isJpg(e._file)) return e;
+  return null;
+}
+function setExifLine(t,i){
+  let l=t.querySelector('.exl'); if(!l){l=document.createElement('div');l.className='exl';t.append(l)}
+  l.textContent=exifLine(i);
+}
+const ioTiles=new Map();
 function resetTiles(){
+  ioTiles.clear();
   if(io) io.disconnect();
   want.clear(); better.clear();
   io=new IntersectionObserver(es=>{
@@ -1095,14 +1201,20 @@ function makeTile(file){
   const im=new Image(); im.alt=''; t.append(im);
   // show an already loaded thumbnail at once (e.g. after switching 25 -> 4)
   const known=thumbs.get(thumbUrl(file)); if(known) im.src=known;
-  io.observe(t); return t;
+  io.observe(t); ioTiles.set(t,1);
+  const c=exifCache.get(file.path); if(c&&gv.exif) setExifLine(t,c);
+  return t;
 }
 const dayLabel=k=>{const [y,m,d]=k.split('-').map(Number);return tr('date.day',{month:MONTHS[m-1],d,y})};
 function renderGal(){
   if(!cardShots) return;
   resetTiles();
   const body=$('#galBody'); body.innerHTML=''; body.scrollTop=0;
-  document.querySelectorAll('[data-v]').forEach(b=>b.classList.toggle('on',gv.mode==='cal'?b.dataset.v==='cal':+b.dataset.v===gv.n));
+  document.querySelectorAll('[data-v]').forEach(b=>b.classList.toggle('on',b.dataset.v===gv.mode));
+  document.querySelectorAll('[data-sz]').forEach(b=>{b.classList.toggle('on',+b.dataset.sz===gv.n);b.disabled=gv.mode==='cal'});
+  $('#galExif').checked=gv.exif&&!features.has('af_modes'); $('#galExif').disabled=features.has('af_modes')||gv.mode==='cal';
+  $('#galSelect').classList.toggle('on',selMode); $('#galSelect').textContent=tr(selMode?'card.selectDone':'card.select');
+  $('#galSaveSel').hidden=!selMode; $('#galSaveSel').textContent=tr('card.saveSel',{n:selSet.size}); $('#galSaveSel').disabled=!selSet.size;
   const chip=$('#galChip'); chip.hidden=!(gv.day&&gv.mode==='index');
   if(gv.mode==='cal') shareSet=null;
   const sh=features.has('share_order');
@@ -1117,14 +1229,28 @@ function renderGal(){
     const x=document.createElement('button'); x.textContent=tr('card.all'); x.style.cssText='font-size:11px;padding:0 6px';
     x.onclick=()=>{gv.day=null;renderGal()}; chip.append(x);
   }
-  const grid=document.createElement('div'); grid.className='gidx'; grid.style.setProperty('--cols',Math.sqrt(gv.n));
+  // Index display: one block per day
+  let grid=null,lastDay=null;
   list.forEach((s,i)=>{
+    if(s.day!==lastDay){
+      lastDay=s.day;
+      const h=document.createElement('div'); h.className='dayh';
+      const n=list.filter(x=>x.day===s.day).length;
+      h.textContent=dayLabel(s.day)+' · '+tr('card.shots',{n});
+      grid=document.createElement('div'); grid.className='gidx'; grid.style.setProperty('--cols',Math.sqrt(gv.n));
+      body.append(h,grid);
+    }
     const t=makeTile(s.preview);
-    if(gv.n<=25){const c=document.createElement('div');c.className='cap';c.textContent=`${s.name} · ${s.types} · ${tr('date.short',{mon:MONTHS[s.dt.m-1].slice(0,3),d:s.dt.d,time:pad(s.dt.h)+':'+pad(s.dt.mi)})}`;t.append(c)}
-    t.onclick=()=>openViewer(list,i);
+    t.classList.toggle('sel',selSet.has(s.preview.path));
+    const bd=document.createElement('div'); bd.className='bd'; bd.textContent=s.types; t.append(bd);
+    if(gv.n<=25){const c=document.createElement('div');c.className='cap';c.textContent=`${s.name} · ${tr('date.short',{mon:MONTHS[s.dt.m-1].slice(0,3),d:s.dt.d,time:pad(s.dt.h)+':'+pad(s.dt.mi)})}`;t.append(c)}
+    t.onclick=()=>{
+      if(selMode){const k=s.preview.path;selSet.has(k)?selSet.delete(k):selSet.add(k);t.classList.toggle('sel',selSet.has(k));
+        $('#galSaveSel').textContent=tr('card.saveSel',{n:selSet.size});$('#galSaveSel').disabled=!selSet.size;return}
+      openViewer(list,i);
+    };
     grid.append(t);
   });
-  body.append(grid);
 }
 /* Shots in the index: by day and, if active, only those of the Share Order (RAW is never included there) */
 function shareList(){
@@ -1159,6 +1285,16 @@ async function resetShare(){
   catch(e){$('#galCount').textContent=e.message}
 }
 $('#galShare').onclick=toggleShare;
+$('#galSelect').onclick=()=>{selMode=!selMode;if(!selMode)selSet.clear();renderGal()};
+$('#galSaveSel').onclick=async()=>{
+  const l=cardShots.filter(s=>selSet.has(s.preview.path)); let i=0;
+  try{
+    for(const s of l){$('#galCount').textContent=tr('card.shareSaving',{i:++i,n:l.length});await downloadShot(s,()=>{})}
+    $('#galCount').textContent=tr('card.saveSelDone',{n:l.length}); selSet.clear(); selMode=false; renderGal();
+    $('#galCount').textContent=tr('card.saveSelDone',{n:l.length});
+  }catch(e){$('#galCount').textContent=e.message}
+};
+$('#galExif').onchange=()=>{gv.exif=$('#galExif').checked;saveGal();renderGal()};
 $('#galShareSave').onclick=saveShare;
 $('#galShareReset').onclick=resetShare;
 function renderCal(body){
@@ -1201,7 +1337,7 @@ async function openGal(){
   }
   renderGal();
 }
-function closeGal(){$('#galOv').hidden=true;if(io)io.disconnect();want.clear();better.clear();
+function closeGal(){selMode=false;selSet.clear();ioTiles.clear();$('#galOv').hidden=true;if(io)io.disconnect();want.clear();better.clear();
   if(st.play&&!leavingPlay){leavingPlay=true;api('/api/playback',{action:'leave'}).then(()=>{tick();props()}).catch(e=>msg(e.message,true)).finally(()=>leavingPlay=false)}}
 $('#galOpen').onclick=openGal;
 $('#hdrPlay').onclick=openGal;
@@ -1209,9 +1345,10 @@ $('#hdrLocal').onclick=()=>{local();$('#localDlg').showModal()};
 $('#galClose').onclick=closeGal;
 $('#galReload').onclick=()=>{$('#galCount').textContent=tr('card.reading');gallery(true)};
 document.querySelectorAll('[data-v]').forEach(b=>b.onclick=()=>{
-  if(b.dataset.v==='cal'){gv.mode='cal';gv.day=null}else{gv.mode='index';gv.n=+b.dataset.v}
+  if(b.dataset.v==='cal'){gv.mode='cal';gv.day=null}else gv.mode='index';
   saveGal();renderGal();
 });
+document.querySelectorAll('[data-sz]').forEach(b=>b.onclick=()=>{gv.n=+b.dataset.sz;saveGal();renderGal()});
 /* Single image */
 let vToken=0;
 function viewerUrl(f){
@@ -1236,6 +1373,7 @@ async function showShot(){
   }
   $('#vInfo').textContent=info;
   $('#vPrev').disabled=vIdx===0; $('#vNext').disabled=vIdx===vList.length-1;
+  showInfo(s,token);
   const big=viewerUrl(f);
   // show the best available at once (also a smaller preview from the tiles), then improve
   const have=[big,...[...RESIZE].reverse().map(px=>resizeUrl(f,px)),thumbUrl(f)].find(u=>u&&thumbs.has(u));
@@ -1258,7 +1396,63 @@ function prefetchNeighbors(){
     const u=viewerUrl(s.preview); if(u&&!thumbs.has(u)) blobUrl(u).catch(()=>{});
   }
 }
-function openViewer(list,i){vList=list;vIdx=i;$('#viewer').hidden=false;showShot()}
+/* Picture information: Image only -> Simplified display -> Overall display (INFO button, manual p.62) */
+const INFO_MODES=['image','simple','overall'];
+function infoButton(){$('#vInfoBtn').textContent=tr('info.'+gv.info);$('#vInfoBtn').classList.toggle('on',gv.info!=='image')}
+function drawVHist(){
+  const im=$('#vImg'),c=$('#vHist'),g=c.getContext('2d');
+  g.clearRect(0,0,c.width,c.height);
+  if(!im.naturalWidth) return;
+  try{
+    const o=document.createElement('canvas'),w=160,h=Math.max(1,Math.round(160*im.naturalHeight/im.naturalWidth));
+    o.width=w;o.height=h; const x=o.getContext('2d'); x.drawImage(im,0,0,w,h);
+    const hist=lumaHistogram(x.getImageData(0,0,w,h).data);
+    let mx=1; for(let i=1;i<255;i++) if(hist[i]>mx) mx=hist[i];
+    g.fillStyle='rgba(236,238,240,.7)';
+    for(let i=0;i<256;i++){const hh=Math.min(1,hist[i]/mx)*(c.height-3);g.fillRect(i/255*(c.width-1),c.height-hh,Math.max(1,c.width/256),hh)}
+  }catch{}
+}
+function exifRows(s,x){
+  const rows=[], add=(k,v)=>{if(v!=null&&v!=='')rows.push([tr('exif.'+k),v])};
+  add('mode',x.mode); add('shutter',x.shutter); add('aperture',x.aperture!=null?fnum(x.aperture):null);
+  add('comp',x.compensation!=null?(x.compensation>0?'+':'')+x.compensation.toFixed(1)+' EV':null);
+  add('iso',x.iso); add('wb',x.white_balance); add('metering',x.metering);
+  add('flash',x.flash!=null?tr(x.flash?'exif.flashOn':'exif.flashOff'):null);
+  add('focal',x.focal!=null?x.focal+' mm':null); add('lens',x.lens); add('picture',x.picture_mode);
+  add('colorspace',x.color_space); add('pixels',x.pixels?x.pixels.replace('x','×'):null);
+  add('datetime',x.datetime); add('file',s.name);
+  return rows;
+}
+async function showInfo(s,token){
+  infoButton();
+  const strip=$('#vStrip'),panel=$('#vPanel'),dl=$('#vExif');
+  strip.hidden=gv.info!=='simple'; panel.hidden=gv.info!=='overall';
+  $('#vInfo').hidden=gv.info==='image';
+  if(gv.info==='image') return;
+  strip.innerHTML=''; dl.innerHTML='';
+  const f=s.preview;
+  if(!isJpg(f)){dl.textContent=tr('exif.jpgOnly');return}
+  dl.textContent=tr('exif.loading');
+  const x=await exifOf(f);
+  if(token!==vToken) return;
+  dl.innerHTML='';
+  if(!x){dl.textContent=tr('exif.none');return}
+  // Simplified display: the value strip of the live view
+  const mk=(c,t)=>{const e=document.createElement('span');if(c)e.className=c;e.textContent=t;strip.append(e)};
+  if(x.mode) mk('m',x.mode);
+  if(x.shutter) mk('',x.shutter);
+  if(x.aperture!=null) mk('',fnum(x.aperture));
+  if(x.compensation!=null) mk('',(x.compensation>0?'+':'')+x.compensation.toFixed(1));
+  if(x.iso!=null) mk('','ISO '+x.iso);
+  if(x.white_balance) mk('',tr('strip.wb')+' '+x.white_balance);
+  mk('nm',s.name);
+  for(const [k,v] of exifRows(s,x)){const dt=document.createElement('dt'),dd=document.createElement('dd');dt.textContent=k;dd.textContent=v;dl.append(dt,dd)}
+  if(gv.info==='overall') drawVHist();
+}
+$('#vInfoBtn').onclick=()=>{gv.info=INFO_MODES[(INFO_MODES.indexOf(gv.info)+1)%3];saveGal();if(vList[vIdx])showInfo(vList[vIdx],vToken)};
+$('#vImg').onload=()=>{if(gv.info==='overall')drawVHist()};
+$('#vFit').onclick=()=>{const b=$('#vImgBox');b.classList.toggle('full');$('#vFit').textContent=tr(b.classList.contains('full')?'view.full':'view.fit')};
+function openViewer(list,i){vList=list;vIdx=i;$('#viewer').hidden=false;$('#vImgBox').classList.remove('full');$('#vFit').textContent=tr('view.fit');showShot()}
 function closeViewer(){vToken++;$('#viewer').hidden=true;$('#vImg').removeAttribute('src');pump()}
 function stepViewer(d){const n=vIdx+d;if(n>=0&&n<vList.length){vIdx=n;showShot()}}
 $('#vPrev').onclick=()=>stepViewer(-1);
@@ -1833,6 +2027,7 @@ async function enterApp(){
     canWrite=s.allow_write;
     features=new Set(s.features);
     applyFeatures();
+    if(features.has('af_modes')) markNa($('#galExifTog'),tr('na.exifLine')); // USB reads whole files
     statusBase={model:s.model,conn:s.type==='usb'?'USB':'Wi-Fi',rights:canWrite?tr('app.write'):tr('app.readOnly')};
     showStatus();
     if(!canWrite) document.querySelectorAll('button.w').forEach(b=>{if(!b.hidden&&b.id!=='lvStart'){b.disabled=true;b.classList.add('na');b.title=tr('na.readOnly')}});
