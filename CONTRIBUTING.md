@@ -62,8 +62,8 @@ Code map:
 - **Code comments and docstrings in English.** Python 3.9+, standard library for Wi-Fi;
   optional extras (`gphoto2`, `numpy`, `rawpy`, `imageio`) only where needed.
 - Small, focused pull requests; one topic each. Add or update tests.
-- Commit messages: short imperative summary; mention the requirement ID if there is one
-  (`REQ-F26: …`, see `REQUIREMENTS.md`).
+- Commit messages: short imperative summary; mention the issue or requirement ID if there is one
+  (e.g. `REQ-F26`, used in the changelog).
 
 ## Pull request checklist
 
