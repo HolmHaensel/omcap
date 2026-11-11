@@ -130,7 +130,7 @@ button:disabled{color:var(--disabled);opacity:.6;cursor:not-allowed}
 #props label.wide{grid-column:1/-1}
 #modeBox{margin-bottom:var(--s2)}
 #modeBox .seg{flex-wrap:wrap}
-#modeBox .seg button{flex:1;width:auto;min-width:44px;padding:0 6px;height:38px;font-family:var(--font-value)}
+#modeBox .seg button{flex:1;width:auto;min-width:0;padding:0 2px;height:38px;font-family:var(--font-value);font-size:13px}
 .hrow{display:flex;align-items:center;justify-content:space-between}
 .mini{font-size:11px;padding:1px 8px;background:transparent;color:var(--muted);font-weight:400;letter-spacing:0}
 #roProps{margin-top:var(--s2);font-size:var(--fs-label);color:var(--muted)}
@@ -256,7 +256,8 @@ body.webcam{cursor:none;display:flex;align-items:center;justify-content:center}
   #hdrInfo,#hdrCard,#hdrBat,#layoutBtn,#writeChip{display:none}
   main{padding:var(--s2) 12px 190px;gap:var(--s3)}
   #viewport{border-radius:var(--r-md)}
-  #valStrip{font-size:14px;gap:12px;padding:0 10px;height:36px}
+  #valStrip{font-size:13px;gap:10px;padding:0 10px;height:36px;overflow:hidden;white-space:nowrap}
+  #valStrip .sz{display:none}
   #lastShot{bottom:46px;width:22%}
   #recChip{bottom:46px}
   .tb{overflow-x:auto;flex-wrap:nowrap;padding-bottom:4px;-webkit-overflow-scrolling:touch}
@@ -558,6 +559,7 @@ const I18N={en:{
   "exif.prog.2": "P",
   "exif.prog.3": "A",
   "exif.prog.4": "S",
+  "exif.prog.5": "iAUTO",
   "exif.wb.0": "AUTO",
   "exif.wb.1": "Manual",
   "exif.meter.2": "Center weighted averaging metering",
@@ -1449,7 +1451,7 @@ const movLen=new Map();
 const clockLen=sec=>Math.floor(sec/3600)+':'+pad(Math.floor(sec/60)%60)+':'+pad(sec%60);
 async function showShot(){
   const s=vList[vIdx], f=s.preview, token=++vToken, im=$('#vImg');
-  let info=`${vIdx+1}/${vList.length} · ${s.name} · ${s.types} · ${s.dt.y}-${pad(s.dt.m)}-${pad(s.dt.d)} ${pad(s.dt.h)}:${pad(s.dt.mi)} · ${(s.size/1048576).toFixed(1)} MB`;
+  let info=`${vIdx+1}/${vList.length} · ${s.name} · ${s.types} · ${s.dt.y}-${pad(s.dt.m)}-${pad(s.dt.d)} ${pad(s.dt.h)}:${pad(s.dt.mi)}${s.size?' · '+(s.size/1048576).toFixed(1)+' MB':''}`;
   // movie length only in mode "play", otherwise the camera answers with an error
   if(/\.mov$/i.test(f.name)&&st.play&&features.has('share_order')){
     const k=f.path+'|'+f.size, add=sec=>' · '+tr('card.movLength',{t:clockLen(sec)});
@@ -1968,8 +1970,8 @@ async function showLast(before,retry,before2){
     }
   }catch{}
   const src=local||(shot&&thumbUrl(shot.preview));
-  // Wi-Fi: right after a shot the card list may fail or lack the new file: try again (up to 3x, 4 s apart)
-  if(!isUsb&&!local&&!shot&&n<4) setTimeout(()=>showLast(before,n+1,before2),3000);
+  // Wi-Fi: the camera lists a new file only after it is written (seen: >12 s): try again for up to a minute
+  if(!isUsb&&!local&&!shot&&n<20) setTimeout(()=>showLast(before,n+1,before2),3000);
   if(!src) return;
   lastOpen=shot; img.hidden=false;
   // the camera may still be busy right after the shot: retry a failed thumbnail a few times
