@@ -74,7 +74,7 @@ Agenten arbeiten gegen diese Liste.
 
 | ID | Anforderung | Stand | Prio |
 |---|---|---|---|
-| REQ-D01 | Design-System (Farben, Schrift, Abstände, Bewegung) und Prototypen in `design/` vor dem Umbau (Agent `ui-designer`). | ⬜ | P1 |
+| REQ-D01 | Design-System (Farben, Schrift, Abstände, Bewegung) und Prototypen in `design/` vor dem Umbau. | 🟡 Leinwand + `design/DESIGN.md`/`tokens.css` fertig, Umsetzung auf `design-0.4` läuft | P1 |
 | REQ-D02 | Live View im Mittelpunkt; Bedienelemente stören das Antippen des AF-Rasters nicht. | ⬜ | P1 |
 | REQ-D03 | Dunkles Design zuerst, gute Kontraste, Touch-Flächen ≥ 44 px; gleiche Gestaltung auf Mac, iPhone und Watch. | ⬜ | P1 |
 | REQ-D04 | Anpassbares Layout und Super Control Panel. | B9/B10 (teilweise „Customize layout“) | P3 |
@@ -137,9 +137,9 @@ Thema: stabil und alltagstauglich mit USB und Wi-Fi. Größeres (Design-System, 
 | In 0.3 | REQ | Stand |
 |---|---|---|
 | Angetipptes AF-Feld sofort markieren | F04 | 🟡 gebaut (`focus-speed`) |
-| Webcam-Knopf (öffnet Ansicht, kopiert OBS-Link) | D05 | 🟡 gebaut, Test offen |
-| Speicherort in der App wählbar, Dateinamen-Schema | F17 | 🟡 gebaut, Test offen |
-| HSL in der App: Einzelansicht, „On the computer“, optional beim Speichern | I01, I04 | 🟡 gebaut, Test offen |
+| Webcam-Knopf (öffnet Ansicht, kopiert OBS-Link) | D05 | 🟡 in release-0.3 gemergt, Kameratest offen |
+| Speicherort in der App wählbar, Dateinamen-Schema | F17 | 🟡 in release-0.3 gemergt, Kameratest offen |
+| HSL in der App: Einzelansicht, „On the computer“, optional beim Speichern | I01, I04 | 🟡 in release-0.3 gemergt, Kameratest offen |
 | Einfacher Start (Doppelklick, Browser öffnet sich, läuft schon) | Q05 | 🟡 gebaut |
 | Kartenplatz über Wi-Fi (`errorcode 1001`) | F19 | ⬜ |
 
