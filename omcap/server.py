@@ -10,6 +10,7 @@ import contextlib
 import errno
 import json
 import os
+import re
 import subprocess
 import threading
 import time
@@ -27,6 +28,11 @@ ROOT = os.path.dirname(os.path.abspath(__file__))
 # working folder (--data-dir, default: current folder): shots and preview cache live below it
 CAPTURES = os.path.join(os.getcwd(), "captures")
 PREVIEW_CACHE = os.path.join(os.getcwd(), "out", "cache", "previews")  # previews from the card
+SETTINGS_FILE = os.path.join(os.getcwd(), "omcap-settings.json")
+SAVE_SCHEMES = ("original", "datetime", "prefix")
+save_cfg = {"dir": "", "scheme": "original", "prefix": ""}  # dir "" = default captures/
+# Folders that must never receive pictures: firmware material and camera dumps of the project
+PROTECTED_DIRS = [os.path.join(os.path.dirname(ROOT), d) for d in ("download", os.path.join("out", "fw"), "camera")]
 PREVIEW_CACHE_MAX = 500 << 20  # bytes; above that the oldest previews are dropped
 IMAGE_MAX_AGE = 7 * 24 * 3600  # image URLs contain the file size, so they change with the file
 LV_PORT = 5555
@@ -277,17 +283,99 @@ def remember_shot(paths):
         state["last_shot"] = p
 
 
+def captures_dir():
+    """Folder for pictures on the computer: the chosen one, else the default captures/."""
+    return save_cfg["dir"] or CAPTURES
+
+
+def _inside(p, root):
+    p, root = os.path.realpath(p), os.path.realpath(root)
+    return p == root or p.startswith(root + os.sep)
+
+
+def validate_save_dir(d):
+    """Return the absolute, created, writable folder or raise ValueError."""
+    d = str(d or "").strip()
+    if not d:
+        return ""
+    d = os.path.expanduser(d)
+    if not os.path.isabs(d):
+        raise ValueError("Folder must be an absolute path (or start with ~)")
+    d = os.path.normpath(d)
+    for bad in PROTECTED_DIRS:
+        if _inside(d, bad):
+            raise ValueError("This folder is not allowed: %s" % bad)
+    try:
+        os.makedirs(d, exist_ok=True)
+    except OSError as e:
+        raise ValueError("Cannot create folder: %s" % e)
+    if not os.path.isdir(d) or not os.access(d, os.W_OK | os.X_OK):
+        raise ValueError("Folder is not writable")
+    return d
+
+
+def set_save_cfg(b):
+    """Validate and store the save settings (folder, naming scheme, prefix)."""
+    scheme = b.get("scheme", "original")
+    if scheme not in SAVE_SCHEMES:
+        raise ValueError("Unknown naming scheme")
+    prefix = str(b.get("prefix") or "").strip()
+    if scheme == "prefix":
+        if not prefix:
+            raise ValueError("Prefix is empty")
+        if re.search(r'[/\\:\x00]', prefix) or prefix in (".", ".."):
+            raise ValueError("Prefix contains characters that are not allowed")
+    cfg = {"dir": validate_save_dir(b.get("dir")), "scheme": scheme, "prefix": prefix}
+    tmp = SETTINGS_FILE + ".tmp"
+    os.makedirs(os.path.dirname(SETTINGS_FILE) or ".", exist_ok=True)
+    with open(tmp, "w") as f:
+        json.dump(cfg, f, indent=1)
+    os.replace(tmp, SETTINGS_FILE)
+    save_cfg.update(cfg)
+    return public_save_cfg()
+
+
+def load_save_cfg():
+    """Read the settings file at start; a broken or now-invalid file falls back to defaults."""
+    try:
+        with open(SETTINGS_FILE) as f:
+            c = json.load(f)
+        cfg = {"dir": validate_save_dir(c.get("dir")), "scheme": c.get("scheme", "original"),
+               "prefix": str(c.get("prefix") or "")}
+        if cfg["scheme"] not in SAVE_SCHEMES:
+            raise ValueError
+        save_cfg.update(cfg)
+    except (OSError, ValueError, TypeError, AttributeError):
+        pass
+
+
+def public_save_cfg():
+    return {**save_cfg, "effective_dir": captures_dir()}
+
+
+def target_name(name, now=None):
+    """Local file name by the chosen scheme (name = original name on the card)."""
+    scheme = save_cfg["scheme"]
+    if scheme == "datetime":
+        # the file is fetched right after the shot, so the fetch time stands for the shot time
+        return time.strftime("%Y%m%d_%H%M%S", now or time.localtime()) + "_" + name
+    if scheme == "prefix" and save_cfg["prefix"]:
+        return save_cfg["prefix"] + name
+    return name
+
+
 def save_capture(path, size=None):
     """Fetch a file from the card without overwriting existing ones."""
-    os.makedirs(CAPTURES, exist_ok=True)
-    stem, ext = os.path.splitext(os.path.basename(path))
-    dest = os.path.join(CAPTURES, stem + ext)
+    folder = captures_dir()
+    os.makedirs(folder, exist_ok=True)
+    stem, ext = os.path.splitext(target_name(os.path.basename(path)))
+    dest = os.path.join(folder, stem + ext)
     n = 0
     while os.path.exists(dest):
-        if size is not None and os.path.getsize(dest) == size:
+        if size is not None and save_cfg["scheme"] == "original" and os.path.getsize(dest) == size:
             return dest
         n += 1
-        dest = os.path.join(CAPTURES, "%s-%d%s" % (stem, n, ext))
+        dest = os.path.join(folder, "%s-%d%s" % (stem, n, ext))
     cam.fetch_file(path, dest + ".part")
     os.replace(dest + ".part", dest)
     if ext.lower() in (".jpg", ".jpeg") or state["latest"] is None or \
@@ -419,18 +507,19 @@ def orf_preview(path):
 
 
 def local_files():
-    if not os.path.isdir(CAPTURES):
+    folder = captures_dir()
+    if not os.path.isdir(folder):
         return []
     out = []
-    for name in os.listdir(CAPTURES):
-        p = os.path.join(CAPTURES, name)
+    for name in os.listdir(folder):
+        p = os.path.join(folder, name)
         if name.lower().endswith((".jpg", ".jpeg", ".orf")) and os.path.isfile(p):
             out.append({"name": name, "size": os.path.getsize(p), "mtime": os.path.getmtime(p)})
     return sorted(out, key=lambda e: e["mtime"], reverse=True)
 
 
 def capture_path(name):
-    p = os.path.join(CAPTURES, os.path.basename(name))
+    p = os.path.join(captures_dir(), os.path.basename(name))
     if not os.path.isfile(p):
         raise KeyError("File not found: %s" % name)
     return p
@@ -622,6 +711,8 @@ class Handler(BaseHTTPRequestHandler):
                                    "allow_write": options.get("allow_write", False)})
             if u.path == "/api/connections":
                 return self._send(connections())
+            if u.path == "/api/savecfg":
+                return self._send(public_save_cfg())
             if u.path == "/api/local":
                 return self._send(local_files())
             if u.path.startswith("/captures/"):
@@ -755,6 +846,8 @@ class Handler(BaseHTTPRequestHandler):
         if path == "/api/poweroff":
             power_off()
             return None
+        if path == "/api/savecfg":
+            return {"cfg": set_save_cfg(b)}
         if path == "/api/open":
             subprocess.run(["open", "-a", "OM Workspace", capture_path(b["name"])], check=True)
             return None
@@ -872,7 +965,7 @@ def open_browser(url, delay=0.6):
 
 
 def main(argv=None):
-    global CAPTURES, PREVIEW_CACHE
+    global CAPTURES, PREVIEW_CACHE, SETTINGS_FILE
     p = argparse.ArgumentParser(prog="em1-capture", description="Local web app to control an Olympus OM-D E-M1 over Wi-Fi or USB.")
     p.add_argument("--version", action="version", version="%(prog)s " + __version__)
     p.add_argument("--host", default="192.168.0.10", help="camera IP in the camera's Wi-Fi (default 192.168.0.10)")
@@ -901,6 +994,8 @@ def main(argv=None):
         return 0
     CAPTURES = os.path.join(a.data_dir, "captures")
     PREVIEW_CACHE = os.path.join(a.data_dir, "out", "cache", "previews")
+    SETTINGS_FILE = os.path.join(a.data_dir, "omcap-settings.json")
+    load_save_cfg()
     options.update(host=a.host, allow_write=a.allow_write)
     allowed_hosts.update({"127.0.0.1:%d" % a.port, "localhost:%d" % a.port})
     print("em1-capture %s  %s  (%s)" % (__version__, url, "WRITE ENABLED" if a.allow_write else "read only"))
