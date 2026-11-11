@@ -61,6 +61,24 @@ main{display:grid;grid-template-columns:minmax(0,1044px) 340px;justify-content:c
 .hbtn.quiet{background:transparent}
 .hbtn.icon{width:36px;padding:0;display:inline-flex;align-items:center;justify-content:center;background:transparent;color:var(--rec-text)}
 #localDlg{width:min(560px,calc(100vw - 32px))}
+.tb{display:flex;align-items:center;gap:var(--s2);flex-wrap:wrap;min-height:40px}
+.tb>*{min-width:0}
+.tb button,.tb select,.tb .tog{height:38px}
+.seg{display:flex;border:1px solid var(--line);border-radius:var(--r-sm);overflow:hidden}
+.seg button{border:0;border-radius:0;width:44px;padding:0;background:var(--surface);font-weight:500}
+.seg button+button{border-left:1px solid var(--line)}
+.tog{display:inline-flex;align-items:center;gap:6px;padding:0 12px;border:1px solid var(--line);border-radius:19px;background:transparent;cursor:pointer;user-select:none;font-weight:500;white-space:nowrap}
+.tog input{position:absolute;opacity:0;width:1px;height:1px}
+.tog:has(input:checked){border-color:var(--accent-line);background:var(--accent-soft);color:var(--accent)}
+.tog:has(input:focus-visible){outline:2px solid var(--accent);outline-offset:2px}
+.tog select{border:0;background:transparent;padding:0 2px;color:inherit}
+.tb .lab{display:inline-flex;align-items:center;gap:6px;padding:0 10px;border:1px solid var(--line);border-radius:var(--r-sm);background:var(--surface);color:var(--muted)}
+.tb .lab select{border:0;background:transparent;padding:0;color:var(--text);font-family:var(--font-value)}
+.tb .vsep{width:1px;height:24px;background:var(--line);margin:0 4px}
+#lvTools{display:contents}
+#statusLine{display:flex;gap:var(--s4);flex-wrap:wrap;font-size:13px;color:var(--muted)}
+#statusLine #msg{margin:0;min-height:0}
+#lvSize{font-family:var(--font-value)}
 section{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-lg);padding:var(--s3)}
 #panels{display:flex;flex-direction:column;gap:10px}
 .mut{color:var(--mut)} .warn{color:var(--warn);white-space:pre-line} .sp{margin-left:auto}
@@ -181,18 +199,6 @@ body.webcam{cursor:none;display:flex;align-items:center;justify-content:center}
 </header>
 <main>
 <div id="liveCol">
-  <div class="row">
-    <button class="w" id="lvStart" data-i18n="lv.start">Start live view</button>
-    <button id="lvStop" data-i18n="lv.stop">Stop</button>
-    <label data-feat="lvsize"><span data-i18n="lv.size">Size</span> <select id="lvqty">
-      <option>0320x0240</option><option>0640x0480</option><option selected>0800x0600</option><option>1024x0768</option><option>1280x0960</option>
-    </select></label>
-    <span id="lvSize" class="mut"></span>
-    <span class="sp"></span>
-    <button data-z="1">1×</button><button data-z="2">2×</button><button data-z="4">4×</button>
-    <button id="popLive" data-i18n="lv.second">Second monitor</button>
-    <button id="popCam" data-i18n="lv.webcam">Webcam (OBS)</button>
-  </div>
   <div id="viewport">
     <div id="zoomLayer">
       <img id="live" alt="">
@@ -210,25 +216,37 @@ body.webcam{cursor:none;display:flex;align-items:center;justify-content:center}
     <img id="lastShot" alt="" hidden data-i18n-title="last.title">
     <div id="empty" data-i18n="lv.off">Live view off</div>
   </div>
-  <p id="msg" class="mut" data-i18n="msg.ready">Ready.</p>
-  <section id="lvTools" style="margin-top:8px" hidden>
-    <div class="row">
-      <label data-feat="level"><input type="checkbox" id="lvlOn" checked> <span data-i18n="lv.level">Level gauge</span></label>
+  <div class="tb" id="toolbar">
+    <div class="seg" role="group" data-i18n-aria="lv.zoomGroup" aria-label="View zoom (in the app, not the camera)">
+      <button data-z="1">1×</button><button data-z="2">2×</button><button data-z="4">4×</button>
+    </div>
+    <label class="lab" data-feat="lvsize"><span data-i18n="lv.size">Size</span> <select id="lvqty">
+      <option>0320x0240</option><option>0640x0480</option><option selected>0800x0600</option><option>1024x0768</option><option>1280x0960</option>
+    </select></label>
+    <span class="vsep"></span>
+    <span id="lvTools" hidden>
+      <label class="tog" data-feat="level"><input type="checkbox" id="lvlOn" checked> <span data-i18n="lv.level">Level gauge</span></label>
       <span id="lvlInfo" class="mut" data-feat="level"></span>
-      <label><span data-i18n="lv.grid">Displayed Grid</span> <select id="gridType"><option value="" data-i18n="lv.gridOff">Off</option><option value="thirds" data-i18n="lv.gridThirds">Rule of thirds</option><option value="cross" data-i18n="lv.gridCross">Crosshair</option><option value="mesh" data-i18n="lv.gridMesh">Grid</option></select></label>
+      <label class="tog"><span data-i18n="lv.grid">Displayed Grid</span> <select id="gridType"><option value="" data-i18n="lv.gridOff">Off</option><option value="thirds" data-i18n="lv.gridThirds">Rule of thirds</option><option value="cross" data-i18n="lv.gridCross">Crosshair</option><option value="mesh" data-i18n="lv.gridMesh">Grid</option></select></label>
       <label class="gridAdj" hidden>X <input type="range" id="gridX" min="-50" max="50" value="0"></label>
       <label class="gridAdj" hidden>Y <input type="range" id="gridY" min="-50" max="50" value="0"></label>
-      <label><input type="checkbox" id="aidHist"> <span data-i18n="lv.hist">Histogram</span></label>
-      <label><input type="checkbox" id="aidRgb"> <span data-i18n="lv.histRgb">RGB</span></label>
-      <label><input type="checkbox" id="aidClip"> <span data-i18n="lv.clip">Highlight&amp;Shadow</span></label>
-      <label><input type="checkbox" id="aidPeak"> <span data-i18n="lv.peak">Peaking</span></label>
-      <label><span data-i18n="lv.peakColor">Peaking Settings</span> <select id="aidPeakCol"><option value="white" data-i18n="lv.peakWhite">White</option><option value="black" data-i18n="lv.peakBlack">Black</option><option value="red" data-i18n="lv.peakRed">Red</option><option value="yellow" data-i18n="lv.peakYellow">Yellow</option></select></label>
-    </div>
-    <div class="row" id="ovlRow" hidden>
-      <label><span data-i18n="lv.overlay">Overlay</span> <input type="range" id="ovlOp" min="0" max="100" value="50"></label>
-      <button id="ovlOff" data-i18n="lv.overlayRemove">Remove</button>
-    </div>
-  </section>
+      <label class="tog"><input type="checkbox" id="aidHist"> <span data-i18n="lv.hist">Histogram</span></label>
+      <label class="tog"><input type="checkbox" id="aidRgb"> <span data-i18n="lv.histRgb">RGB</span></label>
+      <label class="tog"><input type="checkbox" id="aidClip"> <span data-i18n="lv.clip">Highlight&amp;Shadow</span></label>
+      <label class="tog"><input type="checkbox" id="aidPeak"> <span data-i18n="lv.peak">Peaking</span></label>
+      <label class="tog"><span data-i18n="lv.peakColor">Peaking Settings</span> <select id="aidPeakCol"><option value="white" data-i18n="lv.peakWhite">White</option><option value="black" data-i18n="lv.peakBlack">Black</option><option value="red" data-i18n="lv.peakRed">Red</option><option value="yellow" data-i18n="lv.peakYellow">Yellow</option></select></label>
+    </span>
+    <span class="sp"></span>
+    <button id="popLive" data-i18n="lv.second">Second monitor</button>
+    <button id="popCam" data-i18n="lv.webcam">Webcam (OBS)</button>
+    <button class="w" id="lvStart" data-i18n="lv.start">Start live view</button>
+    <button id="lvStop" data-i18n="lv.stop">Stop live view</button>
+  </div>
+  <div class="tb" id="ovlRow" hidden>
+    <label class="lab"><span data-i18n="lv.overlay">Overlay</span> <input type="range" id="ovlOp" min="0" max="100" value="50"></label>
+    <button id="ovlOff" data-i18n="lv.overlayRemove">Remove</button>
+  </div>
+  <div id="statusLine"><span id="lvSize" class="mut"></span><p id="msg" class="mut" data-i18n="msg.ready">Ready.</p></div>
 </div>
 <div id="panels">
   <section data-id="shutter" data-label="Shutter button" data-i18n-label="panel.shutter">
@@ -385,6 +403,7 @@ const $=s=>document.querySelector(s);
       Server messages are English; with a key 'srv.<message>' they can be translated.
       Language: localStorage 'omcap.lang', else browser language, else en. */
 const I18N={en:{
+  "lv.zoomGroup": "View zoom (in the app, not the camera)",
   "lv.focusing": "Focusing …",
   "lv.inFocus": "In focus",
   "strip.wb": "WB",
@@ -408,7 +427,7 @@ const I18N={en:{
   "app.write": "Write enabled",
   "app.readOnly": "Read only",
   "lv.start": "Start live view",
-  "lv.stop": "Stop",
+  "lv.stop": "Stop live view",
   "lv.size": "Size",
   "lv.second": "Second monitor",
   "lv.webcam": "Webcam (OBS)",
@@ -670,6 +689,7 @@ async function tick(){
   try{st=await api('/api/state')}catch(e){if(e.message===tr('srv.offline'))msg(e.message,true);return}
   $('#half').classList.toggle('on',st.stage>=1);
   $('#empty').hidden=st.live;
+  $('#lvStart').hidden=st.live||!canWrite; $('#lvStop').hidden=!st.live;
   renderStrip();
   const w=$('#live').naturalWidth, stale=st.live&&st.lv_age>3;
   // image in error state although data arrives: reconnect
