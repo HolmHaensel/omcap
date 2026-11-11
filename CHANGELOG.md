@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased (0.4.0)
+
+- New design (dark, tokens from `design/tokens.css`): header chips, live view with value strip, focus status chip and histogram, toolbar with toggle chips under the image, LV super control panel with mode control and value tiles, shutter block with self-timer control; functions a connection cannot do are shown dashed with a reason instead of hidden.
+- Playback: Index display grouped by day (S/M/L, optional shooting data line over Wi-Fi, multi-select to save), Calendar display, single-frame view with the INFO cycle (Image only / Simplified display / Overall display with histogram and shooting data, Fit / 100 %); new `GET /api/exif`.
+- Phone layouts (portrait and landscape) and 44 px touch targets.
+
 ## Unreleased (0.3.0)
 
 - Webcam (OBS) button next to Second monitor: opens the webcam view and copies its link to the clipboard.

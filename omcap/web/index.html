@@ -224,6 +224,55 @@ dialog h2{margin-top:12px}
 body.single{background:#000;height:100vh;overflow:hidden}
 body.webcam{cursor:none;display:flex;align-items:center;justify-content:center}
 #single{width:100vw;height:100vh;object-fit:contain;display:block}
+/* Touch devices: targets of at least 44 px */
+@media(pointer:coarse){
+  button,select,.tog,.lab,input[type=number],input[type=text]{min-height:var(--touch)}
+  .seg button,.tb button,.tb select,.tb .tog,.hbtn{min-height:var(--touch);height:auto}
+  .tog input,#props select{min-height:0}
+  #props label{min-height:var(--touch)}
+  input[type=checkbox],input[type=radio]{width:22px;height:22px}
+  .lr button{min-width:var(--touch)}
+}
+/* Phone, portrait: header, image full width, chips, panels below; Take picture stays at the bottom */
+@media(max-width:599px){
+  header{padding:8px 12px;gap:var(--s2)}
+  #hdrInfo,#hdrCard,#hdrBat,#layoutBtn,#writeChip{display:none}
+  main{padding:var(--s2) 12px 190px;gap:var(--s3)}
+  #viewport{max-height:none;border-radius:var(--r-md)}
+  #valStrip{font-size:14px;gap:12px;padding:0 10px;height:36px}
+  #lastShot{bottom:46px;width:22%}
+  #recChip{bottom:46px}
+  .tb{overflow-x:auto;flex-wrap:nowrap;padding-bottom:4px;-webkit-overflow-scrolling:touch}
+  .tb>*{flex-shrink:0}
+  #props{grid-template-columns:repeat(2,minmax(0,1fr))}
+  #panels>[data-id=shutter]{position:fixed!important;left:0;right:0;bottom:0;z-index:20;border-radius:var(--r-lg) var(--r-lg) 0 0;border-bottom:0;padding:var(--s2) 12px calc(var(--s2) + env(safe-area-inset-bottom,0px));background:var(--surface)}
+  #shutterBox{gap:var(--s2)}
+  #timerLab{display:none}
+  #timerSeg button{height:var(--touch)}
+  #shutRow button{height:84px}
+  #shutRow #shoot{font-size:var(--fs-shutter)}
+  #galOv .galbar,#viewer .galbar{gap:var(--s2)}
+  #vPanel{width:auto}
+  #timerCount{font-size:28vmin}
+}
+/* Phone, landscape (short): values on the left, image in the middle, shutter column on the right */
+@media(orientation:landscape) and (max-height:520px) and (max-width:1100px){
+  header{padding:4px 12px}
+  #hdrInfo,#hdrCard,#hdrBat,#layoutBtn{display:none}
+  main{display:grid;grid-template-columns:200px minmax(0,1fr) 230px;padding:var(--s2);gap:var(--s2)}
+  #panels{display:contents}
+  #panels>section{grid-column:3}
+  #panels>[data-id=scp]{grid-column:1;grid-row:1/span 8}
+  #liveCol{grid-column:2;grid-row:1/span 8}
+  #panels>[data-id=shutter]{order:-1!important;grid-row:1}
+  #viewport{max-height:calc(100vh - 120px)}
+  #props{grid-template-columns:minmax(0,1fr)}
+  #props label.wide{grid-column:auto}
+  #shutRow{grid-template-columns:minmax(0,1fr)}
+  #shutRow #shoot{height:76px;order:-1}
+  #shutRow #half{height:var(--touch)}
+  .tb{flex-wrap:wrap}
+}
 </style>
 </head>
 <body>
