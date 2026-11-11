@@ -138,6 +138,18 @@ button:disabled{color:var(--disabled);opacity:.6;cursor:not-allowed}
 #panels input[type=text]{width:100%;min-width:0}
 #svPrefix{width:8em}
 #svInfo{font-size:var(--fs-label);margin-bottom:var(--s2);overflow-wrap:anywhere}
+.na{border:1px dashed var(--line-strong)!important;color:var(--disabled)!important;background:transparent!important;cursor:not-allowed}
+.na *{color:var(--disabled)!important;cursor:not-allowed}
+section.na{opacity:1}
+.reason{margin:var(--s1) 0 0;font-size:var(--fs-label);color:var(--disabled)}
+#recChip{position:absolute;left:12px;bottom:56px;display:flex;align-items:center;gap:8px;height:32px;padding:0 12px;border-radius:16px;background:var(--overlay);border:1px solid var(--rec);color:var(--rec-text);font-family:var(--font-value);font-weight:600;z-index:4;pointer-events:none}
+#recChip .dot{background:var(--rec);animation:blink 1s steps(2) infinite}
+@keyframes blink{50%{opacity:.25}}
+@media(prefers-reduced-motion:reduce){#recChip .dot{animation:none}}
+#viewport.rec{box-shadow:0 0 0 2px var(--rec)}
+#dropChip{position:absolute;left:50%;top:54px;transform:translateX(-50%);height:32px;display:flex;align-items:center;padding:0 14px;border-radius:16px;background:var(--overlay);border:1px solid var(--rec);color:var(--rec-text);z-index:4;pointer-events:none}
+#empty{flex-direction:column;gap:var(--s2);text-align:center}
+#empty small{font-size:var(--fs-label);color:var(--disabled)}
 #shutterBox{display:flex;flex-direction:column;gap:var(--s3)}
 #timerSeg{width:100%}
 #timerSeg button{flex:1;width:auto;height:40px}
@@ -226,7 +238,7 @@ body.webcam{cursor:none;display:flex;align-items:center;justify-content:center}
   <button id="layoutBtn" class="hbtn quiet" data-i18n="app.layout">Customize layout</button>
   <button id="reset" class="hbtn w" data-i18n="app.reset" data-i18n-title="app.resetTitle">Reset camera</button>
   <button id="discon" class="hbtn quiet" data-i18n="app.disconnect">Disconnect</button>
-  <button id="poweroff" class="hbtn icon w" data-feat="poweroff" data-i18n-aria="app.poweroff" data-i18n-title="app.poweroff"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 3v8"/><path d="M6.3 7.2a8 8 0 1 0 11.4 0"/></svg></button>
+  <button id="poweroff" class="hbtn icon w" data-feat="poweroff" data-na="na.poweroff" data-i18n-aria="app.poweroff" data-i18n-title="app.poweroff"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 3v8"/><path d="M6.3 7.2a8 8 0 1 0 11.4 0"/></svg></button>
 </header>
 <main>
 <div id="liveCol">
@@ -241,22 +253,24 @@ body.webcam{cursor:none;display:flex;align-items:center;justify-content:center}
     </div>
     <canvas id="levelGauge"></canvas>
     <canvas id="histCv" width="160" height="70" hidden></canvas>
+    <div id="recChip" hidden><span class="dot"></span><span id="recText"></span></div>
+    <div id="dropChip" hidden></div>
     <div id="focusChip" hidden><span class="dot"></span><span id="focusChipText"></span></div>
     <div id="valStrip" hidden></div>
     <div id="timerCount" hidden></div>
     <img id="lastShot" alt="" hidden data-i18n-title="last.title">
-    <div id="empty" data-i18n="lv.off">Live view off</div>
+    <div id="empty"><span data-i18n="lv.off">Live view off</span><small data-i18n="lv.offHint">Start live view to see the picture and the AF targets.</small></div>
   </div>
   <div class="tb" id="toolbar">
     <div class="seg" role="group" data-i18n-aria="lv.zoomGroup" aria-label="View zoom (in the app, not the camera)">
       <button data-z="1">1×</button><button data-z="2">2×</button><button data-z="4">4×</button>
     </div>
-    <label class="lab" data-feat="lvsize"><span data-i18n="lv.size">Size</span> <select id="lvqty">
+    <label class="lab" data-feat="lvsize" data-na="na.size"><span data-i18n="lv.size">Size</span> <select id="lvqty">
       <option>0320x0240</option><option>0640x0480</option><option selected>0800x0600</option><option>1024x0768</option><option>1280x0960</option>
     </select></label>
     <span class="vsep"></span>
     <span id="lvTools" hidden>
-      <label class="tog" data-feat="level"><input type="checkbox" id="lvlOn" checked> <span data-i18n="lv.level">Level gauge</span></label>
+      <label class="tog" data-feat="level" data-na="na.level"><input type="checkbox" id="lvlOn" checked> <span data-i18n="lv.level">Level gauge</span></label>
       <span id="lvlInfo" class="mut" data-feat="level"></span>
       <label class="tog"><span data-i18n="lv.grid">Displayed Grid</span> <select id="gridType"><option value="" data-i18n="lv.gridOff">Off</option><option value="thirds" data-i18n="lv.gridThirds">Rule of thirds</option><option value="cross" data-i18n="lv.gridCross">Crosshair</option><option value="mesh" data-i18n="lv.gridMesh">Grid</option></select></label>
       <label class="gridAdj" hidden>X <input type="range" id="gridX" min="-50" max="50" value="0"></label>
@@ -288,7 +302,7 @@ body.webcam{cursor:none;display:flex;align-items:center;justify-content:center}
   </section>
   <section data-id="af" data-label="AF target (AF Area)" data-i18n-label="panel.af" data-feat="af_area">
     <h2 data-i18n="panel.af">AF target (AF Area)</h2>
-    <div class="row" id="afModes" data-feat="af_modes">
+    <div class="row" id="afModes" data-feat="af_modes" data-na="na.afModes">
       <button class="w" data-af="33024" data-i18n="af.33024">All Targets</button>
       <button class="w" data-af="33025" data-i18n="af.33025">Single Target</button>
       <button class="w" data-af="33027" data-i18n="af.33027">Small Target</button>
@@ -299,7 +313,7 @@ body.webcam{cursor:none;display:flex;align-items:center;justify-content:center}
       <span id="afInfo" class="mut"></span>
     </div>
   </section>
-  <section data-id="movie" data-label="Movie" data-i18n-label="panel.movie" data-feat="movie">
+  <section data-id="movie" data-label="Movie" data-i18n-label="panel.movie" data-feat="movie" data-na="na.movie">
     <h2 data-i18n="panel.movie">Movie</h2>
     <div class="row">
       <button class="w" id="movStart" data-i18n="movie.start">Start recording</button>
@@ -391,7 +405,7 @@ body.webcam{cursor:none;display:flex;align-items:center;justify-content:center}
     <span class="sp"></span>
     <button data-v="4">4</button><button data-v="9">9</button><button data-v="25">25</button><button data-v="100">100</button>
     <button data-v="cal" data-i18n="card.calendar">Calendar display</button>
-    <button id="galShare" data-feat="share_order" data-i18n="card.share">Share Order</button>
+    <button id="galShare" data-feat="share_order" data-na="na.share" data-i18n="card.share">Share Order</button>
     <button id="galShareSave" data-feat="share_order" data-i18n="card.shareSave" hidden>Save all to computer</button>
     <button id="galShareReset" data-feat="share_order" data-i18n="card.shareReset" hidden>Reset Share Order</button>
     <button id="galReload" data-i18n="card.reload">Reload</button>
@@ -440,6 +454,15 @@ const $=s=>document.querySelector(s);
       Server messages are English; with a key 'srv.<message>' they can be translated.
       Language: localStorage 'omcap.lang', else browser language, else en. */
 const I18N={en:{
+  "movie.rec": "REC {t}",
+  "na.movie": "Movie: Wi-Fi only",
+  "na.poweroff": "Turn off camera: Wi-Fi only",
+  "na.size": "Size: Wi-Fi only",
+  "na.level": "Level gauge: USB only",
+  "na.afModes": "AF target modes: USB only",
+  "na.share": "Share Order: Wi-Fi only",
+  "na.readOnly": "Write is off. Start the app with --allow-write to use this.",
+  "lv.offHint": "Start live view to see the picture and the AF targets.",
   "timer.cancel": "Cancel self-timer",
   "scp.modeDialHint": "Set on the mode dial (read only over USB)",
   "lv.zoomGroup": "View zoom (in the app, not the camera)",
@@ -491,7 +514,7 @@ const I18N={en:{
   "lv.gridMesh": "Grid",
   "lv.overlay": "Overlay",
   "lv.overlayRemove": "Remove",
-  "lv.noSignal": "no signal for {s} s",
+  "lv.noSignal": "No signal for {s} s",
   "lv.receiving": "receiving {w}×{h}",
   "lv.hist": "Histogram",
   "lv.histRgb": "RGB",
@@ -745,6 +768,9 @@ async function tick(){
   $('#movStart').hidden=rec; $('#movStop').hidden=!rec;
   $('#movTime').textContent=rec?tr('movie.time',{t:clock(st.movie)}):'';
   $('#trErr').textContent=st.transfer_error||'';
+  $('#recChip').hidden=!rec; $('#viewport').classList.toggle('rec',rec);
+  if(rec) $('#recText').textContent=tr('movie.rec',{t:clock(st.movie)});
+  const dc=$('#dropChip'); dc.hidden=!stale; if(stale) dc.textContent=tr('lv.noSignal',{s:Math.round(st.lv_age)});
   $('#lvTools').hidden=!st.live;
   $('#reset').hidden=!(features.has('stages')&&(st.stage>0||propsFailed));
   applyContext();
@@ -1590,10 +1616,27 @@ function ordered(g){
   const pos=e=>{const i=o.indexOf(e.dataset.id);return i<0?o.length+items.indexOf(e):i};
   return items.sort((a,b)=>pos(a)-pos(b));
 }
+/* A function the connection cannot do: dashed and disabled with a short reason (not hidden) */
+function markNa(e,text){
+  e.classList.add('na'); e.title=text; e.dataset.reason=text;
+  if(e.matches('button,input,select')) e.disabled=true;
+  e.querySelectorAll('button,input,select').forEach(x=>x.disabled=true);
+  if(e.tagName==='SECTION'||e.matches('.row')){
+    if(!e.querySelector(':scope>.reason')){const p=document.createElement('p');p.className='reason';p.textContent=text;e.append(p)}
+    if(e.tagName==='SECTION'){const h=e.querySelector('h2');[...e.children].forEach(c=>{if(c!==h&&!c.classList.contains('reason'))c.hidden=true})}
+  }
+}
+function applyFeatures(){
+  document.querySelectorAll('[data-feat]').forEach(e=>{
+    if(features.has(e.dataset.feat)){e.classList.remove('na');return}
+    if(e.dataset.na) markNa(e,tr(e.dataset.na));
+    else if(!e.dataset.id) e.hidden=true;
+  });
+}
 function applyLayout(){
   for(const g in GROUPS){
     const off=(layout[g]&&layout[g].off)||[];
-    ordered(g).forEach((e,i)=>{e.style.order=i;e.hidden=off.includes(e.dataset.id)||(!!e.dataset.feat&&!features.has(e.dataset.feat))});
+    ordered(g).forEach((e,i)=>{e.style.order=i;e.hidden=off.includes(e.dataset.id)||(!!e.dataset.feat&&!features.has(e.dataset.feat)&&!e.dataset.na)});
   }
 }
 function renderLayout(){
@@ -1789,10 +1832,10 @@ async function enterApp(){
     const s=await api('/api/status');
     canWrite=s.allow_write;
     features=new Set(s.features);
-    document.querySelectorAll('[data-feat]').forEach(e=>{if(!e.dataset.id)e.hidden=!features.has(e.dataset.feat)});
+    applyFeatures();
     statusBase={model:s.model,conn:s.type==='usb'?'USB':'Wi-Fi',rights:canWrite?tr('app.write'):tr('app.readOnly')};
     showStatus();
-    if(!canWrite) document.querySelectorAll('button.w').forEach(b=>b.hidden=true);
+    if(!canWrite) document.querySelectorAll('button.w').forEach(b=>{if(!b.hidden&&b.id!=='lvStart'){b.disabled=true;b.classList.add('na');b.title=tr('na.readOnly')}});
     await tick(); await props(); gallery(); loadDevice(true); if(features.has('af_modes')) loadLens();
     if(features.has('af_modes')||(features.has('af_area')&&st.live)) loadAf();
     if(canWrite&&!st.live) $('#lvStart').click();
