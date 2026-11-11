@@ -2,10 +2,9 @@
 
 ## 0.3.0 – 2026-11-11
 
-- Webcam (OBS) button next to Second monitor: opens the webcam view and copies its link to the clipboard.
-- Save to: choose the folder on the computer and the file naming (original / date_time_original / prefix + original); stored in `omcap-settings.json` in the data folder; never overwrites.
-- HSL in the web app (USB and Wi-Fi): HSL button per computer file and in the single-frame view, preset dialog with before/after slider, results in `out/hsl/`, optional auto-apply when saving to the computer.
-
+- Webcam (OBS) button next to Second monitor: opens the webcam view and copies its link to the clipboard (REQ-D05).
+- Save to: choose the folder on the computer and the file naming (original / date_time_original / prefix + original); stored in `omcap-settings.json` in the data folder; never overwrites (REQ-F17).
+- HSL in the web app (USB and Wi-Fi): HSL button per computer file and in the single-frame view, preset dialog with before/after slider, results in `out/hsl/`, optional auto-apply when saving to the computer (REQ-I01, REQ-I04).
 - Wi-Fi: the last shot appears reliably; the app waits up to a minute for the camera's card list (REQ-F16).
 - Tested with the camera over Wi-Fi (webcam link, save folder and naming, HSL).
 
