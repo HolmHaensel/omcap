@@ -48,6 +48,10 @@ Contributions, tests with other bodies and ideas are very welcome.
 | HSL color profiles for ORF/JPG on the computer (`omcap.hsl`) | independent | independent |
 | Start by double-click, browser opens by itself | yes | yes |
 
+**Planned:** Star AF focus aid (star sharpness while you turn the focus ring), subject detection in
+live view (face/eye, later animals and birds) with "Focus on subject", film looks and a look lab on the
+computer. Details and status: [REQUIREMENTS.md](REQUIREMENTS.md).
+
 The interface is in English; all texts are in one translation table (`I18N` in
 `omcap/web/index.html`), so more languages can be added.
 

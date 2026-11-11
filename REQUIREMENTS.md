@@ -57,6 +57,8 @@ Agenten arbeiten gegen diese Liste.
 | REQ-F21 | Positionsdaten aus GPS-Log ins EXIF. | M7 | ⬜ | ⬜ | ⬜ | P3 |
 | REQ-F22 | Electronic zoom für Power-Zoom-Objektive. | M8 | ⬜ | ⬜ | ⬜ | P3 |
 | REQ-F23 | Level gauge (Wasserwaage) live. | HANDOVER | ⛔ Werte nur bei Sitzungsaufbau | ⬜ RTP-Kopf prüfen | ⬜ | P3 |
+| REQ-F24 | **Star-AF-Hilfe** (wie Starry Sky AF der OM-1, aber manuell): im vergrößerten Live View Sterngröße/Schärfe messen (HFR), Wert und Verlauf anzeigen, Nutzer dreht am Fokusring. Kein Fokus-Antrieb über USB/Wi-Fi bekannt. | Nutzer 2026-11-11 | ⬜ | ⬜ | ⬜ | P2 (0.4) |
+| REQ-F25 | **Motiverkennung** im Live View auf dem Computer (Gesicht/Auge, später Tier, Vogel), Rahmen anzeigen, „Focus on subject“ (Wi-Fi: Punkt per `assignafframe`, USB: nächstes der 81 AF-Felder). Modelle offline, Lizenz GPL-kompatibel (z. B. OpenCV YuNet). Kein fortlaufendes Tracking (AF 0,4–3 s). Basis für REQ-I05. | Nutzer 2026-11-11 | ⬜ | ⬜ | ⬜ | P2 |
 
 ## 4. iPhone und Apple Watch
 
@@ -85,6 +87,9 @@ Agenten arbeiten gegen diese Liste.
 | REQ-I03 | CineStill 800T mit Halation, Bloom, Korn, Vorher/Nachher. | U3 ⬜ | P3 |
 | REQ-I04 | Look beim Speichern auf den Computer automatisch als zusätzliches JPG anwenden. | ⬜ | P3 |
 | REQ-I05 | Selfie-Automatik: Gesicht erkennen, scharf stellen, auslösen, Belichtung im Gesicht messen (Ziel 155–170/255, < 1 % Clipping), nachregeln. | U2 ⬜ | P3 |
+| REQ-I06 | **Film-Looks nach Caduceus-Vorbild** (androidfanman/caduceus-om3, Apache-2.0): Look-Format (12 Farben H/S/L, Split Toning, Blacks/Whites, WB-Shift, Korn, Glow) in `omcap.hsl` lesen und am Computer anwenden; deren 20 eigene Film-Looks als Vorlagen (mit NOTICE/Quelle). | ⬜ | P2 |
+| REQ-I07 | **Look-Labor in der App** (wie Caduceus Control Panel/LookLab): Look bauen mit Vorschau an eigenen Bildern, „Look aus Foto ableiten“ (Perzentile, Graubalance, Farbsättigung je Farbe), Name und Rezept ins EXIF des erzeugten JPG. | ⬜ | P3 |
+| REQ-I08 | **In-Kamera-Annäherung der Looks** über Picture Mode, Contrast/Sharpness/Saturation, Gradation, Highlight&Shadow, WB-Shift, Color Creator (`colorphase`): soweit per Wi-Fi/USB setzbar, als Rezept zum Übernehmen (Setzen nur mit Freigabe), sonst Spickzettel für MySet. Grenze: E-M1 hat kein HSL je Farbe in der Kamera. | ⬜ | P3 |
 
 ## 7. Forschung
 
@@ -93,6 +98,7 @@ Agenten arbeiten gegen diese Liste.
 | REQ-R01 | USB-Werte-Lauscher an der Kamera laufen lassen und Menüpunkte zuordnen (`tools/usb_props.py`). | 🟡 gebaut, zurückgestellt | P2 |
 | REQ-R02 | Firmware-Vergleich E-M1 / PEN-F / E-P7: ist ein HSL-Patch denkbar? Nur Untersuchung, nie flashen. | ⬜ Dateien geladen | P3 |
 | REQ-R03 | Funktionen von OLYMPUS Capture 1.1 mit der E-M1 als Vorlage für USB. | 🟡 recherchiert | P3 |
+| REQ-R04 | Caduceus-Ansatz (Firmware-Patch mit Farb-Editor, OM-3 FW 1.1 / E-P7) für die E-M1 4.6 prüfen: Prozessor, Picture-Mode-Tabellen, Emulator (om-emu kennt nur E147/OM-3). Nur Untersuchung, nie flashen (REQ-S01). | ⬜ | P3 |
 
 ## 8. Qualität und Auslieferung
 
