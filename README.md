@@ -53,7 +53,7 @@ Contributions, tests with other bodies and ideas are very welcome.
 
 **Planned:** Star AF focus aid (star sharpness while you turn the focus ring), subject detection in
 live view (face/eye, later animals and birds) with "Focus on subject", film looks and a look lab on the
-computer. Details and status: [REQUIREMENTS.md](REQUIREMENTS.md).
+computer. Ideas and wishes are welcome in [Discussions](https://github.com/HolmHaensel/omcap/discussions).
 
 The interface is in English; all texts are in one translation table (`I18N` in
 `omcap/web/index.html`), so more languages can be added.
