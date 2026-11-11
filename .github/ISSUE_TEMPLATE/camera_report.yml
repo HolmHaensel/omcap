@@ -1,0 +1,39 @@
+name: Camera test report
+description: Tell us how E-M1 Capture works with your camera (any Olympus / OM System body)
+labels: ["camera-test"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Every report helps, also "it does not connect". Please do **not** include your serial number.
+  - type: input
+    id: camera
+    attributes:
+      label: Camera and firmware
+      placeholder: "PEN-F, firmware 3.1"
+    validations:
+      required: true
+  - type: checkboxes
+    id: tested
+    attributes:
+      label: What works?
+      options:
+        - label: Wi-Fi connects
+        - label: Wi-Fi live view
+        - label: Wi-Fi tap to focus and Take picture
+        - label: Wi-Fi settings (LV super control panel)
+        - label: Wi-Fi playback / save to computer
+        - label: USB connects
+        - label: USB live view
+        - label: USB focus and Take picture
+        - label: USB settings
+  - type: textarea
+    id: notes
+    attributes:
+      label: Notes, problems, Terminal output
+  - type: textarea
+    id: commandlist
+    attributes:
+      label: Wi-Fi command list (optional)
+      description: "Output of: curl -s -H 'User-Agent: OlympusCameraKit' http://192.168.0.10/get_commandlist.cgi"
+      render: xml

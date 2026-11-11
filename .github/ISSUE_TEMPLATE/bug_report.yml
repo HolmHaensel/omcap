@@ -1,0 +1,40 @@
+name: Bug report
+description: Something does not work as expected
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting! Please **remove your camera's serial number** and personal paths from logs.
+  - type: input
+    id: camera
+    attributes:
+      label: Camera and firmware
+      placeholder: "OM-D E-M1 Mark I, firmware 4.6"
+    validations:
+      required: true
+  - type: dropdown
+    id: connection
+    attributes:
+      label: Connection
+      options: ["Wi-Fi", "USB", "both"]
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: E-M1 Capture version and computer
+      placeholder: "0.2.1, macOS 15, Safari"
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: What did you do, what happened, what did you expect?
+    validations:
+      required: true
+  - type: textarea
+    id: log
+    attributes:
+      label: Terminal output of the app (optional)
+      render: text

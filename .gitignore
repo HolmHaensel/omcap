@@ -12,6 +12,10 @@
 !/LICENSE
 !/CHANGELOG.md
 !/pyproject.toml
+!/.github/
+!/CONTRIBUTING.md
+!/CODE_OF_CONDUCT.md
+!/SECURITY.md
 !/E-M1 Capture.command
 !/E-M1 Capture.bat
 
