@@ -1467,7 +1467,8 @@ async function showLast(before,retry,before2){
   }catch{}
   const src=local||(shot&&thumbUrl(shot.preview));
   // Wi-Fi: right after a shot the card list may fail or lack the new file: try again (up to 3x, 4 s apart)
-  if(!features.has('af_modes')&&!local&&!shot&&n<4) setTimeout(()=>showLast(before,n+1,before2),3000);
+  // Wi-Fi: the camera lists a new file only after it is written (seen: >12 s): try for up to a minute
+  if(!features.has('af_modes')&&!local&&!shot&&n<20) setTimeout(()=>showLast(before,n+1,before2),3000);
   if(!src) return;
   lastOpen=shot; img.hidden=false;
   // the camera may still be busy right after the shot: retry a failed thumbnail a few times
