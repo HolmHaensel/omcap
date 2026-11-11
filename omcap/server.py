@@ -48,6 +48,7 @@ options = {"host": "192.168.0.10", "allow_write": False}
 allowed_hosts = set()
 movtime_cache = {}  # (path, size) -> seconds
 lens_cache = {}  # card path -> lens data from EXIF
+exif_cache = {}  # card path -> picture info (shooting data) from EXIF
 
 busy = threading.Lock()  # only one shooting sequence at a time
 stop_job = threading.Event()
@@ -134,6 +135,7 @@ def disconnect():
         cam.close()
     cam, live, conn_type = None, None, None
     lens_cache.clear()
+    exif_cache.clear()
     device.update(at=0.0, card=None, battery=None)
     movtime_cache.clear()
     state.update(play=None, indexing=False)
@@ -694,6 +696,20 @@ def usb_lens():
     return info
 
 
+def picture_info(path):
+    """Shooting data of a JPG on the card for the playback info display, read once per path.
+
+    Wi-Fi reads only the file head; USB (libgphoto2) can only read the whole file.
+    """
+    if not path.lower().endswith((".jpg", ".jpeg")):
+        raise CameraError("Picture info only from JPG files")
+    if path not in exif_cache:
+        if len(exif_cache) > 2000:
+            exif_cache.clear()
+        exif_cache[path] = exif.picture_info(cam.read_head(path, exif.HEAD_BYTES))
+    return exif_cache[path]
+
+
 def lens(path):
     """Lens data of the shot path (JPG on the card), read only once per path."""
     if not path.lower().endswith((".jpg", ".jpeg")):
@@ -828,6 +844,8 @@ class Handler(BaseHTTPRequestHandler):
                 # USB knows the new files of a shot at once; Wi-Fi lists only the newest folder
                 # (the whole card list takes ~18 s with 2000 shots)
                 return self._send({"path": wifi_newest_jpg() if conn_type == "wifi" else state["last_shot"]})
+            if u.path == "/api/exif":
+                return self._send({"exif": picture_info(q["path"])})
             if u.path == "/api/lens":
                 return self._send({"lens": lens(q["path"]) if q.get("path") else usb_lens()})
             if u.path == "/api/thumb":
