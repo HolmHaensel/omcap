@@ -71,13 +71,13 @@ def synthetic_jpeg(with_note=True, fields=True):
 class PictureInfo(unittest.TestCase):
     def test_all_fields(self):
         info = exif.picture_info(synthetic_jpeg())
-        self.assertEqual(info["mode"], "A")
+        self.assertEqual(info["mode"], 3)
         self.assertEqual(info["shutter"], "1/250")
         self.assertEqual(info["aperture"], 4.0)
         self.assertEqual(info["compensation"], -0.3)
         self.assertEqual(info["iso"], 200)
-        self.assertEqual(info["white_balance"], "Auto")
-        self.assertEqual(info["metering"], "ESP")
+        self.assertEqual(info["white_balance"], 0)
+        self.assertEqual(info["metering"], 5)
         self.assertIs(info["flash"], False)
         self.assertEqual(info["focal"], 25.0)
         self.assertEqual(info["lens"], "M.ZUIKO 12-40mm F2.8")
@@ -87,7 +87,7 @@ class PictureInfo(unittest.TestCase):
 
     def test_picture_mode_from_maker_note(self):
         info = exif.picture_info(synthetic_jpeg())
-        self.assertEqual(info.get("picture_mode"), "Natural")
+        self.assertEqual(info.get("picture_mode"), 2)
 
     def test_missing_fields_are_left_out(self):
         info = exif.picture_info(synthetic_jpeg(with_note=False))
@@ -100,12 +100,24 @@ class PictureInfo(unittest.TestCase):
         self.assertEqual(exif._shutter(0.5), "0.5 s")
         self.assertEqual(exif._shutter(1 / 4000), "1/4000")
 
+    def test_truncated_header_never_raises(self):
+        full = synthetic_jpeg()
+        for n in (10, 30, 60, 90, 120, 200):
+            exif.picture_info(full[:n])  # None or partial, but no exception
+            exif.lens_info(full[:n])
+
+    def test_unknown_codes_are_left_out(self):
+        self.assertNotIn("metering", exif.picture_info(_only_iso(metering=1)))
+
     def test_no_exif(self):
         self.assertIsNone(exif.picture_info(b"not a jpeg"))
 
 
-def _only_iso():
-    exif_ifd = build_ifd([(0x8827, 3, 1, struct.pack("<H", 400))], 26)
+def _only_iso(metering=None):
+    ents = [(0x8827, 3, 1, struct.pack("<H", 400))]
+    if metering:
+        ents.append((0x9207, 3, 1, struct.pack("<H", metering)))
+    exif_ifd = build_ifd(ents, 26)
     ifd0 = build_ifd([(0x8769, 4, 1, 26)], 8)
     tiff = b"II*\0" + struct.pack("<I", 8) + ifd0 + exif_ifd
     return b"\xff\xd8\xff\xe1\x00\x10Exif\0\0" + tiff
@@ -120,6 +132,10 @@ def free_port():
 class FakeCam:
     features = []
     calls = 0
+
+    def read_file(self, path):
+        FakeCam.calls += 1
+        return synthetic_jpeg()
 
     def read_head(self, path, size):
         FakeCam.calls += 1
@@ -157,6 +173,20 @@ class ExifEndpoint(unittest.TestCase):
         self.assertEqual(body["exif"]["shutter"], "1/250")
         self.get("/api/exif?path=/DCIM/100OLYMP/P1010001.JPG")
         self.assertEqual(FakeCam.calls, 1)
+
+    def test_usb_reads_the_file_once_for_full_and_exif(self):
+        server.conn_type = "usb"
+        server.jpg_cache.clear()
+        path = "/DCIM/100OLYMP/P1010009.JPG"
+        server.read_jpg(path)  # what /api/full does
+        self.assertEqual(self.get("/api/exif?path=" + path)[0], 200)
+        self.assertEqual(FakeCam.calls, 1)
+
+    def test_usb_path_check(self):
+        from omcap import usb_camera
+        cam = usb_camera.UsbCamera.__new__(usb_camera.UsbCamera)
+        with self.assertRaises(CameraError):
+            cam.read_file("/etc/passwd")
 
     def test_raw_refused(self):
         code, body = self.get("/api/exif?path=/DCIM/100OLYMP/P1010001.ORF")

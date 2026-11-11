@@ -49,6 +49,21 @@ allowed_hosts = set()
 movtime_cache = {}  # (path, size) -> seconds
 lens_cache = {}  # card path -> lens data from EXIF
 exif_cache = {}  # card path -> picture info (shooting data) from EXIF
+# Last JPGs read completely (USB cannot read file heads): /api/full and /api/exif share them,
+# so opening a picture over USB reads the file from the card only once.
+jpg_cache = {}  # card path -> bytes, oldest first
+JPG_CACHE_MAX = 40 << 20
+
+
+def read_jpg(path):
+    """Whole JPG from the card, kept for a short while (size-limited)."""
+    if path in jpg_cache:
+        return jpg_cache[path]
+    data = cam.read_file(path)
+    jpg_cache[path] = data
+    while len(jpg_cache) > 1 and sum(len(v) for v in jpg_cache.values()) > JPG_CACHE_MAX:
+        jpg_cache.pop(next(iter(jpg_cache)))
+    return data
 
 busy = threading.Lock()  # only one shooting sequence at a time
 stop_job = threading.Event()
@@ -136,6 +151,7 @@ def disconnect():
     cam, live, conn_type = None, None, None
     lens_cache.clear()
     exif_cache.clear()
+    jpg_cache.clear()
     device.update(at=0.0, card=None, battery=None)
     movtime_cache.clear()
     state.update(play=None, indexing=False)
@@ -706,7 +722,9 @@ def picture_info(path):
     if path not in exif_cache:
         if len(exif_cache) > 2000:
             exif_cache.clear()
-        exif_cache[path] = exif.picture_info(cam.read_head(path, exif.HEAD_BYTES))
+        # USB: the whole file anyway, reuse what /api/full has read; Wi-Fi: only the head
+        head = read_jpg(path) if conn_type == "usb" else cam.read_head(path, exif.HEAD_BYTES)
+        exif_cache[path] = exif.picture_info(head)
     return exif_cache[path]
 
 
@@ -860,7 +878,7 @@ class Handler(BaseHTTPRequestHandler):
             if u.path == "/api/full":  # in shooting mode there are no large previews
                 if not q["path"].lower().endswith((".jpg", ".jpeg")):
                     raise CameraError("Only JPG files can be shown this way")
-                return self._image(cam.read_file(q["path"]), q)
+                return self._image(read_jpg(q["path"]) if conn_type == "usb" else cam.read_file(q["path"]), q)
             if u.path == "/live.mjpg":
                 return self._mjpeg()
             self._send({"error": "not found"}, code=404)

@@ -63,6 +63,29 @@ def _fnumber(v):
     return round(2 ** (v / 512), 1) if v else None
 
 
+def _locate(head):
+    """(tiff, exif IFD dict, tiff start) of a JPG head, or None if there is no readable EXIF."""
+    try:
+        t = head.index(b"Exif\0\0") + 6
+        tiff = _Tiff(head, t, head[t:t + 2])
+        ifd0 = tiff.ifd(struct.unpack_from(tiff.e + "I", head, t + 4)[0])
+        return tiff, tiff.ifd(tiff.value(ifd0[0x8769])), t
+    except (ValueError, KeyError, struct.error, TypeError):
+        return None
+
+
+def _maker_note(head, exif, t):
+    """(reader, top IFD) of the Olympus MakerNote, or None. Its offsets count from its own start."""
+    note = exif.get(0x927C)
+    if not note or note[2][:8] != b"OLYMPUS\0":
+        return None
+    try:
+        mn = _Tiff(head, head.index(note[2][:16], t), note[2][8:10])
+        return mn, mn.ifd(12)
+    except (ValueError, KeyError, struct.error, TypeError):
+        return None
+
+
 def lens_info(head):
     """Lens data as dict, or None if nothing readable is inside.
 
@@ -70,21 +93,17 @@ def lens_info(head):
     (maximum aperture at the short/long end), focal, aperture_now (focal length and
     maximum aperture at the time of the shot).
     """
-    try:
-        t = head.index(b"Exif\0\0") + 6
-        tiff = _Tiff(head, t, head[t:t + 2])
-        ifd0 = tiff.ifd(struct.unpack_from(tiff.e + "I", head, t + 4)[0])
-        exif = tiff.ifd(tiff.value(ifd0[0x8769]))
-    except (ValueError, KeyError, struct.error, TypeError):
+    loc = _locate(head)
+    if not loc:
         return None
+    tiff, exif, t = loc
     info = {"model": tiff.value(exif[0xA434]) if 0xA434 in exif else None,
             "focal": tiff.value(exif[0x920A]) if 0x920A in exif else None}
-    note = exif.get(0x927C)
-    if note and note[2][:8] == b"OLYMPUS\0":
+    note = _maker_note(head, exif, t)
+    if note:
+        mn, top = note
         try:
-            # MakerNote offsets count from its own start
-            mn = _Tiff(head, head.index(note[2][:16], t), note[2][8:10])
-            eq = mn.ifd(mn.value(mn.ifd(12)[0x2010]))
+            eq = mn.ifd(mn.value(top[0x2010]))
             get = lambda tag: mn.value(eq[tag]) if tag in eq else None
             info.update(model=get(_EQ_MODEL) or info["model"],
                         focal_min=get(_EQ_FOCAL_MIN), focal_max=get(_EQ_FOCAL_MAX),
@@ -97,11 +116,10 @@ def lens_info(head):
 
 
 # --- picture info for the playback "Overall display" ---------------------------------------
-EXPOSURE_PROGRAM = {1: "M", 2: "P", 3: "A", 4: "S", 5: "Creative", 6: "Action", 7: "Portrait", 8: "Landscape"}
-METERING = {1: "Average", 2: "Center-weighted", 3: "Spot", 4: "Multi-pattern", 5: "ESP", 6: "Partial"}
-# Olympus CameraSettings (0x2020) tag 0x0520, first value
-PICTURE_MODE = {1: "Vivid", 2: "Natural", 3: "Muted", 4: "Portrait", 5: "i-Enhance", 6: "e-Portrait",
-                7: "Color Creator", 8: "Underwater", 256: "Monotone", 512: "Custom"}
+# Codes only (the page translates them with the manual terms); codes not listed are left out.
+METERING_CODES = {2, 3, 4, 5}  # EXIF MeteringMode: center weighted, spot, multi spot, ESP
+# Olympus CameraSettings (0x2020) tag 0x0520 (exiftool table)
+PICTURE_MODE_CODES = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 17, 18, 256, 512}
 _MN_CAMERA_SETTINGS, _CS_PICTURE_MODE = 0x2020, 0x0520
 
 
@@ -116,59 +134,61 @@ def _shutter(v):
 def picture_info(head):
     """Shooting data of a JPG as dict; fields that are not in the file are left out.
 
-    Keys: mode (P/A/S/M ...), shutter ("1/250"), aperture (F number), compensation (EV), iso,
-    white_balance, metering, flash, focal (mm), lens, picture_mode, color_space, pixels
-    ("4608x3456"), datetime ("2026-11-09 09:14:12"). Returns None if there is no EXIF at all.
+    Keys: mode (ExposureProgram code: 1 M, 2 P, 3 A, 4 S), shutter ("1/250"), aperture (F number),
+    compensation (EV), iso, white_balance (0 auto, 1 manual), metering (EXIF code), flash, focal (mm),
+    lens, picture_mode (Olympus code), color_space, pixels ("4608x3456"), datetime
+    ("2026-11-09 09:14:12"). None if there is no EXIF at all. Never raises on odd files.
     """
-    try:
-        t = head.index(b"Exif\0\0") + 6
-        tiff = _Tiff(head, t, head[t:t + 2])
-        ifd0 = tiff.ifd(struct.unpack_from(tiff.e + "I", head, t + 4)[0])
-        ex = tiff.ifd(tiff.value(ifd0[0x8769]))
-    except (ValueError, KeyError, struct.error, TypeError):
+    loc = _locate(head)
+    if not loc:
         return None
-    get = lambda tag: tiff.value(ex[tag]) if tag in ex else None
+    tiff, ex, t = loc
     out = {}
 
     def put(key, val):
         if val not in (None, ""):
             out[key] = val
-    put("mode", EXPOSURE_PROGRAM.get(get(0x8822)))
-    put("shutter", _shutter(get(0x829A)))
-    fn = get(0x829D)
-    put("aperture", round(fn, 1) if fn else None)
-    bias = get(0x9204)
-    put("compensation", round(bias, 1) if bias is not None else None)
-    put("iso", get(0x8827))
-    put("white_balance", {0: "Auto", 1: "Manual"}.get(get(0xA403)))
-    put("metering", METERING.get(get(0x9207)))
-    fl = get(0x9209)
-    if fl is not None:
-        out["flash"] = bool(fl & 1)
-    fo = get(0x920A)
-    put("focal", round(fo, 1) if fo else None)
-    put("lens", get(0xA434))
-    put("color_space", {1: "sRGB", 2: "Adobe RGB", 0xFFFF: "Adobe RGB"}.get(get(0xA001)))
-    w, h = get(0xA002), get(0xA003)
-    if w and h:
-        out["pixels"] = "%dx%d" % (w, h)
-    dt = get(0x9003)
-    if isinstance(dt, str) and len(dt) >= 19:
-        out["datetime"] = dt[:4] + "-" + dt[5:7] + "-" + dt[8:10] + dt[10:19]
-    note = ex.get(0x927C)
-    if note and note[2][:8] == b"OLYMPUS\0":
+    try:
+        get = lambda tag: tiff.value(ex[tag]) if tag in ex else None
+        put("mode", get(0x8822))
+        put("shutter", _shutter(get(0x829A)))
+        fn = get(0x829D)
+        put("aperture", round(fn, 1) if fn else None)
+        bias = get(0x9204)
+        put("compensation", round(bias, 1) if bias is not None else None)
+        put("iso", get(0x8827))
+        wb = get(0xA403)
+        put("white_balance", wb if wb in (0, 1) else None)
+        m = get(0x9207)
+        put("metering", m if m in METERING_CODES else None)
+        fl = get(0x9209)
+        if fl is not None:
+            out["flash"] = bool(fl & 1)
+        fo = get(0x920A)
+        put("focal", round(fo, 1) if fo else None)
+        put("lens", get(0xA434))
+        put("color_space", {1: "sRGB", 2: "Adobe RGB", 0xFFFF: "Adobe RGB"}.get(get(0xA001)))
+        w, h = get(0xA002), get(0xA003)
+        if w and h:
+            out["pixels"] = "%dx%d" % (w, h)
+        dt = get(0x9003)
+        if isinstance(dt, str) and len(dt) >= 19:
+            out["datetime"] = dt[:4] + "-" + dt[5:7] + "-" + dt[8:10] + dt[10:19]
+    except (ValueError, KeyError, struct.error, TypeError):
+        pass
+    note = _maker_note(head, ex, t)
+    if note:
+        mn, top = note
         try:
-            # MakerNote offsets count from its own start (as in lens_info)
-            mn = _Tiff(head, head.index(note[2][:16], t), note[2][8:10])
-            top = mn.ifd(12)
-            try:
-                cs = mn.ifd(mn.value(top[_MN_CAMERA_SETTINGS]))
-                put("picture_mode", PICTURE_MODE.get(mn.value(cs[_CS_PICTURE_MODE])))
-            except (KeyError, struct.error, TypeError):
-                pass
-            if "lens" not in out and 0x2010 in top:
-                eq = mn.ifd(mn.value(top[0x2010]))
-                put("lens", mn.value(eq[_EQ_MODEL]) if _EQ_MODEL in eq else None)
+            cs = mn.ifd(mn.value(top[_MN_CAMERA_SETTINGS]))
+            pm = mn.value(cs[_CS_PICTURE_MODE])
+            put("picture_mode", pm if pm in PICTURE_MODE_CODES else None)
         except (ValueError, KeyError, struct.error, TypeError):
             pass
+        if "lens" not in out:
+            try:
+                eq = mn.ifd(mn.value(top[0x2010]))
+                put("lens", mn.value(eq[_EQ_MODEL]) if _EQ_MODEL in eq else None)
+            except (ValueError, KeyError, struct.error, TypeError):
+                pass
     return out or None

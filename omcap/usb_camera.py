@@ -13,7 +13,7 @@ import subprocess
 import threading
 import time
 
-from .camera import CameraError, WriteBlocked
+from .camera import CameraError, WriteBlocked, _check_path
 
 AF_MODES = (33024, 33025, 33026, 33027)
 AF_ALL = 33024
@@ -408,6 +408,7 @@ class UsbCamera:
         raise CameraError("No medium-size preview over USB")
 
     def read_file(self, path):
+        _check_path(path)
         return self._file_bytes(path, self.gp.GP_FILE_TYPE_NORMAL)
 
     def read_head(self, path, size):
