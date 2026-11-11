@@ -134,6 +134,24 @@ button:disabled{color:var(--disabled);opacity:.6;cursor:not-allowed}
 .hrow{display:flex;align-items:center;justify-content:space-between}
 .mini{font-size:11px;padding:1px 8px;background:transparent;color:var(--muted);font-weight:400;letter-spacing:0}
 #roProps{margin-top:var(--s2);font-size:var(--fs-label);color:var(--muted)}
+#panels .row label:has(input[type=text]),#panels .row label:has(select#svScheme){flex:1;min-width:0}
+#panels input[type=text]{width:100%;min-width:0}
+#svPrefix{width:8em}
+#svInfo{font-size:var(--fs-label);margin-bottom:var(--s2);overflow-wrap:anywhere}
+#shutterBox{display:flex;flex-direction:column;gap:var(--s3)}
+#timerSeg{width:100%}
+#timerSeg button{flex:1;width:auto;height:40px}
+#timerLab{display:flex;align-items:center;justify-content:space-between;font-size:var(--fs-label);color:var(--muted)}
+#shutRow{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.6fr);gap:var(--s2)}
+#shutRow button{height:var(--shutter-h);font-size:var(--fs-body);font-weight:600}
+#shutRow #half{background:transparent}
+#shutRow #half.on{background:var(--accent-soft);border-color:var(--accent);color:var(--accent)}
+#shutRow #shoot{background:var(--accent);border-color:var(--accent);color:var(--accent-ink);font-size:var(--fs-shutter)}
+#shutRow #shoot:disabled{background:var(--surface-raised);border-color:var(--line);color:var(--disabled)}
+#shutRow #shoot.cancel{background:transparent;color:var(--accent);border-color:var(--accent)}
+#movStop{background:var(--rec);border-color:var(--rec);color:#fff;font-weight:600}
+#movTime{color:var(--rec-text);font-family:var(--font-value)}
+#movQuality{font-family:var(--font-value);font-size:var(--fs-label)}
 #afModes{display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}
 #gal{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}
 #gal figure{margin:0;font-size:11px;color:var(--mut);min-width:0;overflow-wrap:anywhere}
@@ -316,13 +334,18 @@ body.webcam{cursor:none;display:flex;align-items:center;justify-content:center}
     </div>
   </section>
   <section data-id="shutter" data-label="Shutter button" data-i18n-label="panel.shutter">
-    <h2 data-i18n="panel.shutter">Shutter button</h2>
-    <div class="row">
-      <button class="w" id="shoot" data-i18n="shutter.take">Take picture</button>
-      <label><span data-i18n="timer.label">Self-timer</span> <select id="timerSel">
-        <option value="0" data-i18n="timer.off">Off</option><option value="2" data-i18n="timer.s2">2 s</option><option value="12" data-i18n="timer.s12">12 s</option>
-      </select></label>
-      <button class="w" id="half" data-feat="stages" data-i18n="shutter.half">Press halfway</button>
+    <div id="shutterBox">
+      <div>
+        <div id="timerLab"><span data-i18n="timer.label">Self-timer</span><span id="timerHint"></span></div>
+        <div class="seg" id="timerSeg" role="group" data-i18n-aria="timer.label" aria-label="Self-timer">
+          <button type="button" data-t="0" class="on" data-i18n="timer.off">Off</button><button type="button" data-t="2" data-i18n="timer.s2">2 s</button><button type="button" data-t="12" data-i18n="timer.s12">12 s</button>
+        </div>
+        <select id="timerSel" hidden><option value="0">0</option><option value="2">2</option><option value="12">12</option></select>
+      </div>
+      <div id="shutRow">
+        <button id="half" data-feat="stages" aria-pressed="false" data-i18n="shutter.half">Press halfway</button>
+        <button id="shoot" data-i18n="shutter.take">Take picture</button>
+      </div>
     </div>
   </section>
   <section data-id="transfer" data-label="Save to" data-i18n-label="panel.transfer">
@@ -417,6 +440,7 @@ const $=s=>document.querySelector(s);
       Server messages are English; with a key 'srv.<message>' they can be translated.
       Language: localStorage 'omcap.lang', else browser language, else en. */
 const I18N={en:{
+  "timer.cancel": "Cancel self-timer",
   "scp.modeDialHint": "Set on the mode dial (read only over USB)",
   "lv.zoomGroup": "View zoom (in the app, not the camera)",
   "lv.focusing": "Focusing …",
@@ -702,7 +726,7 @@ let st={stage:0,job:{}},canWrite=false,wasBusy=false,blank=0,connected=false,fea
 async function tick(){
   if(view||!connected) return;
   try{st=await api('/api/state')}catch(e){if(e.message===tr('srv.offline'))msg(e.message,true);return}
-  $('#half').classList.toggle('on',st.stage>=1);
+  $('#half').classList.toggle('on',st.stage>=1); $('#half').setAttribute('aria-pressed',st.stage>=1?'true':'false');
   $('#empty').hidden=st.live;
   $('#lvStart').hidden=st.live||!canWrite; $('#lvStop').hidden=!st.live;
   renderStrip();
@@ -1602,10 +1626,11 @@ $('#lvStop').onclick=()=>act(tr('msg.lvStopped'),'/api/liveview',{action:'stop'}
       as on the real shutter button. All the way and release are merged into it. */
 /* Self-timer: purely client-side countdown, then the normal take-picture path */
 let timerId=null,timerRes=null;
-function timerStop(){clearInterval(timerId);timerId=null;$('#timerCount').hidden=true}
+function timerStop(){clearInterval(timerId);timerId=null;$('#timerCount').hidden=true;$('#shoot').classList.remove('cancel');$('#shoot').textContent=tr('shutter.take')}
 function timerStart(sec){
   return new Promise(res=>{
     let n=sec; const box=$('#timerCount'); box.textContent=n; box.hidden=false; msg(tr('timer.running'));
+    $('#shoot').classList.add('cancel'); $('#shoot').textContent=tr('timer.cancel');
     timerRes=res;
     timerId=setInterval(()=>{n--;if(n>0){box.textContent=n;return}timerStop();timerRes=null;res(true)},1000);
   });
@@ -1657,6 +1682,10 @@ $('#shoot').onclick=async()=>{
   // Wi-Fi: the camera is still writing after the shot, the first list often lacks the new image
   if(!features.has('af_modes')) setTimeout(()=>gallery(),4000);
 };
+document.querySelectorAll('#timerSeg [data-t]').forEach(b=>b.onclick=()=>{
+  $('#timerSel').value=b.dataset.t;
+  document.querySelectorAll('#timerSeg [data-t]').forEach(x=>x.classList.toggle('on',x===b));
+});
 $('#half').onclick=async()=>{
   const pressing=st.stage<1;
   const j=await act(tr('msg.shutter'),'/api/shutter',{stage:st.stage>=1?0:1});
