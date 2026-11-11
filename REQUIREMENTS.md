@@ -139,9 +139,9 @@ Thema: stabil und alltagstauglich mit USB und Wi-Fi. Größeres (Design-System, 
 | In 0.3 | REQ | Stand |
 |---|---|---|
 | Angetipptes AF-Feld sofort markieren | F04 | 🟡 gebaut (`focus-speed`) |
-| Webcam-Knopf (öffnet Ansicht, kopiert OBS-Link) | D05 | 🟡 in release-0.3 gemergt, Kameratest offen |
-| Speicherort in der App wählbar, Dateinamen-Schema | F17 | 🟡 in release-0.3 gemergt, Kameratest offen |
-| HSL in der App: Einzelansicht, „On the computer“, optional beim Speichern | I01, I04 | 🟡 in release-0.3 gemergt, Kameratest offen |
+| Webcam-Knopf (öffnet Ansicht, kopiert OBS-Link) | D05 | 🟡 Wi-Fi getestet ✅, USB offen |
+| Speicherort in der App wählbar, Dateinamen-Schema | F17 | 🟡 Wi-Fi getestet ✅, USB offen |
+| HSL in der App: Einzelansicht, „On the computer“, optional beim Speichern | I01, I04 | 🟡 Wi-Fi getestet ✅, USB offen |
 | Einfacher Start (Doppelklick, Browser öffnet sich, läuft schon) | Q05 | 🟡 gebaut |
 | Kartenplatz über Wi-Fi (`errorcode 1001`) | F19 | ⬜ |
 
