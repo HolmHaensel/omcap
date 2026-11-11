@@ -15,8 +15,13 @@ class FakeGp:
     GP_FILE_TYPE_NORMAL = 1
     GP_FILE_TYPE_PREVIEW = 2
 
+    GP_ERROR_NOT_SUPPORTED = -6
+    GP_ERROR_TIMEOUT = -10
+
     class GPhoto2Error(Exception):
-        pass
+        def __init__(self, code):
+            super().__init__(code)
+            self.code = code
 
 
 class FakeFile:
@@ -25,15 +30,15 @@ class FakeFile:
 
 
 class FakeCam:
-    def __init__(self, partial=True, fail=False):
-        self.partial, self.fail, self.full_reads, self.part_reads = partial, fail, 0, 0
+    def __init__(self, partial=True, fail=False, code=-6):
+        self.partial, self.fail, self.code, self.full_reads, self.part_reads = partial, fail, code, 0, 0
         if partial:
             self.file_read = self._file_read
 
     def _file_read(self, folder, name, kind, offset, buf):
         self.part_reads += 1
         if self.fail:
-            raise FakeGp.GPhoto2Error("not supported")
+            raise FakeGp.GPhoto2Error(self.code)
         n = min(len(buf), len(DATA) - offset)
         buf[:n] = DATA[offset:offset + n]
         return n
@@ -70,6 +75,13 @@ class Head(unittest.TestCase):
         u.read_head(PATH, 100)
         self.assertEqual(c.part_reads, 1)  # not retried after the first failure
         self.assertEqual(c.full_reads, 2)
+
+    def test_passing_error_keeps_partial(self):
+        c = FakeCam(fail=True, code=FakeGp.GP_ERROR_TIMEOUT)
+        u = make(c)
+        self.assertEqual(u.read_head(PATH, 100), DATA[:100])  # full read for this file only
+        u.read_head(PATH, 100)
+        self.assertEqual(c.part_reads, 2)  # partial read tried again for the next file
 
     def test_path_check(self):
         for fn in (lambda u: u.read_head("/etc/passwd", 10), lambda u: u.thumbnail("/store_00010001/DCIM/../x"),

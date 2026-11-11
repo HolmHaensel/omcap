@@ -37,7 +37,7 @@ Contributions, tests with other bodies and ideas are very welcome.
 | Movie: Start/Stop recording, movie shooting mode P/A/S/M | yes | – |
 | Time lapse shooting, AE BKT, BULB / LIVE TIME / LIVECOMP | built, partly tested | built, partly tested |
 | Playback: Index display, Calendar display, single-frame view, save to computer | yes | yes |
-| Playback: shooting data (Overall display), line on thumbnails | yes | single frame only (USB reads the whole file) |
+| Playback: shooting data (Overall display), line on thumbnails | yes | yes |
 | Save to card only or card and computer | yes | yes |
 | Free card space in the header | yes | yes |
 | Battery level | – (no command) | yes |

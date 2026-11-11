@@ -435,8 +435,13 @@ class UsbCamera:
                 return bytes(buf[:min(got, size)])
             try:
                 return self._call(part)
-            except Exception:
-                self._no_partial = True  # do not try again on every file
+            except (TypeError, AttributeError, NotImplementedError, self.gp.GPhoto2Error) as e:
+                # the binding or the camera cannot read partially: stop trying for this session
+                if isinstance(e, self.gp.GPhoto2Error) and getattr(e, "code", None) != self.gp.GP_ERROR_NOT_SUPPORTED:
+                    return self.read_file(path)[:size]  # passing error: full read for this file only
+                self._no_partial = True
+            except CameraError:
+                return self.read_file(path)[:size]  # empty answer: full read for this file only
         return self.read_file(path)[:size]
 
     def warm_index(self):

@@ -63,7 +63,7 @@ def read_jpg(path):
         return jpg_cache[path]
     data = cam.read_file(path)
     jpg_cache[path] = data
-    while len(jpg_cache) > 1 and sum(len(v) for v in jpg_cache.values()) > JPG_CACHE_MAX:
+    while len(jpg_cache) > 1 and sum(len(v) for v in list(jpg_cache.values())) > JPG_CACHE_MAX:
         jpg_cache.pop(next(iter(jpg_cache)))
     return data
 
@@ -745,7 +745,7 @@ def picture_info(path):
     if path not in exif_cache:
         if len(exif_cache) > 2000:
             exif_cache.clear()
-                # a file already read in full for /api/full is reused (USB); otherwise only the head
+        # a file already read in full for /api/full is reused (USB); otherwise only the head
         head = jpg_cache.get(path) or cam.read_head(path, exif.HEAD_BYTES)
         exif_cache[path] = exif.picture_info(head)
     return exif_cache[path]

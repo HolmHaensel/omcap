@@ -1194,7 +1194,7 @@ const gv={n:9,mode:'index',day:null,month:null,exif:false,info:'simple',...loadG
 if(![4,9,25].includes(gv.n)) gv.n=gv.n>25?25:9; // older versions also had 100 per page
 if(!['image','simple','overall'].includes(gv.info)) gv.info='simple';
 function saveGal(){try{localStorage.setItem(GAL_KEY,JSON.stringify({n:gv.n,mode:gv.mode,exif:gv.exif,info:gv.infoSet?gv.info:undefined,infoSet:gv.infoSet}))}catch{}}
-/* Shooting data (EXIF) per path, one request each; the thumbnail line only over Wi-Fi (USB reads whole files) */
+/* Shooting data (EXIF) per path, one request each; the server reads only the start of each file */
 const exifCache=new Map();
 async function exifOf(f){
   if(!isJpg(f)) return null;
