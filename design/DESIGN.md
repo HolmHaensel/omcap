@@ -19,6 +19,17 @@ Tokens: [`tokens.css`](tokens.css). Planned for version 0.4.
    appear over Wi-Fi and vice versa, so the screen stays calm. Only missing write permission is shown
    as disabled with a reason ("Write is off …").
 
+## Live view and shutter always together
+
+The live view and *Take picture* are visible at the same time on every screen size, without scrolling:
+- **Wide (> 1100 px):** the page fits the window; only the right column scrolls, and the shutter block
+  sticks inside it (top and bottom). The live view box is limited by the window height.
+- **Narrow, tablet, phone portrait (≤ 1100 px):** the live view sticks to the top (max. 45 % of the
+  height), the shutter block is a bar fixed at the bottom, the panels scroll in between.
+- **Phone landscape (≤ 520 px high):** three columns, nothing sticky.
+- The live view box always stays exactly 4:3 (width derived from the available height), so the AF grid
+  lies on the picture.
+
 ## Screen layout (computer)
 
 | Area | Content |

@@ -90,7 +90,7 @@ button:disabled{color:var(--disabled);opacity:.6;cursor:not-allowed}
 .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:8px}
 .row:last-child{margin-bottom:0}
 .row label{display:flex;gap:4px;align-items:center}
-#viewport{position:relative;overflow:hidden;background:#000;border-radius:var(--r-lg);aspect-ratio:4/3;width:100%;max-height:74vh;margin:0 auto;touch-action:none}
+#viewport{position:relative;overflow:hidden;background:#000;border-radius:var(--r-lg);aspect-ratio:4/3;width:min(100%,calc(74vh * 4 / 3));margin:0 auto;touch-action:none}
 #zoomLayer{position:absolute;inset:0;transform-origin:0 0}
 #levelGauge{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
 #live,#ovl,#grid,#afGrid{position:absolute;inset:0;width:100%;height:100%;object-fit:contain}
@@ -230,19 +230,38 @@ body.webcam{cursor:none;display:flex;align-items:center;justify-content:center}
   input[type=checkbox],input[type=radio]{width:22px;height:22px}
   .lr button{min-width:var(--touch)}
 }
+/* Shooting view always shows the live view and the shutter button together (no page scrolling needed).
+   Wide: the page fits the window, only the right column scrolls, the shutter block stays in view. */
+@media(min-width:1101px){
+  #app:not([hidden]){display:flex;flex-direction:column;height:100vh}
+  main{flex:1;min-height:0;padding-bottom:var(--s3)}
+  #liveCol{min-height:0}
+  #viewport{width:min(100%,calc((100vh - 190px) * 4 / 3))}
+  #panels{max-height:calc(100vh - 92px);overflow-y:auto;overscroll-behavior:contain;padding-right:4px}
+  #panels>[data-id=shutter]{position:sticky;top:0;bottom:0;z-index:5;box-shadow:0 0 0 6px var(--ground)}
+}
+/* Stacked (narrow window, tablet, phone portrait): live view sticks to the top,
+   the shutter block is a bar at the bottom, the panels scroll in between. */
+@media(max-width:1100px){
+  #liveCol{position:sticky;top:0;z-index:10;background:var(--ground);padding-bottom:var(--s2)}
+  #viewport{width:min(100%,calc(45vh * 4 / 3))}
+  main{padding-bottom:190px}
+  #panels>[data-id=shutter]{position:fixed!important;left:0;right:0;bottom:0;z-index:20;border-radius:var(--r-lg) var(--r-lg) 0 0;border-bottom:0;padding:var(--s2) 12px calc(var(--s2) + env(safe-area-inset-bottom,0px));background:var(--surface)}
+}
 /* Phone, portrait: header, image full width, chips, panels below; Take picture stays at the bottom */
 @media(max-width:599px){
+  html,body{overflow-x:hidden}
+  #panels>[data-id=shutter] *{min-width:0}
   header{padding:8px 12px;gap:var(--s2)}
   #hdrInfo,#hdrCard,#hdrBat,#layoutBtn,#writeChip{display:none}
   main{padding:var(--s2) 12px 190px;gap:var(--s3)}
-  #viewport{max-height:none;border-radius:var(--r-md)}
+  #viewport{border-radius:var(--r-md)}
   #valStrip{font-size:14px;gap:12px;padding:0 10px;height:36px}
   #lastShot{bottom:46px;width:22%}
   #recChip{bottom:46px}
   .tb{overflow-x:auto;flex-wrap:nowrap;padding-bottom:4px;-webkit-overflow-scrolling:touch}
   .tb>*{flex-shrink:0}
   #props{grid-template-columns:repeat(2,minmax(0,1fr))}
-  #panels>[data-id=shutter]{position:fixed!important;left:0;right:0;bottom:0;z-index:20;border-radius:var(--r-lg) var(--r-lg) 0 0;border-bottom:0;padding:var(--s2) 12px calc(var(--s2) + env(safe-area-inset-bottom,0px));background:var(--surface)}
   #shutterBox{gap:var(--s2)}
   #timerLab{display:none}
   #timerSeg button{height:var(--touch)}
@@ -261,8 +280,9 @@ body.webcam{cursor:none;display:flex;align-items:center;justify-content:center}
   #panels>section{grid-column:3}
   #panels>[data-id=scp]{grid-column:1;grid-row:1/span 8}
   #liveCol{grid-column:2;grid-row:1/span 8}
-  #panels>[data-id=shutter]{order:-1!important;grid-row:1}
-  #viewport{max-height:calc(100vh - 120px)}
+  #panels>[data-id=shutter]{order:-1!important;grid-row:1;position:static!important;border-radius:var(--r-lg)}
+  #liveCol{position:static}
+  #viewport{width:min(100%,calc((100vh - 120px) * 4 / 3))}
   #props{grid-template-columns:minmax(0,1fr)}
   #props label.wide{grid-column:auto}
   #shutRow{grid-template-columns:minmax(0,1fr)}
