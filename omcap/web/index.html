@@ -49,10 +49,20 @@ body{margin:0;background:var(--ground);color:var(--text);font:var(--fs-body)/1.4
 header{display:flex;gap:var(--s3);align-items:center;flex-wrap:wrap;padding:10px 20px;border-bottom:1px solid var(--line)}
 h1{font-size:var(--fs-title);font-weight:700;letter-spacing:.2px;margin:0}
 h2{font-size:var(--fs-label);margin:0 0 var(--s2);color:var(--muted);font-weight:600;letter-spacing:.3px}
-main{display:grid;grid-template-columns:minmax(0,1fr) 380px;gap:16px;padding:16px;align-items:start}
-@media(max-width:900px){main{grid-template-columns:minmax(0,1fr)}}
+main{display:grid;grid-template-columns:minmax(0,1044px) 340px;justify-content:center;gap:var(--s4);padding:var(--s4) 20px 20px;align-items:start}
+@media(max-width:1100px){main{grid-template-columns:minmax(0,1fr)}}
+#liveCol{display:flex;flex-direction:column;gap:10px;min-width:0}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--muted);display:inline-block}
+.chip.ok .dot{background:var(--focus)}
+.chip.amber{border-color:var(--accent-line);color:var(--accent)}
+#hdrInfo{font-size:13px;color:var(--muted)}
+#hdrInfo .v{font-family:var(--font-value)}
+.hbtn{height:36px;padding:0 14px;font-weight:500}
+.hbtn.quiet{background:transparent}
+.hbtn.icon{width:36px;padding:0;display:inline-flex;align-items:center;justify-content:center;background:transparent;color:var(--rec-text)}
+#localDlg{width:min(560px,calc(100vw - 32px))}
 section{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-lg);padding:var(--s3)}
-#panels{display:flex;flex-direction:column;gap:12px}
+#panels{display:flex;flex-direction:column;gap:10px}
 .mut{color:var(--mut)} .warn{color:var(--warn);white-space:pre-line} .sp{margin-left:auto}
 button,select,input[type=number],input[type=text]{font:inherit;padding:6px 10px;border:1px solid var(--line);background:var(--surface);color:var(--text);border-radius:var(--r-sm);transition:background var(--t-fast),border-color var(--t-fast)}
 input[type=number]{width:76px}
@@ -149,14 +159,22 @@ body.webcam{cursor:none;display:flex;align-items:center;justify-content:center}
 <div id="app" hidden>
 <header>
   <h1>E-M1 Capture</h1>
+  <span id="connChip" class="chip ok" hidden><span class="dot"></span><span id="connText"></span></span>
+  <span id="writeChip" class="chip" hidden></span>
   <span id="status" class="mut" data-i18n="app.connecting">connecting …</span>
-  <button id="discon" class="sp" data-i18n="app.disconnect">Disconnect</button>
-  <button id="poweroff" class="w" data-feat="poweroff" data-i18n="app.poweroff">Turn off camera</button>
-  <button id="layoutBtn" data-i18n="app.layout">Customize layout</button>
-  <button id="reset" class="w" data-i18n="app.reset" data-i18n-title="app.resetTitle">Reset camera</button>
+  <span id="hdrInfo"><span id="lensText"></span></span>
+  <span class="sp"></span>
+  <span id="hdrCard" class="mut" style="font-family:var(--font-value);font-size:13px"></span>
+  <span id="hdrBat" class="mut" style="font-family:var(--font-value);font-size:13px"></span>
+  <button id="hdrPlay" class="hbtn" data-feat="playback" data-i18n="card.index">Index display</button>
+  <button id="hdrLocal" class="hbtn" data-i18n="local.title">On the computer</button>
+  <button id="layoutBtn" class="hbtn quiet" data-i18n="app.layout">Customize layout</button>
+  <button id="reset" class="hbtn w" data-i18n="app.reset" data-i18n-title="app.resetTitle">Reset camera</button>
+  <button id="discon" class="hbtn quiet" data-i18n="app.disconnect">Disconnect</button>
+  <button id="poweroff" class="hbtn icon w" data-feat="poweroff" data-i18n-aria="app.poweroff" data-i18n-title="app.poweroff"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 3v8"/><path d="M6.3 7.2a8 8 0 1 0 11.4 0"/></svg></button>
 </header>
 <main>
-<div>
+<div id="liveCol">
   <div class="row">
     <button class="w" id="lvStart" data-i18n="lv.start">Start live view</button>
     <button id="lvStop" data-i18n="lv.stop">Stop</button>
@@ -299,10 +317,6 @@ body.webcam{cursor:none;display:flex;align-items:center;justify-content:center}
     <div class="row"><button id="galOpen" data-i18n="card.index">Index display</button><button id="reload" data-i18n="card.reload">Reload</button><span id="count" class="mut"></span></div>
     <div id="gal"></div>
   </section>
-  <section data-id="local" data-label="Pictures on the computer" data-i18n-label="panel.local">
-    <h2 data-i18n="local.title">On the computer</h2>
-    <div id="local"></div>
-  </section>
 </div>
 </main>
 </div>
@@ -347,6 +361,11 @@ body.webcam{cursor:none;display:flex;align-items:center;justify-content:center}
       <span class="mut" data-i18n="hsl.after">After</span></div>
   </div>
 </form></dialog>
+<dialog id="localDlg"><form method="dialog">
+  <h2 data-i18n="local.title">On the computer</h2>
+  <div id="local"></div>
+  <div class="row" style="margin-top:12px"><button data-i18n="layout.close">Close</button></div>
+</form></dialog>
 <dialog id="layoutDlg"><form method="dialog">
   <div id="layoutBody"></div>
   <div class="row" style="margin-top:12px"><button data-i18n="layout.close">Close</button><button type="button" id="layoutReset" data-i18n="layout.reset">Reset</button></div>
@@ -375,8 +394,8 @@ const I18N={en:{
   "app.layout": "Customize layout",
   "app.reset": "Reset camera",
   "app.resetTitle": "If the camera is stuck in shutter mode",
-  "app.write": "write enabled",
-  "app.readOnly": "read only",
+  "app.write": "Write enabled",
+  "app.readOnly": "Read only",
   "lv.start": "Start live view",
   "lv.stop": "Stop",
   "lv.size": "Size",
@@ -717,7 +736,11 @@ function showStatus(){
   const bat=device.battery!=null?tr('status.battery',{v:device.battery}):null;
   // without a lens name (USB without JPG) at least the focal length range
   const lensName=lens&&(lens.model||(lens.focal_min?(lens.focal_min===lens.focal_max?lens.focal_min:lens.focal_min+'–'+lens.focal_max)+' mm':null));
-  $('#status').textContent=[statusBase.model,lensName,statusBase.conn,statusBase.rights,card,bat].filter(Boolean).join(' · ');
+  const set=(id,t)=>{$(id).textContent=t||''};
+  $('#status').textContent=''; $('#connChip').hidden=false;
+  $('#connText').textContent=statusBase.model+' · '+statusBase.conn;
+  const w=$('#writeChip'); w.hidden=false; w.textContent=statusBase.rights; w.className='chip'+(canWrite?' amber':'');
+  set('#lensText',lensName); set('#hdrCard',card); set('#hdrBat',bat);
 }
 /* Card space and battery: the server asks the camera at most every 30 s, fresh=1 after a shot */
 let device={card:null,battery:null},deviceAt=0;
@@ -1039,6 +1062,8 @@ async function openGal(){
 function closeGal(){$('#galOv').hidden=true;if(io)io.disconnect();want.clear();better.clear();
   if(st.play&&!leavingPlay){leavingPlay=true;api('/api/playback',{action:'leave'}).then(()=>{tick();props()}).catch(e=>msg(e.message,true)).finally(()=>leavingPlay=false)}}
 $('#galOpen').onclick=openGal;
+$('#hdrPlay').onclick=openGal;
+$('#hdrLocal').onclick=()=>{local();$('#localDlg').showModal()};
 $('#galClose').onclick=closeGal;
 $('#galReload').onclick=()=>{$('#galCount').textContent=tr('card.reading');gallery(true)};
 document.querySelectorAll('[data-v]').forEach(b=>b.onclick=()=>{
@@ -1645,7 +1670,7 @@ async function enterApp(){
     if(st.lvqty) $('#lvqty').value=st.lvqty;
     else if(features.has('af_modes')) $('#lvqty').value='1024x0768';
     if(st.live) $('#live').src='/live.mjpg?'+Date.now();
-  }catch(e){$('#status').className='warn';$('#status').textContent=e.message}
+  }catch(e){$('#status').className='warn';$('#status').textContent=e.message;$('#connChip').hidden=true}
   local(); applyLayout();
 }
 if(!view){init();setInterval(tick,1500)}
