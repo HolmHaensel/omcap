@@ -32,7 +32,9 @@ SETTINGS_FILE = os.path.join(os.getcwd(), "omcap-settings.json")
 SAVE_SCHEMES = ("original", "datetime", "prefix")
 save_cfg = {"dir": "", "scheme": "original", "prefix": ""}  # dir "" = default captures/
 # Folders that must never receive pictures: firmware material and camera dumps of the project
-PROTECTED_DIRS = [os.path.join(os.path.dirname(ROOT), d) for d in ("download", os.path.join("out", "fw"), "camera")]
+PROTECTED_DIRS = [os.path.join(os.path.dirname(ROOT), d) for d in ("download", "out", "camera")]
+# ... except the HSL results folder inside out/
+PROTECTED_EXCEPT = [os.path.join(os.path.dirname(ROOT), "out", "hsl")]
 PREVIEW_CACHE_MAX = 500 << 20  # bytes; above that the oldest previews are dropped
 IMAGE_MAX_AGE = 7 * 24 * 3600  # image URLs contain the file size, so they change with the file
 LV_PORT = 5555
@@ -307,8 +309,27 @@ def captures_dir():
 
 
 def _inside(p, root):
-    p, root = os.path.realpath(p), os.path.realpath(root)
-    return p == root or p.startswith(root + os.sep)
+    """True if p is root or below it. Case-insensitive (APFS), symlinks resolved."""
+    rp = os.path.normcase(os.path.realpath(p)).lower()
+    rr = os.path.normcase(os.path.realpath(root)).lower()
+    if rp == rr or rp.startswith(rr + os.sep):
+        return True
+    # samefile catches other spellings of an existing folder (e.g. Unicode, hard-to-compare case)
+    if os.path.exists(root):
+        q = os.path.realpath(p)
+        while True:
+            if os.path.exists(q) and os.path.samefile(q, root):
+                return True
+            up = os.path.dirname(q)
+            if up == q:
+                return False
+            q = up
+    return False
+
+
+def _check_prefix(prefix):
+    if not prefix or re.search(r'[/\\:\x00]', prefix) or ".." in prefix or prefix in (".", ".."):
+        raise ValueError("Prefix contains characters that are not allowed")
 
 
 def validate_save_dir(d):
@@ -321,7 +342,7 @@ def validate_save_dir(d):
         raise ValueError("Folder must be an absolute path (or start with ~)")
     d = os.path.normpath(d)
     for bad in PROTECTED_DIRS:
-        if _inside(d, bad):
+        if _inside(d, bad) and not any(_inside(d, ok) for ok in PROTECTED_EXCEPT):
             raise ValueError("This folder is not allowed: %s" % bad)
     try:
         os.makedirs(d, exist_ok=True)
@@ -341,8 +362,7 @@ def set_save_cfg(b):
     if scheme == "prefix":
         if not prefix:
             raise ValueError("Prefix is empty")
-        if re.search(r'[/\\:\x00]', prefix) or prefix in (".", ".."):
-            raise ValueError("Prefix contains characters that are not allowed")
+        _check_prefix(prefix)
     cfg = {"dir": validate_save_dir(b.get("dir")), "scheme": scheme, "prefix": prefix}
     tmp = SETTINGS_FILE + ".tmp"
     os.makedirs(os.path.dirname(SETTINGS_FILE) or ".", exist_ok=True)
@@ -362,6 +382,8 @@ def load_save_cfg():
                "prefix": str(c.get("prefix") or "")}
         if cfg["scheme"] not in SAVE_SCHEMES:
             raise ValueError
+        if cfg["scheme"] == "prefix":
+            _check_prefix(cfg["prefix"])
         save_cfg.update(cfg)
     except (OSError, ValueError, TypeError, AttributeError):
         pass
@@ -390,7 +412,7 @@ def save_capture(path, size=None):
     dest = os.path.join(folder, stem + ext)
     n = 0
     while os.path.exists(dest):
-        if size is not None and save_cfg["scheme"] == "original" and os.path.getsize(dest) == size:
+        if size is not None and save_cfg["scheme"] != "datetime" and os.path.getsize(dest) == size:
             return dest
         n += 1
         dest = os.path.join(folder, "%s-%d%s" % (stem, n, ext))
@@ -562,7 +584,7 @@ def hsl_presets():
 def hsl_apply(name, profile, tiff=False):
     """Apply a profile (preset name or profile dict) to a file in captures/.
 
-    Writes <stem>_hsl.jpg (and <stem>_hsl.tif for ORF if tiff) to HSL_OUT, never next to the source.
+    Writes <stem>_<EXT>_hsl.jpg (and <stem>_<EXT>_hsl.tif for ORF if tiff) to HSL_OUT, never next to the source.
     """
     hsl = _hsl_module()
     src = capture_path(name)
@@ -572,7 +594,8 @@ def hsl_apply(name, profile, tiff=False):
     with hsl_lock:
         rgb, is_raw = hsl._read_image(src)
         res = hsl.apply_hsl(rgb, prof)
-        stem = os.path.splitext(os.path.basename(src))[0]
+        stem, ext = os.path.splitext(os.path.basename(src))
+        stem += "_" + ext[1:].upper()  # x.JPG and x.ORF must not overwrite each other
         os.makedirs(HSL_OUT, exist_ok=True)
         out = stem + "_hsl.jpg"
         imageio.imwrite(os.path.join(HSL_OUT, out), hsl._to_u8(res), quality=95)
@@ -754,7 +777,7 @@ def public_state():
         # busy: shooting sequence or shutter command running (camera may not be in mode "rec")
         "stage": cam.stage, "busy": busy.locked() or state["pressing"], "indexing": state["indexing"], "live": live.running, "lv_age": live.age, "lvqty": cam.lvqty, "job": job,
         "transfer": state["transfer"], "latest": state["latest"], "play": state["play"] is not None,
-        "transfer_error": state["transfer_error"],
+        "transfer_error": state["transfer_error"], "hsl_error": hsl_auto["error"],
         "take": now - state["take"] if state["take"] else None,
         "movie": now - state["movie"]["since"] if state["movie"] else None,
     }
@@ -882,7 +905,7 @@ class Handler(BaseHTTPRequestHandler):
             if u.path == "/live.mjpg":
                 return self._mjpeg()
             self._send({"error": "not found"}, code=404)
-        except (CameraError, WriteBlocked, KeyError, OSError, ET.ParseError) as e:
+        except (CameraError, WriteBlocked, KeyError, OSError, ValueError, ET.ParseError) as e:
             self._send({"error": str(e)}, code=502)
 
     def _mjpeg(self):
@@ -1055,7 +1078,8 @@ class Handler(BaseHTTPRequestHandler):
         elif path == "/api/shareorder/clear":
             reset_share_order()
         elif path == "/api/download":
-            return {"saved": save_capture(b["path"], b.get("size"))}
+            dest = save_capture(b["path"], b.get("size"))
+            return {"saved": dest, "name": os.path.basename(dest)}
         else:
             return False
 

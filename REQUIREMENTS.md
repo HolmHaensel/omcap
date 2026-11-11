@@ -78,13 +78,13 @@ Agenten arbeiten gegen diese Liste.
 | REQ-D02 | Live View im Mittelpunkt; Bedienelemente stören das Antippen des AF-Rasters nicht. | ⬜ | P1 |
 | REQ-D03 | Dunkles Design zuerst, gute Kontraste, Touch-Flächen ≥ 44 px; gleiche Gestaltung auf Mac, iPhone und Watch. | 🟡 umgesetzt (Kameratest offen) | P1 |
 | REQ-D04 | Anpassbares Layout und Super Control Panel. | B9/B10 (teilweise „Customize layout“) | P3 |
-| REQ-D05 | Webcam-Ansicht für OBS (sauberes Livebild, feste Größe) mit Anleitung. | U4 | ⬜ | P3 |
+| REQ-D05 | Webcam-Ansicht für OBS (sauberes Livebild, feste Größe) mit Anleitung. | U4 | 🟡 Wi-Fi getestet, USB ungetestet | P3 |
 
 ## 6. Bildbearbeitung (am Computer)
 
 | ID | Anforderung | Stand | Prio |
 |---|---|---|---|
-| REQ-I01 | Software-HSL nach PEN-F-Vorbild (12 Sektoren, H/S/L −7…+7, Profile). | 🟡 gebaut und an ORF getestet | P2 |
+| REQ-I01 | Software-HSL nach PEN-F-Vorbild (12 Sektoren, H/S/L −7…+7, Profile). | 🟡 in der App, über Wi-Fi getestet | P2 |
 | REQ-I02 | Claudra 800 (Portra-800-Look): In-Kamera-Rezept + `claudra800_orf.py` (Daylight/Tungsten). | U1 ⬜ | P3 |
 | REQ-I03 | CineStill 800T mit Halation, Bloom, Korn, Vorher/Nachher. | U3 ⬜ | P3 |
 | REQ-I04 | Look beim Speichern auf den Computer automatisch als zusätzliches JPG anwenden. | ⬜ | P3 |
@@ -112,6 +112,8 @@ Agenten arbeiten gegen diese Liste.
 | REQ-Q05 | **Einfacher Start:** Startdatei zum Doppelklicken (`E-M1 Capture.command`, Windows `.bat`), Browser öffnet sich selbst, zweiter Start öffnet nur den Browser statt Fehler. | 🟡 gebaut (0.3) |
 | REQ-Q06 | Mac-App `E-M1 Capture.app` mit Symbol in der Menüleiste (Öffnen, Beenden, verbunden?), optional Start beim Kamera-WLAN; Schalter „Nur ansehen“ / „Steuern erlaubt“. | ⬜ (0.4) |
 | REQ-Q07 | Installation mit einem Befehl (`pipx install em1-capture` oder Skript), später `.dmg`. | ⬜ |
+| REQ-Q08 | **Community auf GitHub:** CONTRIBUTING (Sicherheitsregeln, Setup, Konventionen), Issue-Vorlagen (Bug, Feature, Kameratest), PR-Vorlage, SECURITY, Verhaltenskodex, Discussions, Labels, CI-Tests ohne Kamera. | 🟡 Einstellungen aktiv, Dateien warten auf Push |
+| REQ-Q09 | **Sauber und schlank:** Peer-Review (`peer-reviewer`) vor jedem Merge; kein Ballast, keine Doppelungen, Doku und REQ-Rückverfolgung aktuell. | ✅ |
 | REQ-Q04 | Arbeit mit Agenten (feste Modelle, siehe HANDOVER), sparsam mit Tokens. | ✅ |
 
 ## Version 0.2 (Umfang, 2026-11-09)
@@ -137,9 +139,9 @@ Thema: stabil und alltagstauglich mit USB und Wi-Fi. Größeres (Design-System, 
 | In 0.3 | REQ | Stand |
 |---|---|---|
 | Angetipptes AF-Feld sofort markieren | F04 | 🟡 gebaut (`focus-speed`) |
-| Webcam-Knopf (öffnet Ansicht, kopiert OBS-Link) | D05 | 🟡 gebaut, Test offen |
-| Speicherort in der App wählbar, Dateinamen-Schema | F17 | 🟡 gebaut, Test offen |
-| HSL in der App: Einzelansicht, „On the computer“, optional beim Speichern | I01, I04 | 🟡 gebaut, Test offen |
+| Webcam-Knopf (öffnet Ansicht, kopiert OBS-Link) | D05 | 🟡 Wi-Fi getestet ✅, USB offen |
+| Speicherort in der App wählbar, Dateinamen-Schema | F17 | 🟡 Wi-Fi getestet ✅, USB offen |
+| HSL in der App: Einzelansicht, „On the computer“, optional beim Speichern | I01, I04 | 🟡 Wi-Fi getestet ✅, USB offen |
 | Einfacher Start (Doppelklick, Browser öffnet sich, läuft schon) | Q05 | 🟡 gebaut |
 | Kartenplatz über Wi-Fi (`errorcode 1001`) | F19 | ⬜ |
 

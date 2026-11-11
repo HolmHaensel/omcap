@@ -47,6 +47,9 @@ Contributions, tests with other bodies and ideas are very welcome.
 | Turn off camera | built, untested | – |
 | Live view aids: Histogram, Highlight&Shadow, Peaking | yes | yes |
 | HSL color profiles for ORF/JPG on the computer (`omcap.hsl`) | independent | independent |
+| Webcam (OBS) button next to Second monitor | yes | yes (untested) |
+| Save folder and file naming | yes | yes (untested) |
+| HSL colour profiles in the app (HSL button, auto-apply, before/after) | yes | yes (untested) |
 | Start by double-click, browser opens by itself | yes | yes |
 
 **Planned:** Star AF focus aid (star sharpness while you turn the focus ring), subject detection in
@@ -183,6 +186,12 @@ python3 -m unittest discover -s tests
 ```
 
 The tests use simulated camera answers and need no camera.
+
+## Contributing
+
+Camera test reports, bug reports, ideas, translations and code are welcome. See
+[CONTRIBUTING.md](CONTRIBUTING.md); questions go to
+[Discussions](https://github.com/HolmHaensel/omcap/discussions).
 
 ## License
 

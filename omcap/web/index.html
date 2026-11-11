@@ -829,7 +829,6 @@ const I18N={en:{
   "local.ws": "OM Workspace",
   "hsl.btn": "HSL",
   "hsl.title": "HSL colour profile",
-  "hsl.preset": "Preset",
   "hsl.apply": "Apply",
   "hsl.tiff": "Also 16-bit TIFF (RAW)",
   "hsl.working": "Processing ...",
@@ -930,7 +929,7 @@ async function tick(){
   const rec=st.movie!=null;
   $('#movStart').hidden=rec; $('#movStop').hidden=!rec;
   $('#movTime').textContent=rec?tr('movie.time',{t:clock(st.movie)}):'';
-  $('#trErr').textContent=st.transfer_error||'';
+  $('#trErr').textContent=st.transfer_error||st.hsl_error||'';
   $('#recChip').hidden=!rec; $('#viewport').classList.toggle('rec',rec);
   if(rec) $('#recText').textContent=tr('movie.rec',{t:clock(st.movie)});
   const dc=$('#dropChip'); dc.hidden=!stale; if(stale) dc.textContent=tr('lv.noSignal',{s:Math.round(st.lv_age)});
@@ -1159,7 +1158,8 @@ async function loadCard(){cardShots=groupShots(await api('/api/images'));loadLen
 async function downloadShot(s,report){
   for(const f of s.files){
     report(tr('card.loading',{name:f.name}));
-    await api('/api/download',{path:f.path,size:f.size});
+    const j=await api('/api/download',{path:f.path,size:f.size});
+    f.local=j.name;  // local name may differ from the card name (naming scheme)
   }
   report(tr('card.onMac',{name:s.name,types:s.types}));
   local();
@@ -1588,8 +1588,8 @@ $('#vHsl').onclick=async()=>{
   const s=vList[vIdx]; let files=[];
   try{files=await api('/api/local')}catch{}
   const have=new Set(files.map(f=>f.name));
-  const f=(s.files||[]).find(f=>have.has(f.name)&&/\.(jpe?g|orf)$/i.test(f.name));
-  if(f) hslOpen(f.name); else $('#vInfo').textContent=tr('hsl.notLocal');
+  const f=(s.files||[]).find(f=>have.has(f.local||f.name)&&/\.(jpe?g|orf)$/i.test(f.local||f.name));
+  if(f) hslOpen(f.local||f.name); else $('#vInfo').textContent=tr('hsl.notLocal');
 };
 /* Optional: apply the profile on every save to the computer */
 function hslAutoSend(){

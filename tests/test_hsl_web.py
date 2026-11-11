@@ -57,7 +57,7 @@ class HslWebTests(unittest.TestCase):
         code, b = self.call("/api/hsl", {"name": "a.jpg", "profile": names[1]})
         self.assertEqual(code, 200)
         out = json.loads(b)["name"]
-        self.assertEqual(out, "a_hsl.jpg")
+        self.assertEqual(out, "a_JPG_hsl.jpg")
         self.assertTrue(os.path.isfile(os.path.join(server.HSL_OUT, out)))
         self.assertEqual(os.listdir(server.CAPTURES), ["a.jpg"])   # nothing next to the source
         code, b = self.call("/out-hsl/" + out)
@@ -75,7 +75,7 @@ class HslWebTests(unittest.TestCase):
         code, _ = self.call("/api/hslauto", {"enabled": True, "preset": "Neutral"})
         self.assertEqual(code, 200)
         server.hsl_auto_run(os.path.join(server.CAPTURES, "a.jpg"))
-        target = os.path.join(server.HSL_OUT, "a_hsl.jpg")
+        target = os.path.join(server.HSL_OUT, "a_JPG_hsl.jpg")
         for _ in range(100):
             if os.path.isfile(target):
                 break

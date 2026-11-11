@@ -93,3 +93,42 @@ class SaveCfg(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class SaveCfgHardening(SaveCfg):
+    """Stored config validation, case-insensitive protection, same-file check (offline)."""
+
+    def _write_cfg(self, **c):
+        with open(server.SETTINGS_FILE, "w") as f:
+            json.dump(c, f)
+
+    def test_load_rejects_bad_prefix(self):
+        for bad in ("../x", "a/b", "..", "a\\b"):
+            self._write_cfg(dir="", scheme="prefix", prefix=bad)
+            server.save_cfg.update(dir="", scheme="original", prefix="")
+            server.load_save_cfg()
+            self.assertEqual(server.save_cfg["scheme"], "original")
+
+    def test_load_rejects_protected_dir(self):
+        d = os.path.join(server.PROTECTED_DIRS[0], "x")
+        self._write_cfg(dir=d, scheme="original", prefix="")
+        server.load_save_cfg()
+        self.assertEqual(server.save_cfg["dir"], "")
+
+    def test_protected_case_insensitive_and_out(self):
+        d = server.PROTECTED_DIRS[0]
+        up = os.path.join(os.path.dirname(d), os.path.basename(d).upper(), "sub")
+        with self.assertRaises(ValueError):
+            server.validate_save_dir(up)
+        out = [p for p in server.PROTECTED_DIRS if os.path.basename(p) == "out"][0]
+        with self.assertRaises(ValueError):
+            server.validate_save_dir(os.path.join(out, "other"))
+        self.assertTrue(server._inside(os.path.join(out, "hsl"), server.PROTECTED_EXCEPT[0]))
+
+    def test_same_file_skipped_for_prefix_not_datetime(self):
+        server.save_cfg.update(scheme="prefix", prefix="p_")
+        a = server.save_capture("/DCIM/A.JPG", 1)
+        self.assertEqual(server.save_capture("/DCIM/A.JPG", 1), a)
+        server.save_cfg.update(scheme="datetime")
+        b = server.save_capture("/DCIM/A.JPG", 1)
+        self.assertNotEqual(server.save_capture("/DCIM/A.JPG", 1), b)
