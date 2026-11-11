@@ -866,6 +866,8 @@ async function api(path,body){
   try{r=await fetch(path,body?{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}:{})}
   catch(e){throw new Error(tr('srv.offline'))}  // the server does not answer at all
   const txt=await r.text(); let j; try{j=JSON.parse(txt)}catch{j=txt}
+  // the server lost the camera session (restart, cable, other tab): back to the start screen
+  if(r.status===409&&connected&&!view){connected=false;location.reload()}
   if(!r.ok){const e=j.error||txt; throw new Error(tr('srv.'+e,null,e))} return j;
 }
 function msg(t,err){const m=$('#msg');m.textContent=t;m.className=err?'warn':'mut'}
