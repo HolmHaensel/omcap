@@ -37,6 +37,22 @@ recording a movie, read only, Wi-Fi drop-out (last good frame kept, "No signal f
 - **Portrait:** header, image (full width), value chips, one value editor (scale), self-timer,
   LV super control panel button; bottom row last shot · Take picture 84 px · Press halfway.
 
+## Playback and picture info
+
+- **Index display:** thumbnail grid grouped by day, sizes S/M/L, multi-select (save to computer),
+  "Share Order only" filter, badges ORF+JPG, movie length, Share. Optional one-line EXIF on each
+  thumbnail (mode, shutter speed, aperture, ISO).
+- **Calendar display:** month grid (weeks start Monday), a thumbnail and a count per day; a click
+  opens that day in Index display.
+- **Single-frame playback:** picture at 4:3 with the value strip, previous/next, Fit / 100 %
+  (close-up playback), and the camera's INFO cycle **Image only / Simplified display /
+  Overall display**. Overall display shows a histogram and the EXIF list (shooting mode, shutter
+  speed, aperture value, exposure compensation, ISO, white balance, metering mode, flash, focal
+  length, lens, Picture Mode, color space, record mode, pixel count, date/time, file number) and,
+  if the maker note records it, the AF target used. Buttons: Overlay on live view, HSL…, Save to
+  computer. The same info opens from the last shot after Take picture.
+- Protect, Erase and Share Order editing stay on the camera; the app only reads the card.
+
 ## Terms (checked against the E-M1 manual)
 
 | In the app | Manual | Page |
@@ -54,6 +70,8 @@ recording a movie, read only, Wi-Fi drop-out (last good frame kept, "No signal f
 | Anti-Shock, Silent, Noise Reduct., BULB/TIME Timer, Digital Tele-converter | same | menus |
 | Time lapse, AE BKT, LIVE TIME, LIVECOMP | Time Lapse Settings, AE BKT, LIVE TIME, LIVE COMP | p.85, menus |
 | Press halfway / Take picture | "press the shutter button halfway" / "press fully" | p.20 |
+| Index display, Calendar display, single-frame playback, close-up playback | same | p.31–33, p.63 |
+| Image only / Simplified display / Overall display | INFO button cycle during playback | p.62 |
 | View zoom 1×/2×/4× | not a camera function (the camera's own is Magnify / Zoom frame AF, ×3–×14); label it as the app's view zoom | – |
 
 ## Build order for `omcap/web/index.html` (feature-dev, one step per commit)
@@ -70,7 +88,9 @@ recording a movie, read only, Wi-Fi drop-out (last good frame kept, "No signal f
 6. Shutter block: self-timer segmented control, Press halfway (pressed state), Take picture, Save to.
 7. Disabled-with-reason pattern for USB/Wi-Fi limits; States (live view off, recording, read only,
    drop-out with last good frame and "No signal for N s").
-8. Phone layouts (portrait/landscape) as a media-query version of the same page.
+8. Playback: Index display and Calendar display in the new style; single-frame playback with the
+   info cycle and the Overall display panel (EXIF from `omcap/exif.py`, extended beyond lens data).
+9. Phone layouts (portrait/landscape) as a media-query version of the same page.
 
 Every step keeps all I18N keys, USB/Wi-Fi parity and the existing tests; camera tests happen in one
 bundle after step 7.
