@@ -75,7 +75,7 @@ Agenten arbeiten gegen diese Liste.
 | ID | Anforderung | Stand | Prio |
 |---|---|---|---|
 | REQ-D01 | Design-System (Farben, Schrift, Abstände, Bewegung) und Prototypen in `design/` vor dem Umbau (Agent `ui-designer`). | 🟡 umgesetzt (Browsertest ohne Kamera ok, Kameratest offen) | P1 |
-| REQ-D02 | Live View im Mittelpunkt; Bedienelemente stören das Antippen des AF-Rasters nicht. | ⬜ | P1 |
+| REQ-D02 | Live View im Mittelpunkt; Bedienelemente stören das Antippen des AF-Rasters nicht. | 🟡 gebaut, an der Kamera geprüft (Wi-Fi/USB) | P1 |
 | REQ-D03 | Dunkles Design zuerst, gute Kontraste, Touch-Flächen ≥ 44 px; gleiche Gestaltung auf Mac, iPhone und Watch. | 🟡 umgesetzt (Kameratest offen) | P1 |
 | REQ-D04 | Anpassbares Layout und Super Control Panel. | B9/B10 (teilweise „Customize layout“) | P3 |
 | REQ-D05 | Webcam-Ansicht für OBS (sauberes Livebild, feste Größe) mit Anleitung. | U4 | 🟡 Wi-Fi getestet, USB ungetestet | P3 |
