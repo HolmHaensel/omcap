@@ -51,7 +51,7 @@ allowed_hosts = set()
 movtime_cache = {}  # (path, size) -> seconds
 lens_cache = {}  # card path -> lens data from EXIF
 exif_cache = {}  # card path -> picture info (shooting data) from EXIF
-# Last JPGs read completely (USB cannot read file heads): /api/full and /api/exif share them,
+# Last JPGs read completely (USB: shooting data uses partial reads): /api/full and /api/exif share them,
 # so opening a picture over USB reads the file from the card only once.
 jpg_cache = {}  # card path -> bytes, oldest first
 JPG_CACHE_MAX = 40 << 20
@@ -738,15 +738,15 @@ def usb_lens():
 def picture_info(path):
     """Shooting data of a JPG on the card for the playback info display, read once per path.
 
-    Wi-Fi reads only the file head; USB (libgphoto2) can only read the whole file.
+    Both connections read only the file head (USB: partial read, whole file as fallback).
     """
     if not path.lower().endswith((".jpg", ".jpeg")):
         raise CameraError("Picture info only from JPG files")
     if path not in exif_cache:
         if len(exif_cache) > 2000:
             exif_cache.clear()
-        # USB: the whole file anyway, reuse what /api/full has read; Wi-Fi: only the head
-        head = read_jpg(path) if conn_type == "usb" else cam.read_head(path, exif.HEAD_BYTES)
+                # a file already read in full for /api/full is reused (USB); otherwise only the head
+        head = jpg_cache.get(path) or cam.read_head(path, exif.HEAD_BYTES)
         exif_cache[path] = exif.picture_info(head)
     return exif_cache[path]
 

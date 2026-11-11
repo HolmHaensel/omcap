@@ -390,6 +390,7 @@ class UsbCamera:
                 return None
 
     def fetch_file(self, path, dest):
+        _check_usb_path(path)
         folder, name = path.rsplit("/", 1)
 
         def get():
@@ -397,6 +398,7 @@ class UsbCamera:
         self._call(get)
 
     def _file_bytes(self, path, kind):
+        _check_usb_path(path)
         folder, name = path.rsplit("/", 1)
 
         def get():
@@ -414,11 +416,27 @@ class UsbCamera:
         raise CameraError("No medium-size preview over USB")
 
     def read_file(self, path):
-        _check_usb_path(path)
         return self._file_bytes(path, self.gp.GP_FILE_TYPE_NORMAL)
 
     def read_head(self, path, size):
-        """libgphoto2 only reads whole files."""
+        """First `size` bytes of a file by a partial read (libgphoto2 2.5+).
+
+        Falls back to reading the whole file when the binding or the camera cannot do it.
+        """
+        _check_usb_path(path)
+        folder, name = path.rsplit("/", 1)
+        if hasattr(self._c, "file_read") and not getattr(self, "_no_partial", False):
+            def part():
+                buf = bytearray(size)
+                got = self._c.file_read(folder, name, self.gp.GP_FILE_TYPE_NORMAL, 0, memoryview(buf))
+                # the binding returns the count read; anything else (0, error code) means no data
+                if not isinstance(got, int) or got <= 0:
+                    raise CameraError("USB: partial read returned nothing")
+                return bytes(buf[:min(got, size)])
+            try:
+                return self._call(part)
+            except Exception:
+                self._no_partial = True  # do not try again on every file
         return self.read_file(path)[:size]
 
     def warm_index(self):

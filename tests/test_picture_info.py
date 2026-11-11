@@ -185,6 +185,7 @@ class ExifEndpoint(unittest.TestCase):
     def test_usb_path_check(self):
         from omcap import usb_camera
         cam = usb_camera.UsbCamera.__new__(usb_camera.UsbCamera)
+        cam.gp = type("G", (), {"GP_FILE_TYPE_NORMAL": 1})
         with self.assertRaises(CameraError):
             cam.read_file("/etc/passwd")
         with self.assertRaises(CameraError):

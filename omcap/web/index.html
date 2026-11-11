@@ -277,6 +277,7 @@ body.webcam{cursor:none;display:flex;align-items:center;justify-content:center}
   header{padding:4px 12px}
   #hdrInfo,#hdrCard,#hdrBat,#layoutBtn{display:none}
   main{display:grid;grid-template-columns:200px minmax(0,1fr) 230px;padding:var(--s2);gap:var(--s2)}
+  main{padding-bottom:var(--s3)}
   #panels{display:contents}
   #panels>section{grid-column:3}
   #panels>[data-id=scp]{grid-column:1;grid-row:1/span 8}
@@ -1267,7 +1268,7 @@ function pump(){
 }
 /* Next visible tile whose thumbnail is there and that still needs its shooting data line */
 function exifTile(){
-  if(!gv.exif||isUsb||st.stage>0) return null;
+  if(!gv.exif||st.stage>0) return null;
   for(const [e] of ioTiles) if(e.isConnected&&e.dataset.vis&&e.dataset.state==='done'&&!e.dataset.ex&&isJpg(e._file)) return e;
   return null;
 }
@@ -1305,7 +1306,7 @@ function renderGal(){
   const body=$('#galBody'); body.innerHTML=''; body.scrollTop=0;
   document.querySelectorAll('[data-v]').forEach(b=>b.classList.toggle('on',b.dataset.v===gv.mode));
   document.querySelectorAll('[data-sz]').forEach(b=>{b.classList.toggle('on',+b.dataset.sz===gv.n);b.disabled=gv.mode==='cal'});
-  $('#galExif').checked=gv.exif&&!isUsb; $('#galExif').disabled=isUsb||gv.mode==='cal';
+  $('#galExif').checked=gv.exif; $('#galExif').disabled=gv.mode==='cal';
   $('#galSelect').classList.toggle('on',selMode); $('#galSelect').textContent=tr(selMode?'card.selectDone':'card.select');
   $('#galSaveSel').hidden=!selMode; $('#galSaveSel').textContent=tr('card.saveSel',{n:selSet.size}); $('#galSaveSel').disabled=!selSet.size;
   const chip=$('#galChip'); chip.hidden=!(gv.day&&gv.mode==='index');
@@ -2107,9 +2108,7 @@ async function enterApp(){
     const s=await api('/api/status');
     canWrite=s.allow_write;
     features=new Set(s.features); isUsb=s.type==='usb';
-    if(isUsb&&!gv.infoSet) gv.info='image'; // USB reads the whole file for the info: only on request
     applyFeatures();
-    $('#galExifTog').hidden=isUsb; // USB would read every file completely
     statusBase={model:s.model,conn:s.type==='usb'?'USB':'Wi-Fi',rights:canWrite?tr('app.write'):tr('app.readOnly')};
     showStatus();
     if(!canWrite) document.querySelectorAll('button.w').forEach(b=>{b.disabled=true;b.classList.add('na');b.title=tr('na.readOnly')});
