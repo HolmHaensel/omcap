@@ -1,0 +1,25 @@
+name: Feature request
+description: Suggest a camera function or an improvement
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What would you like to do?
+      description: Name the camera function as in your camera's manual, with the page if you know it.
+    validations:
+      required: true
+  - type: dropdown
+    id: connection
+    attributes:
+      label: Connection
+      options: ["Wi-Fi", "USB", "both", "not sure"]
+  - type: input
+    id: camera
+    attributes:
+      label: Camera
+      placeholder: "OM-D E-M1 Mark I"
+  - type: textarea
+    id: why
+    attributes:
+      label: Why is it useful? (optional)

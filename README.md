@@ -183,6 +183,12 @@ python3 -m unittest discover -s tests
 
 The tests use simulated camera answers and need no camera.
 
+## Contributing
+
+Camera test reports, bug reports, ideas, translations and code are welcome. See
+[CONTRIBUTING.md](CONTRIBUTING.md); questions go to
+[Discussions](https://github.com/HolmHaensel/omcap/discussions).
+
 ## License
 
 GPL-3.0-or-later, see [LICENSE](LICENSE).
