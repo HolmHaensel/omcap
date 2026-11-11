@@ -1,0 +1,41 @@
+/* E-M1 Capture design tokens (dark theme first).
+   Source: Live View design canvas, 2026-11-11. Use these custom properties instead of raw values. */
+:root {
+  /* Colour */
+  --ground: #0E0F11;          /* page */
+  --surface: #16181B;         /* panels, tiles */
+  --surface-raised: #1E2125;  /* tile being edited */
+  --line: #2A2E33;            /* borders, dividers */
+  --line-strong: #4A4F55;     /* dashed "not available" outlines */
+  --text: #ECEEF0;            /* primary text */
+  --muted: #9AA1A9;           /* labels and hints, 6.8:1 on --surface */
+  --disabled: #8A9199;        /* disabled text, still >= 4.5:1 on --ground */
+  --accent: #F5B841;          /* selected, working, shutter */
+  --accent-ink: #1A1300;      /* text on --accent */
+  --accent-line: #6B5320;     /* accent outlines */
+  --accent-soft: rgba(245, 184, 65, 0.12);
+  --focus: #3DDC84;           /* in focus, connected */
+  --focus-line: #1F6B45;
+  --rec: #FF5A4F;             /* recording, turn off camera; never decoration */
+  --rec-text: #FF7A70;
+  --overlay: rgba(14, 15, 17, 0.78); /* chips on top of the live view */
+
+  /* Type */
+  --font-ui: Inter, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-value: "IBM Plex Mono", ui-monospace, Menlo, monospace; /* camera values: 1/250 F4.0 ISO 200 */
+  --fs-title: 16px; --fs-body: 14px; --fs-label: 12px; --fs-value: 22px; --fs-shutter: 18px;
+
+  /* Space and shape */
+  --s1: 4px; --s2: 8px; --s3: 12px; --s4: 16px; --s5: 20px; --s6: 32px;
+  --r-sm: 8px; --r-md: 10px; --r-lg: 12px; --r-pill: 999px;
+  --touch: 44px;              /* minimum touch target */
+  --shutter-h: 64px;
+
+  /* Motion */
+  --t-fast: 120ms;            /* state changes */
+  --t-sheet: 200ms;           /* sheets, panels */
+}
+
+@media (prefers-color-scheme: light) {
+  /* Light theme is optional; shooting stays dark by default. */
+}
