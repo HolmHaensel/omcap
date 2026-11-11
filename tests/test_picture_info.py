@@ -187,6 +187,12 @@ class ExifEndpoint(unittest.TestCase):
         cam = usb_camera.UsbCamera.__new__(usb_camera.UsbCamera)
         with self.assertRaises(CameraError):
             cam.read_file("/etc/passwd")
+        with self.assertRaises(CameraError):
+            cam.read_file("/DCIM/100OLYMP/P1010001.JPG")  # Wi-Fi style path is not a USB path
+        # real USB card path (seen on the E-M1, 2026-11-11) passes the check
+        usb_camera._check_usb_path("/store_00010001/DCIM/111OLYMP/_B112207.JPG")
+        with self.assertRaises(CameraError):
+            usb_camera._check_usb_path("/store_00010001/DCIM/../../etc/passwd")
 
     def test_raw_refused(self):
         code, body = self.get("/api/exif?path=/DCIM/100OLYMP/P1010001.ORF")

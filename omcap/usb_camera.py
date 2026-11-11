@@ -13,7 +13,13 @@ import subprocess
 import threading
 import time
 
-from .camera import CameraError, WriteBlocked, _check_path
+from .camera import CameraError, WriteBlocked
+
+
+def _check_usb_path(path):
+    """Card paths over USB look like /store_00010001/DCIM/111OLYMP/P1012345.JPG."""
+    if not re.match(r"^/store_[0-9A-Fa-f]{8}/DCIM/", path) or ".." in path:
+        raise CameraError("Invalid path: %r" % path)
 
 AF_MODES = (33024, 33025, 33026, 33027)
 AF_ALL = 33024
@@ -408,7 +414,7 @@ class UsbCamera:
         raise CameraError("No medium-size preview over USB")
 
     def read_file(self, path):
-        _check_path(path)
+        _check_usb_path(path)
         return self._file_bytes(path, self.gp.GP_FILE_TYPE_NORMAL)
 
     def read_head(self, path, size):
