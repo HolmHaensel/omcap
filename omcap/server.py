@@ -10,6 +10,7 @@ import contextlib
 import errno
 import json
 import os
+import re
 import subprocess
 import threading
 import time
@@ -27,6 +28,11 @@ ROOT = os.path.dirname(os.path.abspath(__file__))
 # working folder (--data-dir, default: current folder): shots and preview cache live below it
 CAPTURES = os.path.join(os.getcwd(), "captures")
 PREVIEW_CACHE = os.path.join(os.getcwd(), "out", "cache", "previews")  # previews from the card
+SETTINGS_FILE = os.path.join(os.getcwd(), "omcap-settings.json")
+SAVE_SCHEMES = ("original", "datetime", "prefix")
+save_cfg = {"dir": "", "scheme": "original", "prefix": ""}  # dir "" = default captures/
+# Folders that must never receive pictures: firmware material and camera dumps of the project
+PROTECTED_DIRS = [os.path.join(os.path.dirname(ROOT), d) for d in ("download", os.path.join("out", "fw"), "camera")]
 PREVIEW_CACHE_MAX = 500 << 20  # bytes; above that the oldest previews are dropped
 IMAGE_MAX_AGE = 7 * 24 * 3600  # image URLs contain the file size, so they change with the file
 LV_PORT = 5555
@@ -277,19 +283,103 @@ def remember_shot(paths):
         state["last_shot"] = p
 
 
+def captures_dir():
+    """Folder for pictures on the computer: the chosen one, else the default captures/."""
+    return save_cfg["dir"] or CAPTURES
+
+
+def _inside(p, root):
+    p, root = os.path.realpath(p), os.path.realpath(root)
+    return p == root or p.startswith(root + os.sep)
+
+
+def validate_save_dir(d):
+    """Return the absolute, created, writable folder or raise ValueError."""
+    d = str(d or "").strip()
+    if not d:
+        return ""
+    d = os.path.expanduser(d)
+    if not os.path.isabs(d):
+        raise ValueError("Folder must be an absolute path (or start with ~)")
+    d = os.path.normpath(d)
+    for bad in PROTECTED_DIRS:
+        if _inside(d, bad):
+            raise ValueError("This folder is not allowed: %s" % bad)
+    try:
+        os.makedirs(d, exist_ok=True)
+    except OSError as e:
+        raise ValueError("Cannot create folder: %s" % e)
+    if not os.path.isdir(d) or not os.access(d, os.W_OK | os.X_OK):
+        raise ValueError("Folder is not writable")
+    return d
+
+
+def set_save_cfg(b):
+    """Validate and store the save settings (folder, naming scheme, prefix)."""
+    scheme = b.get("scheme", "original")
+    if scheme not in SAVE_SCHEMES:
+        raise ValueError("Unknown naming scheme")
+    prefix = str(b.get("prefix") or "").strip()
+    if scheme == "prefix":
+        if not prefix:
+            raise ValueError("Prefix is empty")
+        if re.search(r'[/\\:\x00]', prefix) or prefix in (".", ".."):
+            raise ValueError("Prefix contains characters that are not allowed")
+    cfg = {"dir": validate_save_dir(b.get("dir")), "scheme": scheme, "prefix": prefix}
+    tmp = SETTINGS_FILE + ".tmp"
+    os.makedirs(os.path.dirname(SETTINGS_FILE) or ".", exist_ok=True)
+    with open(tmp, "w") as f:
+        json.dump(cfg, f, indent=1)
+    os.replace(tmp, SETTINGS_FILE)
+    save_cfg.update(cfg)
+    return public_save_cfg()
+
+
+def load_save_cfg():
+    """Read the settings file at start; a broken or now-invalid file falls back to defaults."""
+    try:
+        with open(SETTINGS_FILE) as f:
+            c = json.load(f)
+        cfg = {"dir": validate_save_dir(c.get("dir")), "scheme": c.get("scheme", "original"),
+               "prefix": str(c.get("prefix") or "")}
+        if cfg["scheme"] not in SAVE_SCHEMES:
+            raise ValueError
+        save_cfg.update(cfg)
+    except (OSError, ValueError, TypeError, AttributeError):
+        pass
+
+
+def public_save_cfg():
+    return {**save_cfg, "effective_dir": captures_dir()}
+
+
+def target_name(name, now=None):
+    """Local file name by the chosen scheme (name = original name on the card)."""
+    scheme = save_cfg["scheme"]
+    if scheme == "datetime":
+        # the file is fetched right after the shot, so the fetch time stands for the shot time
+        return time.strftime("%Y%m%d_%H%M%S", now or time.localtime()) + "_" + name
+    if scheme == "prefix" and save_cfg["prefix"]:
+        return save_cfg["prefix"] + name
+    return name
+
+
 def save_capture(path, size=None):
     """Fetch a file from the card without overwriting existing ones."""
-    os.makedirs(CAPTURES, exist_ok=True)
-    stem, ext = os.path.splitext(os.path.basename(path))
-    dest = os.path.join(CAPTURES, stem + ext)
+    folder = captures_dir()
+    os.makedirs(folder, exist_ok=True)
+    stem, ext = os.path.splitext(target_name(os.path.basename(path)))
+    dest = os.path.join(folder, stem + ext)
     n = 0
     while os.path.exists(dest):
-        if size is not None and os.path.getsize(dest) == size:
+        if size is not None and save_cfg["scheme"] == "original" and os.path.getsize(dest) == size:
             return dest
         n += 1
-        dest = os.path.join(CAPTURES, "%s-%d%s" % (stem, n, ext))
+        dest = os.path.join(folder, "%s-%d%s" % (stem, n, ext))
     cam.fetch_file(path, dest + ".part")
     os.replace(dest + ".part", dest)
+    if hsl_auto["enabled"] and ext.lower() in (".jpg", ".jpeg", ".orf"):
+        hsl_auto_run(dest)
     if ext.lower() in (".jpg", ".jpeg") or state["latest"] is None or \
             not state["latest"].lower().endswith((".jpg", ".jpeg")):
         state["latest"] = os.path.basename(dest)
@@ -419,18 +509,82 @@ def orf_preview(path):
 
 
 def local_files():
-    if not os.path.isdir(CAPTURES):
+    folder = captures_dir()
+    if not os.path.isdir(folder):
         return []
     out = []
-    for name in os.listdir(CAPTURES):
-        p = os.path.join(CAPTURES, name)
+    for name in os.listdir(folder):
+        p = os.path.join(folder, name)
         if name.lower().endswith((".jpg", ".jpeg", ".orf")) and os.path.isfile(p):
             out.append({"name": name, "size": os.path.getsize(p), "mtime": os.path.getmtime(p)})
     return sorted(out, key=lambda e: e["mtime"], reverse=True)
 
 
+# ---------- Software HSL (runs on the computer, so it works over USB and Wi-Fi) ----------
+HSL_OUT = os.path.join(os.getcwd(), "out", "hsl")
+hsl_lock = threading.Lock()      # one render at a time (an ORF needs a few 100 MB)
+hsl_auto = {"enabled": False, "preset": "Neutral", "error": None}
+
+
+def _hsl_module():
+    try:
+        from omcap import hsl
+        import imageio.v2  # noqa: F401
+    except ImportError as e:
+        raise ValueError("HSL needs numpy and imageio (RAW also rawpy): %s" % e)
+    return hsl
+
+
+def hsl_presets():
+    hsl = _hsl_module()
+    with open(hsl.PRESET_FILE, encoding="utf-8") as f:
+        return [p["name"] for p in json.load(f)["presets"]]
+
+
+def hsl_apply(name, profile, tiff=False):
+    """Apply a profile (preset name or profile dict) to a file in captures/.
+
+    Writes <stem>_hsl.jpg (and <stem>_hsl.tif for ORF if tiff) to HSL_OUT, never next to the source.
+    """
+    hsl = _hsl_module()
+    src = capture_path(name)
+    prof = hsl.validate_profile(profile) if isinstance(profile, dict) else hsl.load_profile(profile or "Neutral")
+    import imageio.v2 as imageio
+    import numpy as np
+    with hsl_lock:
+        rgb, is_raw = hsl._read_image(src)
+        res = hsl.apply_hsl(rgb, prof)
+        stem = os.path.splitext(os.path.basename(src))[0]
+        os.makedirs(HSL_OUT, exist_ok=True)
+        out = stem + "_hsl.jpg"
+        imageio.imwrite(os.path.join(HSL_OUT, out), hsl._to_u8(res), quality=95)
+        res_tif = None
+        if is_raw and tiff:
+            res_tif = stem + "_hsl.tif"
+            imageio.imwrite(os.path.join(HSL_OUT, res_tif), (np.clip(res, 0, 1) * 65535 + 0.5).astype("uint16"))
+    return {"name": out, "tiff": res_tif, "source": os.path.basename(src)}
+
+
+def hsl_out_path(name):
+    p = os.path.join(HSL_OUT, os.path.basename(name))
+    if not os.path.isfile(p):
+        raise KeyError("File not found: %s" % name)
+    return p
+
+
+def hsl_auto_run(dest):
+    """After a save to the computer: extra _hsl.jpg in a background thread (errors go to state)."""
+    def run():
+        try:
+            hsl_apply(os.path.basename(dest), hsl_auto["preset"])
+            hsl_auto["error"] = None
+        except (ValueError, KeyError, OSError) as e:
+            hsl_auto["error"] = str(e)
+    threading.Thread(target=run, daemon=True).start()
+
+
 def capture_path(name):
-    p = os.path.join(CAPTURES, os.path.basename(name))
+    p = os.path.join(captures_dir(), os.path.basename(name))
     if not os.path.isfile(p):
         raise KeyError("File not found: %s" % name)
     return p
@@ -622,8 +776,16 @@ class Handler(BaseHTTPRequestHandler):
                                    "allow_write": options.get("allow_write", False)})
             if u.path == "/api/connections":
                 return self._send(connections())
+            if u.path == "/api/savecfg":
+                return self._send(public_save_cfg())
             if u.path == "/api/local":
                 return self._send(local_files())
+            if u.path == "/api/hsl/presets":
+                return self._send({"presets": hsl_presets(), "auto": dict(hsl_auto)})
+            if u.path.startswith("/out-hsl/"):
+                p = hsl_out_path(urllib.parse.unquote(u.path[len("/out-hsl/"):]))
+                with open(p, "rb") as f:
+                    return self._send(f.read(), "image/tiff" if p.lower().endswith(".tif") else "image/jpeg")
             if u.path.startswith("/captures/"):
                 p = preview_path(capture_path(urllib.parse.unquote(u.path[len("/captures/"):])))
                 if p.lower().endswith(".orf"):
@@ -755,9 +917,18 @@ class Handler(BaseHTTPRequestHandler):
         if path == "/api/poweroff":
             power_off()
             return None
+        if path == "/api/savecfg":
+            return {"cfg": set_save_cfg(b)}
         if path == "/api/open":
             subprocess.run(["open", "-a", "OM Workspace", capture_path(b["name"])], check=True)
             return None
+        if path == "/api/hsl":
+            return hsl_apply(b["name"], b.get("profile"), bool(b.get("tiff")))
+        if path == "/api/hslauto":
+            if b.get("enabled"):
+                hsl_presets()   # clear error if numpy is missing
+            hsl_auto.update(enabled=bool(b.get("enabled")), preset=str(b.get("preset") or "Neutral"))
+            return {"auto": dict(hsl_auto)}
         if cam is None:
             raise CameraError("Not connected")
         if path == "/api/refresh":
@@ -872,7 +1043,7 @@ def open_browser(url, delay=0.6):
 
 
 def main(argv=None):
-    global CAPTURES, PREVIEW_CACHE
+    global CAPTURES, PREVIEW_CACHE, SETTINGS_FILE, HSL_OUT
     p = argparse.ArgumentParser(prog="em1-capture", description="Local web app to control an Olympus OM-D E-M1 over Wi-Fi or USB.")
     p.add_argument("--version", action="version", version="%(prog)s " + __version__)
     p.add_argument("--host", default="192.168.0.10", help="camera IP in the camera's Wi-Fi (default 192.168.0.10)")
@@ -901,6 +1072,9 @@ def main(argv=None):
         return 0
     CAPTURES = os.path.join(a.data_dir, "captures")
     PREVIEW_CACHE = os.path.join(a.data_dir, "out", "cache", "previews")
+    SETTINGS_FILE = os.path.join(a.data_dir, "omcap-settings.json")
+    load_save_cfg()
+    HSL_OUT = os.path.join(a.data_dir, "out", "hsl")
     options.update(host=a.host, allow_write=a.allow_write)
     allowed_hosts.update({"127.0.0.1:%d" % a.port, "localhost:%d" % a.port})
     print("em1-capture %s  %s  (%s)" % (__version__, url, "WRITE ENABLED" if a.allow_write else "read only"))

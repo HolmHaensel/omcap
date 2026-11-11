@@ -167,7 +167,8 @@ angles and per-step gains are approximations, not the camera's values.
 Works with Wi-Fi and USB. Start the app, connect, and press **Start live view**; the
 live view must keep running. Then:
 
-1. In OBS add a **Browser Source** with the URL `http://127.0.0.1:8765/?view=webcam`
+1. Press **Webcam (OBS)** next to **Second monitor**: it opens the webcam view in a new window and
+   copies the full link to the clipboard. In OBS add a **Browser Source** with the URL `http://127.0.0.1:8765/?view=webcam`
    (optional letterbox size: `http://127.0.0.1:8765/?view=webcam&w=1280&h=720`; set the same
    width and height in the source). The page shows only the live image on black, scaled to fit.
 2. In OBS press **Start Virtual Camera**; video apps (Zoom, Teams, browsers) then list

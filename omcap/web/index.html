@@ -54,6 +54,9 @@ button:disabled{opacity:.4;cursor:not-allowed}
 #gal{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}
 #gal figure{margin:0;font-size:11px;color:var(--mut);min-width:0;overflow-wrap:anywhere}
 #gal img{width:100%;aspect-ratio:4/3;object-fit:cover;background:var(--line)}
+#hslBox{position:relative;max-width:80vw;line-height:0}
+#hslBox img{max-width:80vw;max-height:70vh;display:block}
+#hslBox #hslAfter{position:absolute;left:0;top:0;width:100%;height:100%;object-fit:fill}
 #gal button,#local button{font-size:11px;padding:2px 5px}
 #local div{display:flex;gap:4px;align-items:center;padding:3px 0;font-size:12px}
 #local span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis}
@@ -126,6 +129,7 @@ body.webcam{cursor:none;display:flex;align-items:center;justify-content:center}
     <span class="sp"></span>
     <button data-z="1">1×</button><button data-z="2">2×</button><button data-z="4">4×</button>
     <button id="popLive" data-i18n="lv.second">Second monitor</button>
+    <button id="popCam" data-i18n="lv.webcam">Webcam (OBS)</button>
   </div>
   <div id="viewport">
     <div id="zoomLayer">
@@ -232,6 +236,24 @@ body.webcam{cursor:none;display:flex;align-items:center;justify-content:center}
       <label><input type="radio" name="tr" value="both"> <span data-i18n="transfer.both">Card and computer</span></label>
       <button id="popPhoto" data-i18n="transfer.popPhoto">Picture on second monitor</button>
     </div>
+    <div class="row">
+      <label><span data-i18n="save.folder">Folder on the computer</span> <input id="svDir" type="text" size="34" placeholder="~/Pictures/omcap"></label>
+    </div>
+    <div class="row">
+      <label><span data-i18n="save.scheme">File naming</span>
+        <select id="svScheme">
+          <option value="original" data-i18n="save.original">Original name</option>
+          <option value="datetime" data-i18n="save.datetime">Date_time_original name</option>
+          <option value="prefix" data-i18n="save.prefix">Prefix + original name</option>
+        </select></label>
+      <input id="svPrefix" type="text" size="12" data-i18n-ph="save.prefixPh" placeholder="Prefix" hidden>
+      <button id="svApply" data-i18n="save.apply">Apply</button>
+    </div>
+    <div id="svInfo" class="mut"></div>
+    <div class="row">
+      <label><input type="checkbox" id="hslAuto"> <span data-i18n="hsl.auto">Apply HSL profile when saving to computer</span></label>
+      <select id="hslAutoPreset"></select>
+    </div>
     <div id="trErr" class="warn"></div>
   </section>
   <section data-id="card" data-label="Playback" data-i18n-label="panel.card" data-feat="playback">
@@ -267,10 +289,26 @@ body.webcam{cursor:none;display:flex;align-items:center;justify-content:center}
     <button id="vPrev" aria-label="Previous picture" data-i18n-aria="card.prev">‹</button><button id="vNext" aria-label="Next picture" data-i18n-aria="card.next">›</button>
     <span id="vInfo"></span>
     <span class="sp"></span>
-    <button id="vGet" data-i18n="card.saveToMac">Save to computer</button><button id="vOvl" data-i18n="card.overlay">Overlay</button><button id="vClose" data-i18n="card.close">Close</button>
+    <button id="vGet" data-i18n="card.saveToMac">Save to computer</button><button id="vHsl" data-i18n="hsl.btn">HSL</button><button id="vOvl" data-i18n="card.overlay">Overlay</button><button id="vClose" data-i18n="card.close">Close</button>
   </div>
   <div id="vImgBox"><img id="vImg" alt=""></div>
 </div>
+<dialog id="hslDlg"><form method="dialog" id="hslForm">
+  <strong data-i18n="hsl.title">HSL colour profile</strong> <span id="hslName" class="mut"></span>
+  <div class="row" style="margin-top:8px">
+    <select id="hslPreset"></select>
+    <label><input type="checkbox" id="hslTiff"> <span data-i18n="hsl.tiff">Also 16-bit TIFF (RAW)</span></label>
+    <button type="button" id="hslApply" data-i18n="hsl.apply">Apply</button>
+    <button data-i18n="hsl.close">Close</button>
+  </div>
+  <div id="hslMsg" class="mut"></div>
+  <div id="hslCmp" hidden>
+    <div id="hslBox"><img id="hslBefore" alt=""><img id="hslAfter" alt=""></div>
+    <div class="row"><span class="mut" data-i18n="hsl.before">Before</span>
+      <input type="range" id="hslSlide" min="0" max="100" value="50" style="flex:1">
+      <span class="mut" data-i18n="hsl.after">After</span></div>
+  </div>
+</form></dialog>
 <dialog id="layoutDlg"><form method="dialog">
   <div id="layoutBody"></div>
   <div class="row" style="margin-top:12px"><button data-i18n="layout.close">Close</button><button type="button" id="layoutReset" data-i18n="layout.reset">Reset</button></div>
@@ -305,6 +343,19 @@ const I18N={en:{
   "lv.stop": "Stop",
   "lv.size": "Size",
   "lv.second": "Second monitor",
+  "lv.webcam": "Webcam (OBS)",
+  "save.folder": "Folder on the computer",
+  "save.scheme": "File naming",
+  "save.original": "Original name",
+  "save.datetime": "Date_time_original name",
+  "save.prefix": "Prefix + original name",
+  "save.prefixPh": "Prefix",
+  "save.apply": "Apply",
+  "save.now": "Saving to {dir}",
+  "save.example": "e.g. {name}",
+  "msg.saveCfg": "Save settings applied",
+  "msg.webcamCopied": "Webcam window opened. Link copied: {url}",
+  "msg.webcamNoClip": "Webcam window opened. Copy this link into OBS: {url}",
   "lv.off": "Live view off",
   "lv.level": "Level gauge",
   "lv.grid": "Displayed Grid",
@@ -467,6 +518,18 @@ const I18N={en:{
   "local.none": "No files yet.",
   "local.view": "View",
   "local.ws": "OM Workspace",
+  "hsl.btn": "HSL",
+  "hsl.title": "HSL colour profile",
+  "hsl.preset": "Preset",
+  "hsl.apply": "Apply",
+  "hsl.tiff": "Also 16-bit TIFF (RAW)",
+  "hsl.working": "Processing ...",
+  "hsl.done": "Done: {name}",
+  "hsl.before": "Before",
+  "hsl.after": "After",
+  "hsl.close": "Close",
+  "hsl.auto": "Apply HSL profile when saving to computer",
+  "hsl.notLocal": "Save the picture to the computer first",
   "layout.panels": "Panels",
   "layout.settings": "Settings",
   "layout.close": "Close",
@@ -482,6 +545,7 @@ function tr(key,vars,fallback){
 function applyI18n(root=document){
   document.documentElement.lang=LANG;
   root.querySelectorAll('[data-i18n]').forEach(e=>e.textContent=tr(e.dataset.i18n));
+  root.querySelectorAll('[data-i18n-ph]').forEach(e=>e.placeholder=tr(e.dataset.i18nPh));
   root.querySelectorAll('[data-i18n-title]').forEach(e=>e.title=tr(e.dataset.i18nTitle));
   root.querySelectorAll('[data-i18n-aria]').forEach(e=>e.setAttribute('aria-label',tr(e.dataset.i18nAria)));
   root.querySelectorAll('[data-i18n-label]').forEach(e=>e.dataset.label=tr(e.dataset.i18nLabel));
@@ -522,6 +586,12 @@ if(view){
 }
 const popup=v=>window.open('/?view='+v,'_blank','popup,width=1000,height=760');
 $('#popLive').onclick=()=>popup('live');
+$('#popCam').onclick=async()=>{ // window for checking; the link (with host/port) goes to the clipboard for the OBS Browser Source
+  const url=location.origin+'/?view=webcam';
+  popup('webcam');
+  try{await navigator.clipboard.writeText(url);msg(tr('msg.webcamCopied',{url}))}
+  catch{msg(tr('msg.webcamNoClip',{url}))}
+};
 $('#popPhoto').onclick=()=>popup('photo');
 
 /* State */
@@ -990,6 +1060,54 @@ $('#vPrev').onclick=()=>stepViewer(-1);
 $('#vNext').onclick=()=>stepViewer(1);
 $('#vClose').onclick=closeViewer;
 $('#vGet').onclick=()=>downloadShot(vList[vIdx],t=>$('#vInfo').textContent=t).catch(e=>$('#vInfo').textContent=e.message);
+/* HSL: runs on the computer (USB and Wi-Fi alike) on files in captures/ */
+let hslPresetsLoaded=null;
+async function hslPresets(){
+  if(!hslPresetsLoaded) hslPresetsLoaded=api('/api/hsl/presets').then(j=>{
+    for(const id of ['#hslPreset','#hslAutoPreset']){$(id).innerHTML='';
+      j.presets.forEach(n=>{const o=document.createElement('option');o.value=o.textContent=n;$(id).append(o)})}
+    return j},e=>{hslPresetsLoaded=null;throw e});
+  return hslPresetsLoaded;
+}
+let hslFile=null;
+async function hslOpen(name){
+  hslFile=name; $('#hslName').textContent=name; $('#hslCmp').hidden=true; $('#hslMsg').textContent='';
+  $('#hslDlg').showModal();
+  try{await hslPresets(); try{const p=localStorage.getItem('omcap.hslPreset');if(p)$('#hslPreset').value=p}catch{}}
+  catch(e){$('#hslMsg').textContent=e.message}
+}
+$('#hslApply').onclick=async()=>{
+  const m=$('#hslMsg'); m.className='mut'; m.textContent=tr('hsl.working');
+  const preset=$('#hslPreset').value;
+  try{localStorage.setItem('omcap.hslPreset',preset)}catch{}
+  try{
+    const j=await api('/api/hsl',{name:hslFile,profile:preset,tiff:$('#hslTiff').checked});
+    m.textContent=tr('hsl.done',{name:j.name+(j.tiff?', '+j.tiff:'')});
+    const t='?t='+Date.now();
+    $('#hslBefore').src='/captures/'+encodeURIComponent(hslFile)+t;
+    $('#hslAfter').src='/out-hsl/'+encodeURIComponent(j.name)+t;
+    $('#hslCmp').hidden=false; hslClip();
+  }catch(e){m.className='warn';m.textContent=e.message}
+};
+function hslClip(){$('#hslAfter').style.clipPath='inset(0 0 0 '+$('#hslSlide').value+'%)'}
+$('#hslSlide').oninput=hslClip;
+$('#vHsl').onclick=async()=>{
+  const s=vList[vIdx]; let files=[];
+  try{files=await api('/api/local')}catch{}
+  const have=new Set(files.map(f=>f.name));
+  const f=(s.files||[]).find(f=>have.has(f.name)&&/\.(jpe?g|orf)$/i.test(f.name));
+  if(f) hslOpen(f.name); else $('#vInfo').textContent=tr('hsl.notLocal');
+};
+/* Optional: apply the profile on every save to the computer */
+function hslAutoSend(){
+  const o={enabled:$('#hslAuto').checked,preset:$('#hslAutoPreset').value};
+  try{localStorage.setItem('omcap.hslAuto',JSON.stringify(o))}catch{}
+  return api('/api/hslauto',o).catch(e=>{$('#trErr').textContent=e.message;$('#hslAuto').checked=false});
+}
+$('#hslAuto').onchange=hslAutoSend; $('#hslAutoPreset').onchange=hslAutoSend;
+(async()=>{let o={};try{o=JSON.parse(localStorage.getItem('omcap.hslAuto'))||{}}catch{}
+  try{await hslPresets()}catch{return}
+  if(o.preset)$('#hslAutoPreset').value=o.preset; if(o.enabled){$('#hslAuto').checked=true;hslAutoSend()}})();
 $('#vOvl').onclick=()=>{overlay(bigUrl(vList[vIdx]));closeViewer();closeGal()};
 document.addEventListener('keydown',e=>{
   if($('#layoutDlg').open) return;
@@ -1010,7 +1128,8 @@ async function local(){
     const see=document.createElement('button'); see.textContent=tr('local.view'); see.onclick=()=>window.open(url,'_blank');
     const ov=document.createElement('button'); ov.textContent=tr('card.overlay'); ov.onclick=()=>overlay(url);
     const ws=document.createElement('button'); ws.textContent=tr('local.ws'); ws.onclick=()=>act(tr('msg.openedWs'),'/api/open',{name:i.name});
-    d.append(n,see,ov,ws); box.append(d);
+    const hb=document.createElement('button'); hb.textContent=tr('hsl.btn'); hb.onclick=()=>hslOpen(i.name);
+    d.append(n,see,ov,hb,ws); box.append(d);
   }
 }
 
@@ -1397,6 +1516,19 @@ $('#takeStop').onclick=()=>act(tr('msg.stopped',{name:$('#longName').textContent
 $('#movStart').onclick=()=>act(tr('msg.movieStarted'),'/api/movie',{action:'start'});
 $('#movStop').onclick=async()=>{await act(tr('msg.movieStopped'),'/api/movie',{action:'stop'});
   if(!features.has('af_modes')) setTimeout(()=>gallery(),4000)};
+function showSaveCfg(c){
+  $('#svDir').value=c.dir; $('#svScheme').value=c.scheme; $('#svPrefix').value=c.prefix;
+  $('#svPrefix').hidden=c.scheme!=='prefix';
+  const ex=c.scheme==='datetime'?'20261109_091412_PB092179.JPG':c.scheme==='prefix'?(c.prefix||'')+'PB092179.JPG':'PB092179.JPG';
+  $('#svInfo').textContent=tr('save.now',{dir:c.effective_dir})+' ('+tr('save.example',{name:ex})+')';
+}
+$('#svScheme').onchange=()=>{$('#svPrefix').hidden=$('#svScheme').value!=='prefix'};
+$('#svApply').onclick=async()=>{
+  try{const j=await api('/api/savecfg',{dir:$('#svDir').value,scheme:$('#svScheme').value,prefix:$('#svPrefix').value});
+    showSaveCfg(j.cfg);msg(tr('msg.saveCfg'));local()}
+  catch(e){msg(e.message,true)}
+};
+api('/api/savecfg').then(showSaveCfg).catch(()=>{});
 document.querySelectorAll('[name=tr]').forEach(r=>r.onchange=()=>act(tr('msg.saveTo'),'/api/transfer',{target:r.value}));
 $('#reload').onclick=gallery;
 $('#propsReload').onclick=async()=>{
