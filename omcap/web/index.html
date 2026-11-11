@@ -119,9 +119,22 @@ button:disabled{color:var(--disabled);opacity:.6;cursor:not-allowed}
 #timerCount{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:20vmin;font-weight:700;color:#fff;text-shadow:0 0 12px #000;pointer-events:none;z-index:2}
 #lastShot{position:absolute;right:12px;bottom:56px;width:14%;min-width:96px;max-height:30%;object-fit:contain;background:#000;border:2px solid rgba(236,238,240,.85);border-radius:var(--r-sm);cursor:pointer;z-index:3}
 #msg{margin:8px 0 0;min-height:1.3em}
-#props{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}
-#props label{display:flex;flex-direction:column;gap:2px;font-size:12px;color:var(--mut);min-width:0}
-#props select{width:100%;padding:4px;color:var(--text);font-family:var(--font-value)}
+#props{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--s2)}
+#props label{display:flex;flex-direction:column;gap:2px;font-size:var(--fs-label);color:var(--muted);min-width:0;padding:8px 10px;background:var(--ground);border:1px solid var(--line);border-radius:var(--r-md);transition:background var(--t-fast),border-color var(--t-fast)}
+#props label:focus-within{background:var(--surface-raised);border-color:var(--accent)}
+#props select{width:100%;padding:0;border:0;background:transparent;color:var(--text);font-family:var(--font-value);font-size:18px;font-weight:500;appearance:none;-webkit-appearance:none;cursor:pointer}
+#props select option{font-size:14px}
+#props select:disabled{color:var(--disabled);cursor:not-allowed}
+#props label.ro strong{font-family:var(--font-value);font-size:18px;font-weight:500;color:var(--text)}
+#props label.ro{grid-column:1/-1;border-style:dashed;border-color:var(--line-strong)}
+#props label.wide{grid-column:1/-1}
+#modeBox{margin-bottom:var(--s2)}
+#modeBox .seg{flex-wrap:wrap}
+#modeBox .seg button{flex:1;width:auto;min-width:44px;padding:0 6px;height:38px;font-family:var(--font-value)}
+.hrow{display:flex;align-items:center;justify-content:space-between}
+.mini{font-size:11px;padding:1px 8px;background:transparent;color:var(--muted);font-weight:400;letter-spacing:0}
+#roProps{margin-top:var(--s2);font-size:var(--fs-label);color:var(--muted)}
+#afModes{display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}
 #gal{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}
 #gal figure{margin:0;font-size:11px;color:var(--mut);min-width:0;overflow-wrap:anywhere}
 #gal img{width:100%;aspect-ratio:4/3;object-fit:cover;background:var(--line)}
@@ -249,27 +262,14 @@ body.webcam{cursor:none;display:flex;align-items:center;justify-content:center}
   <div id="statusLine"><span id="lvSize" class="mut"></span><p id="msg" class="mut" data-i18n="msg.ready">Ready.</p></div>
 </div>
 <div id="panels">
-  <section data-id="shutter" data-label="Shutter button" data-i18n-label="panel.shutter">
-    <h2 data-i18n="panel.shutter">Shutter button</h2>
-    <div class="row">
-      <button class="w" id="shoot" data-i18n="shutter.take">Take picture</button>
-      <label><span data-i18n="timer.label">Self-timer</span> <select id="timerSel">
-        <option value="0" data-i18n="timer.off">Off</option><option value="2" data-i18n="timer.s2">2 s</option><option value="12" data-i18n="timer.s12">12 s</option>
-      </select></label>
-      <button class="w" id="half" data-feat="stages" data-i18n="shutter.half">Press halfway</button>
-    </div>
+  <section data-id="scp" data-label="LV super control panel" data-i18n-label="panel.scp">
+    <h2 class="hrow"><span data-i18n="panel.scp">LV super control panel</span> <button id="propsReload" class="mini" data-i18n="scp.reload">reload</button></h2>
+    <div id="modeBox"></div>
+    <div id="props"></div>
+    <div id="roProps" hidden></div>
   </section>
-  <section data-id="movie" data-label="Movie" data-i18n-label="panel.movie" data-feat="movie">
-    <h2 data-i18n="panel.movie">Movie</h2>
-    <div class="row">
-      <button class="w" id="movStart" data-i18n="movie.start">Start recording</button>
-      <button class="w" id="movStop" data-i18n="movie.stop" hidden>Stop recording</button>
-      <span id="movTime" class="warn"></span>
-    </div>
-    <div class="row"><span id="movQuality" class="mut"></span></div>
-  </section>
-  <section data-id="af" data-label="AF Area" data-i18n-label="panel.af" data-feat="af_area">
-    <h2 data-i18n="panel.af">AF Area</h2>
+  <section data-id="af" data-label="AF target (AF Area)" data-i18n-label="panel.af" data-feat="af_area">
+    <h2 data-i18n="panel.af">AF target (AF Area)</h2>
     <div class="row" id="afModes" data-feat="af_modes">
       <button class="w" data-af="33024" data-i18n="af.33024">All Targets</button>
       <button class="w" data-af="33025" data-i18n="af.33025">Single Target</button>
@@ -281,10 +281,14 @@ body.webcam{cursor:none;display:flex;align-items:center;justify-content:center}
       <span id="afInfo" class="mut"></span>
     </div>
   </section>
-  <section data-id="scp" data-label="LV super control panel" data-i18n-label="panel.scp">
-    <h2><span data-i18n="panel.scp">LV super control panel</span> <button id="propsReload" style="font-size:11px;padding:1px 6px" data-i18n="scp.reload">reload</button></h2>
-    <div id="props"></div>
-    <div id="roProps" class="mut" hidden></div>
+  <section data-id="movie" data-label="Movie" data-i18n-label="panel.movie" data-feat="movie">
+    <h2 data-i18n="panel.movie">Movie</h2>
+    <div class="row">
+      <button class="w" id="movStart" data-i18n="movie.start">Start recording</button>
+      <button class="w" id="movStop" data-i18n="movie.stop" hidden>Stop recording</button>
+      <span id="movTime" class="warn"></span>
+    </div>
+    <div class="row"><span id="movQuality" class="mut"></span></div>
   </section>
   <section data-id="prog" data-label="Shooting options" data-i18n-label="panel.prog">
     <h2 data-i18n="panel.prog">Shooting options</h2>
@@ -309,6 +313,16 @@ body.webcam{cursor:none;display:flex;align-items:center;justify-content:center}
       <button class="w" id="takePrep" hidden data-i18n="prog.prepare">Prepare</button>
       <button class="w" id="takeStart" data-i18n="prog.start">Start</button><button class="w" id="takeStop" data-i18n="prog.stop">Stop</button>
       <span id="takeInfo" class="mut"></span>
+    </div>
+  </section>
+  <section data-id="shutter" data-label="Shutter button" data-i18n-label="panel.shutter">
+    <h2 data-i18n="panel.shutter">Shutter button</h2>
+    <div class="row">
+      <button class="w" id="shoot" data-i18n="shutter.take">Take picture</button>
+      <label><span data-i18n="timer.label">Self-timer</span> <select id="timerSel">
+        <option value="0" data-i18n="timer.off">Off</option><option value="2" data-i18n="timer.s2">2 s</option><option value="12" data-i18n="timer.s12">12 s</option>
+      </select></label>
+      <button class="w" id="half" data-feat="stages" data-i18n="shutter.half">Press halfway</button>
     </div>
   </section>
   <section data-id="transfer" data-label="Save to" data-i18n-label="panel.transfer">
@@ -403,6 +417,7 @@ const $=s=>document.querySelector(s);
       Server messages are English; with a key 'srv.<message>' they can be translated.
       Language: localStorage 'omcap.lang', else browser language, else en. */
 const I18N={en:{
+  "scp.modeDialHint": "Set on the mode dial (read only over USB)",
   "lv.zoomGroup": "View zoom (in the app, not the camera)",
   "lv.focusing": "Focusing …",
   "lv.inFocus": "In focus",
@@ -500,7 +515,7 @@ const I18N={en:{
   "timer.cancelled": "Self-timer cancelled",
   "timer.running": "Self-timer running, click Take picture again to cancel",
   "shutter.half": "Press halfway",
-  "panel.af": "AF Area",
+  "panel.af": "AF target (AF Area)",
   "af.33024": "All Targets",
   "af.33025": "Single Target",
   "af.33026": "Group Target",
@@ -828,6 +843,30 @@ function renderStrip(){
   if(st.live&&w){const e=document.createElement('span');e.className='sz';e.textContent=w+'×'+$('#live').naturalHeight;s.append(e)}
   s.hidden=!out.length||!st.live;
 }
+/* Shooting mode: segmented control (Wi-Fi) or read-only card (USB: the mode dial decides) */
+function renderModeBox(p){
+  const box=$('#modeBox'),v=p.takemode; box.innerHTML='';
+  if(!v) return;
+  if(!v.writable){
+    const l=document.createElement('label'); l.className='ro tile-ro'; l.dataset.id='takemode'; l.dataset.label=tr('prop.takemode');
+    l.style.cssText='display:flex;flex-direction:column;gap:2px;padding:8px 10px;border:1px dashed var(--line-strong);border-radius:var(--r-md);color:var(--muted);font-size:var(--fs-label)';
+    l.append(document.createTextNode(tr('prop.takemode')));
+    const s=document.createElement('strong'); // over USB the camera reports iAUTO as P (d006 = 2, no other property differs)
+    s.style.cssText='font-family:var(--font-value);font-size:18px;font-weight:500;color:var(--text)';
+    s.textContent=v.value==='P'?tr('val.takemode.usbP'):valName('takemode',v.value);
+    const h=document.createElement('span'); h.textContent=tr('scp.modeDialHint');
+    l.append(s,h); box.append(l); return;
+  }
+  const seg=document.createElement('div'); seg.className='seg'; seg.setAttribute('role','group'); seg.setAttribute('aria-label',tr('prop.takemode'));
+  for(const o of v.enum){
+    const b=document.createElement('button'); b.type='button'; b.textContent=MODE_SHORT[o]||valName('takemode',o); b.title=valName('takemode',o);
+    b.classList.toggle('on',o===v.value); b.disabled=!canWrite;
+    b.onclick=()=>api('/api/set',{prop:'takemode',value:o}).then(()=>{v.value=o;msg(tr('prop.takemode')+': '+valName('takemode',o));renderProps();setTimeout(props,800)})
+      .catch(e=>msg(tr('prop.takemode')+': '+e.message,true));
+    seg.append(b);
+  }
+  box.append(seg);
+}
 function renderProps(){
   const p=lastProps,box=$('#props');
   if(!p) return;
@@ -835,14 +874,10 @@ function renderProps(){
   renderStrip();
   renderRo();
   box.innerHTML='';
+  renderModeBox(p);
   for(const [k,f] of Object.entries(FEATURES)){
     const v=p[k];
-    if(k==='takemode'&&v&&!v.writable){ // over USB the mode dial determines the mode
-      const l=document.createElement('label'); l.textContent=tr('scp.modeDial',{label:tr('prop.'+k)}); l.dataset.id=k; l.dataset.label=tr('prop.'+k);
-      const s=document.createElement('strong'); // over USB the camera reports iAUTO as P (d006 = 2, no other property differs)
-      s.textContent=v.value==='P'?tr('val.takemode.usbP'):((f.names&&f.names[v.value])||v.value); s.style.color='var(--fg)';
-      l.append(s); box.append(l); continue;
-    }
+    if(k==='takemode') continue; // own control above the tiles (renderModeBox)
     if(!v||!v.writable||!v.enum.length||(f.show&&!f.show(p))) continue;
     // Value names: table (val.<setting>.<value>) before the camera names and from FEATURES
     const name=o=>tr('val.'+k+'.'+o,null,'')||(v.names&&v.names[o])||(f.names&&f.names[o])||o;
@@ -856,6 +891,7 @@ function renderProps(){
       v.value=sel.value; msg(tr('prop.'+k)+': '+name(sel.value)); renderProps();
       if(k==='takemode') setTimeout(props,800);
     }).catch(e=>{msg(tr('prop.'+k)+': '+e.message,true);sel.value=v.value});
+    if(['drivemode','colortone','artfilter','exposemovie'].includes(k)) l.classList.add('wide');
     l.append(sel); box.append(l);
   }
   applyLayout();
