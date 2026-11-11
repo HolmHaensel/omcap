@@ -59,8 +59,8 @@ Agenten arbeiten gegen diese Liste.
 | REQ-F23 | Level gauge (Wasserwaage) live. | HANDOVER | ⛔ Werte nur bei Sitzungsaufbau | ⬜ RTP-Kopf prüfen | ⬜ | P3 |
 | REQ-F24 | **Star-AF-Hilfe** (wie Starry Sky AF der OM-1, aber manuell): im vergrößerten Live View Sterngröße/Schärfe messen (HFR), Wert und Verlauf anzeigen, Nutzer dreht am Fokusring. Kein Fokus-Antrieb über USB/Wi-Fi bekannt. | Nutzer 2026-11-11 | ⬜ | ⬜ | ⬜ | P2 (0.4) |
 | REQ-F25 | **Motiverkennung** im Live View auf dem Computer (Gesicht/Auge, später Tier, Vogel), Rahmen anzeigen, „Focus on subject“ (Wi-Fi: Punkt per `assignafframe`, USB: nächstes der 81 AF-Felder). Modelle offline, Lizenz GPL-kompatibel (z. B. OpenCV YuNet). Kein fortlaufendes Tracking (AF 0,4–3 s). Basis für REQ-I05. | Nutzer 2026-11-11 | ⬜ | ⬜ | ⬜ | P2 |
-| REQ-F26 | **Bildinfos (EXIF) bei Wiedergabe und letztem Bild:** Einzelbild mit „Image only / Simplified display / Overall display“ wie an der Kamera (Aufnahmemodus, Zeit, Blende, Belichtungskorrektur, ISO, WB, Messmethode, Brennweite, Objektiv, Picture Mode, Farbraum, Record mode, Pixelzahl, Datum, Dateinummer, Histogramm), kurze Infozeile auf den Miniaturen (Index display) und beim letzten Bild. Quelle: EXIF/Olympus-Makernote aus dem Dateianfang. Benutztes AF-Feld nur, wenn in der Makernote vorhanden (prüfen). | Nutzer 2026-11-11, Handbuch p.62 | ⬜ | ⬜ | ⬜ | P1 (0.4) |
-| REQ-F27 | **Kalender und Index im neuen Design:** Index display mit Miniaturgrößen, Auswahl, Share-Order-Filter; Calendar display als Monatsraster mit Anzahl je Tag, Klick öffnet den Tag. Protect, Erase und Share Order bearbeiten bleiben an der Kamera (App liest nur). | Nutzer 2026-11-11, Handbuch p.31–33 | 🟡 (alt) | 🟡 (alt) | ⬜ | P1 (0.4) |
+| REQ-F26 | **Bildinfos (EXIF) bei Wiedergabe und letztem Bild:** Einzelbild mit „Image only / Simplified display / Overall display“ wie an der Kamera (Aufnahmemodus, Zeit, Blende, Belichtungskorrektur, ISO, WB, Messmethode, Brennweite, Objektiv, Picture Mode, Farbraum, Record mode, Pixelzahl, Datum, Dateinummer, Histogramm), kurze Infozeile auf den Miniaturen (Index display) und beim letzten Bild. Quelle: EXIF/Olympus-Makernote aus dem Dateianfang. Benutztes AF-Feld nur, wenn in der Makernote vorhanden (prüfen). | Nutzer 2026-11-11, Handbuch p.62 | 🟡 | 🟡 | ⬜ | P1 (0.4) | Stand: gebaut, Kameratest offen; offen: Record mode, Infozeile beim letzten Bild, AF-Feld.
+| REQ-F27 | **Kalender und Index im neuen Design:** Index display mit Miniaturgrößen, Auswahl, Share-Order-Filter; Calendar display als Monatsraster mit Anzahl je Tag, Klick öffnet den Tag. Protect, Erase und Share Order bearbeiten bleiben an der Kamera (App liest nur). | Nutzer 2026-11-11, Handbuch p.31–33 | 🟡 | 🟡 | ⬜ | P1 (0.4) |
 
 ## 4. iPhone und Apple Watch
 
@@ -74,9 +74,9 @@ Agenten arbeiten gegen diese Liste.
 
 | ID | Anforderung | Stand | Prio |
 |---|---|---|---|
-| REQ-D01 | Design-System (Farben, Schrift, Abstände, Bewegung) und Prototypen in `design/` vor dem Umbau (Agent `ui-designer`). | ⬜ | P1 |
+| REQ-D01 | Design-System (Farben, Schrift, Abstände, Bewegung) und Prototypen in `design/` vor dem Umbau (Agent `ui-designer`). | 🟡 umgesetzt (Browsertest ohne Kamera ok, Kameratest offen) | P1 |
 | REQ-D02 | Live View im Mittelpunkt; Bedienelemente stören das Antippen des AF-Rasters nicht. | ⬜ | P1 |
-| REQ-D03 | Dunkles Design zuerst, gute Kontraste, Touch-Flächen ≥ 44 px; gleiche Gestaltung auf Mac, iPhone und Watch. | ⬜ | P1 |
+| REQ-D03 | Dunkles Design zuerst, gute Kontraste, Touch-Flächen ≥ 44 px; gleiche Gestaltung auf Mac, iPhone und Watch. | 🟡 umgesetzt (Kameratest offen) | P1 |
 | REQ-D04 | Anpassbares Layout und Super Control Panel. | B9/B10 (teilweise „Customize layout“) | P3 |
 | REQ-D05 | Webcam-Ansicht für OBS (sauberes Livebild, feste Größe) mit Anleitung. | U4 | ⬜ | P3 |
 

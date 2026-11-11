@@ -2,9 +2,9 @@
 
 ## Unreleased (0.4.0)
 
-- New design (dark, tokens from `design/tokens.css`): header chips, live view with value strip, focus status chip and histogram, toolbar with toggle chips under the image, LV super control panel with mode control and value tiles, shutter block with self-timer control; functions a connection cannot do are shown dashed with a reason instead of hidden.
-- Playback: Index display grouped by day (S/M/L, optional shooting data line over Wi-Fi, multi-select to save), Calendar display, single-frame view with the INFO cycle (Image only / Simplified display / Overall display with histogram and shooting data, Fit / 100 %); new `GET /api/exif`.
-- Phone layouts (portrait and landscape) and 44 px touch targets.
+- New design (REQ-D01, REQ-D03): dark theme with tokens from `design/tokens.css`, header chips, live view with value strip, focus status chip and histogram, toolbar with toggle chips under the image, LV super control panel with mode control and value tiles, shutter block with self-timer control; functions a connection cannot do are shown dashed with a reason instead of hidden; phone layouts and 44 px touch targets.
+- Playback (REQ-F27): Index display grouped by day (S/M/L, multi-select to save), Calendar display, optional shooting data line on thumbnails (Wi-Fi only).
+- Picture information (REQ-F26): single-frame view with the INFO cycle (Image only / Simplified display / Overall display with histogram and shooting data, Fit / 100 %); new `GET /api/exif` (codes, translated in the page); over USB each JPG is read from the card only once and the info starts on Image only.
 
 ## Unreleased (0.3.0)
 
