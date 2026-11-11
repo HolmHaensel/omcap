@@ -428,20 +428,22 @@ class UsbCamera:
         if hasattr(self._c, "file_read") and not getattr(self, "_no_partial", False):
             def part():
                 buf = bytearray(size)
-                got = self._c.file_read(folder, name, self.gp.GP_FILE_TYPE_NORMAL, 0, memoryview(buf))
+                try:
+                    got = self._c.file_read(folder, name, self.gp.GP_FILE_TYPE_NORMAL, 0, memoryview(buf))
+                except self.gp.GPhoto2Error as e:
+                    if getattr(e, "code", None) == self.gp.GP_ERROR_NOT_SUPPORTED:
+                        raise NotImplementedError(str(e))  # the camera cannot read partially
+                    raise CameraError("USB: %s" % e)  # passing error (busy, timeout)
                 # the binding returns the count read; anything else (0, error code) means no data
                 if not isinstance(got, int) or got <= 0:
                     raise CameraError("USB: partial read returned nothing")
                 return bytes(buf[:min(got, size)])
             try:
                 return self._call(part)
-            except (TypeError, AttributeError, NotImplementedError, self.gp.GPhoto2Error) as e:
-                # the binding or the camera cannot read partially: stop trying for this session
-                if isinstance(e, self.gp.GPhoto2Error) and getattr(e, "code", None) != self.gp.GP_ERROR_NOT_SUPPORTED:
-                    return self.read_file(path)[:size]  # passing error: full read for this file only
-                self._no_partial = True
+            except (TypeError, AttributeError, NotImplementedError):
+                self._no_partial = True  # binding or camera cannot do it: stop trying this session
             except CameraError:
-                return self.read_file(path)[:size]  # empty answer: full read for this file only
+                pass  # passing problem: full read for this file only, try partial again next time
         return self.read_file(path)[:size]
 
     def warm_index(self):
