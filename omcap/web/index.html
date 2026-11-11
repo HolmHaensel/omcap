@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>E-M1 Capture</title>
 <style>
-/* design tokens, copy of design/tokens.css (dark only; shooting stays dark) */
+/* design tokens, source: design/tokens.css (dark only; shooting stays dark) */
 :root {
   /* Colour */
   --ground: #0E0F11;          /* page */
@@ -183,7 +183,6 @@ dialog h2{margin-top:12px}
 .galbar{display:flex;gap:6px;flex-wrap:wrap;align-items:center;padding:8px 12px;border-bottom:1px solid var(--line)}
 #viewer .galbar{border-color:#333}
 #galBody{flex:1;overflow:auto;padding:8px;min-height:0}
-.gseg{display:flex}
 .galbar .seg button{width:auto;padding:0 12px;height:34px}
 .galbar .tog{height:34px}
 .dayh{margin:var(--s4) 0 var(--s2);font-size:var(--fs-label);font-weight:600;color:var(--muted);letter-spacing:.3px;display:flex;gap:var(--s2);align-items:baseline}
@@ -332,7 +331,7 @@ body.webcam{cursor:none;display:flex;align-items:center;justify-content:center}
     <img id="lastShot" alt="" hidden data-i18n-title="last.title">
     <div id="empty"><span data-i18n="lv.off">Live view off</span><small data-i18n="lv.offHint">Start live view to see the picture and the AF targets.</small></div>
   </div>
-  <div class="tb" id="toolbar">
+  <div class="tb">
     <div class="seg" role="group" data-i18n-aria="lv.zoomGroup" aria-label="View zoom (in the app, not the camera)">
       <button data-z="1">1×</button><button data-z="2">2×</button><button data-z="4">4×</button>
     </div>
@@ -421,7 +420,7 @@ body.webcam{cursor:none;display:flex;align-items:center;justify-content:center}
   <section data-id="shutter" data-label="Shutter button" data-i18n-label="panel.shutter">
     <div id="shutterBox">
       <div>
-        <div id="timerLab"><span data-i18n="timer.label">Self-timer</span><span id="timerHint"></span></div>
+        <div id="timerLab"><span data-i18n="timer.label">Self-timer</span></div>
         <div class="seg" id="timerSeg" role="group" data-i18n-aria="timer.label" aria-label="Self-timer">
           <button type="button" data-t="0" class="on" data-i18n="timer.off">Off</button><button type="button" data-t="2" data-i18n="timer.s2">2 s</button><button type="button" data-t="12" data-i18n="timer.s12">12 s</button>
         </div>
@@ -477,7 +476,7 @@ body.webcam{cursor:none;display:flex;align-items:center;justify-content:center}
     <div class="seg" role="group" data-i18n-aria="card.display" aria-label="Display">
       <button data-v="index" data-i18n="card.index">Index display</button><button data-v="cal" data-i18n="card.calendar">Calendar display</button>
     </div>
-    <div class="seg" id="galSizes" role="group" data-i18n-aria="card.sizes" aria-label="Thumbnail size">
+    <div class="seg" role="group" data-i18n-aria="card.sizes" aria-label="Thumbnail size">
       <button data-sz="25" data-i18n="card.sizeS">S</button><button data-sz="9" data-i18n="card.sizeM">M</button><button data-sz="4" data-i18n="card.sizeL">L</button>
     </div>
     <label class="tog" id="galExifTog" data-na="na.exifLine"><input type="checkbox" id="galExif"> <span data-i18n="card.exifLine">Shooting data</span></label>
@@ -537,6 +536,34 @@ const $=s=>document.querySelector(s);
       Server messages are English; with a key 'srv.<message>' they can be translated.
       Language: localStorage 'omcap.lang', else browser language, else en. */
 const I18N={en:{
+  "exif.prog.1": "M",
+  "exif.prog.2": "P",
+  "exif.prog.3": "A",
+  "exif.prog.4": "S",
+  "exif.wb.0": "AUTO",
+  "exif.wb.1": "Manual",
+  "exif.meter.2": "Center weighted averaging metering",
+  "exif.meter.3": "Spot metering",
+  "exif.meter.4": "Multi Spot",
+  "exif.meter.5": "Digital ESP metering",
+  "exif.pm.1": "Vivid",
+  "exif.pm.2": "Natural",
+  "exif.pm.3": "Muted",
+  "exif.pm.4": "Portrait",
+  "exif.pm.5": "i-Enhance",
+  "exif.pm.6": "e-Portrait",
+  "exif.pm.7": "Color Creator",
+  "exif.pm.8": "Underwater",
+  "exif.pm.9": "Color Profile 1",
+  "exif.pm.10": "Color Profile 2",
+  "exif.pm.11": "Color Profile 3",
+  "exif.pm.12": "Monochrome Profile 1",
+  "exif.pm.13": "Monochrome Profile 2",
+  "exif.pm.14": "Monochrome Profile 3",
+  "exif.pm.17": "Art Mode",
+  "exif.pm.18": "Monochrome Profile 4",
+  "exif.pm.256": "Monotone",
+  "exif.pm.512": "Sepia",
   "card.display": "Display",
   "card.sizes": "Thumbnail size",
   "card.sizeS": "S",
@@ -865,6 +892,7 @@ $('#popPhoto').onclick=()=>popup('photo');
 
 /* State */
 let leavingPlay=false, wasIndexing=false;
+let isUsb=false; // connection type from /api/status
 let st={stage:0,job:{}},canWrite=false,wasBusy=false,blank=0,connected=false,features=new Set(),af=null;
 async function tick(){
   if(view||!connected) return;
@@ -935,7 +963,7 @@ const APERTURE_MIN=22; // smallest aperture is not in the EXIF, f/22 fits almost
 let lens=null,lensFrom=null;
 async function loadLens(){
   // USB: the card list only comes on a button press, the server fetches the newest JPG itself
-  if(features.has('af_modes')&&!cardShots){
+  if(isUsb&&!cardShots){
     try{const l=(await api('/api/lens')).lens; if(l&&(l.model||!lens||!lens.model)){lens=l;lensFrom='usb';showStatus();renderProps()}}catch{}
     return;
   }
@@ -1075,7 +1103,7 @@ function applyContext(){
   const longExp=features.has('long')&&m==='M'&&/^live/.test(sp||'');
   $('#rowLong').hidden=!longExp&&st.take==null;
   if(longExp) $('#longName').textContent=FEATURES.shutspeedvalue.names[sp];
-  $('#takePrep').hidden=!(longExp&&sp==='livecomp'&&features.has('af_modes'));
+  $('#takePrep').hidden=!(longExp&&sp==='livecomp'&&isUsb);
   const sec=$('[data-id=prog]');
   sec.style.display=[...sec.querySelectorAll('.row')].some(r=>!r.hidden)?'':'none';
 }
@@ -1125,8 +1153,8 @@ async function gallery(force){
   if(!features.has('playback')) return;
   const g=$('#gal');
   // Over USB the list takes long and pauses the live view: only on a button press
-  if(features.has('af_modes')&&!force&&!cardShots){$('#count').textContent=tr('card.pressReload');return}
-  if(!cardShots) $('#count').textContent=tr('card.reading')+(features.has('af_modes')?tr('card.paused'):'');
+  if(isUsb&&!force&&!cardShots){$('#count').textContent=tr('card.pressReload');return}
+  if(!cardShots) $('#count').textContent=tr('card.reading')+(isUsb?tr('card.paused'):'');
   try{await loadCard()}catch(e){$('#count').textContent=e.message;return}
   g.innerHTML=''; $('#count').textContent=tr('card.shots',{n:cardShots.length});
   for(const s of cardShots.slice(0,12)){
@@ -1149,7 +1177,7 @@ function loadGal(){try{return JSON.parse(localStorage.getItem(GAL_KEY))||{}}catc
 const gv={n:9,mode:'index',day:null,month:null,exif:false,info:'simple',...loadGal(),day:null};
 if(![4,9,25].includes(gv.n)) gv.n=gv.n>25?25:9; // older versions also had 100 per page
 if(!['image','simple','overall'].includes(gv.info)) gv.info='simple';
-function saveGal(){try{localStorage.setItem(GAL_KEY,JSON.stringify({n:gv.n,mode:gv.mode,exif:gv.exif,info:gv.info}))}catch{}}
+function saveGal(){try{localStorage.setItem(GAL_KEY,JSON.stringify({n:gv.n,mode:gv.mode,exif:gv.exif,info:gv.infoSet?gv.info:undefined,infoSet:gv.infoSet}))}catch{}}
 /* Shooting data (EXIF) per path, one request each; the thumbnail line only over Wi-Fi (USB reads whole files) */
 const exifCache=new Map();
 async function exifOf(f){
@@ -1161,8 +1189,9 @@ async function exifOf(f){
   }
   return exifCache.get(k);
 }
-const fnum=a=>'F'+(+a).toFixed(1).replace(/\.0$/,'.0');
-function exifLine(x){return x?[x.mode,x.shutter,x.aperture!=null&&fnum(x.aperture),x.iso!=null&&'ISO '+x.iso].filter(Boolean).join(' '):''}
+const fnum=a=>'F'+(+a).toFixed(1);
+const exTr=(g,c)=>c==null?null:tr('exif.'+g+'.'+c,null,String(c)); // code -> text, unknown code stays a number
+function exifLine(x){return x?[exTr('prog',x.mode),x.shutter,x.aperture!=null&&fnum(x.aperture),x.iso!=null&&'ISO '+x.iso].filter(Boolean).join(' '):''}
 let selMode=false; const selSet=new Set();
 const thumbs=new Map(), want=new Map(), better=new Map();
 let loading=0,io=null,vList=[],vIdx=0;
@@ -1223,7 +1252,7 @@ function pump(){
 }
 /* Next visible tile whose thumbnail is there and that still needs its shooting data line */
 function exifTile(){
-  if(!gv.exif||features.has('af_modes')||st.stage>0) return null;
+  if(!gv.exif||isUsb||st.stage>0) return null;
   for(const [e] of ioTiles) if(e.isConnected&&e.dataset.vis&&e.dataset.state==='done'&&!e.dataset.ex&&isJpg(e._file)) return e;
   return null;
 }
@@ -1261,7 +1290,7 @@ function renderGal(){
   const body=$('#galBody'); body.innerHTML=''; body.scrollTop=0;
   document.querySelectorAll('[data-v]').forEach(b=>b.classList.toggle('on',b.dataset.v===gv.mode));
   document.querySelectorAll('[data-sz]').forEach(b=>{b.classList.toggle('on',+b.dataset.sz===gv.n);b.disabled=gv.mode==='cal'});
-  $('#galExif').checked=gv.exif&&!features.has('af_modes'); $('#galExif').disabled=features.has('af_modes')||gv.mode==='cal';
+  $('#galExif').checked=gv.exif&&!isUsb; $('#galExif').disabled=isUsb||gv.mode==='cal';
   $('#galSelect').classList.toggle('on',selMode); $('#galSelect').textContent=tr(selMode?'card.selectDone':'card.select');
   $('#galSaveSel').hidden=!selMode; $('#galSaveSel').textContent=tr('card.saveSel',{n:selSet.size}); $('#galSaveSel').disabled=!selSet.size;
   const chip=$('#galChip'); chip.hidden=!(gv.day&&gv.mode==='index');
@@ -1339,7 +1368,7 @@ $('#galSaveSel').onclick=async()=>{
   const l=cardShots.filter(s=>selSet.has(s.preview.path)); let i=0;
   try{
     for(const s of l){$('#galCount').textContent=tr('card.shareSaving',{i:++i,n:l.length});await downloadShot(s,()=>{})}
-    $('#galCount').textContent=tr('card.saveSelDone',{n:l.length}); selSet.clear(); selMode=false; renderGal();
+    selSet.clear(); selMode=false; renderGal();
     $('#galCount').textContent=tr('card.saveSelDone',{n:l.length});
   }catch(e){$('#galCount').textContent=e.message}
 };
@@ -1379,7 +1408,7 @@ function renderCal(body){
 async function openGal(){
   $('#galOv').hidden=false;
   // Wi-Fi: medium previews only exist in mode "play"; the live view pauses meanwhile
-  if(canWrite&&!features.has('af_modes')&&!st.play){try{await api('/api/playback',{action:'enter'});await tick()}catch(e){msg(e.message,true)}}
+  if(canWrite&&!isUsb&&!st.play){try{await api('/api/playback',{action:'enter'});await tick()}catch(e){msg(e.message,true)}}
   if(!cardShots){
     $('#galCount').textContent=tr('card.reading');
     try{await loadCard()}catch(e){$('#galCount').textContent=e.message;return}
@@ -1463,11 +1492,11 @@ function drawVHist(){
 }
 function exifRows(s,x){
   const rows=[], add=(k,v)=>{if(v!=null&&v!=='')rows.push([tr('exif.'+k),v])};
-  add('mode',x.mode); add('shutter',x.shutter); add('aperture',x.aperture!=null?fnum(x.aperture):null);
+  add('mode',exTr('prog',x.mode)); add('shutter',x.shutter); add('aperture',x.aperture!=null?fnum(x.aperture):null);
   add('comp',x.compensation!=null?(x.compensation>0?'+':'')+x.compensation.toFixed(1)+' EV':null);
-  add('iso',x.iso); add('wb',x.white_balance); add('metering',x.metering);
+  add('iso',x.iso); add('wb',exTr('wb',x.white_balance)); add('metering',exTr('meter',x.metering));
   add('flash',x.flash!=null?tr(x.flash?'exif.flashOn':'exif.flashOff'):null);
-  add('focal',x.focal!=null?x.focal+' mm':null); add('lens',x.lens); add('picture',x.picture_mode);
+  add('focal',x.focal!=null?x.focal+' mm':null); add('lens',x.lens); add('picture',exTr('pm',x.picture_mode));
   add('colorspace',x.color_space); add('pixels',x.pixels?x.pixels.replace('x','×'):null);
   add('datetime',x.datetime); add('file',s.name);
   return rows;
@@ -1488,17 +1517,17 @@ async function showInfo(s,token){
   if(!x){dl.textContent=tr('exif.none');return}
   // Simplified display: the value strip of the live view
   const mk=(c,t)=>{const e=document.createElement('span');if(c)e.className=c;e.textContent=t;strip.append(e)};
-  if(x.mode) mk('m',x.mode);
+  if(x.mode!=null) mk('m',exTr('prog',x.mode));
   if(x.shutter) mk('',x.shutter);
   if(x.aperture!=null) mk('',fnum(x.aperture));
   if(x.compensation!=null) mk('',(x.compensation>0?'+':'')+x.compensation.toFixed(1));
   if(x.iso!=null) mk('','ISO '+x.iso);
-  if(x.white_balance) mk('',tr('strip.wb')+' '+x.white_balance);
+  if(x.white_balance!=null) mk('',tr('strip.wb')+' '+exTr('wb',x.white_balance));
   mk('nm',s.name);
   for(const [k,v] of exifRows(s,x)){const dt=document.createElement('dt'),dd=document.createElement('dd');dt.textContent=k;dd.textContent=v;dl.append(dt,dd)}
   if(gv.info==='overall') drawVHist();
 }
-$('#vInfoBtn').onclick=()=>{gv.info=INFO_MODES[(INFO_MODES.indexOf(gv.info)+1)%3];saveGal();if(vList[vIdx])showInfo(vList[vIdx],vToken)};
+$('#vInfoBtn').onclick=()=>{gv.info=INFO_MODES[(INFO_MODES.indexOf(gv.info)+1)%3];gv.infoSet=true;saveGal();if(vList[vIdx])showInfo(vList[vIdx],vToken)};
 $('#vImg').onload=()=>{if(gv.info==='overall')drawVHist()};
 $('#vFit').onclick=()=>{const b=$('#vImgBox');b.classList.toggle('full');$('#vFit').textContent=tr(b.classList.contains('full')?'view.full':'view.fit')};
 function openViewer(list,i){vList=list;vIdx=i;$('#viewer').hidden=false;$('#vImgBox').classList.remove('full');$('#vFit').textContent=tr('view.fit');showShot()}
@@ -1507,7 +1536,8 @@ function stepViewer(d){const n=vIdx+d;if(n>=0&&n<vList.length){vIdx=n;showShot()
 $('#vPrev').onclick=()=>stepViewer(-1);
 $('#vNext').onclick=()=>stepViewer(1);
 $('#vClose').onclick=closeViewer;
-$('#vGet').onclick=()=>downloadShot(vList[vIdx],t=>$('#vInfo').textContent=t).catch(e=>$('#vInfo').textContent=e.message);
+const vReport=t=>{$('#vInfo').hidden=false;$('#vInfo').textContent=t};
+$('#vGet').onclick=()=>downloadShot(vList[vIdx],vReport).catch(e=>vReport(e.message));
 /* HSL: runs on the computer (USB and Wi-Fi alike) on files in captures/ */
 let hslPresetsLoaded=null;
 async function hslPresets(){
@@ -1610,7 +1640,7 @@ vp.onpointerup=e=>{
 /* Level Gauge (USB): spirit level, also watch the mode dial */
 let lvl=null,lvlBusy=false,lvPicked=false;
 async function pollLevel(){
-  if(!connected||lvlBusy||!features.has('af_modes')) return;
+  if(!connected||lvlBusy||!isUsb) return;
   lvlBusy=true;
   try{
     lvl=await api('/api/level');
@@ -1905,7 +1935,7 @@ $('#layoutReset').onclick=()=>{layout={};commit()};
 
 /* Buttons */
 $('#lvStart').onclick=async()=>{
-  try{await api('/api/liveview',{action:'start',lvqty:features.has('af_modes')&&!lvPicked?null:$('#lvqty').value});$('#live').src='/live.mjpg?'+Date.now();msg(tr('msg.lvRunning'));await tick();if(features.has('af_area'))loadAf();setTimeout(props,1500)}catch(e){msg(e.message,true)}};
+  try{await api('/api/liveview',{action:'start',lvqty:isUsb&&!lvPicked?null:$('#lvqty').value});$('#live').src='/live.mjpg?'+Date.now();msg(tr('msg.lvRunning'));await tick();if(features.has('af_area'))loadAf();setTimeout(props,1500)}catch(e){msg(e.message,true)}};
 $('#lvqty').onchange=()=>{lvPicked=true;if(st.live)$('#lvStart').click()};
 $('#lvStop').onclick=()=>act(tr('msg.lvStopped'),'/api/liveview',{action:'stop'});
 /* Shooting: the whole sequence. If Halfway is just holding focus, press through from there and release,
@@ -1941,7 +1971,7 @@ async function showLast(before,retry,before2){
   }catch{}
   const src=local||(shot&&thumbUrl(shot.preview));
   // Wi-Fi: right after a shot the card list may fail or lack the new file: try again (up to 3x, 4 s apart)
-  if(!features.has('af_modes')&&!local&&!shot&&n<4) setTimeout(()=>showLast(before,n+1,before2),3000);
+  if(!isUsb&&!local&&!shot&&n<4) setTimeout(()=>showLast(before,n+1,before2),3000);
   if(!src) return;
   lastOpen=shot; img.hidden=false;
   // the camera may still be busy right after the shot: retry a failed thumbnail a few times
@@ -1964,9 +1994,9 @@ $('#shoot').onclick=async()=>{
   }else if(!await act(tr('msg.taken'),'/api/shoot',{})) return;
   showLast(latestBefore,0,newestBefore);
   gallery();local();
-  if(features.has('af_modes')) loadLens(); // USB: lens from the new JPG
+  if(isUsb) loadLens(); // USB: lens from the new JPG
   // Wi-Fi: the camera is still writing after the shot, the first list often lacks the new image
-  if(!features.has('af_modes')) setTimeout(()=>gallery(),4000);
+  if(!isUsb) setTimeout(()=>gallery(),4000);
 };
 document.querySelectorAll('#timerSeg [data-t]').forEach(b=>b.onclick=()=>{
   $('#timerSel').value=b.dataset.t;
@@ -1993,7 +2023,7 @@ $('#takeStop').onclick=()=>act(tr('msg.stopped',{name:$('#longName').textContent
 /* Movie: start/stop like the R button (manual p.22); the app briefly switches to Movie mode for it */
 $('#movStart').onclick=()=>act(tr('msg.movieStarted'),'/api/movie',{action:'start'});
 $('#movStop').onclick=async()=>{await act(tr('msg.movieStopped'),'/api/movie',{action:'stop'});
-  if(!features.has('af_modes')) setTimeout(()=>gallery(),4000)};
+  if(!isUsb) setTimeout(()=>gallery(),4000)};
 function showSaveCfg(c){
   $('#svDir').value=c.dir; $('#svScheme').value=c.scheme; $('#svPrefix').value=c.prefix;
   $('#svPrefix').hidden=c.scheme!=='prefix';
@@ -2010,7 +2040,7 @@ api('/api/savecfg').then(showSaveCfg).catch(()=>{});
 document.querySelectorAll('[name=tr]').forEach(r=>r.onchange=()=>act(tr('msg.saveTo'),'/api/transfer',{target:r.value}));
 $('#reload').onclick=gallery;
 $('#propsReload').onclick=async()=>{
-  if(!features.has('af_modes')){props();return}
+  if(!isUsb){props();return}
   msg(tr('msg.rereading'));
   try{await api('/api/refresh',{});await props();await loadAf();msg(tr('msg.updated'))}
   catch(e){msg(e.message,true)}
@@ -2074,17 +2104,18 @@ async function enterApp(){
   try{
     const s=await api('/api/status');
     canWrite=s.allow_write;
-    features=new Set(s.features);
+    features=new Set(s.features); isUsb=s.type==='usb';
+    if(isUsb&&!gv.infoSet) gv.info='image'; // USB reads the whole file for the info: only on request
     applyFeatures();
-    if(features.has('af_modes')) markNa($('#galExifTog'),tr('na.exifLine')); // USB reads whole files
+    if(isUsb) markNa($('#galExifTog'),tr('na.exifLine')); // USB reads whole files
     statusBase={model:s.model,conn:s.type==='usb'?'USB':'Wi-Fi',rights:canWrite?tr('app.write'):tr('app.readOnly')};
     showStatus();
-    if(!canWrite) document.querySelectorAll('button.w').forEach(b=>{if(!b.hidden&&b.id!=='lvStart'){b.disabled=true;b.classList.add('na');b.title=tr('na.readOnly')}});
-    await tick(); await props(); gallery(); loadDevice(true); if(features.has('af_modes')) loadLens();
-    if(features.has('af_modes')||(features.has('af_area')&&st.live)) loadAf();
+    if(!canWrite) document.querySelectorAll('button.w').forEach(b=>{b.disabled=true;b.classList.add('na');b.title=tr('na.readOnly')});
+    await tick(); await props(); gallery(); loadDevice(true); if(isUsb) loadLens();
+    if(isUsb||(features.has('af_area')&&st.live)) loadAf();
     if(canWrite&&!st.live) $('#lvStart').click();
     if(st.lvqty) $('#lvqty').value=st.lvqty;
-    else if(features.has('af_modes')) $('#lvqty').value='1024x0768';
+    else if(isUsb) $('#lvqty').value='1024x0768';
     if(st.live) $('#live').src='/live.mjpg?'+Date.now();
   }catch(e){$('#status').className='warn';$('#status').textContent=e.message;$('#connChip').hidden=true}
   local(); applyLayout();
