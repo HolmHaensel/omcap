@@ -15,8 +15,9 @@ Tokens: [`tokens.css`](tokens.css). Planned for version 0.4.
    *LV super control panel*.
 5. **Colour has meaning:** amber = selected or working, green = in focus / connected,
    red = recording or turning the camera off. Nothing else is coloured.
-6. **Show limits instead of hiding them:** what a connection cannot do is shown dashed and disabled
-   with a short reason ("Movie: Wi-Fi only", "Set on the mode dial (read only over USB)").
+6. **Hide what the connection cannot do** (maintainer decision 2026-11-11): USB-only functions do not
+   appear over Wi-Fi and vice versa, so the screen stays calm. Only missing write permission is shown
+   as disabled with a reason ("Write is off …").
 
 ## Screen layout (computer)
 
@@ -86,7 +87,7 @@ recording a movie, read only, Wi-Fi drop-out (last good frame kept, "No signal f
 5. LV super control panel: mode segmented control (Wi-Fi) or read-only mode card (USB), value tiles
    with the editing state, read-only settings line.
 6. Shutter block: self-timer segmented control, Press halfway (pressed state), Take picture, Save to.
-7. Disabled-with-reason pattern for USB/Wi-Fi limits; States (live view off, recording, read only,
+7. Hide functions the connection cannot do; disabled-with-reason only for read-only mode; States (live view off, recording, read only,
    drop-out with last good frame and "No signal for N s").
 8. Playback: Index display and Calendar display in the new style; single-frame playback with the
    info cycle and the Overall display panel (EXIF from `omcap/exif.py`, extended beyond lens data).
