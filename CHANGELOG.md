@@ -34,7 +34,6 @@
 - Live view and Take picture are always visible together (REQ-D02).
 - USB: shooting data on thumbnails and in Index display, read from the first bytes of each JPG (REQ-F26).
 
-
 ## 0.3.0 – 2026-11-11
 
 - Webcam (OBS) button next to Second monitor: opens the webcam view and copies its link to the clipboard (REQ-D05).
