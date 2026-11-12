@@ -4,6 +4,7 @@
 
 - Wi-Fi live view: the RTP extension data (OPC protocol) is read instead of skipped; `GET /api/lvext` shows what the camera sends. The E-M1 Mark I sends free shots, AF result, shutter speed, aperture, exposure compensation, ISO (also with ISO Auto) and focal length; no level gauge or face frames (REQ-F29).
 - Faster start (REQ-F27): the card list is saved on the computer (`out/cache/cardlist_wifi.json`, `_usb.json`) and shown at once; the camera's list follows in the background after the live view has started. Wi-Fi measured: header after 1 s, live view after 1.7 s (before: card space after 7 s, live view after 10 s, card list 17 s).
+- Turn off camera and Reset Share Order ask for a second click on the page instead of a browser dialog, which embedded browsers (e.g. the Claude app's browser) suppress; before, the button did nothing there.
 - `--timing` prints every request with its duration (performance checks).
 - Wi-Fi: live view start retries when the camera answers 520 right after switching to shooting mode.
 - Wi-Fi: during live view the header shows free shots and the current focal length, and the value strip shows the ISO in use with ISO Auto and the shutter speed and aperture the camera uses in auto modes (REQ-F29).
