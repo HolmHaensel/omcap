@@ -107,7 +107,7 @@ cd omcap
 .venv/bin/em1-capture --allow-write
 ```
 
-- Keep the window open while you use the app; stop it with **Ctrl+C** or close the window.
+- Keep the window open while you use the app (see **Stop** below).
 - Starting a second time just opens the browser again: the new window says *E-M1 Capture is already
   running* and ends (Terminal shows *Process completed*). That is normal, the app keeps running in the
   first window. To change between read only and `--allow-write`, stop the running app first.
@@ -118,7 +118,7 @@ cd omcap
 - No such window (for example the app was started in the background)? Stop it in the Terminal:
 
   ```sh
-  pkill -f omcap.server
+  pkill -f 'omcap\.server|bin/em1-capture'
   ```
 
   On Windows close the window of `E-M1 Capture.bat`.
