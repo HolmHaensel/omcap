@@ -792,6 +792,7 @@ const I18N={en:{
   "card.close": "Close",
   "card.shots": "{n} shots",
   "card.reading": "Reading the card …",
+  "card.updating": "{n} shots · updating …",
   "card.paused": " Live view paused",
   "card.pressReload": "Press Reload to read",
   "card.save": "Save",
@@ -981,7 +982,7 @@ const APERTURE_MIN=22; // smallest aperture is not in the EXIF, f/22 fits almost
 let lens=null,lensFrom=null;
 async function loadLens(){
   // USB: the card list only comes on a button press, the server fetches the newest JPG itself
-  if(isUsb&&!cardShots){
+  if(isUsb&&!cardLive){
     try{const l=(await api('/api/lens')).lens; if(l&&(l.model||!lens||!lens.model)){lens=l;lensFrom='usb';showStatus();renderProps()}}catch{}
     return;
   }
@@ -1165,7 +1166,11 @@ function groupShots(files){
   });
 }
 let cardShots=null, shareSet=null;  // shareSet: paths of the Share Order, null = filter off
-async function loadCard(){cardShots=groupShots(await api('/api/images'));loadLens();return cardShots}
+let cardLive=false; // false while cardShots is only the list saved on the computer
+let cardP=null; // one camera list at a time (gallery and Playback may ask together)
+function loadCard(){
+  return cardP||(cardP=api('/api/images').then(l=>{cardShots=groupShots(l);cardLive=true;loadLens();return cardShots}).finally(()=>cardP=null));
+}
 async function downloadShot(s,report){
   for(const f of s.files){
     report(tr('card.loading',{name:f.name}));
@@ -1177,12 +1182,20 @@ async function downloadShot(s,report){
 }
 async function gallery(force){
   if(!features.has('playback')) return;
-  const g=$('#gal');
   // Over USB the list takes long and pauses the live view: only on a button press
-  if(isUsb&&!force&&!cardShots){$('#count').textContent=tr('card.pressReload');return}
-  if(!cardShots) $('#count').textContent=tr('card.reading')+(isUsb?tr('card.paused'):'');
+  if(!cardLive){ // last list from the computer first, the camera list follows (REQ-F27)
+    try{const c=await api('/api/images?cached=1'); if(c&&c.length){cardShots=groupShots(c);renderStrip12();
+      $('#count').textContent=isUsb&&!force?tr('card.shots',{n:cardShots.length})+' · '+tr('card.pressReload'):tr('card.updating',{n:cardShots.length})}}catch{}
+    if(isUsb&&!force){if(!cardShots)$('#count').textContent=tr('card.pressReload');return}
+    if(cardShots) $('#count').textContent=tr('card.updating',{n:cardShots.length});
+    if(!cardShots) $('#count').textContent=tr('card.reading')+(isUsb?tr('card.paused'):'');
+  }
   try{await loadCard()}catch(e){$('#count').textContent=e.message;return}
-  g.innerHTML=''; $('#count').textContent=tr('card.shots',{n:cardShots.length});
+  $('#count').textContent=tr('card.shots',{n:cardShots.length});
+  renderStrip12();
+}
+function renderStrip12(){
+  const g=$('#gal'); g.innerHTML='';
   for(const s of cardShots.slice(0,12)){
     const f=document.createElement('figure');
     const im=new Image(); im.loading='lazy'; im.alt=''; im.src=thumbUrl(s.preview);
@@ -1435,8 +1448,8 @@ async function openGal(){
   $('#galOv').hidden=false;
   // Wi-Fi: medium previews only exist in mode "play"; the live view pauses meanwhile
   if(canWrite&&!isUsb&&!st.play){try{await api('/api/playback',{action:'enter'});await tick()}catch(e){msg(e.message,true)}}
-  if(!cardShots){
-    $('#galCount').textContent=tr('card.reading');
+  if(!cardLive){ // show the saved list at once, then the camera's
+    if(cardShots) renderGal(); else $('#galCount').textContent=tr('card.reading');
     try{await loadCard()}catch(e){$('#galCount').textContent=e.message;return}
   }
   renderGal();
@@ -2122,9 +2135,10 @@ async function enterApp(){
     statusBase={model:s.model,conn:s.type==='usb'?'USB':'Wi-Fi',rights:canWrite?tr('app.write'):tr('app.readOnly')};
     showStatus();
     if(!canWrite) document.querySelectorAll('button.w').forEach(b=>{b.disabled=true;b.classList.add('na');b.title=tr('na.readOnly')});
-    await tick(); await props(); gallery(); loadDevice(true); if(isUsb) loadLens();
+    await tick(); await props(); loadDevice(true); if(isUsb) loadLens();
     if(isUsb||(features.has('af_area')&&st.live)) loadAf();
-    if(canWrite&&!st.live) $('#lvStart').click();
+    // live view first, card list last: the list holds the camera for seconds
+    if(canWrite&&!st.live) $('#lvStart').onclick().finally(()=>gallery()); else gallery();
     if(st.lvqty) $('#lvqty').value=st.lvqty;
     else if(isUsb) $('#lvqty').value='1024x0768';
     if(st.live) $('#live').src='/live.mjpg?'+Date.now();

@@ -249,7 +249,18 @@ def start_live():
         live.start()
     else:
         live.start()
-        cam.start_liveview(LV_PORT)
+        # Right after switch_cammode the camera may answer 520 for a moment; if frames
+        # already arrive, the live view runs anyway
+        for attempt in range(4):
+            try:
+                cam.start_liveview(LV_PORT)
+                return
+            except CameraError as e:
+                if e.code != 520 or attempt == 3:
+                    raise
+                if live.age is not None and live.age < 1:
+                    return
+                time.sleep(0.5)
 
 
 @contextlib.contextmanager
@@ -631,6 +642,23 @@ def capture_path(name):
     return p
 
 
+def card_cache(kind, imgs=None):
+    """Card list saved on the computer per connection type (the camera needs ~3 ms per file,
+    about 8 s for 2900 files over Wi-Fi). With `imgs` store it, else return it or None."""
+    path = os.path.join(os.path.dirname(PREVIEW_CACHE), "cardlist_%s.json" % kind)
+    if imgs is not None:
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path + ".part", "w") as f:
+            json.dump(imgs, f)
+        os.replace(path + ".part", path)
+        return imgs
+    try:
+        with open(path) as f:
+            return json.load(f)
+    except (OSError, ValueError):
+        return None
+
+
 def cached_preview(kind, path, size, fetch):
     """Preview from the card, cached on disk (key: path, file size, kind).
 
@@ -876,8 +904,11 @@ class Handler(BaseHTTPRequestHandler):
             if u.path == "/api/afframe":
                 return self._send(cam.touch_frame())
             if u.path == "/api/images":
+                if q.get("cached") == "1":  # last list of this connection type, instant
+                    return self._send(card_cache(conn_type) or [])
                 imgs = cam.images(q.get("dir", "/DCIM"))
                 imgs.sort(key=lambda e: (e["date"], e["time"]), reverse=True)
+                card_cache(conn_type, imgs)
                 return self._send(imgs)
             if u.path == "/api/shareorder":
                 if conn_type != "wifi":
