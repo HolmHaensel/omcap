@@ -32,6 +32,7 @@ Contributions, tests with other bodies and ideas are very welcome.
 | Tap the 9×9 AF grid to focus, AF target shown in green | yes | yes |
 | AF Area (All Targets, Single Target, Small Target, Group Target) | – (no command over Wi-Fi) | yes |
 | Shutter button: Take picture, Press halfway (hold focus, then take picture) | yes | yes |
+| Self-timer (Off, 2 s, 12 s; the button becomes Cancel self-timer while it runs) | yes | yes |
 | New picture in the last-shot corner and Index display right after Take picture | yes (about 8 s, 7 s of it the camera) | yes (the camera reports new files) |
 | LV super control panel: Shooting mode, shutter speed, aperture, exposure compensation, ISO, WB, drive, Picture Mode, Art filter | yes | most (mode dial only) |
 | Shooting mode follows the mode dial, values reload by themselves (during live view) | not needed (the app sets the mode) | yes, tested: P, A, S, M, Movie read correctly; iAUTO, ART, SCN, PHOTO STORY show as P; after a shot iAUTO is shown from the picture's EXIF |
@@ -51,7 +52,6 @@ Contributions, tests with other bodies and ideas are very welcome.
 | Share Order: show, save all, reset | yes (in playback) | – (no PTP counterpart known) |
 | Movie length in single-frame view | yes (in playback) | – (not built) |
 | Turn off camera (click twice to confirm) | yes | – (Wi-Fi only) |
-| Self-timer (Off, 2 s, 12 s; click Take picture again to cancel) | yes | yes |
 | Live view aids: Histogram, Highlight&Shadow, Peaking | yes | yes |
 | HSL color profiles for ORF/JPG on the computer (`omcap.hsl`) | independent | independent |
 | Webcam (OBS) button next to Second monitor | yes | yes (webcam view tested, button untested) |
