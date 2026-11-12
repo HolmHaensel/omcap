@@ -42,7 +42,7 @@ Contributions, tests with other bodies and ideas are very welcome.
 | Save to card only or card and computer | yes | yes |
 | Free card space in the header | yes (free shots, live from the live view) | yes |
 | Current focal length in the header, ISO with ISO Auto, shutter speed and aperture the camera uses in auto modes | yes (sent with the live view) | – (no live USB property found) |
-| Battery level | – (no command) | yes |
+| Battery level | yes (during live view, sent with the picture) | yes |
 | Read-only settings (Anti-Shock, Silent, Noise Reduct., BULB/TIME Timer, Digital Tele-converter) | yes | – (unknown) |
 | Share Order: show, save all, reset | yes (in playback) | – |
 | Movie length in single-frame view | yes (in playback) | – |

@@ -39,8 +39,8 @@ def decode_entry(fid, w):
         return {"mount_state": m & 3, "not_full": bool(m & 4), "protected": bool(m & 8),
                 "error": bool(m & 16), "writing": bool(m & 32)}
     if fid in (1, 4, 5, 7, 16, 17, 19):
-        # JPEG frame size, orientation, free shots, 7 battery level? (E-M1: 100 -> 75 after a shot,
-        # unconfirmed), warning, focus mode, 19 unknown counter (E-M1: -5 per shot)
+        # JPEG frame size, orientation, free shots, 7 battery level in % (matches USB), warning,
+        # focus mode, 19 unknown counter (E-M1: -5 per shot)
         return w[0]
     if fid == 8:  # shutter speed: longest / shortest / now as ratios
         return _ratio(w)
@@ -154,7 +154,7 @@ class LiveView:
     def live_values(self):
         """Camera values for the page while frames arrive (E-M1 layouts), else None.
 
-        shots: free shots on the card; iso: ISO in use (also with ISO Auto);
+        shots: free shots on the card; iso: ISO in use (also with ISO Auto); battery: level in %;
         shutter: [numerator, denominator] in use; aperture: f-number in use;
         focal: [wide, tele, now] in mm; af: 1 in focus, 0 no result."""
         age = self.age
@@ -165,6 +165,8 @@ class LiveView:
             out["shots"] = e[5][0]
         if e.get(12):
             out["iso"] = e[12][0]
+        if e.get(7) and e[7][0] <= 100:  # battery level in %, same value as USB (100 vs 100, 2026-11-12)
+            out["battery"] = e[7][0]
         if len(e.get(8, ())) >= 3 and e[8][2] & 0xFFFF:
             out["shutter"] = [e[8][2] >> 16, e[8][2] & 0xFFFF]
         if len(e.get(9, ())) >= 3:

@@ -10,7 +10,7 @@
 - USB: the saved card list shows at once while the camera reads its card index (~1 min), and the camera list loads by itself when the index is ready (before: "Press Reload to read"); the model name is kept, so reloading the page no longer waits for the index (REQ-F27).
 - `--timing` prints every request with its duration (performance checks).
 - Wi-Fi: live view start retries when the camera answers 520 right after switching to shooting mode.
-- Wi-Fi: during live view the header shows free shots and the current focal length, and the value strip shows the ISO in use with ISO Auto and the shutter speed and aperture the camera uses in auto modes (REQ-F29).
+- Wi-Fi: during live view the header shows the battery level, free shots and the current focal length, and the value strip shows the ISO in use with ISO Auto and the shutter speed and aperture the camera uses in auto modes (REQ-F29).
 
 ## 0.4.0 – 2026-11-11
 

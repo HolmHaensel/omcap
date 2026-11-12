@@ -1008,7 +1008,8 @@ function showStatus(){
   const c=device.card;
   const li=st&&st.lvinfo; // Wi-Fi live view: values sent with every frame (REQ-F29)
   const card=li&&li.shots!=null?tr('status.shots',{v:li.shots}):c==null?null:c===4294967295?tr('status.cardMore'):c>=1e9?tr('status.card',{v:(c/1e9).toFixed(1)}):tr('status.cardMb',{v:Math.round(c/1e6)});
-  const bat=device.battery!=null?tr('status.battery',{v:device.battery}):null;
+  const b=device.battery!=null?device.battery:li&&li.battery; // Wi-Fi: only during live view
+  const bat=b!=null?tr('status.battery',{v:b}):null;
   // without a lens name (USB without JPG) at least the focal length range
   let lensName=lens&&(lens.model||(lens.focal_min?(lens.focal_min===lens.focal_max?lens.focal_min:lens.focal_min+'–'+lens.focal_max)+' mm':null));
   const f=li&&li.focal;
