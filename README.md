@@ -28,7 +28,7 @@ Contributions, tests with other bodies and ideas are very welcome.
 
 | Feature | Wi-Fi | USB |
 |---|---|---|
-| Live view with selectable size, zoom, Displayed Grid, overlay, second monitor | yes | yes (fixed size) |
+| Live view with selectable size, zoom, Displayed Grid, overlay, second monitor | yes | yes (size choice up to 1280×960 needs libgphoto2 2.5.34.1 or later, see below; otherwise fixed 1024×768) |
 | Tap the 9×9 AF grid to focus, AF target shown in green | yes | yes |
 | AF Area (All Targets, Single Target, Small Target, Group Target) | – (no command over Wi-Fi) | yes |
 | Shutter button: Take picture, Press halfway (hold focus, then take picture) | yes | yes |
@@ -182,6 +182,20 @@ dial during live view. Other settings changed on the camera itself are picked up
 the LV super control panel (rebuilds the USB session, about 9 s). After unplugging and plugging the
 cable in again while the app runs, connecting may fail with *Could not claim the USB device*:
 stop the app and start it again.
+
+### Larger USB live view (optional)
+
+libgphoto2 2.5.34 (bundled with the `gphoto2` Python package) fixes the USB live view at 1024×768. The
+development version of libgphoto2 (2.5.34.1 or later) keeps a chosen size, and the app then shows **Size**
+over USB too (up to 1280×960, about 14 fps). Until a release contains it, build it yourself (macOS, Homebrew):
+
+```sh
+brew install autoconf automake libtool gettext pkgconf libusb libexif
+git clone https://github.com/gphoto/libgphoto2.git && cd libgphoto2
+autoreconf -is && ./configure --prefix="$HOME/.local/libgphoto2-dev" && make -j4 && make install
+cd ../omcap
+PKG_CONFIG_PATH="$HOME/.local/libgphoto2-dev/lib/pkgconfig" .venv/bin/pip install --force-reinstall --no-binary gphoto2 gphoto2
+```
 
 ## HSL color profiles (software)
 

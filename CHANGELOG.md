@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- USB live view size can be chosen like over Wi-Fi (up to 1280×960) when libgphoto2 keeps the size (development version 2.5.34.1 or later; with 2.5.34 it stays 1024×768 and the choice is hidden). Measured 1280×960 at 13.8 fps (REQ-F36).
 - CI on GitHub: offline tests on every push to `main`/`release-*` and on pull requests (Ubuntu with Python 3.9 and 3.12, macOS with 3.12) (REQ-Q08).
 - "Quit E-M1 Capture" button (header and start screen, second click confirms): closes the camera connection, stops the app and shows a notice (REQ-Q10).
 - Second start while the app is already running: the message now says the window can be closed and how to stop the running app (Ctrl+C in its own window or `pkill -f 'omcap\.server|bin/em1-capture'`); error messages: USB connect failure says what to check (Photos, USB menu, restart after re-plugging), missing gphoto2 says how to install it, the level gauge message no longer claims USB support; README has a "Stop" section and current parity rows (lens aperture over USB, webcam view over USB (button untested), time lapse/AE BKT untested, what the E-M1 cannot do).
