@@ -235,6 +235,7 @@ class UsbCamera:
         self.stage = 0
         self._new_files = []
         self.last_jpg = None  # JPG last reported by the camera
+        self._model = None    # model name, read once
         self._pending = []
         self._files = None
         self._event_log = []
@@ -321,7 +322,7 @@ class UsbCamera:
     # --- Read ---------------------------------------------------------------
     def caminfo(self):
         # kept: the page asks on every load, and the camera is busy while the card index is read
-        if not getattr(self, "_model", None):
+        if not self._model:
             self._model = self._value("cameramodel")
         return self._model
 

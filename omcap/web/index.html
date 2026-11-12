@@ -2184,7 +2184,7 @@ async function enterApp(){
     if(isUsb||(features.has('af_area')&&st.live)) loadAf();
     // live view first, card list last: the list holds the camera for seconds
     // USB: connecting waits for the card index; once it is read the list costs only milliseconds
-    const list=()=>gallery(isUsb&&!st.indexing);
+    const list=async()=>{try{st=await api('/api/state')}catch{} gallery(isUsb&&!st.indexing)}; // fresh state
     if(canWrite&&!st.live) $('#lvStart').onclick().finally(list); else list();
     if(st.lvqty) $('#lvqty').value=st.lvqty;
     else if(isUsb) $('#lvqty').value='1024x0768';
