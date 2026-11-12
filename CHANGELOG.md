@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- USB: turning the mode dial is detected (event 0xC003, param 3); the app rebuilds the USB session by itself and reloads the values, no "reload" needed (during live view). P, A, S, M and Movie are shown; iAUTO, ART, SCN and PHOTO STORY read as P over USB and are labelled so; after a shot iAUTO is shown from the picture's EXIF.
+- The "not running" hint names the command that works in every installation (`.venv/bin/python -m omcap.server --allow-write`) and the Windows launcher.
+
 ## 0.5.0 – 2026-11-12
 
 - Wi-Fi live view: the RTP extension data (OPC protocol) is read instead of skipped; `GET /api/lvext` shows what the camera sends. The E-M1 Mark I sends free shots, AF result, shutter speed, aperture, exposure compensation, ISO (also with ISO Auto) and focal length; no level gauge or face frames (REQ-F29).

@@ -849,6 +849,8 @@ def public_state():
         "movie": now - state["movie"]["since"] if state["movie"] else None,
         # Wi-Fi only: values the camera sends with every live view frame (REQ-F29)
         "lvinfo": live.live_values() if hasattr(live, "live_values") else None,
+        # USB: time the mode dial was last turned (the session was rebuilt, values are new)
+        "mode_at": getattr(cam, "mode_changed_at", None),
     }
 
 

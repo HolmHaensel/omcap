@@ -47,6 +47,11 @@ DRIVE_STYLE = {0: "", 1: "Anti-Shock ", 2: "Silent "}
 # Shutter stages of PTP 0x9481, matching exec_shutter over Wi-Fi.
 # 1 and 6 are tested on the camera, 3 and 6 are what libgphoto2 uses to release.
 OP_FIRST, OP_SECOND, OP_FULL, OP_SECOND_BACK, OP_RELEASE = 1, 2, 3, 4, 6
+# Turning the mode dial sends event 0xC003 with param1 = 3 (E-M1 Mark I, tested 2026-11-12);
+# the new value only arrives with a new session. d006 knows only M, P, A, S, Movie: iAUTO, ART, SCN
+# and PHOTO STORY read as P
+DIAL_EVENT = re.compile(r"c003, Param1 0*3\b", re.I)
+DIAL_QUIET = 3.0  # seconds after a shutter command in which 0xC003 belongs to AF, not to the dial
 FOCUS_WAIT = 2.0
 FOCUS_POSITION_WAIT = 1.5
 SHOT_TIMEOUT = 20
@@ -183,12 +188,18 @@ class UsbLive:
             self._thread = None
 
     def _loop(self):
-        failures = 0
+        failures, next_dial = 0, 0.0
         while self._run:
             if self.camera.hold:  # shooting or card list: do not disturb the connection
                 failures = 0
                 time.sleep(0.05)
                 continue
+            if time.monotonic() >= next_dial:
+                next_dial = time.monotonic() + 1.0
+                if self.camera.dial_turned():
+                    self.camera.reopen("mode dial turned")
+                    self.camera.mode_changed_at = time.time()
+                    continue
             data = self.camera.preview_frame()
             if data is None:
                 failures += 1
@@ -235,6 +246,8 @@ class UsbCamera:
         self.stage = 0
         self._new_files = []
         self.last_jpg = None  # JPG last reported by the camera
+        self.last_press = 0.0  # time of the last shutter command (AF also sends 0xC003)
+        self.mode_changed_at = None  # set when the mode dial was turned (page reloads values)
         self._model = None    # model name, read once
         self._pending = []
         self._files = None
@@ -279,6 +292,29 @@ class UsbCamera:
                 self._open()
             except CameraError:
                 pass
+
+    def dial_turned(self):
+        """Read pending events without waiting; True if the mode dial was turned.
+
+        New files on the card (shot on the camera) are kept like in `_events`."""
+        if self.hold or self.stage:
+            return False
+        turned = False
+        with self._lock:
+            for _ in range(8):
+                try:
+                    kind, data = self._c.wait_for_event(1)
+                except self.gp.GPhoto2Error:
+                    return False
+                if kind == self.gp.GP_EVENT_TIMEOUT:
+                    break
+                if kind == self.gp.GP_EVENT_FILE_ADDED:
+                    path = "%s/%s" % (data.folder, data.name)
+                    self._new_files.append(path)
+                    self._pending.append(path)
+                elif kind == self.gp.GP_EVENT_UNKNOWN and DIAL_EVENT.search(str(data)):
+                    turned = True
+        return turned and time.monotonic() - self.last_press > DIAL_QUIET
 
     def refresh(self):
         """Mode dial and other camera changes only arrive with a new session."""
@@ -596,6 +632,7 @@ class UsbCamera:
 
     def _shutter(self, step):
         self._need_write()
+        self.last_press = time.monotonic()
 
         def send():
             w = self._c.get_single_config("opcode")

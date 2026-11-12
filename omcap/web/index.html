@@ -632,7 +632,7 @@ const I18N={en:{
   "lv.inFocus": "In focus",
   "strip.wb": "WB",
   'start.openUrl':'Then open http://127.0.0.1:8765 in the browser (not the index.html file).',
-  'srv.offline':'E-M1 Capture is not running. Start it again: double-click “E-M1 Capture.command” in the omcap folder, or in the Terminal:\ncd omcap && .venv/bin/em1-capture --allow-write',
+  'srv.offline':'E-M1 Capture is not running. Start it again: double-click “E-M1 Capture.command” (Windows: “E-M1 Capture.bat”) in the app folder, or in the Terminal in that folder:\n.venv/bin/python -m omcap.server --allow-write',
   "start.usb": "USB connection",
   "start.wifi": "Wi-Fi connection",
   "start.searching": "searching …",
@@ -738,6 +738,7 @@ const I18N={en:{
   "status.cardMore": "Card: more than 4 GB free",
   "status.cardMb": "Card: {v} MB free",
   "status.shots": "Card: {v} shots free",
+  "msg.modeDial": "Mode dial turned: settings reloaded.",
   "status.battery": "Battery: {v} %",
   "ro.title": "Camera settings (read only)",
   "ro.lowvibtime": "Anti-Shock",
@@ -753,7 +754,7 @@ const I18N={en:{
   "ro.min": "{v} min",
   "scp.modeDial": "{label} (Mode dial)",
   "prop.takemode": "Shooting mode",
-  "val.takemode.usbP": "P Program / iAUTO",
+  "val.takemode.usbP": "P, iAUTO, ART, SCN or PHOTO STORY",
   "prop.shutspeedvalue": "Shutter speed",
   "prop.focalvalue": "Aperture",
   "prop.expcomp": "Exposure compensation",
@@ -919,6 +920,14 @@ $('#popPhoto').onclick=()=>popup('photo');
 
 /* State */
 let leavingPlay=false, wasIndexing=false;
+let modeAt=null; // USB: last mode dial turn seen (state.mode_at)
+/* USB reports iAUTO, ART, SCN and PHOTO STORY as P (d006 = 2, tested 2026-11-12); the EXIF of the newest
+   shot shows iAUTO (ExposureProgram 5). Other EXIF values are not told apart, so they keep the general label */
+let usbShotMode=null;
+function shotMode(path){
+  api('/api/exif?path='+encodeURIComponent(path)).then(j=>{const m=j.exif&&j.exif.mode;
+    usbShotMode=m===5?'iAuto':null; renderProps()}).catch(()=>{});
+}
 let isUsb=false; // connection type from /api/status
 let st={stage:0,job:{}},canWrite=false,wasBusy=false,blank=0,connected=false,features=new Set(),af=null;
 async function tick(){
@@ -926,6 +935,7 @@ async function tick(){
   const liOld=JSON.stringify(st&&st.lvinfo);
   try{st=await api('/api/state')}catch(e){if(e.message===tr('srv.offline'))msg(e.message,true);return}
   if(JSON.stringify(st.lvinfo)!==liOld) showStatus();
+  if(st.mode_at&&st.mode_at!==modeAt){modeAt=st.mode_at;usbShotMode=null;props();msg(tr('msg.modeDial'))} // USB: mode dial turned
   $('#half').classList.toggle('on',st.stage>=1); $('#half').setAttribute('aria-pressed',st.stage>=1?'true':'false');
   $('#empty').hidden=st.live;
   $('#lvStart').hidden=st.live||!canWrite; $('#lvStop').hidden=!st.live;
@@ -1062,7 +1072,7 @@ function renderStrip(){
   const p=lastProps,s=$('#valStrip');
   if(!p||!p.takemode){s.hidden=true;return}
   const g=k=>p[k]&&p[k].value!=null&&p[k].value!==''?p[k].value:null, out=[];
-  const mode=g('takemode'); if(mode) out.push(['m',mode==='P'&&!p.takemode.writable?'P':(MODE_SHORT[mode]||mode)]);
+  const mode=g('takemode'); if(mode) out.push(['m',mode==='P'&&!p.takemode.writable?(usbShotMode?MODE_SHORT[usbShotMode]:'P/…'):(MODE_SHORT[mode]||mode)]);
   const mv=mode==='movie', li=st.lvinfo||{};
   // automatic values as the camera uses them right now (Wi-Fi live view, REQ-F29)
   const sv=li.shutter, liveSh=sv&&!['S','M','B'].includes(mode)?(sv[0]===1?'1/'+sv[1]:sv[1]===1?sv[0]+'"':(sv[0]/sv[1]).toFixed(1)+'"'):null;
@@ -1088,7 +1098,7 @@ function renderModeBox(p){
     l.append(document.createTextNode(tr('prop.takemode')));
     const s=document.createElement('strong'); // over USB the camera reports iAUTO as P (d006 = 2, no other property differs)
     s.style.cssText='font-family:var(--font-value);font-size:18px;font-weight:500;color:var(--text)';
-    s.textContent=v.value==='P'?tr('val.takemode.usbP'):valName('takemode',v.value);
+    s.textContent=v.value==='P'?(usbShotMode?valName('takemode',usbShotMode):tr('val.takemode.usbP')):valName('takemode',v.value);
     const h=document.createElement('span'); h.textContent=tr('scp.modeDialHint');
     l.append(s,h); box.append(l); return;
   }
@@ -2034,6 +2044,7 @@ async function showLast(before,retry,before2){
       // Wi-Fi: the newest folder of the card list (shared with the gallery refresh); USB: what the camera reported
       const s=isUsb?null:(await loadCard()).find(x=>isJpg(x.preview));
       const p=isUsb?(await api('/api/lastshot')).path:s&&s.preview.path;
+      if(isUsb&&p&&p!==before2) shotMode(p);
       if(p&&p===before2) throw new Error('not yet on the card'); // Wi-Fi: still the previous picture
       if(s) shot=s;
       else if(p){const name=p.split('/').pop(),dir=p.slice(0,p.lastIndexOf('/')),d=new Date();
