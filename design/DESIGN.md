@@ -21,6 +21,7 @@ Tokens: [`tokens.css`](tokens.css). Planned for version 0.4.
 7. **Show a control only in the shooting modes where the camera lets you select it** (maintainer decision
    2026-11-12), following the manual's per-mode logic: e.g. BULB / LIVE TIME / LIVECOMP only in M, Art filter
    only in ART, AE BKT not in M. Over USB the modes iAUTO, ART, SCN and PHOTO STORY read as P and are treated as P.
+   Where the manual is unclear or wrong, the camera decides: test it and record the result (maintainer, 2026-11-12).
 
 ## Live view and shutter always together
 
@@ -83,7 +84,7 @@ recording a movie, read only, Wi-Fi drop-out (last good frame kept, "No signal f
 | Displayed Grid | Displayed Grid (options shown as icons; the app names them Rule of thirds, Crosshair, Grid) | p.95 |
 | Histogram, Highlight&Shadow, Peaking | Histogram Settings, Highlight&Shadow, MF Assist › Peaking, Peaking Settings | p.95, p.102, p.176 |
 | Anti-Shock, Silent, Noise Reduct., BULB/TIME Timer, Digital Tele-converter | same | menus |
-| Time lapse, AE BKT, LIVE TIME, LIVECOMP | Time Lapse Settings, AE BKT, LIVE TIME, LIVE COMP | p.85, menus |
+| Time lapse, AE BKT, LIVE TIME, LIVECOMP | Time Lapse Settings, AE BKT, LIVE TIME, LIVECOMP | p.41, p.85, menus |
 | Press halfway / Take picture | "press the shutter button halfway" / "press fully" | p.20 |
 | Index display, Calendar display, single-frame playback, close-up playback | same | p.31–33, p.63 |
 | Image only / Simplified display / Overall display | INFO button cycle during playback | p.62 |
