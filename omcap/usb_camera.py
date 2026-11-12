@@ -260,6 +260,9 @@ class UsbCamera:
         self.shooting = False  # short image dropouts are normal while shooting
         self._c = self.gp.Camera()
         self._open()
+        # libgphoto2 2.5.34 forces 1024x768 on every live image; newer versions (master 2.5.34.1,
+        # 2026-11-12) keep a chosen size and offer the widget "liveviewsize" (REQ-F36)
+        self.features = FEATURES + (["lvsize"] if self._has_widget("liveviewsize") else [])
         self.live = UsbLive(self)
 
     def _open(self):
@@ -303,7 +306,8 @@ class UsbCamera:
         self._c = self.gp.Camera()
         try:
             self._open()
-        except CameraError:
+            self._apply_lv_size_locked()  # keep the chosen size after a rebuilt session
+        except (CameraError, self.gp.GPhoto2Error):
             pass
 
     @property
@@ -365,6 +369,22 @@ class UsbCamera:
 
     def _value(self, name):
         return self._call(lambda: self._c.get_single_config(name).get_value())
+
+    def _has_widget(self, name):
+        try:
+            self._call(lambda: self._c.get_single_config(name))
+            return True
+        except CameraError:
+            return False
+
+    def _apply_lv_size_locked(self):
+        """Set the chosen live view size; caller holds the lock (a new session starts at 0 = 1024x768)."""
+        if not self.lvqty or "lvsize" not in self.features:
+            return
+        w, h = (int(v) for v in self.lvqty.split("x"))
+        widget = self._c.get_single_config("liveviewsize")
+        widget.set_value("%dx%d" % (w, h))
+        self._c.set_single_config("liveviewsize", widget)
 
     def _set(self, name, value):
         self._need_write()
@@ -594,11 +614,14 @@ class UsbCamera:
 
     # --- Write -----------------------------------------------------------
     def set_mode(self, mode, lvqty=None):
-        """There are no modes over USB as with Wi-Fi.
-
-        The live view size cannot be chosen: libgphoto2 fixes d06d at 1024x768
-        for every live image.
-        """
+        """There are no modes over USB as with Wi-Fi; only the live view size can be chosen,
+        and only with a libgphoto2 that keeps it (feature "lvsize", otherwise fixed 1024x768)."""
+        if lvqty and "lvsize" in self.features:
+            self._need_write()
+            if not re.fullmatch(r"\d{4}x\d{4}", lvqty):
+                raise CameraError("Unknown live view size: %s" % lvqty)
+            self.lvqty = lvqty
+            self._call(self._apply_lv_size_locked)
 
     def start_liveview(self, port):
         self._need_write()
