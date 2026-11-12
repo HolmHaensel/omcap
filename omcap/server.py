@@ -306,6 +306,39 @@ def wifi_images_newest():
     return card_cache("wifi", imgs)
 
 
+DCF_JPG = re.compile(r"(/DCIM/\d{3}\w{5}/)([P_])([1-9ABC])(\d\d)(\d{4})\.JPG")
+MONTHS = "123456789ABC"
+
+
+def wifi_guess_new(before, rounds=8):
+    """Wi-Fi after a shot: (path, thumbnail) of the next picture without reading the folder.
+
+    DCF names count up (PB122211.JPG -> PB122212.JPG). A hit costs 0.4 s, a miss 1.2 s
+    (measured, 2500 files in the folder), so the likely name is asked again while the camera
+    still writes, and the other color space prefix and today's date only now and then."""
+    m = DCF_JPG.fullmatch(before or "")
+    if not m:
+        return None
+    folder, pre, stamp, num = m.group(1), m.group(2), m.group(3) + m.group(4), int(m.group(5))
+    if num >= 9999:  # the camera starts a new folder
+        return None
+    t = time.localtime()
+    today = "%s%02d" % (MONTHS[t.tm_mon - 1], t.tm_mday)
+    name = "%04d.JPG" % (num + 1)
+    likely = folder + pre + stamp + name
+    others = [folder + p + d + name for p in (pre, "_" if pre == "P" else "P")
+              for d in dict.fromkeys((stamp, today)) if folder + p + d + name != likely]
+    for i in range(rounds):
+        for path in [likely] + (others if i % 4 == 3 else []):
+            try:
+                data = cam.thumbnail(path)
+            except CameraError:
+                continue
+            if data[:2] == b"\xff\xd8":
+                return path, data
+    return None
+
+
 def wifi_newest_jpg():
     """Wi-Fi: newest JPG on the card from the newest DCIM folder only (one or two requests)."""
     folders = [e for e in cam.listdir("/DCIM") if e["isdir"] and e["name"][:3].isdigit()]
@@ -943,6 +976,16 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send(cam.share_order())
             if u.path == "/api/movlength":
                 return self._send({"seconds": movie_length(q["path"], q.get("size"))})
+            if u.path == "/api/newshot":  # Wi-Fi: thumbnail of the next picture after q["before"]
+                hit = wifi_guess_new(q.get("before")) if conn_type == "wifi" else None
+                if not hit:
+                    return self._send({"error": "not found"}, code=404)
+                self.send_response(200)
+                self.send_header("Content-Type", "image/jpeg")
+                self.send_header("Content-Length", str(len(hit[1])))
+                self.send_header("X-Path", hit[0])
+                self.end_headers()
+                return self.wfile.write(hit[1])
             if u.path == "/api/lastshot":
                 # USB knows the new files of a shot at once; Wi-Fi lists only the newest folder
                 # (the whole card list takes ~18 s with 2000 shots)

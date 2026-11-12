@@ -51,6 +51,47 @@ class NewestFolderOnly(unittest.TestCase):
                 server.PREVIEW_CACHE, server.cam = old
 
 
+class GuessNew(unittest.TestCase):
+    """Wi-Fi: the next picture is asked by its DCF name instead of reading the folder."""
+
+    def run_guess(self, exists, before="/DCIM/111OLYMP/PB122211.JPG", ready_after=0):
+        from omcap.camera import CameraError
+        asked = []
+
+        class Cam:
+            def thumbnail(self, path):
+                asked.append(path)
+                if path in exists and len(asked) > ready_after:
+                    return b"\xff\xd8thumb"
+                raise CameraError("404", code=404)
+        old = server.cam
+        server.cam = Cam()
+        try:
+            return server.wifi_guess_new(before), asked
+        finally:
+            server.cam = old
+
+    def test_next_number(self):
+        hit, asked = self.run_guess({"/DCIM/111OLYMP/PB122212.JPG"})
+        self.assertEqual(hit[0], "/DCIM/111OLYMP/PB122212.JPG")
+        self.assertEqual(len(asked), 1)
+
+    def test_waits_while_writing(self):
+        hit, asked = self.run_guess({"/DCIM/111OLYMP/PB122212.JPG"}, ready_after=2)
+        self.assertEqual(asked, ["/DCIM/111OLYMP/PB122212.JPG"] * 3)
+
+    def test_other_prefix(self):
+        hit, _ = self.run_guess({"/DCIM/111OLYMP/_B122212.JPG"})
+        self.assertEqual(hit[0], "/DCIM/111OLYMP/_B122212.JPG")
+
+    def test_no_guess(self):
+        self.assertEqual(self.run_guess(set(), before="/DCIM/111OLYMP/PB129999.JPG")[0], None)
+        self.assertEqual(self.run_guess(set(), before=None)[0], None)
+        hit, asked = self.run_guess(set())
+        self.assertIsNone(hit)
+        self.assertLess(len(asked), 25)  # bounded: misses cost 1.2 s each on the camera
+
+
 class LiveStartRetry(unittest.TestCase):
     """Wi-Fi: startliveview right after switch_cammode may answer 520 for a moment."""
 

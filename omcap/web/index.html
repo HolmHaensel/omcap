@@ -1146,7 +1146,7 @@ function applyContext(){
 /* Images */
 /* Image URLs with file size: server and browser may cache them */
 const fileQ=f=>'path='+encodeURIComponent(f.path)+(f.size?'&size='+f.size:'');
-const thumbUrl=f=>'/api/thumb?'+fileQ(f);
+const thumbUrl=f=>f.blob||'/api/thumb?'+fileQ(f); // blob: thumbnail already fetched (guessNew)
 const screenUrl=f=>'/api/screen?'+fileQ(f);
 const fullUrl=f=>'/api/full?'+fileQ(f);
 /* Medium preview (1024–2048 px), over Wi-Fi only in mode "play" during playback */
@@ -1990,8 +1990,23 @@ function timerStart(sec){
 /* Last shot thumbnail in the live view corner. Source: Wi-Fi reloads the card list (newest first);
    USB asks the server for the JPG the camera just reported; a JPG saved to the computer is preferred. */
 let lastOpen=null;
+/* Wi-Fi: thumbnail of the next DCF name, asked directly (~1 s) instead of reading the folder (~8 s);
+   the picture goes into the list at once, the folder is read afterwards to complete it (ORF, size) */
+async function guessNew(before2){
+  if(isUsb||!before2) return false;
+  let r; try{r=await fetch('/api/newshot?before='+encodeURIComponent(before2))}catch{return false}
+  const p=r.ok&&r.headers.get('X-Path'); if(!p) return false;
+  const img=$('#lastShot'), blob=URL.createObjectURL(await r.blob()); img.onerror=null; img.src=blob; img.hidden=false;
+  const name=p.split('/').pop(),dir=p.slice(0,p.lastIndexOf('/')),d=new Date();
+  const f={path:p,name,dir,size:0,blob,date:((d.getFullYear()-1980)<<9)|((d.getMonth()+1)<<5)|d.getDate(),time:(d.getHours()<<11)|(d.getMinutes()<<5)|(d.getSeconds()>>1)};
+  lastOpen={name:name.replace(/\.[^.]+$/,''),files:[f],preview:f,dt:parseStamp(f),types:'JPG',size:0};
+  if(cardShots&&!cardShots.some(x=>x.preview.path===p)){cardShots=[lastOpen,...cardShots];renderStrip12();
+    $('#count').textContent=tr('card.shots',{n:cardShots.length})}
+  return true;
+}
 async function showLast(before,retry,before2){
   const img=$('#lastShot'), n=retry|0;
+  if(n===0&&await guessNew(before2)){loadCard();return} // complete the list in the background
   let shot=null,local=null;
   // a JPG saved to the computer is the quickest source and does not depend on the camera
   try{const lst=(await api('/api/state')).latest;
