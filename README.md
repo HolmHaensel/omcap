@@ -34,6 +34,8 @@ Contributions, tests with other bodies and ideas are very welcome.
 | Shutter button: Take picture, Press halfway (hold focus, then take picture) | yes | yes |
 | New picture in the last-shot corner and Index display right after Take picture | yes (about 8 s, 7 s of it the camera) | yes (the camera reports new files) |
 | LV super control panel: Shooting mode, shutter speed, aperture, exposure compensation, ISO, WB, drive, Picture Mode, Art filter | yes | most (mode dial only) |
+| Shooting mode follows the mode dial, values reload by themselves (during live view) | not needed (the app sets the mode) | yes, tested: P, A, S, M, Movie read correctly; iAUTO, ART, SCN, PHOTO STORY show as P |
+| M mode quick select: BULB, LIVE TIME, LIVECOMP, Off | built, untested | built, untested |
 | Aperture list limited to the attached lens (read from EXIF) | yes | untested |
 | Movie: Start/Stop recording, movie shooting mode P/A/S/M | yes | – |
 | Time lapse shooting, AE BKT, BULB / LIVE TIME / LIVECOMP | built, partly tested | built, partly tested |
