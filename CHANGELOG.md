@@ -3,6 +3,7 @@
 ## Unreleased
 
 - CI on GitHub: offline tests on every push to `main`/`release-*` and on pull requests (Ubuntu with Python 3.9 and 3.12, macOS with 3.12) (REQ-Q08).
+- "Quit E-M1 Capture" button (header and start screen, second click confirms): closes the camera connection, stops the app and shows a notice (REQ-Q10).
 - Second start while the app is already running: the message now says the window can be closed and how to stop the running app (Ctrl+C in its own window or `pkill -f 'omcap\.server|bin/em1-capture'`); error messages: USB connect failure says what to check (Photos, USB menu, restart after re-plugging), missing gphoto2 says how to install it, the level gauge message no longer claims USB support; README has a "Stop" section and current parity rows (lens aperture over USB, webcam view over USB (button untested), time lapse/AE BKT untested, what the E-M1 cannot do).
 - USB live view: fixed a stall after connecting (the pause counter is now thread-safe); the mode dial check runs every 3 s and ignores the event the camera sends when live view starts. Measured: 14.3 fps, Take picture 4.7–5.3 s, picture shown 0.35 s later.
 - Controls appear only in the shooting modes where the camera lets you select them (manual logic, design principle 7): movie section only in Movie mode, self-timer and drive not in Movie mode, in Movie mode aperture / shutter speed / exposure compensation / ISO / WB follow the movie exposure mode P/A/S/M (E-M1 manual, p.71).

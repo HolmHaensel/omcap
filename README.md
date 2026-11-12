@@ -39,6 +39,7 @@ Contributions, tests with other bodies and ideas are very welcome.
 | Aperture list limited to the attached lens (read from EXIF) | yes | yes (after the first picture of the session; before that only the focal length) |
 | Movie: Start/Stop recording, movie shooting mode P/A/S/M | yes | – |
 | Time lapse shooting, AE BKT | built, untested | built, untested |
+| Quit E-M1 Capture button | yes | yes |
 | Playback: Index display, Calendar display, single-frame view, save to computer | yes | yes |
 | Card list saved on the computer, shown at once when you connect (the camera's list follows) | yes | yes |
 | Playback: shooting data (Overall display), line on thumbnails | yes | yes |
@@ -114,7 +115,8 @@ cd omcap
 
 ### Stop
 
-- Press **Ctrl+C** in the window where the app runs, or close that window.
+- Click **Quit E-M1 Capture** (top right, also on the start screen) and click it again to confirm. The camera connection is closed and the app ends; the page says you can close the tab.
+- Or press **Ctrl+C** in the window where the app runs, or close that window.
 - No such window (for example the app was started in the background)? Stop it in the Terminal:
 
   ```sh

@@ -139,6 +139,9 @@ def connect(kind):
     conn_type = kind
 
 
+http_server = None  # set by main(), used by /api/quit
+
+
 def disconnect():
     global cam, live, conn_type
     if cam is None:
@@ -1072,6 +1075,12 @@ class Handler(BaseHTTPRequestHandler):
         if path == "/api/disconnect":
             disconnect()
             return None
+        if path == "/api/quit":
+            disconnect()
+            # stop after the answer went out; shutdown() must not run in a request thread's way
+            if http_server is not None:
+                threading.Timer(0.3, http_server.shutdown).start()
+            return None
         if path == "/api/poweroff":
             power_off()
             return None
@@ -1202,7 +1211,7 @@ def open_browser(url, delay=0.6):
 
 
 def main(argv=None):
-    global CAPTURES, PREVIEW_CACHE, SETTINGS_FILE, HSL_OUT
+    global CAPTURES, PREVIEW_CACHE, SETTINGS_FILE, HSL_OUT, http_server
     p = argparse.ArgumentParser(prog="em1-capture", description="Local web app to control an Olympus OM-D E-M1 over Wi-Fi or USB.")
     p.add_argument("--version", action="version", version="%(prog)s " + __version__)
     p.add_argument("--host", default="192.168.0.10", help="camera IP in the camera's Wi-Fi (default 192.168.0.10)")
@@ -1236,6 +1245,7 @@ def main(argv=None):
         if not a.no_browser:
             webbrowser.open(url)
         return 0
+    http_server = server
     CAPTURES = os.path.join(a.data_dir, "captures")
     PREVIEW_CACHE = os.path.join(a.data_dir, "out", "cache", "previews")
     SETTINGS_FILE = os.path.join(a.data_dir, "omcap-settings.json")
@@ -1251,8 +1261,11 @@ def main(argv=None):
         server.serve_forever()
     except KeyboardInterrupt:
         print("\nE-M1 Capture stopped.")
+    else:
+        print("E-M1 Capture stopped.")
     finally:
         server.server_close()
+        http_server = None
     return 0
 
 
