@@ -14,6 +14,10 @@ def _words(data):
     return list(struct.unpack(">%dI" % (len(data) // 4), data[:len(data) // 4 * 4]))
 
 
+def _s32(v):
+    return v - 0x100000000 if v & 0x80000000 else v
+
+
 def _s16(v):
     return v - 0x10000 if v & 0x8000 else v
 
@@ -30,14 +34,25 @@ def decode_entry(fid, w):
         return None
     if fid == 2:  # AF result: 0 not done, 1 ok, 2 failed; frame x/y/w/h
         return {"result": w[0], "frame": w[1:5]}
-    if fid == 3:  # memory card status bits
+    if fid == 3:  # memory card status bits; bits 0-1 = mount state (E-M1 with card sends 2)
         m = w[0]
-        return {"mounted": m & 3 == 1, "not_full": bool(m & 4), "protected": bool(m & 8),
+        return {"mount_state": m & 3, "not_full": bool(m & 4), "protected": bool(m & 8),
                 "error": bool(m & 16), "writing": bool(m & 32)}
-    if fid in (1, 4, 5, 16, 17):  # frame size, orientation, free shots, warning, focus mode
+    if fid in (1, 4, 5, 7, 16, 17, 19):
+        # JPEG frame size, orientation, free shots, 7 battery level? (E-M1: 100 -> 75 after a shot,
+        # unconfirmed), warning, focus mode, 19 unknown counter (E-M1: -5 per shot)
         return w[0]
-    if fid in (8, 9, 10, 12, 18):  # shutter, f-number, exp. comp., ISO, zoom
+    if fid == 8:  # shutter speed: longest / shortest / now as ratios
         return _ratio(w)
+    # Layouts below as sent by the E-M1 Mark I (differ from the AIR A01 spec, which uses ratios)
+    if fid == 9 and len(w) >= 3:  # f-number x10: smallest aperture / open at this focal length / now
+        return {"max": w[0] / 10, "open": w[1] / 10, "now": w[2] / 10}
+    if fid == 10 and len(w) >= 3:  # exposure compensation x10, signed: max / min / now
+        return {"max": _s32(w[0]) / 10, "min": _s32(w[1]) / 10, "now": _s32(w[2]) / 10}
+    if fid == 12:  # ISO now (also with ISO Auto); w[1] = 0x10000 seen with Auto
+        return {"now": w[0]}
+    if fid == 18 and len(w) >= 2:  # focal length in mm: lens wide end, tele end, now
+        return {"min_mm": w[0] & 0xFFFF, "max_mm": w[1] & 0xFFFF, "now_mm": w[1] >> 16}
     if fid == 107 and len(w) >= 3:  # level meter: roll/pitch in 1/10 degree
         return {"reliable_roll": bool(w[0] >> 16 & 1), "reliable_pitch": bool(w[0] >> 16 & 2),
                 "orientation": w[0] & 0xFFFF, "roll": _s16(w[1] & 0xFFFF), "pitch": _s16(w[2] & 0xFFFF)}
