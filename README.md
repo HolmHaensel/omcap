@@ -50,7 +50,7 @@ Contributions, tests with other bodies and ideas are very welcome.
 | Read-only settings (Anti-Shock, Silent, Noise Reduct., BULB/TIME Timer, Digital Tele-converter) | yes | – (no PTP property known) |
 | Share Order: show, save all, reset | yes (in playback) | – (no PTP counterpart known) |
 | Movie length in single-frame view | yes (in playback) | – (not built) |
-| Turn off camera (click twice to confirm) | yes | – (not built, no PTP command known) |
+| Turn off camera (click twice to confirm) | yes | – (Wi-Fi only) |
 | Self-timer (Off, 2 s, 12 s; click Take picture again to cancel) | yes | yes |
 | Live view aids: Histogram, Highlight&Shadow, Peaking | yes | yes |
 | HSL color profiles for ORF/JPG on the computer (`omcap.hsl`) | independent | independent |
