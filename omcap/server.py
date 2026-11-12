@@ -815,8 +815,16 @@ def public_state():
 
 # --- HTTP --------------------------------------------------------------------
 class Handler(BaseHTTPRequestHandler):
+    timing = False  # --timing: print each API request with its duration (performance checks)
+
     def log_message(self, *a):
         pass
+
+    def log_request(self, code="-", size="-"):
+        t0 = getattr(self, "_t0", None)
+        if self.timing and t0 is not None and not self.path.startswith(("/api/state", "/api/connections")):
+            print("%s %6.0f ms %s %s %s" % (time.strftime("%H:%M:%S"), (time.monotonic() - t0) * 1000,
+                                              code, self.command, self.path[:80]), flush=True)
 
     def _send(self, body, ctype="application/json", code=200):
         if isinstance(body, (dict, list)):
@@ -849,6 +857,7 @@ class Handler(BaseHTTPRequestHandler):
         return origin is None or origin in {"http://" + h for h in allowed_hosts}
 
     def do_GET(self):
+        self._t0 = time.monotonic()
         if not self._trusted():
             return self._send({"error": "Access denied"}, code=403)
         u = urllib.parse.urlparse(self.path)
@@ -960,6 +969,7 @@ class Handler(BaseHTTPRequestHandler):
             pass
 
     def do_POST(self):
+        self._t0 = time.monotonic()
         if not self._trusted():
             return self._send({"error": "Access denied"}, code=403)
         try:
@@ -1148,7 +1158,9 @@ def main(argv=None):
     p.add_argument("--data-dir", default=os.getcwd(),
                    help="folder for saved pictures (captures/) and the preview cache (out/cache/); default: current folder")
     p.add_argument("--no-browser", action="store_true", help="do not open the browser at start")
+    p.add_argument("--timing", action="store_true", help="print every request with its duration")
     a = p.parse_args(argv)
+    Handler.timing = a.timing
     url = "http://127.0.0.1:%d/" % a.port
     try:
         server = ThreadingHTTPServer(("127.0.0.1", a.port), Handler)

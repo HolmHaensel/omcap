@@ -34,7 +34,7 @@ cd omcap
 python3 -m venv .venv
 .venv/bin/pip install -e ".[usb,film]"
 .venv/bin/python -B -m unittest discover -s tests     # all tests, no camera needed
-.venv/bin/python -B -m omcap.server --allow-write    # http://127.0.0.1:8765
+.venv/bin/python -B -m omcap.server --allow-write    # http://127.0.0.1:8765 (--timing: request durations)
 ```
 
 Code map:
