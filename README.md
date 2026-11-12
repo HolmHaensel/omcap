@@ -36,9 +36,9 @@ Contributions, tests with other bodies and ideas are very welcome.
 | LV super control panel: Shooting mode, shutter speed, aperture, exposure compensation, ISO, WB, drive, Picture Mode, Art filter | yes | most (mode dial only) |
 | Shooting mode follows the mode dial, values reload by themselves (during live view) | not needed (the app sets the mode) | yes, tested: P, A, S, M, Movie read correctly; iAUTO, ART, SCN, PHOTO STORY show as P; after a shot iAUTO is shown from the picture's EXIF |
 | M mode quick select: BULB, LIVE TIME, LIVECOMP, Off | built, untested | built, untested |
-| Aperture list limited to the attached lens (read from EXIF) | yes | untested |
+| Aperture list limited to the attached lens (read from EXIF) | yes | yes (after the first picture of the session; before that only the focal length) |
 | Movie: Start/Stop recording, movie shooting mode P/A/S/M | yes | – |
-| Time lapse shooting, AE BKT, BULB / LIVE TIME / LIVECOMP | built, partly tested | built, partly tested |
+| Time lapse shooting, AE BKT | built, untested | built, untested |
 | Playback: Index display, Calendar display, single-frame view, save to computer | yes | yes |
 | Card list saved on the computer, shown at once when you connect (the camera's list follows) | yes | yes |
 | Playback: shooting data (Overall display), line on thumbnails | yes | yes |
@@ -52,10 +52,14 @@ Contributions, tests with other bodies and ideas are very welcome.
 | Turn off camera (click twice to confirm) | yes | – (no PTP command) |
 | Live view aids: Histogram, Highlight&Shadow, Peaking | yes | yes |
 | HSL color profiles for ORF/JPG on the computer (`omcap.hsl`) | independent | independent |
-| Webcam (OBS) button next to Second monitor | yes | yes (untested) |
+| Webcam (OBS) button next to Second monitor | yes | yes |
 | Save folder and file naming | yes | yes (untested) |
 | HSL colour profiles in the app (HSL button, auto-apply, before/after) | yes | yes (untested) |
 | Start by double-click, browser opens by itself | yes | yes |
+
+**Not possible with the E-M1 Mark I:** a live level gauge (the camera sends no tilt over Wi-Fi; over
+USB the tilt is only updated when the session starts), changing AF Area over Wi-Fi and the shooting mode
+over USB (the camera offers no command for it).
 
 **Planned (0.6 and later):** Mac app with a menu bar icon, Windows over Wi-Fi, Star AF focus aid (star
 sharpness while you turn the focus ring), subject detection in live view on the computer (face/eye,
@@ -104,7 +108,22 @@ cd omcap
 ```
 
 - Keep the window open while you use the app; stop it with **Ctrl+C** or close the window.
-- Starting a second time just opens the browser again; the app tells you it is already running.
+- Starting a second time just opens the browser again: the new window says *E-M1 Capture is already
+  running* and ends (Terminal shows *Process completed*). That is normal, the app keeps running in the
+  first window. To change between read only and `--allow-write`, stop the running app first.
+
+### Stop
+
+- Press **Ctrl+C** in the window where the app runs, or close that window.
+- No such window (for example the app was started in the background)? Stop it in the Terminal:
+
+  ```sh
+  pkill -f omcap.server
+  ```
+
+  On Windows close the window of `E-M1 Capture.bat`.
+- As long as the app runs, <http://127.0.0.1:8765/> keeps working in the browser, also after
+  closing the browser tab.
 - `--no-browser` starts without opening the browser; `--timing` prints how long each request takes.
 - The launcher files start with `--allow-write`; remove it there for a read-only start.
 - The app works **offline**. It runs only on your computer and loads nothing from the internet;
@@ -156,8 +175,10 @@ Measured with the E-M1 Mark I:
 
 Notes: after connecting, the camera reads its card index once (about 1 min); meanwhile the card
 list saved on the computer is shown. Live view runs at about 15 fps with a fixed size. The shooting mode follows the mode
-dial. Settings changed on the camera itself are picked up with **reload** in the LV super
-control panel (rebuilds the USB session, about 9 s).
+dial during live view. Other settings changed on the camera itself are picked up with **reload** in
+the LV super control panel (rebuilds the USB session, about 9 s). After unplugging and plugging the
+cable in again while the app runs, connecting may fail with *Could not claim the USB device*:
+stop the app and start it again.
 
 ## HSL color profiles (software)
 

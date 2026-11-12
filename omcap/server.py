@@ -1227,7 +1227,9 @@ def main(argv=None):
             return 1
         print("E-M1 Capture is already running: %s (%s)" % (url, "WRITE ENABLED" if info.get("allow_write") else "read only"))
         if a.allow_write and not info.get("allow_write"):
-            print("It runs read only. To take pictures, stop it (Ctrl+C in its window) and start again.")
+            print("It runs read only. To take pictures, stop it and start again.")
+        print("This window can be closed. To stop the app: Ctrl+C in its own window, "
+              "or in a Terminal: pkill -f omcap.server")
         if not a.no_browser:
             webbrowser.open(url)
         return 0
