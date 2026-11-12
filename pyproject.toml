@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "em1-capture"
-version = "0.4.0"
+version = "0.5.0"
 description = "Local web app to control an Olympus OM-D E-M1 (Mark I) over Wi-Fi or USB"
 readme = "README.md"
 license = { text = "GPL-3.0-or-later" }
