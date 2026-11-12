@@ -320,7 +320,10 @@ class UsbCamera:
 
     # --- Read ---------------------------------------------------------------
     def caminfo(self):
-        return self._value("cameramodel")
+        # kept: the page asks on every load, and the camera is busy while the card index is read
+        if not getattr(self, "_model", None):
+            self._model = self._value("cameramodel")
+        return self._model
 
     def commandlist(self):
         return []

@@ -795,6 +795,7 @@ const I18N={en:{
   "card.shots": "{n} shots",
   "card.reading": "Reading the card …",
   "card.updating": "{n} shots · updating …",
+  "card.updatingShort": "updating …",
   "card.paused": " Live view paused",
   "card.pressReload": "Press Reload to read",
   "card.save": "Save",
@@ -1196,13 +1197,18 @@ async function gallery(force){
   if(!features.has('playback')) return;
   // Over USB the list takes long and pauses the live view: only on a button press
   if(!cardLive){ // last list from the computer first, the camera list follows (REQ-F27)
-    try{const c=await api('/api/images?cached=1'); if(c&&c.length){cardShots=groupShots(c);renderStrip12();
-      $('#count').textContent=isUsb&&!force?tr('card.shots',{n:cardShots.length})+' · '+tr('card.pressReload'):tr('card.updating',{n:cardShots.length})}}catch{}
+    await showSaved();
     if(isUsb&&!force){if(!cardShots)$('#count').textContent=tr('card.pressReload');return}
     if(cardShots) $('#count').textContent=tr('card.updating',{n:cardShots.length});
     if(!cardShots) $('#count').textContent=tr('card.reading')+(isUsb?tr('card.paused'):'');
   }
   try{await loadCard(force)}catch(e){$('#count').textContent=e.message}
+}
+// the list saved on the computer, instant and without the camera
+async function showSaved(){
+  if(cardShots||!features.has('playback')) return;
+  try{const c=await api('/api/images?cached=1'); if(c&&c.length&&!cardShots){cardShots=groupShots(c);renderStrip12();
+    $('#count').textContent=tr('card.shots',{n:cardShots.length})+' · '+tr(isUsb?'card.pressReload':'card.updatingShort')}}catch{}
 }
 function renderStrip12(){
   const g=$('#gal'); g.innerHTML='';
@@ -2172,10 +2178,13 @@ async function enterApp(){
     statusBase={model:s.model,conn:s.type==='usb'?'USB':'Wi-Fi',rights:canWrite?tr('app.write'):tr('app.readOnly')};
     showStatus();
     if(!canWrite) document.querySelectorAll('button.w').forEach(b=>{b.disabled=true;b.classList.add('na');b.title=tr('na.readOnly')});
+    showSaved(); // before props: over USB props waits for the card index (~1 min)
     await tick(); await props(); loadDevice(true); if(isUsb) loadLens();
     if(isUsb||(features.has('af_area')&&st.live)) loadAf();
     // live view first, card list last: the list holds the camera for seconds
-    if(canWrite&&!st.live) $('#lvStart').onclick().finally(()=>gallery()); else gallery();
+    // USB: connecting waits for the card index; once it is read the list costs only milliseconds
+    const list=()=>gallery(isUsb&&!st.indexing);
+    if(canWrite&&!st.live) $('#lvStart').onclick().finally(list); else list();
     if(st.lvqty) $('#lvqty').value=st.lvqty;
     else if(isUsb) $('#lvqty').value='1024x0768';
     if(st.live) $('#live').src='/live.mjpg?'+Date.now();
