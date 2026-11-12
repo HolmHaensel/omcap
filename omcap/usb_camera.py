@@ -51,7 +51,8 @@ OP_FIRST, OP_SECOND, OP_FULL, OP_SECOND_BACK, OP_RELEASE = 1, 2, 3, 4, 6
 # the new value only arrives with a new session. d006 knows only M, P, A, S, Movie: iAUTO, ART, SCN
 # and PHOTO STORY read as P
 DIAL_EVENT = re.compile(r"c003, Param1 0*3\b", re.I)
-DIAL_QUIET = 3.0  # seconds after a shutter command in which 0xC003 belongs to AF, not to the dial
+DIAL_QUIET = 3.0  # seconds after a shutter command or live view start in which 0xC003 is not the dial
+DIAL_EVERY = 3.0  # seconds between event checks; each costs ~0.3 s of live view (measured 2026-11-12)
 FOCUS_WAIT = 2.0
 FOCUS_POSITION_WAIT = 1.5
 SHOT_TIMEOUT = 20
@@ -177,6 +178,7 @@ class UsbLive:
     def start(self):
         self.stop()
         self.last_frame = time.monotonic()
+        self.camera.last_press = time.monotonic()  # the camera also sends 0xC003/3 when live view starts
         self._run = True
         self._thread = threading.Thread(target=self._loop, daemon=True)
         self._thread.start()
@@ -195,7 +197,7 @@ class UsbLive:
                 time.sleep(0.05)
                 continue
             if time.monotonic() >= next_dial:
-                next_dial = time.monotonic() + 1.0
+                next_dial = time.monotonic() + DIAL_EVERY
                 if self.camera.dial_turned():
                     self.camera.reopen("mode dial turned")
                     self.camera.mode_changed_at = time.time()
@@ -255,7 +257,7 @@ class UsbCamera:
         self.last_af = None
         self.gp = _gp()
         self._lock = threading.Lock()
-        self.hold = 0
+        self._hold, self._hold_lock = 0, threading.Lock()
         self.shooting = False  # short image dropouts are normal while shooting
         self._c = self.gp.Camera()
         self._open()
@@ -293,6 +295,16 @@ class UsbCamera:
             except CameraError:
                 pass
 
+    @property
+    def hold(self):
+        """> 0 while a shot, card list or file read pauses the live view."""
+        return self._hold
+
+    def _hold_add(self, n):
+        # several request threads pause the live view at once; a lost update would pause it for good
+        with self._hold_lock:
+            self._hold += n
+
     def dial_turned(self):
         """Read pending events without waiting; True if the mode dial was turned.
 
@@ -318,11 +330,11 @@ class UsbCamera:
 
     def refresh(self):
         """Mode dial and other camera changes only arrive with a new session."""
-        self.hold += 1
+        self._hold_add(1)
         try:
             self.reopen()
         finally:
-            self.hold -= 1
+            self._hold_add(-1)
 
     def close(self):
         self.live.stop()
@@ -493,7 +505,7 @@ class UsbCamera:
         2nd photo 6 s). Listing the newest DCIM folder triggers the same read.
         Returns the newest JPG (for the lens data) or None.
         """
-        self.hold += 1  # live view paused, otherwise the read aborts
+        self._hold_add(1)  # live view paused, otherwise the read aborts
         try:
             folders = []
             for store in self._list(self._c.folder_list_folders, "/"):
@@ -515,7 +527,7 @@ class UsbCamera:
                 self.last_jpg = newest
             return newest
         finally:
-            self.hold -= 1
+            self._hold_add(-1)
 
     def lens_focal(self):
         """Focal length range of the lens from d04a (range = shortest/longest, value = current)."""
@@ -554,7 +566,7 @@ class UsbCamera:
         if self._files is None:
             files = {}
             stack = ["/"]
-            self.hold += 1  # live view paused, otherwise the list aborts
+            self._hold_add(1)  # live view paused, otherwise the list aborts
             try:
                 while stack:
                     folder = stack.pop()
@@ -564,7 +576,7 @@ class UsbCamera:
                         e = self._entry(folder, name)
                         files[e["path"]] = e
             finally:
-                self.hold -= 1
+                self._hold_add(-1)
             self._files = files
         pending, self._pending = self._pending, []
         for path in pending:
@@ -722,7 +734,7 @@ class UsbCamera:
         self.focus_ok = None
         if self.stage:
             return None
-        self.hold += 1
+        self._hold_add(1)
         try:
             with self._lock:  # let an in-flight preview request finish
                 pass
@@ -738,7 +750,7 @@ class UsbCamera:
                 self._shutter(OP_RELEASE)
             self._events(0.2)
         finally:
-            self.hold -= 1
+            self._hold_add(-1)
         return self.focus_ok
 
     def shoot(self):
@@ -749,7 +761,7 @@ class UsbCamera:
         marks = []
         # Stop the live view before shooting: a preview request running during
         # saving blocks the USB connection for up to a minute (measured 2026-11-09).
-        self.hold += 1
+        self._hold_add(1)
         try:
             with self._lock:  # let a running preview request finish
                 pass
@@ -762,7 +774,7 @@ class UsbCamera:
             if self._new_files:
                 self._events(1.5)  # the second format (ORF or JPG) follows shortly after
         finally:
-            self.hold -= 1
+            self._hold_add(-1)
             self.shooting = False
             marks.append(("done", time.monotonic() - t0))
             print("USB shot: " + ", ".join("%s %.1f s" % m for m in marks), flush=True)

@@ -16,7 +16,7 @@ class Dial(unittest.TestCase):
     def make(self, events):
         cam = usb_camera.UsbCamera.__new__(usb_camera.UsbCamera)  # no USB session
         import threading
-        cam.gp, cam._lock, cam.hold, cam.stage = FakeGp, threading.Lock(), 0, 0
+        cam.gp, cam._lock, cam._hold, cam._hold_lock, cam.stage = FakeGp, threading.Lock(), 0, threading.Lock(), 0
         cam._new_files, cam._pending, cam.last_press = [], [], 0.0
         queue = list(events)
 
@@ -39,7 +39,7 @@ class Dial(unittest.TestCase):
 
     def test_not_while_shooting(self):
         cam = self.make([(1, "PTP Event c003, Param1 00000003")])
-        cam.hold = 1
+        cam._hold_add(1)
         self.assertFalse(cam.dial_turned())
 
 
