@@ -1176,9 +1176,12 @@ function groupShots(files){
 }
 let cardShots=null, shareSet=null;  // shareSet: paths of the Share Order, null = filter off
 let cardLive=false; // false while cardShots is only the list saved on the computer
-let cardP=null; // one camera list at a time (gallery and Playback may ask together)
-function loadCard(){
-  return cardP||(cardP=api('/api/images').then(l=>{cardShots=groupShots(l);cardLive=true;loadLens();return cardShots}).finally(()=>cardP=null));
+let cardP=null; // one camera list at a time (gallery, Playback and the last shot may ask together)
+// Wi-Fi with a list already read: only the newest folder (after a shot ~1 folder instead of the card)
+function loadCard(full){
+  const url=!isUsb&&cardLive&&!full?'/api/images?newest=1':'/api/images';
+  return cardP||(cardP=api(url).then(l=>{cardShots=groupShots(l);cardLive=true;loadLens();
+    $('#count').textContent=tr('card.shots',{n:cardShots.length});renderStrip12();return cardShots}).finally(()=>cardP=null));
 }
 async function downloadShot(s,report){
   for(const f of s.files){
@@ -1199,9 +1202,7 @@ async function gallery(force){
     if(cardShots) $('#count').textContent=tr('card.updating',{n:cardShots.length});
     if(!cardShots) $('#count').textContent=tr('card.reading')+(isUsb?tr('card.paused'):'');
   }
-  try{await loadCard()}catch(e){$('#count').textContent=e.message;return}
-  $('#count').textContent=tr('card.shots',{n:cardShots.length});
-  renderStrip12();
+  try{await loadCard(force)}catch(e){$('#count').textContent=e.message}
 }
 function renderStrip12(){
   const g=$('#gal'); g.innerHTML='';
@@ -1997,9 +1998,12 @@ async function showLast(before,retry,before2){
     if(lst&&/\.jpe?g$/i.test(lst)&&lst!==before) local='/captures/'+encodeURIComponent(lst)}catch{}
   try{
     {
-      const p=(await api('/api/lastshot')).path;
+      // Wi-Fi: the newest folder of the card list (shared with the gallery refresh); USB: what the camera reported
+      const s=isUsb?null:(await loadCard()).find(x=>isJpg(x.preview));
+      const p=isUsb?(await api('/api/lastshot')).path:s&&s.preview.path;
       if(p&&p===before2) throw new Error('not yet on the card'); // Wi-Fi: still the previous picture
-      if(p){const name=p.split('/').pop(),dir=p.slice(0,p.lastIndexOf('/')),d=new Date();
+      if(s) shot=s;
+      else if(p){const name=p.split('/').pop(),dir=p.slice(0,p.lastIndexOf('/')),d=new Date();
         const f={path:p,name,dir,size:0,date:((d.getFullYear()-1980)<<9)|((d.getMonth()+1)<<5)|d.getDate(),time:(d.getHours()<<11)|(d.getMinutes()<<5)};
         shot={name:name.replace(/\.[^.]+$/,''),files:[f],preview:f,dt:parseStamp(f),types:'JPG',size:0}}
     }
@@ -2027,11 +2031,9 @@ $('#shoot').onclick=async()=>{
     if(!await act(tr('msg.shutter'),'/api/shutter',{stage:2})) return;
     await act(tr('msg.taken'),'/api/shutter',{stage:0});
   }else if(!await act(tr('msg.taken'),'/api/shoot',{})) return;
-  showLast(latestBefore,0,newestBefore);
-  gallery();local();
-  if(isUsb) loadLens(); // USB: lens from the new JPG
-  // Wi-Fi: the camera is still writing after the shot, the first list often lacks the new image
-  if(!isUsb) setTimeout(()=>gallery(),4000);
+  showLast(latestBefore,0,newestBefore); // Wi-Fi: refreshes the card list until the new shot is there
+  local();
+  if(isUsb){gallery();loadLens()} // USB: lens from the new JPG
 };
 document.querySelectorAll('#timerSeg [data-t]').forEach(b=>b.onclick=()=>{
   $('#timerSel').value=b.dataset.t;

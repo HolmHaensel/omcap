@@ -22,6 +22,35 @@ class CardCache(unittest.TestCase):
 
 
 
+class NewestFolderOnly(unittest.TestCase):
+    """Wi-Fi after a shot: only the newest folder is read and merged into the saved list."""
+
+    def test_merge(self):
+        def e(folder, name, t):
+            return {"dir": "/DCIM/" + folder, "name": name, "path": "/DCIM/%s/%s" % (folder, name),
+                    "size": 1, "isdir": False, "date": 1, "time": t}
+        read = []
+
+        class Cam:
+            def listdir(self, d):
+                return [{"name": "108_PANA", "isdir": True}, {"name": "111OLYMP", "isdir": True}]
+
+            def images(self, root):
+                read.append(root)
+                return [e("111OLYMP", "P2.JPG", 2), e("111OLYMP", "P3.JPG", 3)]
+        old = server.PREVIEW_CACHE, server.cam
+        with tempfile.TemporaryDirectory() as d:
+            server.PREVIEW_CACHE, server.cam = os.path.join(d, "cache", "previews"), Cam()
+            try:
+                server.card_cache("wifi", [e("111OLYMP", "P2.JPG", 2), e("108_PANA", "P1.JPG", 1)])
+                imgs = server.wifi_images_newest()
+                self.assertEqual(read, ["/DCIM/111OLYMP"])
+                self.assertEqual([x["name"] for x in imgs], ["P3.JPG", "P2.JPG", "P1.JPG"])
+                self.assertEqual(server.card_cache("wifi"), imgs)
+            finally:
+                server.PREVIEW_CACHE, server.cam = old
+
+
 class LiveStartRetry(unittest.TestCase):
     """Wi-Fi: startliveview right after switch_cammode may answer 520 for a moment."""
 

@@ -290,6 +290,22 @@ def dcf_number(name):
     return int(digits) if digits.isdigit() else -1
 
 
+def wifi_images_newest():
+    """Wi-Fi after a shot: re-read only the newest DCIM folder and merge it into the saved list.
+
+    The camera needs ~3 ms per file, so the whole card (2900 files) takes ~8 s and blocks
+    the camera; one folder is enough to find new shots. Without a saved list: whole card."""
+    cached = card_cache("wifi")
+    folders = [e for e in cam.listdir("/DCIM") if e["isdir"] and e["name"][:3].isdigit()]
+    if cached is None or not folders:
+        imgs = cam.images("/DCIM")
+    else:
+        newest = "/DCIM/" + max(folders, key=lambda e: e["name"][:3])["name"]
+        imgs = [e for e in cached if not e["path"].startswith(newest + "/")] + cam.images(newest)
+    imgs.sort(key=lambda e: (e["date"], e["time"]), reverse=True)
+    return card_cache("wifi", imgs)
+
+
 def wifi_newest_jpg():
     """Wi-Fi: newest JPG on the card from the newest DCIM folder only (one or two requests)."""
     folders = [e for e in cam.listdir("/DCIM") if e["isdir"] and e["name"][:3].isdigit()]
@@ -915,6 +931,8 @@ class Handler(BaseHTTPRequestHandler):
             if u.path == "/api/images":
                 if q.get("cached") == "1":  # last list of this connection type, instant
                     return self._send(card_cache(conn_type) or [])
+                if q.get("newest") == "1" and conn_type == "wifi":
+                    return self._send(wifi_images_newest())
                 imgs = cam.images(q.get("dir", "/DCIM"))
                 imgs.sort(key=lambda e: (e["date"], e["time"]), reverse=True)
                 card_cache(conn_type, imgs)
