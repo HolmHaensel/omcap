@@ -38,6 +38,7 @@ Contributions, tests with other bodies and ideas are very welcome.
 | Movie: Start/Stop recording, movie shooting mode P/A/S/M | yes | – |
 | Time lapse shooting, AE BKT, BULB / LIVE TIME / LIVECOMP | built, partly tested | built, partly tested |
 | Playback: Index display, Calendar display, single-frame view, save to computer | yes | yes |
+| Card list saved on the computer, shown at once when you connect (the camera's list follows) | yes | yes |
 | Playback: shooting data (Overall display), line on thumbnails | yes | yes |
 | Save to card only or card and computer | yes | yes |
 | Free card space in the header | yes (free shots, live from the live view) | yes |
@@ -46,7 +47,7 @@ Contributions, tests with other bodies and ideas are very welcome.
 | Read-only settings (Anti-Shock, Silent, Noise Reduct., BULB/TIME Timer, Digital Tele-converter) | yes | – (unknown) |
 | Share Order: show, save all, reset | yes (in playback) | – |
 | Movie length in single-frame view | yes (in playback) | – |
-| Turn off camera | built, untested | – |
+| Turn off camera (click twice to confirm) | yes | – (no PTP command) |
 | Live view aids: Histogram, Highlight&Shadow, Peaking | yes | yes |
 | HSL color profiles for ORF/JPG on the computer (`omcap.hsl`) | independent | independent |
 | Webcam (OBS) button next to Second monitor | yes | yes (untested) |
@@ -54,9 +55,10 @@ Contributions, tests with other bodies and ideas are very welcome.
 | HSL colour profiles in the app (HSL button, auto-apply, before/after) | yes | yes (untested) |
 | Start by double-click, browser opens by itself | yes | yes |
 
-**Planned:** Star AF focus aid (star sharpness while you turn the focus ring), subject detection in
-live view (face/eye, later animals and birds) with "Focus on subject", film looks and a look lab on the
-computer. Ideas and wishes are welcome in [Discussions](https://github.com/HolmHaensel/omcap/discussions).
+**Planned (0.6 and later):** Mac app with a menu bar icon, Windows over Wi-Fi, Star AF focus aid (star
+sharpness while you turn the focus ring), subject detection in live view on the computer (face/eye,
+later animals and birds; the E-M1 itself sends no face frames) with "Focus on subject", film looks and
+a look lab on the computer. Ideas and wishes are welcome in [Discussions](https://github.com/HolmHaensel/omcap/discussions).
 
 The interface is in English; all texts are in one translation table (`I18N` in
 `omcap/web/index.html`), so more languages can be added.
@@ -101,7 +103,7 @@ cd omcap
 
 - Keep the window open while you use the app; stop it with **Ctrl+C** or close the window.
 - Starting a second time just opens the browser again; the app tells you it is already running.
-- `--no-browser` starts without opening the browser.
+- `--no-browser` starts without opening the browser; `--timing` prints how long each request takes.
 - The launcher files start with `--allow-write`; remove it there for a read-only start.
 - The app works **offline**. It runs only on your computer and loads nothing from the internet;
   internet is needed once for the installation.
@@ -150,7 +152,8 @@ Measured with the E-M1 Mark I:
 4. Start the app and choose **USB connection**. The app stops the macOS service
    `ptpcamerad`, which would otherwise hold the camera.
 
-Notes: live view runs at about 15 fps with a fixed size. The shooting mode follows the mode
+Notes: after connecting, the camera reads its card index once (about 1 min); meanwhile the card
+list saved on the computer is shown. Live view runs at about 15 fps with a fixed size. The shooting mode follows the mode
 dial. Settings changed on the camera itself are picked up with **reload** in the LV super
 control panel (rebuilds the USB session, about 9 s).
 
