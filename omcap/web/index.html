@@ -68,6 +68,7 @@ main{display:grid;grid-template-columns:minmax(0,1044px) 340px;justify-content:c
 .seg{display:flex;border:1px solid var(--line);border-radius:var(--r-sm);overflow:hidden}
 .seg button{border:0;border-radius:0;width:44px;padding:0;background:var(--surface);font-weight:500}
 .seg button+button{border-left:1px solid var(--line)}
+.mode-off{display:none!important} /* not selectable in the current shooting mode (principle 7) */
 #longSeg button{width:auto;padding:0 10px;min-height:var(--touch)}
 #longSeg button.on{background:var(--accent);color:var(--accent-ink)}
 .tog{display:inline-flex;align-items:center;gap:6px;padding:0 12px;border:1px solid var(--line);border-radius:19px;background:transparent;cursor:pointer;user-select:none;font-weight:500;white-space:nowrap}
@@ -988,16 +989,20 @@ async function tick(){
 /* Functions: only what the camera offers over Wi-Fi, names as in the manual.
       show = in which shooting mode visible (manual p.41, 44, 51, 70). */
 const inMode=(...m)=>p=>m.includes(p.takemode.value);
+// Movie mode: exposure values follow the movie exposure mode P/A/S/M (E-M1 manual, p.71)
+const inMovie=(...m)=>p=>p.takemode.value==='movie'&&m.includes(p.exposemovie&&p.exposemovie.value);
+const either=(a,b)=>p=>a(p)||b(p);
 const ART_NAMES={popart:'Pop Art',fantasic_focus:'Soft Focus',daydream:'Pale&Light Color',light_tone:'Light Tone',rough_monochrome:'Grainy Film',toy_photo:'Pin Hole',miniature:'Diorama',cross_process:'Cross Process',gentle_sepia:'Gentle Sepia',dramatic_tone:'Dramatic Tone',ligne_clair:'Key Line',pastel:'Watercolor',vintage:'Vintage',partcolor:'Partial Color'};
 const FEATURES={
   takemode:{names:{movie:'Movie',B:'B',iAuto:'iAUTO',P:'P Program',A:'A Aperture priority',S:'S Shutter priority',M:'M Manual',ART:'ART Art filter'}},
-  shutspeedvalue:{show:inMode('S','M'),skip:(o,p)=>/^live/.test(o)&&p.takemode.value!=='M',names:{livebulb:'BULB',livetime:'LIVE TIME',livecomp:'LIVECOMP'}},
+  // Show rules follow the manual's per-mode logic (design principle 7; p.38-41, 51, 71, 85)
+  shutspeedvalue:{show:either(inMode('S','M'),inMovie('S','M')),skip:(o,p)=>/^live/.test(o)&&p.takemode.value!=='M',names:{livebulb:'BULB',livetime:'LIVE TIME',livecomp:'LIVECOMP'}},
   // The camera always lists f/1.0–f/91: limit to the apertures of the lens (from EXIF)
-  focalvalue:{show:inMode('A','M'),skip:o=>lens&&lens.aperture_wide&&(parseFloat(o)<lens.aperture_wide-.05||parseFloat(o)>APERTURE_MIN)},
-  expcomp:{show:inMode('P','A','S','ART')},
-  isospeedvalue:{show:inMode('P','A','S','M','ART'),names:{Auto:'AUTO',Low:'LOW'}},
-  wbvalue:{show:inMode('P','A','S','M','ART'),names:{0:'AUTO',18:'5300K',16:'7500K',17:'6000K',20:'3000K',35:'4000K',64:'Underwater',23:'5500K Flash',256:'One-touch 1',257:'One-touch 2',258:'One-touch 3',259:'One-touch 4',512:'CWB'}},
-  drivemode:{names:{normal:'Single','lowvib-normal':'Anti-Shock Single','silent-normal':'Silent Single','continuous-H':'Sequential H','silent-continuous-H':'Silent Sequential H','continuous-L':'Sequential L','lowvib-continuous-L':'Anti-Shock Sequential L','silent-continuous-L':'Silent Sequential L',selftimer:'Self-timer','lowvib-selftimer':'Anti-Shock Self-timer','silent-selftimer':'Silent Self-timer',customselftimer:'Custom Self-timer','lowvib-customselftimer':'Anti-Shock Custom Self-timer','silent-customselftimer':'Silent Custom Self-timer'}},
+  focalvalue:{show:either(inMode('A','M'),inMovie('A','M')),skip:o=>lens&&lens.aperture_wide&&(parseFloat(o)<lens.aperture_wide-.05||parseFloat(o)>APERTURE_MIN)},
+  expcomp:{show:either(inMode('P','A','S','ART'),inMovie('P','A','S'))},
+  isospeedvalue:{show:either(inMode('P','A','S','M','ART'),inMovie('M')),names:{Auto:'AUTO',Low:'LOW'}},
+  wbvalue:{show:inMode('P','A','S','M','ART','movie'),names:{0:'AUTO',18:'5300K',16:'7500K',17:'6000K',20:'3000K',35:'4000K',64:'Underwater',23:'5500K Flash',256:'One-touch 1',257:'One-touch 2',258:'One-touch 3',259:'One-touch 4',512:'CWB'}},
+  drivemode:{show:inMode('iAuto','P','A','S','M','ART','B'),names:{normal:'Single','lowvib-normal':'Anti-Shock Single','silent-normal':'Silent Single','continuous-H':'Sequential H','silent-continuous-H':'Silent Sequential H','continuous-L':'Sequential L','lowvib-continuous-L':'Anti-Shock Sequential L','silent-continuous-L':'Silent Sequential L',selftimer:'Self-timer','lowvib-selftimer':'Anti-Shock Self-timer','silent-selftimer':'Silent Self-timer',customselftimer:'Custom Self-timer','lowvib-customselftimer':'Anti-Shock Custom Self-timer','silent-customselftimer':'Silent Custom Self-timer'}},
   colortone:{show:inMode('P','A','S','M'),names:{ifinish:'i-Enhance',vivid:'Vivid',natural:'Natural',flat:'Muted',portrait:'Portrait',monotone:'Monotone',custom:'Custom',eportrait:'e-Portrait',underwater:'Underwater',colorcreator:'Color Creator',...ART_NAMES}},
   artfilter:{show:inMode('ART'),names:{...ART_NAMES,program:'ART BKT'}},
   // Movie mode (n): exposure for movies (manual p.71)
@@ -1154,6 +1159,9 @@ function renderProps(){
 function applyContext(){
   const m=lastProps&&lastProps.takemode.value, sp=lastProps&&lastProps.shutspeedvalue.value;
   $('#rowIv').hidden=!['P','A','S','M'].includes(m);
+  // Movie recording only in Movie mode, self-timer not in Movie mode (manual p.42, 57, 71)
+  const mv=m==='movie', movSec=$('[data-id=movie]'); if(movSec&&lastProps) movSec.classList.toggle('mode-off',!mv);
+  $('#timerLab').classList.toggle('mode-off',mv); $('#timerSeg').classList.toggle('mode-off',mv);
   $('#rowBr').hidden=!['P','A','S'].includes(m);
   const longExp=features.has('long')&&m==='M'&&/^live/.test(sp||'');
   $('#rowLong').hidden=!longExp&&st.take==null;

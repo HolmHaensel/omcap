@@ -18,6 +18,9 @@ Tokens: [`tokens.css`](tokens.css). Planned for version 0.4.
 6. **Hide what the connection cannot do** (maintainer decision 2026-11-11): USB-only functions do not
    appear over Wi-Fi and vice versa, so the screen stays calm. Only missing write permission is shown
    as disabled with a reason ("Write is off …").
+7. **Show a control only in the shooting modes where the camera lets you select it** (maintainer decision
+   2026-11-12), following the manual's per-mode logic: e.g. BULB / LIVE TIME / LIVECOMP only in M, Art filter
+   only in ART, AE BKT not in M. Over USB the modes iAUTO, ART, SCN and PHOTO STORY read as P and are treated as P.
 
 ## Live view and shutter always together
 

@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Controls appear only in the shooting modes where the camera lets you select them (manual logic, design principle 7): movie section only in Movie mode, self-timer and drive not in Movie mode, in Movie mode aperture / shutter speed / exposure compensation / ISO / WB follow the movie exposure mode P/A/S/M (E-M1 manual, p.71).
 - USB: turning the mode dial is detected (event 0xC003, param 3); the app rebuilds the USB session by itself and reloads the values, no "reload" needed (during live view). P, A, S, M and Movie are shown; iAUTO, ART, SCN and PHOTO STORY read as P over USB and are shown as P; after a shot iAUTO is shown from the picture's EXIF (REQ-F30).
 - M mode: quick select BULB / LIVE TIME / LIVECOMP and Off (back to the last shutter speed) in the shooting options. Built for Wi-Fi and USB; camera test still open (REQ-F31).
 - The "not running" hint names the command that works in every installation (`.venv/bin/python -m omcap.server --allow-write`) and the Windows launcher.
