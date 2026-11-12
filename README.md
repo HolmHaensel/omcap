@@ -32,6 +32,7 @@ Contributions, tests with other bodies and ideas are very welcome.
 | Tap the 9×9 AF grid to focus, AF target shown in green | yes | yes |
 | AF Area (All, Single, Small, Group Target) | – | yes |
 | Shutter button: Take picture, Press halfway (hold focus, then take picture) | yes | yes |
+| New picture in the last-shot corner and Index display right after Take picture | yes (about 8 s, 7 s of it the camera) | yes (the camera reports new files) |
 | LV super control panel: Shooting mode, shutter speed, aperture, exposure compensation, ISO, WB, drive, Picture Mode, Art filter | yes | most (mode dial only) |
 | Aperture list limited to the attached lens (read from EXIF) | yes | untested |
 | Movie: Start/Stop recording, movie shooting mode P/A/S/M | yes | – |

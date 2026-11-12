@@ -1996,17 +1996,28 @@ async function guessNew(before2){
   if(isUsb||!before2) return false;
   let r; try{r=await fetch('/api/newshot?before='+encodeURIComponent(before2))}catch{return false}
   const p=r.ok&&r.headers.get('X-Path'); if(!p) return false;
+  if(lastOpen&&lastOpen.preview.blob) URL.revokeObjectURL(lastOpen.preview.blob); // free the previous one
   const img=$('#lastShot'), blob=URL.createObjectURL(await r.blob()); img.onerror=null; img.src=blob; img.hidden=false;
   const name=p.split('/').pop(),dir=p.slice(0,p.lastIndexOf('/')),d=new Date();
   const f={path:p,name,dir,size:0,blob,date:((d.getFullYear()-1980)<<9)|((d.getMonth()+1)<<5)|d.getDate(),time:(d.getHours()<<11)|(d.getMinutes()<<5)|(d.getSeconds()>>1)};
   lastOpen={name:name.replace(/\.[^.]+$/,''),files:[f],preview:f,dt:parseStamp(f),types:'JPG',size:0};
-  if(cardShots&&!cardShots.some(x=>x.preview.path===p)){cardShots=[lastOpen,...cardShots];renderStrip12();
-    $('#count').textContent=tr('card.shots',{n:cardShots.length})}
+  keepShot(lastOpen);
   return true;
+}
+// put a provisional shot into the list if a (re)loaded list does not have it yet
+function keepShot(s){
+  if(!cardShots||cardShots.some(x=>x.preview.path===s.preview.path)) return false;
+  cardShots=[s,...cardShots]; renderStrip12(); $('#count').textContent=tr('card.shots',{n:cardShots.length});
+  return true;
+}
+// Wi-Fi: complete the list from the newest folder; the camera lists a new file only after a while
+async function completeList(s,n){
+  try{await loadCard()}catch{}
+  if(keepShot(s)&&n<5) setTimeout(()=>completeList(s,n+1),4000);
 }
 async function showLast(before,retry,before2){
   const img=$('#lastShot'), n=retry|0;
-  if(n===0&&await guessNew(before2)){loadCard();return} // complete the list in the background
+  if(n===0&&await guessNew(before2)){completeList(lastOpen,0);return} // complete the list in the background
   let shot=null,local=null;
   // a JPG saved to the computer is the quickest source and does not depend on the camera
   try{const lst=(await api('/api/state')).latest;
@@ -2041,7 +2052,7 @@ $('#shoot').onclick=async()=>{
   const sec=+$('#timerSel').value;
   if(sec&&!await timerStart(sec)) return;
   msg(tr('msg.shooting'));
-  const latestBefore=st.latest, newestBefore=lastOpen&&lastOpen.preview.path||(cardShots&&(cardShots.find(x=>isJpg(x.preview))||{preview:{}}).preview.path);
+  const latestBefore=st.latest, newestBefore=lastOpen&&lastOpen.preview.path||(cardLive&&cardShots&&(cardShots.find(x=>isJpg(x.preview))||{preview:{}}).preview.path)||null; // not from the saved list: the card may have changed
   if(st.stage>=1){
     if(!await act(tr('msg.shutter'),'/api/shutter',{stage:2})) return;
     await act(tr('msg.taken'),'/api/shutter',{stage:0});

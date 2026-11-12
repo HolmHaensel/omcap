@@ -12,6 +12,7 @@ import json
 import os
 import re
 import subprocess
+import tempfile
 import threading
 import time
 import urllib.parse
@@ -336,17 +337,6 @@ def wifi_guess_new(before, rounds=8):
                 continue
             if data[:2] == b"\xff\xd8":
                 return path, data
-    return None
-
-
-def wifi_newest_jpg():
-    """Wi-Fi: newest JPG on the card from the newest DCIM folder only (one or two requests)."""
-    folders = [e for e in cam.listdir("/DCIM") if e["isdir"] and e["name"][:3].isdigit()]
-    for folder in sorted(folders, key=lambda e: e["name"][:3], reverse=True):
-        path = "/DCIM/" + folder["name"]
-        jpgs = [e for e in cam.listdir(path) if e["name"].lower().endswith((".jpg", ".jpeg"))]
-        if jpgs:
-            return path + "/" + max(jpgs, key=lambda e: dcf_number(e["name"]))["name"]
     return None
 
 
@@ -697,9 +687,9 @@ def card_cache(kind, imgs=None):
     path = os.path.join(os.path.dirname(PREVIEW_CACHE), "cardlist_%s.json" % kind)
     if imgs is not None:
         os.makedirs(os.path.dirname(path), exist_ok=True)
-        with open(path + ".part", "w") as f:
-            json.dump(imgs, f)
-        os.replace(path + ".part", path)
+        with tempfile.NamedTemporaryFile("w", dir=os.path.dirname(path), suffix=".part", delete=False) as f:
+            json.dump(imgs, f)  # own temp file per request: two tabs may save at once
+        os.replace(f.name, path)
         return imgs
     try:
         with open(path) as f:
@@ -966,9 +956,11 @@ class Handler(BaseHTTPRequestHandler):
                     return self._send(card_cache(conn_type) or [])
                 if q.get("newest") == "1" and conn_type == "wifi":
                     return self._send(wifi_images_newest())
-                imgs = cam.images(q.get("dir", "/DCIM"))
+                root = q.get("dir", "/DCIM")
+                imgs = cam.images(root)
                 imgs.sort(key=lambda e: (e["date"], e["time"]), reverse=True)
-                card_cache(conn_type, imgs)
+                if root == "/DCIM":  # only the whole card replaces the saved list
+                    card_cache(conn_type, imgs)
                 return self._send(imgs)
             if u.path == "/api/shareorder":
                 if conn_type != "wifi":
@@ -987,9 +979,8 @@ class Handler(BaseHTTPRequestHandler):
                 self.end_headers()
                 return self.wfile.write(hit[1])
             if u.path == "/api/lastshot":
-                # USB knows the new files of a shot at once; Wi-Fi lists only the newest folder
-                # (the whole card list takes ~18 s with 2000 shots)
-                return self._send({"path": wifi_newest_jpg() if conn_type == "wifi" else state["last_shot"]})
+                # USB: the camera reports the new files of a shot (Wi-Fi uses /api/newshot)
+                return self._send({"path": state["last_shot"] if conn_type == "usb" else None})
             if u.path == "/api/exif":
                 return self._send({"exif": picture_info(q["path"])})
             if u.path == "/api/lens":
