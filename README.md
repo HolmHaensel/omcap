@@ -52,7 +52,7 @@ Contributions, tests with other bodies and ideas are very welcome.
 | Turn off camera (click twice to confirm) | yes | – (no PTP command) |
 | Live view aids: Histogram, Highlight&Shadow, Peaking | yes | yes |
 | HSL color profiles for ORF/JPG on the computer (`omcap.hsl`) | independent | independent |
-| Webcam (OBS) button next to Second monitor | yes | yes |
+| Webcam (OBS) button next to Second monitor | yes | yes (webcam view tested, button untested) |
 | Save folder and file naming | yes | yes (untested) |
 | HSL colour profiles in the app (HSL button, auto-apply, before/after) | yes | yes (untested) |
 | Start by double-click, browser opens by itself | yes | yes |

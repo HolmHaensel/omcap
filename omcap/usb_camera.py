@@ -62,7 +62,7 @@ def _gp():
     try:
         import gphoto2
     except ImportError:
-        raise CameraError("USB needs the gphoto2 package: start with .venv/bin/python")
+        raise CameraError('USB needs the gphoto2 package: install it with .venv/bin/pip install ".[usb]" and start the app from .venv')
     return gphoto2
 
 
@@ -278,7 +278,8 @@ class UsbCamera:
                 except self.gp.GPhoto2Error:
                     pass
                 self._c = self.gp.Camera()
-        raise CameraError("USB camera not reachable: %s" % error)
+        raise CameraError("USB camera not reachable (%s). Quit the Photos app and choose the computer + camera entry "
+                          "in the camera's USB menu; after plugging the cable in again, restart E-M1 Capture." % error)
 
     def reopen(self, reason="?"):
         with self._lock:

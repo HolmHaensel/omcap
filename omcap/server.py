@@ -939,7 +939,7 @@ class Handler(BaseHTTPRequestHandler):
                 })
             if u.path == "/api/level":
                 if conn_type != "usb":
-                    raise CameraError("Level Gauge only works over USB")
+                    raise CameraError("Level gauge: the camera reports no live tilt over Wi-Fi")
                 return self._send(cam.level())
             if u.path == "/api/afarea":
                 return self._send(af_area())
