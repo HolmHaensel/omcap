@@ -15,10 +15,15 @@ jobs:
       matrix:
         os: [ubuntu-latest, macos-latest]
         python: ["3.9", "3.12"]
+        exclude:
+          # no Python 3.9 build for the arm64 macOS runners; Ubuntu covers 3.9
+          - os: macos-latest
+            python: "3.9"
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: ${{ matrix.python }}
       - name: Install optional test dependencies
