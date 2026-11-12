@@ -17,7 +17,7 @@ class Dial(unittest.TestCase):
         cam = usb_camera.UsbCamera.__new__(usb_camera.UsbCamera)  # no USB session
         import threading
         cam.gp, cam._lock, cam._hold, cam._hold_lock, cam.stage = FakeGp, threading.Lock(), 0, threading.Lock(), 0
-        cam._new_files, cam._pending, cam.last_press = [], [], 0.0
+        cam._new_files, cam._pending, cam._event_log, cam.last_jpg, cam.last_press = [], [], [], None, 0.0
         queue = list(events)
 
         class C:
@@ -36,6 +36,14 @@ class Dial(unittest.TestCase):
         cam = self.make([(1, "PTP Event c003, Param1 00000003")])
         cam.last_press = time.monotonic()
         self.assertFalse(cam.dial_turned())
+
+    def test_camera_body_shot_goes_to_card_list_only(self):
+        class F:
+            folder, name = "/store_00010001/DCIM/111OLYMP", "P1.JPG"
+        cam = self.make([(FakeGp.GP_EVENT_FILE_ADDED, F())])
+        self.assertFalse(cam.dial_turned())
+        self.assertEqual(cam._new_files, [])
+        self.assertEqual(cam._pending, ["/store_00010001/DCIM/111OLYMP/P1.JPG"])
 
     def test_not_while_shooting(self):
         cam = self.make([(1, "PTP Event c003, Param1 00000003")])

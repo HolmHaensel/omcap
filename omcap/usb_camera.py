@@ -198,8 +198,7 @@ class UsbLive:
                 continue
             if time.monotonic() >= next_dial:
                 next_dial = time.monotonic() + DIAL_EVERY
-                if self.camera.dial_turned():
-                    self.camera.reopen("mode dial turned")
+                if self.camera.dial_turned() and self.camera.reopen_if_idle("mode dial turned"):
                     self.camera.mode_changed_at = time.time()
                     continue
             data = self.camera.preview_frame()
@@ -282,18 +281,29 @@ class UsbCamera:
         raise CameraError("USB camera not reachable: %s" % error)
 
     def reopen(self, reason="?"):
+        with self._lock:
+            self._reopen_locked(reason)
+
+    def reopen_if_idle(self, reason):
+        """Rebuild the session unless a shot or card read started meanwhile (checked under the lock)."""
+        with self._lock:
+            if self.hold or self.stage:
+                return False
+            self._reopen_locked(reason)
+            return True
+
+    def _reopen_locked(self, reason):
         # logged: a rebuilt session drops live view for ~9 s and loses libgphoto2's file index
         print("USB session reopened (%s)" % reason, flush=True)
-        with self._lock:
-            try:
-                self._c.exit()
-            except self.gp.GPhoto2Error:
-                pass
-            self._c = self.gp.Camera()
-            try:
-                self._open()
-            except CameraError:
-                pass
+        try:
+            self._c.exit()
+        except self.gp.GPhoto2Error:
+            pass
+        self._c = self.gp.Camera()
+        try:
+            self._open()
+        except CameraError:
+            pass
 
     @property
     def hold(self):
@@ -308,7 +318,7 @@ class UsbCamera:
     def dial_turned(self):
         """Read pending events without waiting; True if the mode dial was turned.
 
-        New files on the card (shot on the camera) are kept like in `_events`."""
+        Files shot on the camera body go to the card list only, not to the app's next shot."""
         if self.hold or self.stage:
             return False
         turned = False
@@ -320,11 +330,8 @@ class UsbCamera:
                     return False
                 if kind == self.gp.GP_EVENT_TIMEOUT:
                     break
-                if kind == self.gp.GP_EVENT_FILE_ADDED:
-                    path = "%s/%s" % (data.folder, data.name)
-                    self._new_files.append(path)
-                    self._pending.append(path)
-                elif kind == self.gp.GP_EVENT_UNKNOWN and DIAL_EVENT.search(str(data)):
+                self._on_event(kind, data, shot=False)
+                if kind == self.gp.GP_EVENT_UNKNOWN and DIAL_EVENT.search(str(data)):
                     turned = True
         return turned and time.monotonic() - self.last_press > DIAL_QUIET
 
@@ -652,20 +659,26 @@ class UsbCamera:
             self._c.set_single_config("opcode", w)
         self._call(send)
 
+    def _on_event(self, kind, data, shot=True):
+        """Keep new files (card list; with `shot` also the app's current shot) and log unknown events."""
+        if kind == self.gp.GP_EVENT_FILE_ADDED:
+            path = "%s/%s" % (data.folder, data.name)
+            if shot:
+                self._new_files.append(path)
+            if data.name.lower().endswith((".jpg", ".jpeg")):
+                self.last_jpg = path  # for lens data
+            self._pending.append(path)
+        elif kind == self.gp.GP_EVENT_UNKNOWN:
+            self._event_log.append(str(data))
+
     def _events(self, seconds, stop=None):
         """Collect events without blocking the camera in between."""
         end = time.monotonic() + seconds
         while time.monotonic() < end:
             kind, data = self._call(self._c.wait_for_event, 150)
-            if kind == self.gp.GP_EVENT_FILE_ADDED:
-                self._new_files.append("%s/%s" % (data.folder, data.name))
-                if data.name.lower().endswith((".jpg", ".jpeg")):
-                    self.last_jpg = "%s/%s" % (data.folder, data.name)  # for lens data
-                self._pending.append("%s/%s" % (data.folder, data.name))
-            elif kind == self.gp.GP_EVENT_UNKNOWN:
-                self._event_log.append(str(data))
-                if stop and stop in str(data).lower():
-                    return True
+            self._on_event(kind, data)
+            if kind == self.gp.GP_EVENT_UNKNOWN and stop and stop in str(data).lower():
+                return True
             if self._new_files and kind == self.gp.GP_EVENT_TIMEOUT and stop == "quiet":
                 return True
         return False
