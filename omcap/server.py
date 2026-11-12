@@ -863,6 +863,8 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send(cam.level())
             if u.path == "/api/afarea":
                 return self._send(af_area())
+            if u.path == "/api/lvext":  # research: camera status sent with the Wi-Fi live view
+                return self._send(live.ext_info() if hasattr(live, "ext_info") else {"error": "no Wi-Fi live view"})
             if u.path == "/api/state":
                 return self._send(public_state())
             if u.path == "/api/device":
