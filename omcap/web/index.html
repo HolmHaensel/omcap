@@ -68,6 +68,8 @@ main{display:grid;grid-template-columns:minmax(0,1044px) 340px;justify-content:c
 .seg{display:flex;border:1px solid var(--line);border-radius:var(--r-sm);overflow:hidden}
 .seg button{border:0;border-radius:0;width:44px;padding:0;background:var(--surface);font-weight:500}
 .seg button+button{border-left:1px solid var(--line)}
+#longSeg button{width:auto;padding:0 10px;min-height:var(--touch)}
+#longSeg button.on{background:var(--accent);color:var(--accent-ink)}
 .tog{display:inline-flex;align-items:center;gap:6px;padding:0 12px;border:1px solid var(--line);border-radius:19px;background:transparent;cursor:pointer;user-select:none;font-weight:500;white-space:nowrap}
 .tog input{position:absolute;opacity:0;width:1px;height:1px}
 .tog:has(input:checked){border-color:var(--accent-line);background:var(--accent-soft);color:var(--accent)}
@@ -431,6 +433,10 @@ body.webcam{cursor:none;display:flex;align-items:center;justify-content:center}
       <button id="jobStop" data-i18n="prog.stop">Stop</button>
       <span id="jobInfo" class="mut"></span>
     </div>
+    <div class="row" id="rowLongSel" hidden>
+      <span data-i18n="long.label">Long exposure (M)</span>
+      <div class="seg" id="longSeg" role="group" aria-label="Long exposure (M)" data-i18n-aria="long.label"></div>
+    </div>
     <div class="row" id="rowLong" hidden>
       <span id="longName"></span>
       <button class="w" id="takePrep" hidden data-i18n="prog.prepare">Prepare</button>
@@ -739,6 +745,8 @@ const I18N={en:{
   "status.cardMb": "Card: {v} MB free",
   "status.shots": "Card: {v} shots free",
   "msg.modeDial": "Mode dial turned: settings reloaded.",
+  "long.label": "Long exposure (M)",
+  "long.off": "Off",
   "status.battery": "Battery: {v} %",
   "ro.title": "Camera settings (read only)",
   "ro.lowvibtime": "Anti-Shock",
@@ -754,7 +762,7 @@ const I18N={en:{
   "ro.min": "{v} min",
   "scp.modeDial": "{label} (Mode dial)",
   "prop.takemode": "Shooting mode",
-  "val.takemode.usbP": "P, iAUTO, ART, SCN or PHOTO STORY",
+  "val.takemode.usbP": "P Program",
   "prop.shutspeedvalue": "Shutter speed",
   "prop.focalvalue": "Aperture",
   "prop.expcomp": "Exposure compensation",
@@ -921,8 +929,8 @@ $('#popPhoto').onclick=()=>popup('photo');
 /* State */
 let leavingPlay=false, wasIndexing=false;
 let modeAt=null; // USB: last mode dial turn seen (state.mode_at)
-/* USB reports iAUTO, ART, SCN and PHOTO STORY as P (d006 = 2, tested 2026-11-12); the EXIF of the newest
-   shot shows iAUTO (ExposureProgram 5). Other EXIF values are not told apart, so they keep the general label */
+/* USB reports iAUTO, ART, SCN and PHOTO STORY as P (d006 = 2, tested 2026-11-12); they are shown as P
+   (maintainer decision). Only the EXIF of the newest shot tells iAUTO apart (ExposureProgram 5) */
 let usbShotMode=null;
 function shotMode(path){
   api('/api/exif?path='+encodeURIComponent(path)).then(j=>{const m=j.exif&&j.exif.mode;
@@ -1072,7 +1080,7 @@ function renderStrip(){
   const p=lastProps,s=$('#valStrip');
   if(!p||!p.takemode){s.hidden=true;return}
   const g=k=>p[k]&&p[k].value!=null&&p[k].value!==''?p[k].value:null, out=[];
-  const mode=g('takemode'); if(mode) out.push(['m',mode==='P'&&!p.takemode.writable?(usbShotMode?MODE_SHORT[usbShotMode]:'P/…'):(MODE_SHORT[mode]||mode)]);
+  const mode=g('takemode'); if(mode) out.push(['m',mode==='P'&&!p.takemode.writable?MODE_SHORT[usbShotMode||'P']:(MODE_SHORT[mode]||mode)]);
   const mv=mode==='movie', li=st.lvinfo||{};
   // automatic values as the camera uses them right now (Wi-Fi live view, REQ-F29)
   const sv=li.shutter, liveSh=sv&&!['S','M','B'].includes(mode)?(sv[0]===1?'1/'+sv[1]:sv[1]===1?sv[0]+'"':(sv[0]/sv[1]).toFixed(1)+'"'):null;
@@ -1151,8 +1159,32 @@ function applyContext(){
   $('#rowLong').hidden=!longExp&&st.take==null;
   if(longExp) $('#longName').textContent=FEATURES.shutspeedvalue.names[sp];
   $('#takePrep').hidden=!(longExp&&sp==='livecomp'&&isUsb);
+  renderLongSeg(m,sp);
   const sec=$('[data-id=prog]');
   sec.style.display=[...sec.querySelectorAll('.row')].some(r=>!r.hidden)?'':'none';
+}
+
+/* M mode: quick select of BULB / LIVE TIME / LIVECOMP and back to the last normal shutter speed (REQ-F31) */
+let lastNormalSp=null;
+function renderLongSeg(m,sp){
+  const v=lastProps&&lastProps.shutspeedvalue, row=$('#rowLongSel'), seg=$('#longSeg');
+  const opts=v&&v.enum?['livebulb','livetime','livecomp'].filter(o=>v.enum.includes(o)):[];
+  row.hidden=!(features.has('long')&&m==='M'&&v&&v.writable&&opts.length);
+  if(row.hidden) return;
+  if(sp&&!/^live/.test(sp)) lastNormalSp=sp;
+  const back=lastNormalSp||v.enum.find(o=>!/^live/.test(o));
+  seg.innerHTML='';
+  for(const o of ['off',...opts]){
+    const b=document.createElement('button'); b.type='button'; b.className='w';
+    b.textContent=o==='off'?tr('long.off'):FEATURES.shutspeedvalue.names[o];
+    const on=o==='off'?!/^live/.test(sp||''):sp===o;
+    b.classList.toggle('on',on); b.setAttribute('aria-pressed',on?'true':'false'); b.disabled=!canWrite;
+    b.onclick=()=>{const val=o==='off'?back:o; if(!val||val===sp) return;
+      api('/api/set',{prop:'shutspeedvalue',value:val}).then(()=>{v.value=val;
+        msg(tr('prop.shutspeedvalue')+': '+valName('shutspeedvalue',val));renderProps();applyContext()})
+      .catch(e=>msg(tr('prop.shutspeedvalue')+': '+e.message,true))};
+    seg.append(b);
+  }
 }
 
 /* Images */
