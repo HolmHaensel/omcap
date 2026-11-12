@@ -1076,8 +1076,11 @@ class Handler(BaseHTTPRequestHandler):
             disconnect()
             return None
         if path == "/api/quit":
-            disconnect()
-            # stop after the answer went out; shutdown() must not run in a request thread's way
+            try:
+                disconnect()
+            except (CameraError, WriteBlocked, OSError) as e:  # quit anyway
+                print("Quit: disconnecting the camera failed:", e)
+            # delay so the answer is sent before main() returns
             if http_server is not None:
                 threading.Timer(0.3, http_server.shutdown).start()
             return None

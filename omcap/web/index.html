@@ -946,6 +946,7 @@ function shotMode(path){
 }
 let isUsb=false; // connection type from /api/status
 let st={stage:0,job:{}},canWrite=false,wasBusy=false,blank=0,connected=false,features=new Set(),af=null;
+let quitting=false;
 async function tick(){
   if(view||!connected||quitting) return;
   const liOld=JSON.stringify(st&&st.lvinfo);
@@ -1956,6 +1957,7 @@ function drawHist(data){
   for(let i=0;i<256;i++){const hh=Math.min(1,l[i]/mx)*(H-3);g.fillRect(i/255*(W-1),H-hh,Math.max(1,W/256),hh)}
 }
 function aidTick(){
+  if(quitting) return;
   const wantH=$('#aidHist').checked,wantC=$('#aidClip').checked,wantP=$('#aidPeak').checked;
   const hc=$('#histCv'),oc=$('#aidCv'),img=$('#live'),nw=img.naturalWidth,nh=img.naturalHeight;
   hc.hidden=!(wantH&&st.live);
@@ -2221,15 +2223,15 @@ $('#startGo').onclick=()=>{if(selected)connectTo(selected)};
 document.addEventListener('keydown',e=>{if(!$('#start').hidden&&e.key==='Enter'&&selected&&e.target.tagName!=='BUTTON')connectTo(selected)});
 $('#poweroff').onclick=async()=>{if(!armed($('#poweroff'),tr('app.poweroffConfirm'),t=>msg(t,!!t)))return;try{await api('/api/poweroff',{})}catch(e){msg(e.message||String(e),true);return}location.reload()};
 /* Quit: the server answers, then stops; the page stops polling and shows a notice */
-let quitting=false;
 function showStopped(){
   quitting=true; connected=false; clearInterval(pollTimer);
   $('#live').removeAttribute('src');
   $('#start').hidden=true; $('#app').hidden=true; $('#stopped').hidden=false;
 }
 document.querySelectorAll('.quitBtn').forEach(b=>b.onclick=async()=>{
-  if(!armed(b,tr('app.quitConfirm'),t=>{msg(t,!!t);$('#startMsg').textContent=t}))return;
-  try{await api('/api/quit',{})}catch(e){} // server already gone counts as stopped
+  if(!armed(b,tr('app.quitConfirm'),t=>{if($('#app').hidden)$('#startMsg').textContent=t;else msg(t,!!t)}))return;
+  try{await api('/api/quit',{})}
+  catch(e){if(e.message!==tr('srv.offline')){msg(e.message||String(e),true);return}} // only "server gone" counts as stopped
   showStopped();
 });
 $('#discon').onclick=async()=>{try{await api('/api/disconnect',{})}catch{}location.reload()};

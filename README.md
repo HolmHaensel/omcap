@@ -39,7 +39,7 @@ Contributions, tests with other bodies and ideas are very welcome.
 | Aperture list limited to the attached lens (read from EXIF) | yes | yes (after the first picture of the session; before that only the focal length) |
 | Movie: Start/Stop recording, movie shooting mode P/A/S/M | yes | – |
 | Time lapse shooting, AE BKT | built, untested | built, untested |
-| Quit E-M1 Capture button | yes | yes |
+| Quit E-M1 Capture button | yes (tested without a camera connection) | yes (tested without a camera connection) |
 | Playback: Index display, Calendar display, single-frame view, save to computer | yes | yes |
 | Card list saved on the computer, shown at once when you connect (the camera's list follows) | yes | yes |
 | Playback: shooting data (Overall display), line on thumbnails | yes | yes |
