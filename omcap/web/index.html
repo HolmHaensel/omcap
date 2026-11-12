@@ -170,7 +170,8 @@ button:disabled{color:var(--disabled);opacity:.6;cursor:not-allowed}
 #afModes{display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}
 #gal{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}
 #gal figure{margin:0;font-size:11px;color:var(--mut);min-width:0;overflow-wrap:anywhere}
-#gal img{width:100%;aspect-ratio:4/3;object-fit:cover;background:var(--line)}
+#gal img{width:100%;aspect-ratio:4/3;object-fit:cover;background:var(--line);cursor:pointer}
+#gal img:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 #hslBox{position:relative;max-width:80vw;line-height:0}
 #hslBox img{max-width:80vw;max-height:70vh;display:block}
 #hslBox #hslAfter{position:absolute;left:0;top:0;width:100%;height:100%;object-fit:fill}
@@ -181,8 +182,8 @@ dialog{background:var(--surface);color:var(--text);border:1px solid var(--line);
 dialog h2{margin-top:12px}
 .lr{display:flex;gap:6px;align-items:center;padding:2px 0}
 .lr span{flex:1}
-#galOv,#viewer{position:fixed;inset:0;background:var(--bg);display:flex;flex-direction:column;z-index:10}
-#viewer{z-index:11;background:#000;color:var(--text)}
+#galOv,#viewer{position:fixed;inset:0;background:var(--bg);display:flex;flex-direction:column;z-index:30} /* above the fixed shutter bar (20) */
+#viewer{z-index:31;background:#000;color:var(--text)}
 .galbar{display:flex;gap:6px;flex-wrap:wrap;align-items:center;padding:8px 12px;border-bottom:1px solid var(--line)}
 #viewer .galbar{border-color:#333}
 #galBody{flex:1;overflow:auto;padding:8px;min-height:0}
@@ -810,6 +811,7 @@ const I18N={en:{
   "card.calendar": "Calendar display",
   "card.close": "Close",
   "card.shots": "{n} shots",
+  "card.open": "Open in single-frame playback",
   "card.reading": "Reading the card …",
   "card.updating": "{n} shots · updating …",
   "card.updatingShort": "updating …",
@@ -1272,16 +1274,20 @@ async function showSaved(){
 }
 function renderStrip12(){
   const g=$('#gal'); g.innerHTML='';
-  for(const s of cardShots.slice(0,12)){
+  cardShots.slice(0,12).forEach((s,i)=>{
     const f=document.createElement('figure');
-    const im=new Image(); im.loading='lazy'; im.alt=''; im.src=thumbUrl(s.preview);
+    const im=new Image(); im.loading='lazy'; im.alt=s.name; im.src=thumbUrl(s.preview);
+    // click or Enter opens the single-frame view, like a tile in Index display
+    im.tabIndex=0; im.setAttribute('role','button'); im.title=tr('card.open');
+    im.onclick=()=>openViewer(cardShots,i);
+    im.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();openViewer(cardShots,i)}};
     const get=document.createElement('button'); get.textContent=tr('card.save');
     get.onclick=()=>downloadShot(s,msg).catch(e=>msg(e.message,true));
     const ov=document.createElement('button'); ov.textContent=tr('card.overlay');
     ov.onclick=()=>overlay(bigUrl(s));
     const n=document.createElement('div'); n.textContent=s.name+' · '+s.types;
     f.append(im,n,get,ov); g.append(f);
-  }
+  });
   if(!$('#galOv').hidden) renderGal();
 }
 
