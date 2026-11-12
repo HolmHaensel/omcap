@@ -1279,8 +1279,8 @@ function renderStrip12(){
     const im=new Image(); im.loading='lazy'; im.alt=s.name; im.src=thumbUrl(s.preview);
     // click or Enter opens the single-frame view, like a tile in Index display
     im.tabIndex=0; im.setAttribute('role','button'); im.title=tr('card.open');
-    im.onclick=()=>openViewer(cardShots,i);
-    im.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();openViewer(cardShots,i)}};
+    im.onclick=()=>{im.blur();openViewer(cardShots,i)}; // no focus left behind the viewer
+    im.onkeydown=e=>{if(!$('#viewer').hidden)return; if(e.key==='Enter'||e.key===' '){e.preventDefault();im.click()}};
     const get=document.createElement('button'); get.textContent=tr('card.save');
     get.onclick=()=>downloadShot(s,msg).catch(e=>msg(e.message,true));
     const ov=document.createElement('button'); ov.textContent=tr('card.overlay');
