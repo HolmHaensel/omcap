@@ -735,6 +735,7 @@ const I18N={en:{
   "status.card": "Card: {v} GB free",
   "status.cardMore": "Card: more than 4 GB free",
   "status.cardMb": "Card: {v} MB free",
+  "status.shots": "Card: {v} shots free",
   "status.battery": "Battery: {v} %",
   "ro.title": "Camera settings (read only)",
   "ro.lowvibtime": "Anti-Shock",
@@ -911,7 +912,9 @@ let isUsb=false; // connection type from /api/status
 let st={stage:0,job:{}},canWrite=false,wasBusy=false,blank=0,connected=false,features=new Set(),af=null;
 async function tick(){
   if(view||!connected) return;
+  const liOld=JSON.stringify(st&&st.lvinfo);
   try{st=await api('/api/state')}catch(e){if(e.message===tr('srv.offline'))msg(e.message,true);return}
+  if(JSON.stringify(st.lvinfo)!==liOld) showStatus();
   $('#half').classList.toggle('on',st.stage>=1); $('#half').setAttribute('aria-pressed',st.stage>=1?'true':'false');
   $('#empty').hidden=st.live;
   $('#lvStart').hidden=st.live||!canWrite; $('#lvStop').hidden=!st.live;
@@ -992,10 +995,14 @@ function showStatus(){
   if(!statusBase) return;
   // 0xFFFFFFFF: the camera reports at most 32 bits, the real space is then unknown
   const c=device.card;
-  const card=c==null?null:c===4294967295?tr('status.cardMore'):c>=1e9?tr('status.card',{v:(c/1e9).toFixed(1)}):tr('status.cardMb',{v:Math.round(c/1e6)});
+  const li=st&&st.lvinfo; // Wi-Fi live view: values sent with every frame (REQ-F29)
+  const card=li&&li.shots!=null?tr('status.shots',{v:li.shots}):c==null?null:c===4294967295?tr('status.cardMore'):c>=1e9?tr('status.card',{v:(c/1e9).toFixed(1)}):tr('status.cardMb',{v:Math.round(c/1e6)});
   const bat=device.battery!=null?tr('status.battery',{v:device.battery}):null;
   // without a lens name (USB without JPG) at least the focal length range
-  const lensName=lens&&(lens.model||(lens.focal_min?(lens.focal_min===lens.focal_max?lens.focal_min:lens.focal_min+'–'+lens.focal_max)+' mm':null));
+  let lensName=lens&&(lens.model||(lens.focal_min?(lens.focal_min===lens.focal_max?lens.focal_min:lens.focal_min+'–'+lens.focal_max)+' mm':null));
+  const f=li&&li.focal;
+  if(f&&!lensName) lensName=(f[0]===f[1]?f[0]:f[0]+'–'+f[1])+' mm';
+  if(f&&f[0]!==f[1]) lensName+=' · '+f[2]+' mm'; // zoom: current focal length
   const set=(id,t)=>{$(id).textContent=t||''};
   $('#status').textContent=''; $('#connChip').hidden=false;
   $('#connText').textContent=statusBase.model+' · '+statusBase.conn;
@@ -1044,11 +1051,14 @@ function renderStrip(){
   if(!p||!p.takemode){s.hidden=true;return}
   const g=k=>p[k]&&p[k].value!=null&&p[k].value!==''?p[k].value:null, out=[];
   const mode=g('takemode'); if(mode) out.push(['m',mode==='P'&&!p.takemode.writable?'P':(MODE_SHORT[mode]||mode)]);
-  const mv=mode==='movie';
-  const sh=g('shutspeedvalue'); if(sh&&!mv) out.push(['',valName('shutspeedvalue',sh)]);
-  const ap=g('focalvalue'); if(ap&&!mv) out.push(['',/^[\d.]+$/.test(ap)?'F'+ap:ap]);
+  const mv=mode==='movie', li=st.lvinfo||{};
+  // automatic values as the camera uses them right now (Wi-Fi live view, REQ-F29)
+  const sv=li.shutter, liveSh=sv&&!['S','M','B'].includes(mode)?(sv[0]===1?'1/'+sv[1]:sv[1]===1?sv[0]+'"':(sv[0]/sv[1]).toFixed(1)+'"'):null;
+  const sh=g('shutspeedvalue'); if((liveSh||sh)&&!mv) out.push(['',liveSh||valName('shutspeedvalue',sh)]);
+  const liveAp=li.aperture&&!['A','M','B'].includes(mode)?String(li.aperture.toFixed(1)):null;
+  const ap=liveAp||g('focalvalue'); if(ap&&!mv) out.push(['',/^[\d.]+$/.test(ap)?'F'+ap:ap]);
   const ec=g('expcomp'); if(ec!=null&&!mv) out.push(['',/^\d/.test(ec)&&+ec>0?'+'+ec:ec]);
-  const iso=g('isospeedvalue'); if(iso&&!mv) out.push(['','ISO '+valName('isospeedvalue',iso)]);
+  const iso=g('isospeedvalue'); if(iso&&!mv) out.push(['','ISO '+valName('isospeedvalue',iso)+(iso==='Auto'&&li.iso?' '+li.iso:'')]);
   const wb=g('wbvalue'); if(wb!=null) out.push(['',tr('strip.wb')+' '+valName('wbvalue',wb)]);
   s.innerHTML='';
   for(const [c,t] of out){const e=document.createElement('span');if(c)e.className=c;e.textContent=t;s.append(e)}

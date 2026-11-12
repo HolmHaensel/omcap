@@ -780,6 +780,8 @@ def public_state():
         "transfer_error": state["transfer_error"], "hsl_error": hsl_auto["error"],
         "take": now - state["take"] if state["take"] else None,
         "movie": now - state["movie"]["since"] if state["movie"] else None,
+        # Wi-Fi only: values the camera sends with every live view frame (REQ-F29)
+        "lvinfo": live.live_values() if hasattr(live, "live_values") else None,
     }
 
 

@@ -39,7 +39,8 @@ Contributions, tests with other bodies and ideas are very welcome.
 | Playback: Index display, Calendar display, single-frame view, save to computer | yes | yes |
 | Playback: shooting data (Overall display), line on thumbnails | yes | yes |
 | Save to card only or card and computer | yes | yes |
-| Free card space in the header | yes | yes |
+| Free card space in the header | yes (free shots, live from the live view) | yes |
+| Current focal length in the header, ISO with ISO Auto, shutter speed and aperture the camera uses in auto modes | yes (sent with the live view) | – (not in a USB property) |
 | Battery level | – (no command) | yes |
 | Read-only settings (Anti-Shock, Silent, Noise Reduct., BULB/TIME Timer, Digital Tele-converter) | yes | – (unknown) |
 | Share Order: show, save all, reset | yes (in playback) | – |

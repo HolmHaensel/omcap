@@ -3,6 +3,7 @@
 ## Unreleased
 
 - Wi-Fi live view: the RTP extension data (OPC protocol) is read instead of skipped; `GET /api/lvext` shows what the camera sends. The E-M1 Mark I sends free shots, AF result, shutter speed, aperture, exposure compensation, ISO (also with ISO Auto) and focal length; no level gauge or face frames (REQ-F29).
+- Wi-Fi: during live view the header shows free shots and the current focal length, and the value strip shows the ISO in use with ISO Auto and the shutter speed and aperture the camera uses in auto modes (REQ-F29).
 
 ## 0.4.0 – 2026-11-11
 

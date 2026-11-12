@@ -95,6 +95,7 @@ class LiveView:
 
     def start(self):
         self.stop()  # a restart only frees the port afterwards
+        self.ext = {}
         s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         s.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 1 << 21)
@@ -149,6 +150,31 @@ class LiveView:
                         self.cond.notify_all()
                 buf = bytearray()
                 damaged = False
+
+    def live_values(self):
+        """Camera values for the page while frames arrive (E-M1 layouts), else None.
+
+        shots: free shots on the card; iso: ISO in use (also with ISO Auto);
+        shutter: [numerator, denominator] in use; aperture: f-number in use;
+        focal: [wide, tele, now] in mm; af: 1 in focus, 0 no result."""
+        age = self.age
+        if not self.running or age is None or age > 3 or not self.ext:
+            return None
+        e, out = self.ext, {}
+        if e.get(5):
+            out["shots"] = e[5][0]
+        if e.get(12):
+            out["iso"] = e[12][0]
+        if len(e.get(8, ())) >= 3 and e[8][2] & 0xFFFF:
+            out["shutter"] = [e[8][2] >> 16, e[8][2] & 0xFFFF]
+        if len(e.get(9, ())) >= 3:
+            out["aperture"] = e[9][2] / 10
+        f = decode_entry(18, e.get(18))
+        if f and f["now_mm"]:
+            out["focal"] = [f["min_mm"], f["max_mm"], f["now_mm"]]
+        if e.get(2):
+            out["af"] = e[2][0]
+        return out or None
 
     def ext_info(self):
         """Latest extension data: decoded where known, raw words otherwise."""

@@ -33,6 +33,17 @@ class Extension(unittest.TestCase):
         self.assertEqual(d(18, [524302, 4259980, 0]), {"min_mm": 14, "max_mm": 140, "now_mm": 65})
         self.assertAlmostEqual(d(8, [3932161, 73536, 65596])["now"], 1 / 60)
 
+    def test_live_values(self):
+        lv = liveview.LiveView()
+        self.assertIsNone(lv.live_values())  # not running
+        lv._run, lv.last_frame = True, liveview.time.monotonic()
+        lv.ext = {5: [1226], 12: [1600, 65536, 0], 8: [3932161, 73536, 65596], 9: [220, 44, 45],
+                  18: [524302, 4259980, 0], 2: [1, 352, 340, 90, 90]}
+        self.assertEqual(lv.live_values(), {"shots": 1226, "iso": 1600, "shutter": [1, 60], "aperture": 4.5,
+                                            "focal": [14, 140, 65], "af": 1})
+        lv.last_frame -= 10  # stale frames: no values
+        self.assertIsNone(lv.live_values())
+
     def test_truncated_is_safe(self):
         self.assertEqual(liveview.parse_extension(entry(5, 1)[:6]), {5: []})
 
