@@ -191,10 +191,15 @@ over USB too (up to 1280×960, about 14 fps). Until a release contains it, build
 
 ```sh
 brew install autoconf automake libtool gettext pkgconf libusb libexif
-git clone https://github.com/gphoto/libgphoto2.git && cd libgphoto2
+git clone https://github.com/gphoto/libgphoto2.git ~/src/libgphoto2 && cd ~/src/libgphoto2
 autoreconf -is && ./configure --prefix="$HOME/.local/libgphoto2-dev" && make -j4 && make install
-cd ../omcap
-PKG_CONFIG_PATH="$HOME/.local/libgphoto2-dev/lib/pkgconfig" .venv/bin/pip install --force-reinstall --no-binary gphoto2 gphoto2
+```
+
+Then, in your `omcap` folder (the one from the installation above):
+
+```sh
+PKG_CONFIG_PATH="$HOME/.local/libgphoto2-dev/lib/pkgconfig" .venv/bin/pip install --force-reinstall --no-cache-dir --no-binary gphoto2 gphoto2
+.venv/bin/python -c "import gphoto2 as gp; print(gp.gp_library_version(gp.GP_VERSION_SHORT)[0])"   # 2.5.34.1 or later
 ```
 
 ## HSL color profiles (software)

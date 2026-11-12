@@ -40,7 +40,7 @@ The live view and *Take picture* are visible at the same time on every screen si
 |---|---|
 | Header | App name, connection chip (E-M1 · Wi-Fi/USB), *Write enabled* chip, lens, battery (USB), card space, Playback, On the computer, Disconnect, Turn off camera (Wi-Fi) |
 | Live view | Image, AF grid, Displayed Grid, Histogram, Highlight&Shadow, Peaking, focus status chip, self-timer countdown, last shot, value strip |
-| Under the image | View zoom 1×/2×/4× (app only), Size (Wi-Fi), live view aids as toggles, Second monitor, Webcam (OBS), Stop live view; one status line |
+| Under the image | View zoom 1×/2×/4× (app only), Size (Wi-Fi; USB only with libgphoto2 2.5.34.1 or later), live view aids as toggles, Second monitor, Webcam (OBS), Stop live view; one status line |
 | Right column (340 px) | LV super control panel: shooting mode, value tiles; AF target (USB); read-only settings line; Movie and Shooting options; Self-timer; Press halfway + Take picture; Save to |
 
 States: live view off, focusing (amber field), in focus (green field), self-timer running,

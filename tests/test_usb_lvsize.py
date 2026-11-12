@@ -12,8 +12,16 @@ class FakeGp:
 
 
 class Widget:
+    CHOICES = ["Off", "320x240", "640x480", "800x600", "1024x768", "1280x960"]
+
     def __init__(self):
         self.value = "1024x768"
+
+    def count_choices(self):
+        return len(self.CHOICES)
+
+    def get_choice(self, i):
+        return self.CHOICES[i]
 
     def set_value(self, v):
         self.value = v
@@ -27,6 +35,9 @@ class Cam:
         return self.w
 
     def set_single_config(self, name, w):
+        pass
+
+    def exit(self):
         pass
 
 
@@ -56,6 +67,20 @@ class LvSize(unittest.TestCase):
             make(allow_write=False).set_mode("rec", "1280x0960")
         with self.assertRaises(CameraError):
             make().set_mode("rec", "big")
+
+    def test_unknown_size_not_stored(self):
+        cam = make()
+        with self.assertRaises(CameraError):
+            cam.set_mode("rec", "9999x9999")
+        self.assertIsNone(cam.lvqty)
+
+    def test_size_kept_after_session_rebuild(self):
+        cam = make()
+        cam.set_mode("rec", "1280x0960")
+        FakeGp.Camera = Cam  # the rebuilt session starts at 1024x768
+        cam._open = lambda: None
+        cam._reopen_locked("test")
+        self.assertEqual(cam._c.w.value, "1280x960")
 
 
 if __name__ == "__main__":

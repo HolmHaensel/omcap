@@ -377,13 +377,19 @@ class UsbCamera:
         except CameraError:
             return False
 
-    def _apply_lv_size_locked(self):
-        """Set the chosen live view size; caller holds the lock (a new session starts at 0 = 1024x768)."""
-        if not self.lvqty or "lvsize" not in self.features:
+    def _apply_lv_size_locked(self, lvqty=None):
+        """Set a live view size ("1280x0960"; default: the chosen one); caller holds the lock.
+
+        A new session starts at 0, which libgphoto2 turns into 1024x768."""
+        lvqty = lvqty or self.lvqty
+        if not lvqty or "lvsize" not in self.features:
             return
-        w, h = (int(v) for v in self.lvqty.split("x"))
+        w, h = (int(v) for v in lvqty.split("x"))
         widget = self._c.get_single_config("liveviewsize")
-        widget.set_value("%dx%d" % (w, h))
+        label = "%dx%d" % (w, h)
+        if label not in [widget.get_choice(i) for i in range(widget.count_choices())]:
+            raise CameraError("Live view size not offered by the camera: %s" % label)
+        widget.set_value(label)
         self._c.set_single_config("liveviewsize", widget)
 
     def _set(self, name, value):
@@ -620,8 +626,8 @@ class UsbCamera:
             self._need_write()
             if not re.fullmatch(r"\d{4}x\d{4}", lvqty):
                 raise CameraError("Unknown live view size: %s" % lvqty)
-            self.lvqty = lvqty
-            self._call(self._apply_lv_size_locked)
+            self._call(self._apply_lv_size_locked, lvqty)
+            self.lvqty = lvqty  # only once the camera took it
 
     def start_liveview(self, port):
         self._need_write()
