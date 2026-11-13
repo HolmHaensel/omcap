@@ -238,6 +238,30 @@ class Transport(unittest.TestCase):
         self.assertFalse(t._irq_live)
 
 
+class MfDrive(unittest.TestCase):
+    def cam(self):
+        cam = usb_camera.UsbCamera.__new__(usb_camera.UsbCamera)
+        import threading
+        fake = FakePtp()
+        cam.gp, cam._c, cam._lock, cam.allow_write = pg, camera(fake), threading.Lock(), True
+        return cam, fake
+
+    def test_steps_like_libgphoto2(self):
+        cam, fake = self.cam()
+        cam.mf_drive("near", 1)
+        cam.mf_drive("far", 3)
+        self.assertEqual(fake.calls, [("op", 0x9487, (1, 0x03)), ("op", 0x9487, (2, 0x3C))])
+
+    def test_refused(self):
+        cam, fake = self.cam()
+        with self.assertRaises(usb_camera.CameraError):
+            cam.mf_drive("up", 1)
+        cam.allow_write = False
+        with self.assertRaises(usb_camera.WriteBlocked):
+            cam.mf_drive("near", 1)
+        self.assertEqual(fake.calls, [])
+
+
 class Backend(unittest.TestCase):
     def test_auto_falls_back_to_libgphoto2(self):
         with mock.patch.object(usb_camera.UsbCamera, "_open") as op, \

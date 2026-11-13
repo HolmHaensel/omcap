@@ -407,6 +407,15 @@ body.webcam{cursor:none;display:flex;align-items:center;justify-content:center}
       <button class="w" data-af="33027" data-i18n="af.33027">Small Target</button>
       <button class="w" data-af="33026" data-i18n="af.33026">Group Target</button>
     </div>
+    <div data-feat="mf_drive"><div class="row" id="rowMf" hidden>
+      <span class="lab" data-i18n="mf.title">MF drive</span>
+      <button class="w" data-mf="near:3" data-i18n="mf.near3">Near 3</button>
+      <button class="w" data-mf="near:2" data-i18n="mf.near2">Near 2</button>
+      <button class="w" data-mf="near:1" data-i18n="mf.near1">Near 1</button>
+      <button class="w" data-mf="far:1" data-i18n="mf.far1">Far 1</button>
+      <button class="w" data-mf="far:2" data-i18n="mf.far2">Far 2</button>
+      <button class="w" data-mf="far:3" data-i18n="mf.far3">Far 3</button>
+    </div></div>
     <div class="row">
       <label><input type="checkbox" id="afShow" checked> <span data-i18n="af.show">Show AF targets</span></label>
       <span id="afInfo" class="mut"></span>
@@ -746,6 +755,9 @@ const I18N={en:{
   "af.33026": "Group Target",
   "af.33027": "Small Target",
   "af.show": "Show AF targets",
+  "mf.title": "MF drive",
+  "mf.near3": "Near 3", "mf.near2": "Near 2", "mf.near1": "Near 1",
+  "mf.far1": "Far 1", "mf.far2": "Far 2", "mf.far3": "Far 3",
   "af.pos": "Row {r}, column {c}",
   "panel.scp": "LV super control panel",
   "scp.reload": "reload",
@@ -1192,6 +1204,9 @@ function applyContext(){
   $('#rowLong').hidden=!longExp&&st.take==null;
   if(longExp) $('#longName').textContent=FEATURES.shutspeedvalue.names[sp];
   $('#takePrep').hidden=!(longExp&&sp==='livecomp'&&isUsb);
+  // MF drive (USB 0x9487): like the focus ring, so only with AF mode MF or S-AF+MF (manual p.75)
+  const fm=lastProps&&lastProps.focusmode&&lastProps.focusmode.value;
+  $('#rowMf').hidden=!(features.has('mf_drive')&&canWrite&&['1','32769'].includes(fm));
   renderLongSeg(m,sp);
   const sec=$('[data-id=prog]');
   sec.style.display=[...sec.querySelectorAll('.row')].some(r=>!r.hidden)?'':'none';
@@ -1912,6 +1927,10 @@ function drawAf(){
   for(let r=r0;r<=r1;r++)for(let k=c0;k<=c1;k++)g.strokeRect(X+k*cw,Y+r*ch,cw,ch);
 }
 document.querySelectorAll('[data-af]').forEach(b=>b.onclick=()=>setAf({mode:+b.dataset.af}));
+document.querySelectorAll('[data-mf]').forEach(b=>b.onclick=async()=>{
+  const [direction,step]=b.dataset.mf.split(':');
+  try{await api('/api/mfdrive',{direction,step:+step})}catch(e){msg(e.message,true)}
+});
 $('#afShow').onchange=drawAf;
 
 /* Grid */
