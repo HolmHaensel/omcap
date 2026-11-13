@@ -1,8 +1,8 @@
 # Changelog
 
-## Unreleased
+## 0.6.0 – 2026-11-13
 
-- Wi-Fi Take picture uses `exec_takemotion com=starttake` with the tapped AF point in shooting mode instead of switching to the shutter mode: focuses on the tapped point, the live view keeps running, and the shot takes 1.2 s instead of about 7 s (camera-tested). If the camera refuses, the old shutter-button route is used (REQ-F34).
+- Wi-Fi Take picture uses `exec_takemotion com=starttake` with the tapped AF point in shooting mode instead of switching to the shutter mode: focuses on the tapped point, the live view keeps running, and the shot takes 1.2–1.5 s instead of about 7 s (camera-tested). Only for normal shots: long exposures (slower than 1/4 s, BULB / LIVE TIME / LIVECOMP), the self-timer and Movie mode keep the shutter-button route, which is also the fallback when the camera refuses (REQ-F34).
 - USB: LIVE TIME is recognised when libgphoto2 reports it as a raw fraction (65535/65533); "Off" in the M-mode quick select falls back to 1/60 s when no earlier speed is known (REQ-F31, camera-tested over USB).
 - Single-frame view: "Open in OM Workspace" (only when OM Workspace is installed); saves the shot to the computer first if needed and opens the ORF, otherwise the JPG (REQ-F17).
 - Playback: the thumbnails in the Playback section open the single-frame view (click or Enter), like the tiles in Index display; Playback and the single-frame view now lie above the shutter bar in narrow windows (REQ-F27).
