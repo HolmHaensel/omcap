@@ -1197,11 +1197,14 @@ class Handler(BaseHTTPRequestHandler):
                     state["take"] = None
         elif path == "/api/movie" and conn_type == "usb":
             # USB: the movie button records in every shooting mode (manual p.26), no mode switch
+            # the REC button toggles: never press it for Stop when the app did not start a recording
             if b.get("action") == "start":
                 ensure_idle()
                 cam.movie_start()
-                state["movie"] = {"since": time.time(), "before": None}
+                state["movie"] = {"since": time.time()}
             else:
+                if not state["movie"]:
+                    raise CameraError("No recording is running")
                 try:
                     cam.movie_stop()
                 finally:

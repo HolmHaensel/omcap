@@ -1196,10 +1196,12 @@ function renderProps(){
 function applyContext(){
   const m=lastProps&&lastProps.takemode.value, sp=lastProps&&lastProps.shutspeedvalue.value;
   $('#rowIv').hidden=!['P','A','S','M'].includes(m);
-  // Movie recording only in Movie mode, self-timer not in Movie mode (manual p.42, 57, 71)
+  // Wi-Fi: movie recording only in Movie mode; self-timer not in Movie mode (manual p.42, 57, 71)
   const mv=m==='movie', movSec=$('[data-id=movie]');
   // Wi-Fi records only in Movie mode; the USB movie button in every mode, not during BULB/LIVE TIME/LIVECOMP (p.26)
-  const movOk=isUsb?!/^live/.test(sp||''):mv;
+  // and not with sequential shooting (p.27; USB d009: low nibble 2 = Sequential L, 3 = Sequential H)
+  const dv=lastProps&&lastProps.drivemode&&+lastProps.drivemode.value, seq=[2,3].includes(dv&15);
+  const movOk=isUsb?!/^live/.test(sp||'')&&!seq:mv;
   if(movSec&&lastProps) movSec.classList.toggle('mode-off',!movOk&&st.movie==null);
   $('#timerLab').classList.toggle('mode-off',mv); $('#timerSeg').classList.toggle('mode-off',mv);
   $('#rowBr').hidden=!['P','A','S'].includes(m);

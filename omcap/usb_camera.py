@@ -836,8 +836,10 @@ class UsbCamera:
     def _movie_button(self):
         self._need_write()
         self.last_press = time.monotonic()
-        self._opcode(OP_MOVIE_BUTTON, 1)
-        self._opcode(OP_MOVIE_BUTTON, 0)
+        try:
+            self._opcode(OP_MOVIE_BUTTON, 1)
+        finally:
+            self._opcode(OP_MOVIE_BUTTON, 0)  # always let go, or the camera may keep the button pressed
 
     def movie_start(self):
         """Start recording like the movie button; the session is not rebuilt while recording."""
