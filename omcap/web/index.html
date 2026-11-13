@@ -94,6 +94,9 @@ button:disabled{color:var(--disabled);opacity:.6;cursor:not-allowed}
 .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:8px}
 .row:last-child{margin-bottom:0}
 .row label{display:flex;gap:4px;align-items:center}
+#blackout{position:absolute;inset:0;background:#000;opacity:0;pointer-events:none;z-index:5}
+#blackout.flash{animation:blackout .18s steps(1,end)}
+@keyframes blackout{0%{opacity:1}100%{opacity:0}}
 #viewport{position:relative;overflow:hidden;background:#000;border-radius:var(--r-lg);aspect-ratio:4/3;width:min(100%,calc(74vh * 4 / 3));margin:0 auto;touch-action:none}
 #zoomLayer{position:absolute;inset:0;transform-origin:0 0}
 #levelGauge{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
@@ -105,6 +108,8 @@ button:disabled{color:var(--disabled);opacity:.6;cursor:not-allowed}
 #focusChip .dot{background:var(--accent)}
 #focusChip.ok{border-color:var(--focus-line);color:var(--focus)}
 #focusChip.ok .dot{background:var(--focus)}
+#focusChip.miss{border-color:var(--rec);color:var(--rec-text)}
+#focusChip.miss .dot{background:var(--rec)}
 #valStrip{position:absolute;left:0;right:0;bottom:0;height:44px;display:flex;align-items:center;gap:22px;padding:0 18px;background:linear-gradient(0deg,rgba(0,0,0,.78),rgba(0,0,0,0));font-family:var(--font-value);font-size:17px;font-weight:500;pointer-events:none;z-index:2;white-space:nowrap;overflow:hidden}
 #valStrip .m{color:var(--accent);font-weight:600} #valStrip .sz{margin-left:auto;color:var(--muted);font-size:14px}
 #start{min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:28px;padding:24px 16px}
@@ -122,7 +127,8 @@ button:disabled{color:var(--disabled);opacity:.6;cursor:not-allowed}
 #afMark{display:none;position:absolute;width:48px;height:48px;margin:-24px 0 0 -24px;border:2px solid var(--accent);border-radius:4px;pointer-events:none}
 #empty{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:var(--muted);pointer-events:none}
 #timerCount{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:20vmin;font-weight:700;color:#fff;text-shadow:0 0 12px #000;pointer-events:none;z-index:2}
-#lastShot{position:absolute;right:12px;bottom:56px;width:14%;min-width:96px;max-height:30%;object-fit:contain;background:#000;border:2px solid rgba(236,238,240,.85);border-radius:var(--r-sm);cursor:pointer;z-index:3}
+#lastShot.faded{opacity:0;pointer-events:none}
+#lastShot{transition:opacity .6s;position:absolute;right:12px;bottom:56px;width:14%;min-width:96px;max-height:30%;object-fit:contain;background:#000;border:2px solid rgba(236,238,240,.85);border-radius:var(--r-sm);cursor:pointer;z-index:3}
 #msg{margin:8px 0 0;min-height:1.3em}
 #props{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--s2)}
 #props label{display:flex;flex-direction:column;gap:2px;font-size:var(--fs-label);color:var(--muted);min-width:0;padding:8px 10px;background:var(--ground);border:1px solid var(--line);border-radius:var(--r-md);transition:background var(--t-fast),border-color var(--t-fast)}
@@ -350,6 +356,7 @@ body.webcam{cursor:none;display:flex;align-items:center;justify-content:center}
       <canvas id="aidCv"></canvas>
       <div id="afMark"></div>
     </div>
+    <div id="blackout" aria-hidden="true"></div>
     <canvas id="levelGauge"></canvas>
     <canvas id="histCv" width="160" height="70" hidden></canvas>
     <div id="recChip" hidden><span class="dot"></span><span id="recText"></span></div>
@@ -651,6 +658,7 @@ const I18N={en:{
   "lv.zoomGroup": "View zoom (in the app, not the camera)",
   "lv.focusing": "Focusing …",
   "lv.inFocus": "In focus",
+  "lv.noFocus": "No focus",
   "strip.wb": "WB",
   'start.openUrl':'Then open http://127.0.0.1:8765 in the browser (not the index.html file).',
   'srv.offline':'E-M1 Capture is not running. Start it again: double-click “E-M1 Capture.command” (Windows: “E-M1 Capture.bat”) in the app folder, or in the Terminal in that folder:\n.venv/bin/python -m omcap.server --allow-write',
@@ -797,6 +805,7 @@ const I18N={en:{
   "prop.aspect": "Aspect ratio",
   "prop.stabilizer": "Image stabilizer",
   "prop.facepriority": "Face priority",
+  "prop.focusstacking": "Focus Stacking",
   "prop.colortone": "Picture Mode",
   "prop.artfilter": "Art filter",
   "prop.colorphase": "Partial Color",
@@ -922,8 +931,10 @@ function armed(btn,text,show){
   btn._arm=setTimeout(()=>{btn.classList.remove('armed');show('')},4000);
   return false;
 }
+let actErr=null; // message of the last failed act(), e.g. to show "No focus" after Take picture
 async function act(label,path,body){
-  try{const j=await api(path,body);msg(label+' ✓');await tick();return j}catch(e){msg(label+': '+e.message,true)}
+  actErr=null;
+  try{const j=await api(path,body);msg(label+' ✓');await tick();return j}catch(e){actErr=e.message;msg(label+': '+e.message,true)}
 }
 const clock=s=>Math.floor(s/60)+':'+String(Math.floor(s%60)).padStart(2,'0');
 
@@ -967,7 +978,7 @@ function shotMode(path){
     usbShotMode=m===5?'iAuto':null; renderProps()}).catch(()=>{});
 }
 let isUsb=false; // connection type from /api/status
-let st={stage:0,job:{}},canWrite=false,wasBusy=false,blank=0,connected=false,features=new Set(),af=null;
+let st={stage:0,job:{}},canWrite=false,wasBusy=false,connected=false,features=new Set(),af=null;
 let quitting=false;
 async function tick(){
   if(view||!connected||quitting) return;
@@ -981,9 +992,6 @@ async function tick(){
   $('#lvStart').hidden=st.live||!canWrite; $('#lvStop').hidden=!st.live;
   renderStrip();
   const w=$('#live').naturalWidth, stale=st.live&&st.lv_age>3;
-  // image in error state although data arrives: reconnect
-  blank=st.live&&!stale&&$('#live').complete&&!w?blank+1:0;
-  if(blank>=2){blank=0;$('#live').src='/live.mjpg?'+Date.now()}
   const off=st.live&&w&&st.lvqty&&w!==parseInt(st.lvqty,10);
   $('#lvSize').textContent=stale?tr('lv.noSignal',{s:Math.round(st.lv_age)}):st.live&&w?tr('lv.receiving',{w,h:$('#live').naturalHeight}):'';
   $('#lvSize').className=off||stale?'warn':'mut';
@@ -1033,7 +1041,7 @@ const FEATURES={
   expcomp:{show:either(inMode('P','A','S','ART'),inMovie('P','A','S'))},
   isospeedvalue:{show:either(inMode('P','A','S','M','ART'),inMovie('M')),names:{Auto:'AUTO',Low:'LOW'}},
   wbvalue:{show:inMode('P','A','S','M','ART','movie'),names:{0:'AUTO',18:'5300K',16:'7500K',17:'6000K',20:'3000K',35:'4000K',64:'Underwater',23:'5500K Flash',256:'One-touch 1',257:'One-touch 2',258:'One-touch 3',259:'One-touch 4',512:'CWB'}},
-  drivemode:{show:inMode('iAuto','P','A','S','M','ART','B'),names:{normal:'Single','lowvib-normal':'Anti-Shock Single','silent-normal':'Silent Single','continuous-H':'Sequential H','silent-continuous-H':'Silent Sequential H','continuous-L':'Sequential L','lowvib-continuous-L':'Anti-Shock Sequential L','silent-continuous-L':'Silent Sequential L',selftimer:'Self-timer','lowvib-selftimer':'Anti-Shock Self-timer','silent-selftimer':'Silent Self-timer',customselftimer:'Custom Self-timer','lowvib-customselftimer':'Anti-Shock Custom Self-timer','silent-customselftimer':'Silent Custom Self-timer'}},
+  drivemode:{show:(p=>(inMode('iAuto','P','A','S','M','ART','B'))(p)&&!(p.focusstacking&&p.focusstacking.value==='1')),names:{normal:'Single','lowvib-normal':'Anti-Shock Single','silent-normal':'Silent Single','continuous-H':'Sequential H','silent-continuous-H':'Silent Sequential H','continuous-L':'Sequential L','lowvib-continuous-L':'Anti-Shock Sequential L','silent-continuous-L':'Silent Sequential L',selftimer:'Self-timer','lowvib-selftimer':'Anti-Shock Self-timer','silent-selftimer':'Silent Self-timer',customselftimer:'Custom Self-timer','lowvib-customselftimer':'Anti-Shock Custom Self-timer','silent-customselftimer':'Silent Custom Self-timer'}},
   colortone:{show:inMode('P','A','S','M'),names:{ifinish:'i-Enhance',vivid:'Vivid',natural:'Natural',flat:'Muted',portrait:'Portrait',monotone:'Monotone',custom:'Custom',eportrait:'e-Portrait',underwater:'Underwater',colorcreator:'Color Creator',...ART_NAMES}},
   artfilter:{show:inMode('ART'),names:{...ART_NAMES,program:'ART BKT'}},
   // Movie mode (n): exposure for movies (manual p.71)
@@ -1041,9 +1049,11 @@ const FEATURES={
   // USB only (no Wi-Fi command): Super Control Panel items, P/A/S/M only (manual p.24); live control (p.30) may
   // also offer some in ART and Movie: widen only after a camera check (QA 2026-11-13)
   focusmode:{show:inMode('P','A','S','M')}, metering:{show:inMode('P','A','S','M')},
-  flashmode:{show:inMode('P','A','S','M')}, recordmode:{show:inMode('P','A','S','M')},
+  flashmode:{show:(p=>(inMode('P','A','S','M'))(p)&&!(p.focusstacking&&p.focusstacking.value==='1'))}, recordmode:{show:inMode('P','A','S','M')},
   aspect:{show:inMode('P','A','S','M')}, stabilizer:{show:inMode('P','A','S','M')},
   facepriority:{show:inMode('P','A','S','M')},
+  // Focus Stacking (USB d0cb, FW 4.x): Bracketing is only in P/A/S/M (manual p.82, 174)
+  focusstacking:{show:inMode('P','A','S','M')},
   colorphase:{show:p=>p.takemode.value==='ART'?p.artfilter.value==='partcolor':['P','A','S','M'].includes(p.takemode.value)&&p.colortone.value==='partcolor'},
 };
 let lastProps=null,propsFailed=false;
@@ -1204,8 +1214,10 @@ function applyContext(){
   const movOk=isUsb?!/^live/.test(sp||'')&&!seq:mv;
   if(movSec&&lastProps) movSec.classList.toggle('mode-off',!movOk&&st.movie==null);
   $('#timerLab').classList.toggle('mode-off',mv); $('#timerSeg').classList.toggle('mode-off',mv);
-  $('#rowBr').hidden=!['P','A','S'].includes(m);
-  const longExp=features.has('long')&&m==='M'&&/^live/.test(sp||'');
+  // Focus Stacking on (USB): the camera fixes drive, shutter (electronic) and flash; no long exposures, no app AE BKT
+  const stack=isUsb&&lastProps&&lastProps.focusstacking&&lastProps.focusstacking.value==='1';
+  $('#rowBr').hidden=!['P','A','S'].includes(m)||stack;
+  const longExp=features.has('long')&&m==='M'&&/^live/.test(sp||'')&&!stack;
   $('#rowLong').hidden=!longExp&&st.take==null;
   if(longExp) $('#longName').textContent=FEATURES.shutspeedvalue.names[sp];
   $('#takePrep').hidden=!(longExp&&sp==='livecomp'&&isUsb);
@@ -1222,7 +1234,8 @@ let lastNormalSp=null;
 function renderLongSeg(m,sp){
   const v=lastProps&&lastProps.shutspeedvalue, row=$('#rowLongSel'), seg=$('#longSeg');
   const opts=v&&v.enum?['livebulb','livetime','livecomp'].filter(o=>v.enum.includes(o)):[];
-  row.hidden=!(features.has('long')&&m==='M'&&v&&v.writable&&opts.length);
+  const stack=isUsb&&lastProps&&lastProps.focusstacking&&lastProps.focusstacking.value==='1';
+  row.hidden=!(features.has('long')&&m==='M'&&v&&v.writable&&opts.length)||stack;
   if(row.hidden) return;
   if(sp&&!/^live/.test(sp)) lastNormalSp=sp;
   // without an earlier speed (camera was already on BULB etc.) use 1/60 s: USB names it "1/60", Wi-Fi "60"
@@ -1799,7 +1812,9 @@ function setZoom(n,cx,cy){
 document.querySelectorAll('[data-z]').forEach(b=>b.onclick=()=>setZoom(+b.dataset.z));
 vp.addEventListener('wheel',e=>{e.preventDefault();const r=vp.getBoundingClientRect();
   setZoom(Math.min(8,Math.max(1,z*(e.deltaY<0?1.2:1/1.2))),e.clientX-r.left,e.clientY-r.top)},{passive:false});
-vp.onpointerdown=e=>{drag={x:e.clientX,y:e.clientY,px,py,moved:false};vp.setPointerCapture(e.pointerId)};
+vp.onpointerdown=e=>{
+  if(e.target.closest('#lastShot')) return; // own click (single-frame view); pointer capture would turn it into an AF tap
+  drag={x:e.clientX,y:e.clientY,px,py,moved:false};vp.setPointerCapture(e.pointerId)};
 vp.onpointermove=e=>{if(!drag)return;const dx=e.clientX-drag.x,dy=e.clientY-drag.y;
   if(Math.hypot(dx,dy)>4)drag.moved=true;
   if(drag.moved&&z>1){px=drag.px+dx;py=drag.py+dy;applyZoom()}};
@@ -1849,7 +1864,7 @@ let focusing=false; // discard clicks while focusing, otherwise they pile up
 async function setAf(b){
   const f=b.field||b.focus;
   if(f&&focusing) return;
-  if(f){focusing=true;msg(tr('msg.focusing'));focusChipUpdate()}
+  if(f){focusing=true;focusMiss=0;msg(tr('msg.focusing'));focusChipUpdate()}
   // show the tapped field at once; the camera needs 0.4-1.5 s to focus (measured over Wi-Fi)
   if(b.field&&af){af={...af,field:b.field,last_af:null};focusHit=null;showAf()}
   try{
@@ -1858,6 +1873,7 @@ async function setAf(b){
     focusHit=f&&hit?{field:hit,until:Date.now()+FOCUS_SHOW}:null;
     showAf();
     if(f) msg(hit?tr('msg.inFocus'):tr('msg.noFocus'),!hit);
+    if(f&&!hit) showNoFocus();
     if(focusHit) setTimeout(drawAf,FOCUS_SHOW+50);
   }
   catch(e){msg(tr('msg.afArea',{e:e.message}),true)}
@@ -1891,12 +1907,15 @@ function pickField(e){
   // With All Targets the camera picks the field itself: the click only focuses
   setAf(af.mode===33024?{focus:true}:{field});
 }
+/* "No focus" chip for a moment, like "In focus": failed AF after a tap, Halfway or Take picture */
+let focusMiss=0;
+function showNoFocus(){focusHit=null;focusMiss=Date.now()+FOCUS_SHOW;focusChipUpdate();setTimeout(focusChipUpdate,FOCUS_SHOW+50)}
 function focusChipUpdate(){
-  const c=$('#focusChip'),ok=focusHit&&focusHit.until>Date.now();
-  const working=st.live&&(focusing||st.stage>=1)&&!ok;
-  c.hidden=!(st.live&&(ok||working));
-  c.classList.toggle('ok',!!ok);
-  $('#focusChipText').textContent=tr(ok?'lv.inFocus':'lv.focusing');
+  const c=$('#focusChip'),ok=focusHit&&focusHit.until>Date.now(),miss=!ok&&focusMiss>Date.now();
+  const working=st.live&&(focusing||st.stage>=1)&&!ok&&!miss;
+  c.hidden=!(st.live&&(ok||miss||working));
+  c.classList.toggle('ok',!!ok); c.classList.toggle('miss',miss);
+  $('#focusChipText').textContent=tr(ok?'lv.inFocus':miss?'lv.noFocus':'lv.focusing');
 }
 function drawAf(){
   focusChipUpdate();
@@ -2098,7 +2117,7 @@ $('#layoutReset').onclick=()=>{layout={};commit()};
 
 /* Buttons */
 $('#lvStart').onclick=async()=>{
-  try{await api('/api/liveview',{action:'start',lvqty:isUsb&&!lvPicked?null:$('#lvqty').value});$('#live').src='/live.mjpg?'+Date.now();msg(tr('msg.lvRunning'));await tick();if(features.has('af_area'))loadAf();setTimeout(props,1500)}catch(e){msg(e.message,true)}};
+  try{await api('/api/liveview',{action:'start',lvqty:isUsb&&!lvPicked?null:$('#lvqty').value});startLiveLoop();msg(tr('msg.lvRunning'));await tick();if(features.has('af_area'))loadAf();setTimeout(props,1500)}catch(e){msg(e.message,true)}};
 $('#lvqty').onchange=()=>{lvPicked=true;if(st.live)$('#lvStart').click()};
 $('#lvStop').onclick=()=>act(tr('msg.lvStopped'),'/api/liveview',{action:'stop'});
 /* Shooting: the whole sequence. If Halfway is just holding focus, press through from there and release,
@@ -2124,7 +2143,7 @@ async function guessNew(before2){
   let r; try{r=await fetch('/api/newshot?before='+encodeURIComponent(before2))}catch{return false}
   const p=r.ok&&r.headers.get('X-Path'); if(!p) return false;
   if(lastOpen&&lastOpen.preview.blob) URL.revokeObjectURL(lastOpen.preview.blob); // free the previous one
-  const img=$('#lastShot'), blob=URL.createObjectURL(await r.blob()); img.onerror=null; img.src=blob; img.hidden=false;
+  const img=$('#lastShot'), blob=URL.createObjectURL(await r.blob()); img.onerror=null; img.src=blob; img.hidden=false; lastShotFade();
   const name=p.split('/').pop(),dir=p.slice(0,p.lastIndexOf('/')),d=new Date();
   const f={path:p,name,dir,size:0,blob,date:((d.getFullYear()-1980)<<9)|((d.getMonth()+1)<<5)|d.getDate(),time:(d.getHours()<<11)|(d.getMinutes()<<5)|(d.getSeconds()>>1)};
   lastOpen={name:name.replace(/\.[^.]+$/,''),files:[f],preview:f,dt:parseStamp(f),types:'JPG',size:0};
@@ -2166,7 +2185,7 @@ async function showLast(before,retry,before2){
   // Wi-Fi: the camera lists a new file only after it is written (seen: >12 s): try again for up to a minute
   if(!isUsb&&!local&&!shot&&n<20) setTimeout(()=>showLast(before,n+1,before2),3000);
   if(!src) return;
-  lastOpen=shot; img.hidden=false;
+  lastOpen=shot; img.hidden=false; lastShotFade();
   // the camera may still be busy right after the shot: retry a failed thumbnail a few times
   let tries=0; img.onerror=()=>{if(++tries<4) setTimeout(()=>{img.src=src+(src.includes('?')?'&':'?')+'r='+tries},3000)};
   img.src=src;
@@ -2175,16 +2194,44 @@ $('#lastShot').onclick=()=>{
   if(lastOpen) openViewer([lastOpen],0);
   else window.open($('#lastShot').src,'_blank');
 };
+/* Live image of the main view: one frame per request, decoded off screen and swapped in only when it decodes.
+   A browser can stop showing an MJPEG stream after one bad part and stay black until it reconnects (seen
+   2026-11-13 in Chrome and Safari); here a bad or missing frame is simply skipped. MJPEG stays for ?view= windows. */
+let lvGen=0;
+const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+function startLiveLoop(){
+  const g=++lvGen; let seq=0;
+  (async()=>{
+    while(g===lvGen){
+      try{
+        const r=await fetch('/live.jpg?seq='+seq,{cache:'no-store'});
+        if(r.status!==200){await sleep(r.status===204?20:1000);continue} // 204: no new frame within 3 s
+        seq=+r.headers.get('X-Seq')||0;
+        const url=URL.createObjectURL(await r.blob()), next=new Image(); next.src=url;
+        try{await next.decode()}catch{URL.revokeObjectURL(url);continue} // bad frame: skip it
+        if(g!==lvGen){URL.revokeObjectURL(url);break}
+        const old=$('#live').src; $('#live').src=url; if(old.startsWith('blob:')) URL.revokeObjectURL(old); // also the last one of an earlier loop
+      }catch{await sleep(1000)} // server restarting or gone
+    }
+  })();
+}
+function stopLiveLoop(){lvGen++}
+/* Last-shot picture: shown after a shot, fades out after 6 s (the card strip keeps the picture) */
+let lastFadeT=null;
+function lastShotFade(){const i=$('#lastShot');i.classList.remove('faded');clearTimeout(lastFadeT);lastFadeT=setTimeout(()=>i.classList.add('faded'),6000)}
+/* Short black frame on release, like the viewfinder of a film camera (REQ-F39) */
+function shutterBlackout(){const b=$('#blackout');b.classList.remove('flash');void b.offsetWidth;b.classList.add('flash')}
 $('#shoot').onclick=async()=>{
   if(timerId!==null){timerStop();timerRes&&timerRes(false);timerRes=null;msg(tr('timer.cancelled'));return}
   const sec=+$('#timerSel').value;
   if(sec&&!await timerStart(sec)) return;
   msg(tr('msg.shooting'));
   const latestBefore=st.latest, newestBefore=lastOpen&&lastOpen.preview.path||(cardLive&&cardShots&&(cardShots.find(x=>isJpg(x.preview))||{preview:{}}).preview.path)||null; // not from the saved list: the card may have changed
+  shutterBlackout();
   if(st.stage>=1){
     if(!await act(tr('msg.shutter'),'/api/shutter',{stage:2})) return;
     await act(tr('msg.taken'),'/api/shutter',{stage:0});
-  }else if(!await act(tr('msg.taken'),'/api/shoot',{})) return;
+  }else if(!await act(tr('msg.taken'),'/api/shoot',{})){if(/no focus/i.test(actErr||''))showNoFocus();return}
   showLast(latestBefore,0,newestBefore); // Wi-Fi: refreshes the card list until the new shot is there
   local();
   if(isUsb){gallery();loadLens()} // USB: lens from the new JPG
@@ -2202,6 +2249,7 @@ $('#half').onclick=async()=>{
   const hit=focusField(af);
   focusHit=hit?{field:hit,until:Infinity,held:true}:null;
   msg(hit?tr('msg.inFocus'):tr('msg.noFocus'),!hit);
+  if(!hit) showNoFocus();
   drawAf();
 };
 $('#reset').onclick=()=>act(tr('msg.reset'),'/api/mode',{mode:'rec'});
@@ -2285,7 +2333,7 @@ $('#poweroff').onclick=async()=>{if(!armed($('#poweroff'),tr('app.poweroffConfir
 /* Quit: the server answers, then stops; the page stops polling and shows a notice */
 function showStopped(){
   quitting=true; connected=false; clearInterval(pollTimer);
-  $('#live').removeAttribute('src');
+  stopLiveLoop(); $('#live').removeAttribute('src');
   $('#start').hidden=true; $('#app').hidden=true; $('#stopped').hidden=false;
 }
 document.querySelectorAll('.quitBtn').forEach(b=>b.onclick=async()=>{
@@ -2322,7 +2370,7 @@ async function enterApp(){
     if(canWrite&&!st.live) $('#lvStart').onclick().finally(list); else list();
     if(st.lvqty) $('#lvqty').value=st.lvqty;
     else if(isUsb) $('#lvqty').value='1024x0768';
-    if(st.live) $('#live').src='/live.mjpg?'+Date.now();
+    startLiveLoop();
   }catch(e){$('#status').className='warn';$('#status').textContent=e.message;$('#connChip').hidden=true}
   local(); applyLayout();
 }
