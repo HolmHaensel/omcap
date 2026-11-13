@@ -406,7 +406,7 @@ class Camera:
     def capture_preview(self):
         data = self._cam().liveview_frame()
         if not data:
-            raise GPhoto2Error("no live view image", GP_ERROR_IO)
+            raise GPhoto2Error("no live view image (%s)" % getattr(self._cam(), "lv_reason", "?"), GP_ERROR_IO)
         return CameraFile(data)
 
     @_wrap

@@ -263,7 +263,8 @@ class UsbLive:
                 # not during an exposure or its noise reduction (last_press lies in the future then)
                 if failures >= 10 and not self.camera.shooting and not self.camera.stage \
                         and time.monotonic() >= self.camera.last_press:
-                    self.camera.reopen("live view failed 10x")  # session broken: rebuild
+                    # session broken: rebuild; name the camera's last answer for the diagnosis
+                    self.camera.reopen("live view failed 10x: %s" % getattr(self.camera, "lv_reason", None))
                     failures = 0
                 time.sleep(0.3)
                 continue
@@ -601,8 +602,11 @@ class UsbCamera:
                 f = self._c.capture_preview()
                 data = bytes(memoryview(f.get_data_and_size()))
                 # no valid images during and right after shooting
-                return data if data[:2] == b"\xff\xd8" and b"\xff\xd9" in data[-64:] else None
-            except self.gp.GPhoto2Error:
+                ok = data[:2] == b"\xff\xd8" and b"\xff\xd9" in data[-64:]
+                self.lv_reason = None if ok else "incomplete JPEG (%d bytes)" % len(data)
+                return data if ok else None
+            except self.gp.GPhoto2Error as e:
+                self.lv_reason = str(e)  # shown when the session is rebuilt
                 return None
 
     def fetch_file(self, path, dest):

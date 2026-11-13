@@ -32,6 +32,7 @@ OP_GET_DEVICE_INFO, OP_OPEN, OP_CLOSE = 0x1001, 0x1002, 0x1003
 OP_STORAGE_IDS, OP_STORAGE_INFO, OP_HANDLES, OP_OBJECT_INFO = 0x1004, 0x1005, 0x1007, 0x1008
 OP_GET_OBJECT, OP_GET_THUMB, OP_GET_PARTIAL = 0x1009, 0x100A, 0x101B
 OP_PROP_DESC, OP_GET_PROP, OP_SET_PROP = 0x1014, 0x1015, 0x1016
+DPC_LV_SIZE, LV_SIZE_DEFAULT = 0xD06D, 0x04000300  # live view size (w << 16 | h); 0 = live view off
 OP_SHUTTER, OP_LIVEVIEW = 0x9481, 0x9484
 DPC_CONTROL_MODE = 0xD052  # 1 = PC control, 2 = camera
 
@@ -386,6 +387,7 @@ class PtpCamera:
 
     def open(self):
         self.drain()
+        self._lv_checked = False  # a new session may start with live view off (d06d = 0)
         try:
             self.transact(OP_OPEN, (1,))
         except PtpError as e:
@@ -451,18 +453,32 @@ class PtpCamera:
         return False
 
     # Olympus OM-D
+    def liveview_on(self):
+        """The live view size d06d doubles as the live view switch: at 0 the camera answers 0x9484 with
+        0 bytes (seen 2026-11-13 after switching the camera off and on). Like libgphoto2, set 1024x768 then;
+        a size chosen in the app stays. Checked once per session."""
+        if getattr(self, "_lv_checked", False):
+            return
+        desc = self.prop_desc(DPC_LV_SIZE)
+        if not desc["value"]:
+            self.set_prop(DPC_LV_SIZE, LV_SIZE_DEFAULT, desc["type"])
+        self._lv_checked = True
+
     def liveview_frame(self, wait=1.0):
         """One JPEG from the live view (0x9484, param 1); retries while the camera is busy, up to `wait` s
         (libgphoto2: 25 x 40 ms). The app rebuilds the session after 10 failed frames, so a shorter wait
         would end long exposures (BULB, LIVE TIME, LIVECOMP) after about a second (seen 2026-11-13)."""
         end = time.monotonic() + wait
+        self.liveview_on()
         while True:
             try:
                 data = self.transact(OP_LIVEVIEW, (1,), want_data=True)[0]
+                self.lv_reason = "answer of %d bytes, no JPEG" % len(data or b"")
             except PtpError as e:
                 if e.code != RC_BUSY:
+                    self.lv_reason = str(e)
                     raise
-                data = None
+                data, self.lv_reason = None, "camera busy"
             if data and len(data) >= 1024 and data[:2] == b"\xff\xd8":
                 return data
             if time.monotonic() > end:
