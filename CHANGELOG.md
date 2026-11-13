@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Docs: README notes that USB works on Linux over libgphoto2 (not tested yet: camera mounting by the desktop, udev access); libgphoto2 stays the USB backend there.
 - USB: shutter speeds that libgphoto2 lists as fractions (3.2 s = 32/10, 1/1.3 s = 10/13 …) are offered and named like on the camera; ISO AUTO/LOW are named by value, not by position; the read-only flag of each setting comes from the camera; the aperture list is limited by the lens limits the camera reports (d07f/d080) (REQ-F10, from the maintainer's gphoto2 dump).
 
 ### Shooting and focus

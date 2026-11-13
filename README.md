@@ -84,7 +84,7 @@ The interface is in English; all texts are in one translation table (`I18N` in
 | | Wi-Fi | USB |
 |---|---|---|
 | Camera | OM-D E-M1 Mark I (tested: firmware 4.6) | same |
-| Computer | macOS (tested), Python 3.9 or newer; Windows probably works (not tested) | macOS only (libgphoto2 is not available on Windows) |
+| Computer | macOS (tested), Python 3.9 or newer; Linux and Windows should work (not tested) | macOS (tested); Linux possible over libgphoto2 (not tested); not Windows (no libgphoto2) |
 | Extra software | none (standard library only) | `gphoto2` Python package (includes libgphoto2) |
 | Cable / network | the camera's own Wi-Fi | USB cable |
 
@@ -102,7 +102,7 @@ python3 -m venv .venv
 
 **Double-click** `E-M1 Capture.command` (macOS) in the project folder. The app starts and opens
 the browser at <http://127.0.0.1:8765/>; the start screen shows which connection found the camera.
-On Windows use `E-M1 Capture.bat` (Wi-Fi only, not tested yet).
+On Windows use `E-M1 Capture.bat` (Wi-Fi only, not tested yet). On Linux start it in the terminal (below).
 
 Or in the Terminal (read only without `--allow-write`):
 
@@ -184,6 +184,19 @@ dial during live view. Other settings changed on the camera itself are picked up
 the LV super control panel (rebuilds the USB session, about 9 s). After unplugging and plugging the
 cable in again while the app runs, connecting may fail with *Could not claim the USB device*:
 stop the app and start it again.
+
+### Using USB on Linux (possible, not tested yet)
+
+The USB connection runs over libgphoto2, which is native on Linux; the `gphoto2` Python package ships
+wheels with libgphoto2 for Linux (x86_64, aarch64). Install as above with `".[usb]"`, then:
+
+- Desktop file managers (GVFS/KDE) may mount the camera first: unmount it, or stop the mounting service
+  (e.g. `gvfs-gphoto2-volume-monitor`) before you start the app.
+- Your user needs access to the USB device: libgphoto2's udev rules (package `libgphoto2` / `libgphoto2-6`) do
+  this; otherwise run the app with the right group or a udev rule for vendor `07b4`, product `0130`.
+- Steps 2 and 3 above apply as on macOS; step 1 and `ptpcamerad` are macOS only.
+
+Reports from Linux users are welcome (open an issue with distribution, camera firmware and what worked).
 
 ### Larger USB live view (optional)
 
