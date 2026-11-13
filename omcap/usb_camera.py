@@ -27,7 +27,13 @@ EXPOSURE_PROGRAM = {"1": "M", "2": "P", "3": "A", "4": "S", "8": "movie", "11": 
 WB_NAMES = ["AUTO", "5300K", "7500K", "6000K", "3000K", "4000K", "Underwater", "5500K Flash",
             "One-touch 1", "One-touch 2", "One-touch 3", "One-touch 4", "CWB"]
 FEATURES = ["liveview", "af_area", "af_modes", "stages", "scp", "time_lapse", "ae_bkt",
-            "playback", "transfer", "long"]
+            "playback", "transfer", "long", "mf_drive"]
+
+# Manual focus drive, PTP 0x9487 (Olympus OM-D MFDrive): direction 1 near / 2 far, step size as libgphoto2
+# ("manualfocusdrive": Near/Far 1 = 0x03, 2 = 0x0e, 3 = 0x3c). Basis for the Star AF aid (REQ-F24).
+OP_MF_DRIVE = 0x9487
+MF_DIRECTION = {"near": 1, "far": 2}
+MF_STEPS = {1: 0x03, 2: 0x0E, 3: 0x3C}
 
 # d01c: special exposure time values, order as in the Wi-Fi list (still untested)
 LONG_EXPOSURE = {"livecomp": "4294967290", "livetime": "4294967293", "livebulb": "4294967292"}
@@ -812,12 +818,22 @@ class UsbCamera:
     def _shutter(self, step):
         self._need_write()
         self.last_press = time.monotonic()
+        self._opcode(0x9481, step)
 
+    def _opcode(self, code, *params):
+        """Run a PTP operation without data through the "opcode" widget (both backends)."""
         def send():
             w = self._c.get_single_config("opcode")
-            w.set_value("0x9481,0x%x" % step)
+            w.set_value(",".join("0x%x" % v for v in (code,) + params))
             self._c.set_single_config("opcode", w)
         self._call(send)
+
+    def mf_drive(self, direction, step):
+        """Move the focus like turning the focus ring (MF, S-AF+MF): direction "near"/"far", step 1-3."""
+        self._need_write()
+        if direction not in MF_DIRECTION or step not in MF_STEPS:
+            raise CameraError("Focus drive: direction near or far, step 1 to 3")
+        self._opcode(OP_MF_DRIVE, MF_DIRECTION[direction], MF_STEPS[step])
 
     def _on_event(self, kind, data, shot=True):
         """Keep new files (card list; with `shot` also the app's current shot) and log unknown events."""

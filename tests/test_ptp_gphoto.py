@@ -1,6 +1,7 @@
 """Offline tests of the gphoto2-compatible layer on the own PTP layer (omcap/ptp_gphoto.py)."""
 import os
 import tempfile
+import threading
 import unittest
 from unittest import mock
 
@@ -236,6 +237,29 @@ class Transport(unittest.TestCase):
         t._irq_live = True
         t._on_irq(None)
         self.assertFalse(t._irq_live)
+
+
+class MfDrive(unittest.TestCase):
+    def cam(self):
+        cam = usb_camera.UsbCamera.__new__(usb_camera.UsbCamera)
+        fake = FakePtp()
+        cam.gp, cam._c, cam._lock, cam.allow_write = pg, camera(fake), threading.Lock(), True
+        return cam, fake
+
+    def test_steps_like_libgphoto2(self):
+        cam, fake = self.cam()
+        cam.mf_drive("near", 1)
+        cam.mf_drive("far", 3)
+        self.assertEqual(fake.calls, [("op", 0x9487, (1, 0x03)), ("op", 0x9487, (2, 0x3C))])
+
+    def test_refused(self):
+        cam, fake = self.cam()
+        with self.assertRaises(usb_camera.CameraError):
+            cam.mf_drive("up", 1)
+        cam.allow_write = False
+        with self.assertRaises(usb_camera.WriteBlocked):
+            cam.mf_drive("near", 1)
+        self.assertEqual(fake.calls, [])
 
 
 class Backend(unittest.TestCase):

@@ -1171,6 +1171,11 @@ class Handler(BaseHTTPRequestHandler):
             start_bracket(b["frames"], b["step"])
         elif path == "/api/job/stop":
             stop_job.set()
+        elif path == "/api/mfdrive":
+            if conn_type != "usb":
+                raise CameraError("Focus drive only over USB (no Wi-Fi command)")
+            ensure_idle()
+            cam.mf_drive(b.get("direction"), int(b.get("step", 1)))
         elif path == "/api/take":
             if b.get("action") == "prepare":
                 ensure_idle()
