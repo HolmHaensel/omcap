@@ -148,6 +148,12 @@ def disconnect():
     global cam, live, conn_type
     if cam is None:
         return
+    if conn_type == "usb" and state.get("take"):
+        try:
+            cam.take_stop()  # BULB: let go of the shutter button before the session closes
+        except (CameraError, WriteBlocked):
+            pass
+        state["take"] = None
     try:
         if live.running:
             cam.stop_liveview()

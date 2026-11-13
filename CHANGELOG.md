@@ -21,7 +21,7 @@
 ### App and docs
 - The app releases the camera when it is stopped with Ctrl+C or `kill` (leaves PC control and closes the session); before, the camera could stop answering until it was switched off.
 - README: USB on Linux works over libgphoto2 (not tested yet: camera mounting by the desktop, udev access); libgphoto2 stays the USB backend there.
-- 161 offline tests pass on `usb-ptp` (2026-11-13).
+- 165 offline tests pass on `usb-ptp` (2026-11-13).
 
 ### Known issues
 - LIVECOMP: a stop press shortly after the start (4–8 s) is ignored by the camera and the exposure keeps running; a later press ends it (probably after the first composite frame, Composite Settings). The app does not show that the exposure still runs.

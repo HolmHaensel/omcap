@@ -41,7 +41,7 @@ Contributions, tests with other bodies and ideas are very welcome.
 | AF mode, Metering mode, Flash mode, Record mode, Aspect ratio, Image stabilizer, Face priority in the LV super control panel | – (no command) | yes (tested) |
 | Aperture list limited to the attached lens (read from EXIF) | yes | yes (after the first picture of the session; before that only the focal length) |
 | Movie: Start/Stop recording, movie shooting mode P/A/S/M | yes | – (not built; planned for 0.7) |
-| Time lapse shooting, AE BKT | built, untested | built, untested |
+| Time lapse shooting, AE BKT | built, untested | yes, tested with the PTP backend (3 frames, 2026-11-13) |
 | Quit E-M1 Capture button | yes (tested while connected and from the start screen) | yes (tested from the start screen; while connected not yet) |
 | Playback: Index display, Calendar display, single-frame view, save to computer | yes | yes |
 | Card list saved on the computer, shown at once when you connect (the camera's list follows) | yes | yes |
@@ -189,10 +189,10 @@ saved on the computer. Measured on macOS with about 2950 files and the PTP backe
 | | PTP backend (macOS default) | libgphoto2 (fallback) |
 |---|---|---|
 | Connect | 7–9 s (44.8 s without saved index) | about 9 s, card index 51–72 s in the background |
-| Live view 1024×768 | 26.4 fps | 14–20.6 fps |
+| Live view 1024×768 | 19.5–26.4 fps | 14–20.6 fps |
 | Live view 1280×960 | 15.0 fps | 13.8–15 fps (needs the newer libgphoto2, see below) |
 | Focus by tap | 0.4–0.6 s | 1.3–1.5 s |
-| Take picture | 4.5 s; files in the list at once | 4.7–5.3 s |
+| Take picture | 4.5–4.8 s; files in the list at once | 4.7–5.3 s |
 
 The shooting mode follows the mode dial during live view (both backends, tested); each turn rebuilds the
 USB session (8–10 s), so quick turns in a row show only the last position. Other settings changed on the camera itself are picked up with **reload** in

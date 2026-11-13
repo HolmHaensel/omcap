@@ -244,7 +244,9 @@ class UsbLive:
             data = self.camera.preview_frame()
             if data is None:
                 failures += 1
-                if failures >= 10 and not self.camera.shooting and not self.camera.stage:
+                # not during an exposure or its noise reduction (last_press lies in the future then)
+                if failures >= 10 and not self.camera.shooting and not self.camera.stage \
+                        and time.monotonic() >= self.camera.last_press:
                     self.camera.reopen("live view failed 10x")  # session broken: rebuild
                     failures = 0
                 time.sleep(0.3)
@@ -270,6 +272,7 @@ class UsbCamera:
     lvqty = None
     features = FEATURES
     shooting = False
+    _take_t0 = None  # start of a running long exposure (BULB, LIVE TIME, LIVECOMP)
 
     # setting named as over Wi-Fi -> gphoto name, display names from the choice values
     PROPS = {
@@ -786,7 +789,7 @@ class UsbCamera:
             else:
                 self._pulse()
         except Exception:
-            self.shooting = False
+            self.shooting, self._take_t0 = False, None
             raise
 
     def take_stop(self):
@@ -799,8 +802,12 @@ class UsbCamera:
         finally:
             self.shooting = False
             # noise reduction after a long exposure takes about as long as the exposure and ends with
-            # 0xC003/3 like the mode dial: keep the dial check quiet for that time (seen 2026-11-13)
-            self.last_press = time.monotonic() + (time.monotonic() - getattr(self, "_take_t0", time.monotonic()))
+            # 0xC003/3 like the mode dial: keep the dial check and session rebuilds quiet for that time
+            # (seen 2026-11-13). A Stop without a running exposure (e.g. to end a stuck LIVECOMP) only presses.
+            if self._take_t0 is not None:
+                now = time.monotonic()
+                self.last_press = now + (now - self._take_t0)
+            self._take_t0 = None
 
     def _shutter(self, step):
         self._need_write()

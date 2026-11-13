@@ -106,6 +106,30 @@ class Values(unittest.TestCase):
             with self.assertRaises(pg.GPhoto2Error):
                 c.set_single_config(name, w)
 
+    def test_busy_set_is_retried(self):
+        fake = FakePtp()
+        calls = []
+        real = fake.set_prop
+
+        def busy_once(code, value, dtype):
+            calls.append(code)
+            if len(calls) == 1:
+                raise ptp.PtpError("busy", code=ptp.RC_BUSY)
+            real(code, value, dtype)
+        fake.set_prop = busy_once
+        c = camera(fake)
+        w = c.get_single_config("iso")
+        w.set_value("200")
+        with mock.patch.object(pg.time, "sleep"):
+            c.set_single_config("iso", w)
+        self.assertEqual(len(calls), 2)
+        self.assertEqual(fake.props[0xD007]["value"], 200)
+
+    def test_file_paths_for_resync(self):
+        c = camera(FakePtp())
+        self.assertEqual(sorted(c.file_paths()), ["/store_00010001/DCIM/100OLYMP/P1010001.JPG",
+                                                  "/store_00010001/DCIM/100OLYMP/P1010001.ORF"])
+
     def test_opcode_runs_operation(self):
         fake = FakePtp()
         c = camera(fake)
