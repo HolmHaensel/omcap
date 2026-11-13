@@ -1,51 +1,51 @@
 # Changelog
 
-## Unreleased
-
-- Docs: README notes that USB works on Linux over libgphoto2 (not tested yet: camera mounting by the desktop, udev access); libgphoto2 stays the USB backend there.
-- USB: shutter speeds that libgphoto2 lists as fractions (3.2 s = 32/10, 1/1.3 s = 10/13 …) are offered and named like on the camera; ISO AUTO/LOW are named by value, not by position; the read-only flag of each setting comes from the camera; the aperture list is limited by the lens limits the camera reports (d07f/d080) (REQ-F10, from the maintainer's gphoto2 dump).
+## Unreleased (0.7)
 
 ### USB backend and performance
 - New USB backend on the app's own PTP layer (`omcap/ptp.py`, ctypes/libusb) with a gphoto2-compatible shim (`omcap/ptp_gphoto.py`), so the USB session logic is unchanged. Option `--usb-backend auto|ptp|gphoto2`: `auto` (default on macOS) uses the PTP layer and falls back to libgphoto2 when it cannot connect; elsewhere the default stays libgphoto2 (Linux). `/api/status` reports `usb_backend` (REQ-F28, camera-tested on macOS 2026-11-13).
-- Card index by file handle with a disk cache (`out/cache/ptp_index.json`); a spot check of the oldest and newest file detects another card. Measured with about 2950 files: first connect without cache 44.8 s, later connects 6.9–9.1 s (libgphoto2: about 9 s plus 51–72 s index in the background). Card list 0.1 s.
-- Live view with the PTP backend: 1024×768 at 26.4 fps (libgphoto2 14–20.6 fps), 1280×960 at 15.0 fps. 1280×960 no longer needs the self-built libgphoto2 (REQ-F36).
-- Focus by tap: 0.4–0.6 s (libgphoto2 1.3–1.5 s). Take picture: 4.5 s in total, files in the card list at once (JPG and ORF) after 2.8 s.
-- Idle event check costs 10 ms instead of about 0.3 s: on macOS short synchronous interrupt reads deliver no events, so the PTP layer keeps one asynchronous read submitted.
-- Not tested yet with the PTP backend: mode dial follow (REQ-F30), BULB, LIVE TIME and LIVECOMP, interval and bracketing, partial reads, Linux.
+- Card index by file handle with a disk cache (`out/cache/ptp_index.json`), read at connect before PC control (10–12 ms per file instead of ~26 ms); a spot check of name, size and date of four files detects another card. Measured with about 2950 files: first connect without cache 44.8 s, later connects 6.9–9.2 s, also right after a shot (libgphoto2: about 9 s plus 51–72 s index in the background). Card list 0.1 s.
+- Live view with the PTP backend: 1024×768 at 19.5–26.4 fps (libgphoto2 14–20.6 fps), 1280×960 at 15.0 fps. 1280×960 no longer needs the self-built libgphoto2 (REQ-F36).
+- Focus by tap: 0.4–0.6 s (libgphoto2 1.3–1.5 s). Take picture: 4.5–4.8 s in total, JPG and ORF in the card list at once.
+- Idle event check costs 10 ms instead of about 0.3 s: on macOS synchronous interrupt reads shorter than ~150 ms never deliver an event, so the PTP layer keeps one asynchronous read submitted.
+- Camera-tested with the PTP backend: BULB, LIVE TIME and LIVECOMP (REQ-F31) and the mode dial (REQ-F30). During a long exposure and its noise reduction the session is never rebuilt (the camera ends the noise reduction with the same event as the mode dial); file events lost in a rebuilt session are taken from the card index.
+- Not tested yet with the PTP backend: interval and bracketing, partial reads, Linux.
 
-### Shooting and focus
-- M mode quick select: BULB, LIVE TIME, LIVECOMP and Off (back to the last shutter speed) in the shooting options, for Wi-Fi and USB; tested on both 2026-11-13. USB: LIVE TIME is recognised when libgphoto2 reports it as a raw fraction (65535/65533); Off falls back to 1/60 s when no earlier speed is known (REQ-F31).
-- Wi-Fi Take picture uses `exec_takemotion com=starttake` with the tapped AF point in shooting mode instead of switching to shutter mode. It focuses on the tapped point, live view keeps running, and the shot takes 1.2–1.5 s instead of about 7 s (camera-tested). Long exposures (slower than 1/4 s), BULB, LIVE TIME, LIVECOMP, self-timer and Movie keep the shutter-button route; no second shot after a timeout (REQ-F34).
+### Shooting and settings
+- USB LV super control panel: AF mode, Metering mode, Flash mode, Record mode, Aspect ratio, Image stabilizer and Face priority, with values mapped on the camera (`out/research/usb_value_mapping.md`). Only in P/A/S/M as on the camera (manual p.24). Read and write tested 2026-11-13. Not over Wi-Fi: no command (REQ-F10).
+- USB: shutter speeds that libgphoto2 lists as fractions (3.2 s = 32/10, 1/1.3 s = 10/13 …) are offered and named like on the camera; ISO AUTO/LOW are named by value, not by position; the read-only flag of each setting comes from the camera; the aperture list is limited by the lens limits the camera reports (d07f/d080) (REQ-F10).
 - USB Take picture focuses on the tapped AF field (camera-tested at 140 mm, REQ-F34).
-- USB: the idle event wait after releasing the focus tap is removed (about 0.3 s per tap; not measured).
-- USB: the mode dial is followed in live view. Turning it is detected (event 0xC003, param 3) and the session rebuilds by itself; P, A, S, M and Movie are shown; iAUTO, ART, SCN and PHOTO STORY read as P, and iAUTO comes from the EXIF of the newest shot (REQ-F30, tested with all nine dial positions).
-- Controls appear only in the shooting modes where the camera lets you select them (design principle 7, E-M1 manual): movie section only in Movie mode (p.71); self-timer and drive not in Movie mode; exposure controls in Movie mode follow the movie mode P/A/S/M.
-- USB LV super control panel: AF mode, Metering mode, Flash mode, Record mode, Aspect ratio, Image stabilizer and Face priority, with values mapped on the camera (`out/research/usb_value_mapping.md`). Only in P/A/S/M as on the camera (manual p.24). Reading tested; setting not tested. Not over Wi-Fi: no command (REQ-F10, branch `usb-foundation`).
-
-### Live view and USB
-- USB live view size can be chosen (up to 1280×960) with the PTP backend (macOS default) or with libgphoto2 2.5.34.1 or later. With libgphoto2 2.5.34 the size stays 1024×768 and the choice is hidden. Tested 1280×960 at 13.8 fps with libgphoto2 and 15.0 fps with the PTP backend (REQ-F36).
-- USB live view stall after connecting fixed: the pause counter is thread-safe. The mode dial check runs every 3 s and ignores the event the camera sends when live view starts. Measured 14.3 fps and 17.8 fps at 1024×768, Take picture 4.7–5.3 s, picture shown 0.35 s later.
+- USB: the idle event wait after releasing the focus tap is removed (about 0.3 s per tap).
 - Research endpoint `/api/usbprops` reads single USB properties and their choices (for the value mapping, REQ-F10).
 
-### Playback and files
-- Open in OM Workspace in the single-frame view (macOS, only when OM Workspace is installed): saves the missing files of the shot to the computer first (ORF when only the JPG was saved), then opens it. USB tested 2026-11-13; Wi-Fi untested (REQ-F17).
-- Playback: the thumbnails in the Playback section open the single-frame view (click or Enter), like the tiles in Index display. Playback and the single-frame view lie above the shutter bar in narrow windows (REQ-F27).
-
-### App start and quit
-- "Quit E-M1 Capture" button in the header and on the start screen; a second click confirms. Closes the camera connection, stops the app and shows a notice (REQ-Q10). Tested while connected over Wi-Fi (2026-11-13).
-- Second start while the app is already running: the message says the window can be closed and how to stop the running app (Ctrl+C in its window, or `pkill -f 'omcap\.server|bin/em1-capture'`).
-- Clearer error messages: USB connect failure says what to check (Photos, USB menu, restart after re-plugging); missing gphoto2 says how to install it; the level gauge message no longer claims USB support; the "not running" hint names a command that works in every installation, and the Windows launcher.
-
-### Quality and docs
-- CI on GitHub: offline tests on every push to `main` and `release-*` and on pull requests (Ubuntu with Python 3.9 and 3.12, macOS with 3.12) (REQ-Q08).
+### App and docs
+- The app releases the camera when it is stopped with Ctrl+C or `kill` (leaves PC control and closes the session); before, the camera could stop answering until it was switched off.
+- README: USB on Linux works over libgphoto2 (not tested yet: camera mounting by the desktop, udev access); libgphoto2 stays the USB backend there.
 - 161 offline tests pass on `usb-ptp` (2026-11-13).
-- README: "Stop" section, feature table and parity rows.
 
 ### Known issues
+- LIVECOMP: a stop press shortly after the start (4–8 s) is ignored by the camera and the exposure keeps running; a later press ends it (probably after the first composite frame, Composite Settings). The app does not show that the exposure still runs.
+- Mode dial over USB: the new mode arrives only when PC control is switched on again, so each turn rebuilds the session (8–10 s); quick turns in a row show only the last position.
 - Wi-Fi drops out on the Mac (it leaves the camera network). Once, an app started from the launcher got "No route to host" while the shell reached the camera (macOS Local Network permission suspected).
-- USB with the libgphoto2 backend (fallback, Linux): live view pauses up to ~70 s after connecting while the card list is read. The PTP backend reads the card index in about 38 s once, then 7–9 s per connect.
+- USB with the libgphoto2 backend (fallback, Linux): live view pauses up to ~70 s after connecting while the card list is read.
 - USB, All Targets + Halfway: the green AF field may not match where the camera focused.
 - A lens change is only noticed with the next photo (USB and Wi-Fi).
+
+## 0.6.0 – 2026-11-13
+
+- Wi-Fi Take picture uses `exec_takemotion com=starttake` with the tapped AF point in shooting mode instead of switching to the shutter mode: focuses on the tapped point, the live view keeps running, and the shot takes 1.2–1.5 s instead of about 7 s (camera-tested). Only for normal shots: long exposures (slower than 1/4 s, BULB / LIVE TIME / LIVECOMP), the self-timer and Movie mode keep the shutter-button route, which is also the fallback when the camera refuses (REQ-F34).
+- USB: LIVE TIME is recognised when libgphoto2 reports it as a raw fraction (65535/65533); "Off" in the M-mode quick select falls back to 1/60 s when no earlier speed is known (REQ-F31, camera-tested over USB).
+- Single-frame view: "Open in OM Workspace" (only when OM Workspace is installed); saves the shot to the computer first if needed and opens the ORF, otherwise the JPG (REQ-F17).
+- Playback: the thumbnails in the Playback section open the single-frame view (click or Enter), like the tiles in Index display; Playback and the single-frame view now lie above the shutter bar in narrow windows (REQ-F27).
+- USB live view size can be chosen like over Wi-Fi (up to 1280×960) when libgphoto2 keeps the size (development version 2.5.34.1 or later; with 2.5.34 it stays 1024×768 and the choice is hidden). Measured 1280×960 at 13.8 fps (REQ-F36).
+- CI on GitHub: offline tests on every push to `main`/`release-*` and on pull requests (Ubuntu with Python 3.9 and 3.12, macOS with 3.12) (REQ-Q08).
+- "Quit E-M1 Capture" button (header and start screen, second click confirms): closes the camera connection, stops the app and shows a notice (REQ-Q10).
+- Second start while the app is already running: the message now says the window can be closed and how to stop the running app (Ctrl+C in its own window or `pkill -f 'omcap\.server|bin/em1-capture'`); error messages: USB connect failure says what to check (Photos, USB menu, restart after re-plugging), missing gphoto2 says how to install it, the level gauge message no longer claims USB support; README has a "Stop" section and current parity rows (lens aperture over USB, webcam view over USB (button untested), time lapse/AE BKT untested, what the E-M1 cannot do).
+- USB live view: fixed a stall after connecting (the pause counter is now thread-safe); the mode dial check runs every 3 s and ignores the event the camera sends when live view starts. Measured: 14.3 fps, Take picture 4.7–5.3 s, picture shown 0.35 s later.
+- Controls appear only in the shooting modes where the camera lets you select them (manual logic, design principle 7): movie section only in Movie mode, self-timer and drive not in Movie mode, in Movie mode aperture / shutter speed / exposure compensation / ISO / WB follow the movie exposure mode P/A/S/M (E-M1 manual, p.71).
+- USB: turning the mode dial is detected (event 0xC003, param 3); the app rebuilds the USB session by itself and reloads the values, no "reload" needed (during live view). P, A, S, M and Movie are shown; iAUTO, ART, SCN and PHOTO STORY read as P over USB and are shown as P; after a shot iAUTO is shown from the picture's EXIF (REQ-F30).
+- M mode: quick select BULB / LIVE TIME / LIVECOMP and Off (back to the last shutter speed) in the shooting options. Built for Wi-Fi and USB, camera-tested on both (REQ-F31).
+- The "not running" hint names the command that works in every installation (`.venv/bin/python -m omcap.server --allow-write`) and the Windows launcher.
 
 ## 0.5.0 – 2026-11-12
 
