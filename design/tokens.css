@@ -23,7 +23,9 @@
   /* Type */
   --font-ui: Inter, system-ui, -apple-system, "Segoe UI", sans-serif;
   --font-value: "IBM Plex Mono", ui-monospace, Menlo, monospace; /* camera values: 1/250 F4.0 ISO 200 */
-  --fs-title: 16px; --fs-body: 14px; --fs-label: 12px; --fs-value: 22px; --fs-shutter: 18px;
+  --fs-display: 28px; --fs-title: 17px; --fs-heading: 15px; --fs-body: 14px;
+  --fs-label: 11px; --fs-meta: 12px; --fs-value: 22px; --fs-shutter: 16px;
+  --tracking-label: 0.09em;
 
   /* Space and shape */
   --s1: 4px; --s2: 8px; --s3: 12px; --s4: 16px; --s5: 20px; --s6: 32px;

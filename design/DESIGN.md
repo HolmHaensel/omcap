@@ -3,6 +3,24 @@
 Design canvas (private to the maintainer, ask for access): Live View, 2026-11-11.
 Tokens: [`tokens.css`](tokens.css). Implemented in version 0.4.0 (2026-11-11); the build order below is done.
 
+## Task-led redesign prototype
+
+The 2026 redesign keeps the camera terminology and the live-view-first principle, but replaces the
+long control stack with four task groups inspired by the current OM SYSTEM menu hierarchy:
+
+1. **Camera** — shooting mode and exposure values.
+2. **Focus** — AF Area, AF target visibility and manual-focus drive.
+3. **Tools** — movie, time lapse, bracketing and long exposure.
+4. **Files** — transfer settings and playback.
+
+The shutter and self-timer remain visible in every group. Desktop uses a compact control rail beside
+the image. Mobile turns the group selector into bottom navigation and keeps capture directly above it.
+The Apple Watch-sized companion intentionally exposes only the live frame, the three most important
+shooting values, autofocus and shutter release.
+
+Typography now has explicit display, title, heading, body, metadata, label and camera-value levels.
+Camera values retain IBM Plex Mono; navigation and explanatory text retain Inter/system UI.
+
 ## Principles
 
 1. **Live view is the hero.** It takes the left/centre of the screen at 4:3; panels sit beside it on the

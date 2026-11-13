@@ -29,7 +29,9 @@
   /* Type */
   --font-ui: Inter, system-ui, -apple-system, "Segoe UI", sans-serif;
   --font-value: "IBM Plex Mono", ui-monospace, Menlo, monospace; /* camera values: 1/250 F4.0 ISO 200 */
-  --fs-title: 16px; --fs-body: 14px; --fs-label: 12px; --fs-value: 22px; --fs-shutter: 18px;
+  --fs-display: 28px; --fs-title: 17px; --fs-heading: 15px; --fs-body: 14px;
+  --fs-label: 11px; --fs-meta: 12px; --fs-value: 22px; --fs-shutter: 16px;
+  --tracking-label: 0.09em;
 
   /* Space and shape */
   --s1: 4px; --s2: 8px; --s3: 12px; --s4: 16px; --s5: 20px; --s6: 32px;
@@ -298,6 +300,124 @@ body.webcam{cursor:none;display:flex;align-items:center;justify-content:center}
   #shutRow #half{height:var(--touch)}
   .tb{flex-wrap:wrap}
 }
+
+/* 2026 task-led redesign: OM camera clarity with an action-first capture flow. */
+body{background:#0b0c0e;font-size:var(--fs-body);letter-spacing:-.005em}
+header{min-height:68px;padding:10px clamp(16px,2.2vw,32px);gap:10px;background:rgba(14,15,17,.96);border-color:#23262b}
+.brand{display:flex;flex-direction:column;justify-content:center;min-width:154px;line-height:1.05}
+.brand .eyebrow{color:var(--muted);font-size:9px;font-weight:700;letter-spacing:.16em;text-transform:uppercase}
+.brand h1{margin-top:5px;font-size:var(--fs-title);font-weight:650;letter-spacing:-.025em}
+.status-cluster,.header-actions{display:flex;align-items:center;gap:8px}
+.header-actions{margin-left:auto}
+header>.sp{display:none}
+#status{font-size:var(--fs-meta)}
+#hdrInfo{padding-left:10px;border-left:1px solid var(--line)}
+.hbtn{height:38px;border-color:transparent;background:transparent;color:var(--muted)}
+.hbtn:hover{background:var(--surface-raised);color:var(--text)}
+#hdrPlay{background:var(--surface-raised);border-color:var(--line);color:var(--text)}
+main{grid-template-columns:minmax(560px,1fr) 388px;max-width:1600px;margin:0 auto;gap:20px;padding:20px clamp(16px,2.2vw,32px) 24px}
+#liveCol{gap:12px}
+#viewport{border:1px solid #23262b;border-radius:16px;box-shadow:0 18px 50px rgba(0,0,0,.28)}
+#valStrip{height:56px;gap:clamp(12px,2.2vw,30px);padding:10px 20px 8px;font-size:clamp(14px,1.4vw,19px);font-weight:550}
+#valStrip .m{display:inline-flex;align-items:center;justify-content:center;min-width:34px;height:28px;padding:0 8px;border-radius:6px;background:var(--accent);color:var(--accent-ink)}
+.tb{padding:2px 0;gap:6px}
+.tb button,.tb select,.tb .tog{height:36px}
+.tb .vsep{margin:0 6px}
+#statusLine{min-height:22px;align-items:center;padding:0 2px;font-size:var(--fs-meta)}
+#panels{gap:10px;min-width:0}
+#panelNav{display:grid;grid-template-columns:repeat(4,1fr);gap:4px;padding:4px;background:var(--surface);border:1px solid var(--line);border-radius:14px;position:sticky;top:0;z-index:8}
+#panelNav button{display:flex;min-width:0;height:52px;padding:6px 4px;flex-direction:column;align-items:center;justify-content:center;gap:3px;border:0;background:transparent;color:var(--muted);font-size:10px;font-weight:650;letter-spacing:.02em}
+#panelNav button svg{width:18px;height:18px}
+#panelNav button[aria-selected=true]{background:var(--surface-raised);color:var(--text);box-shadow:inset 0 0 0 1px var(--line)}
+#panels[data-pane=camera]>section:not([data-pane=camera]):not([data-pane=primary]),
+#panels[data-pane=focus]>section:not([data-pane=focus]):not([data-pane=primary]),
+#panels[data-pane=tools]>section:not([data-pane=tools]):not([data-pane=primary]),
+#panels[data-pane=files]>section:not([data-pane=files]):not([data-pane=primary]){display:none!important}
+section{border-color:#25292e;border-radius:14px;padding:14px;background:#141619}
+section h2{margin-bottom:10px;color:#b9bec4;font-size:var(--fs-label);font-weight:700;letter-spacing:var(--tracking-label);text-transform:uppercase}
+#props{gap:7px}
+#props label{min-height:66px;padding:9px 11px;border-radius:10px;background:#0f1113}
+#props label>select,#props label.ro strong{margin-top:2px;font-size:19px;letter-spacing:-.03em}
+#modeBox .seg{padding:3px;background:#0f1113;border:0}
+#modeBox .seg button{height:36px;border:0;border-radius:7px}
+#modeBox .seg button+button{border-left:0}
+#shutterBox{gap:10px}
+#timerSeg{padding:3px;background:#0f1113;border:0}
+#timerSeg button{height:34px;border:0;border-radius:7px}
+#timerSeg button+button{border-left:0}
+#shutRow{grid-template-columns:minmax(0,1fr) 76px;align-items:center}
+#shutRow button{height:56px}
+#shutRow #shoot{width:76px;height:76px;padding:0;border:7px solid #101214;border-radius:50%;outline:2px solid var(--accent);font-size:12px;line-height:1.1;box-shadow:0 0 0 1px var(--accent-line)}
+#shutRow #shoot:active{transform:scale(.96)}
+#shutRow #half{border-radius:28px}
+#panels>[data-id=shutter]{background:#181a1e}
+#panels>[data-id=shutter]::before{content:"CAPTURE";display:block;margin-bottom:8px;color:var(--muted);font-size:9px;font-weight:700;letter-spacing:.14em}
+#afModes{gap:6px}
+#afModes button{min-height:46px}
+#watchDock{display:none}
+
+@media(min-width:1101px){
+  #app:not([hidden]){background:#0b0c0e}
+  #panels{max-height:calc(100vh - 108px);padding-right:6px}
+  #panels>[data-id=shutter]{top:auto;bottom:0;order:99!important;box-shadow:0 -12px 28px #0b0c0e}
+  #viewport{width:min(100%,calc((100vh - 216px) * 4 / 3))}
+}
+@media(max-width:1100px){
+  main{grid-template-columns:minmax(0,1fr);max-width:820px;padding-bottom:218px}
+  #liveCol{position:relative;top:auto}
+  #viewport{width:min(100%,calc(52vh * 4 / 3))}
+  #panels>[data-id=shutter]{bottom:62px;border:1px solid var(--line);border-radius:16px 16px 0 0}
+  #panelNav{position:fixed;left:0;right:0;bottom:0;top:auto;border-width:1px 0 0;border-radius:0;padding:4px 8px calc(4px + env(safe-area-inset-bottom,0px));background:rgba(20,22,25,.98)}
+}
+@media(max-width:700px){
+  header{min-height:58px;padding:8px 12px;flex-wrap:nowrap}
+  .brand{min-width:0}
+  .brand .eyebrow{display:none}
+  .brand h1{margin:0;font-size:15px}
+  .status-cluster{min-width:0}
+  #status,#writeChip,#hdrInfo,#hdrCard,#hdrBat{display:none!important}
+  .header-actions .hbtn:not(#hdrPlay):not(#poweroff){display:none}
+  #hdrPlay{width:40px;padding:0;font-size:0}
+  #hdrPlay::after{content:"▦";font-size:20px}
+  main{padding:10px 10px 218px;gap:12px}
+  #viewport{width:100%;border-radius:12px}
+  #valStrip{height:44px;padding:6px 12px;gap:12px;font-size:13px}
+  #valStrip span:nth-child(n+5){display:none}
+  .tb{overflow-x:auto;flex-wrap:nowrap;scrollbar-width:none}
+  .tb::-webkit-scrollbar{display:none}
+  .tb .vsep,.tb .sp,#popLive,#popCam{display:none}
+  #panels{gap:8px}
+  #panelNav button{height:50px}
+  section{padding:12px}
+  #props label{min-height:62px}
+  #shutRow{display:flex;justify-content:center;gap:14px}
+  #shutRow #half{width:min(45vw,180px)}
+  #shutRow #shoot{flex:0 0 76px}
+}
+/* Apple Watch-sized web companion: glanceable status, live frame, focus and shutter. */
+@media(max-width:430px) and (max-height:550px){
+  html,body{height:100%;overflow:hidden;background:#000}
+  #app:not([hidden]){height:100%;display:block}
+  #app>header,#panels,.tb,#statusLine{display:none!important}
+  main{display:block;height:100%;padding:0}
+  #liveCol{height:100%;display:block}
+  #viewport{width:100vw;height:auto;max-height:calc(100vh - 92px);aspect-ratio:4/3;border:0;border-radius:0;box-shadow:none}
+  #valStrip{height:34px;padding:4px 8px;gap:8px;font-size:10px}
+  #valStrip .m{min-width:24px;height:22px;padding:0 5px}
+  #valStrip span:nth-child(n+4){display:none}
+  #focusChip{top:7px;height:25px;padding:0 9px;font-size:10px}
+  #lastShot{display:none!important}
+  #watchDock{position:fixed;left:0;right:0;bottom:0;display:grid;grid-template-columns:46px 1fr 64px;align-items:center;gap:8px;height:92px;padding:8px 10px max(8px,env(safe-area-inset-bottom,0px));background:#0d0e10;border-top:1px solid #26292d;z-index:50}
+  #watchValues{min-width:0;color:var(--muted);font:10px/1.2 var(--font-value);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  #watchHalf,#watchShoot{display:flex;align-items:center;justify-content:center;padding:0}
+  #watchHalf{width:44px;height:44px;border-radius:50%;font-size:0}
+  #watchHalf::after{content:"AF";font:700 11px var(--font-value)}
+  #watchShoot{width:60px;height:60px;border:6px solid #0d0e10;border-radius:50%;outline:2px solid var(--accent);background:var(--accent);color:var(--accent-ink);font-size:0}
+  #watchShoot::after{content:"";width:15px;height:15px;border:2px solid currentColor;border-radius:50%}
+}
+@media(prefers-reduced-motion:reduce){
+  *,*::before,*::after{scroll-behavior:auto!important;transition-duration:0s!important;animation-duration:0s!important}
+}
 </style>
 </head>
 <body>
@@ -323,21 +443,24 @@ body.webcam{cursor:none;display:flex;align-items:center;justify-content:center}
 <div id="stopped" hidden><p data-i18n="app.stopped">E-M1 Capture has stopped. You can close this tab.</p></div>
 <div id="app" hidden>
 <header>
-  <h1>E-M1 Capture</h1>
-  <span id="connChip" class="chip ok" hidden><span class="dot"></span><span id="connText"></span></span>
-  <span id="writeChip" class="chip" hidden></span>
-  <span id="status" class="mut" data-i18n="app.connecting">connecting …</span>
-  <span id="hdrInfo"><span id="lensText"></span></span>
-  <span class="sp"></span>
-  <span id="hdrCard" class="mut" style="font-family:var(--font-value);font-size:13px"></span>
-  <span id="hdrBat" class="mut" style="font-family:var(--font-value);font-size:13px"></span>
-  <button id="hdrPlay" class="hbtn" data-feat="playback" data-i18n="panel.card">Playback</button>
-  <button id="hdrLocal" class="hbtn" data-i18n="local.title">On the computer</button>
-  <button id="layoutBtn" class="hbtn quiet" data-i18n="app.layout">Customize layout</button>
-  <button id="reset" class="hbtn w" data-i18n="app.reset" data-i18n-title="app.resetTitle">Reset camera</button>
-  <button id="discon" class="hbtn quiet" data-i18n="app.disconnect">Disconnect</button>
-  <button class="hbtn quiet quitBtn" data-i18n="app.quit">Quit E-M1 Capture</button>
-  <button id="poweroff" class="hbtn icon w" data-feat="poweroff" data-i18n-aria="app.poweroff" data-i18n-title="app.poweroff"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 3v8"/><path d="M6.3 7.2a8 8 0 1 0 11.4 0"/></svg></button>
+  <div class="brand"><span class="eyebrow">OM SYSTEM · REMOTE</span><h1>E-M1 Capture</h1></div>
+  <div class="status-cluster">
+    <span id="connChip" class="chip ok" hidden><span class="dot"></span><span id="connText"></span></span>
+    <span id="writeChip" class="chip" hidden></span>
+    <span id="status" class="mut" data-i18n="app.connecting">connecting …</span>
+    <span id="hdrInfo"><span id="lensText"></span></span>
+  </div>
+  <div class="header-actions">
+    <span id="hdrCard" class="mut" style="font-family:var(--font-value);font-size:13px"></span>
+    <span id="hdrBat" class="mut" style="font-family:var(--font-value);font-size:13px"></span>
+    <button id="hdrPlay" class="hbtn" data-feat="playback" data-i18n="panel.card">Playback</button>
+    <button id="hdrLocal" class="hbtn" data-i18n="local.title">On the computer</button>
+    <button id="layoutBtn" class="hbtn quiet" data-i18n="app.layout">Customize layout</button>
+    <button id="reset" class="hbtn w" data-i18n="app.reset" data-i18n-title="app.resetTitle">Reset camera</button>
+    <button id="discon" class="hbtn quiet" data-i18n="app.disconnect">Disconnect</button>
+    <button class="hbtn quiet quitBtn" data-i18n="app.quit">Quit E-M1 Capture</button>
+    <button id="poweroff" class="hbtn icon w" data-feat="poweroff" data-i18n-aria="app.poweroff" data-i18n-title="app.poweroff"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 3v8"/><path d="M6.3 7.2a8 8 0 1 0 11.4 0"/></svg></button>
+  </div>
 </header>
 <main>
 <div id="liveCol">
@@ -392,14 +515,20 @@ body.webcam{cursor:none;display:flex;align-items:center;justify-content:center}
   </div>
   <div id="statusLine"><span id="lvSize" class="mut"></span><p id="msg" class="mut" data-i18n="msg.ready">Ready.</p></div>
 </div>
-<div id="panels">
-  <section data-id="scp" data-label="LV super control panel" data-i18n-label="panel.scp">
+<div id="panels" data-pane="camera">
+  <nav id="panelNav" aria-label="Control groups">
+    <button type="button" data-panel-nav="camera" aria-selected="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="12" cy="12" r="7"/><circle cx="12" cy="12" r="2"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg><span data-i18n="nav.camera">Camera</span></button>
+    <button type="button" data-panel-nav="focus" aria-selected="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M8 3H3v5M16 3h5v5M8 21H3v-5M16 21h5v-5"/><circle cx="12" cy="12" r="3"/></svg><span data-i18n="nav.focus">Focus</span></button>
+    <button type="button" data-panel-nav="tools" aria-selected="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M4 6h10M18 6h2M4 12h2M10 12h10M4 18h7M15 18h5"/><circle cx="16" cy="6" r="2"/><circle cx="8" cy="12" r="2"/><circle cx="13" cy="18" r="2"/></svg><span data-i18n="nav.tools">Tools</span></button>
+    <button type="button" data-panel-nav="files" aria-selected="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="m7 16 3-3 2 2 3-4 3 5"/></svg><span data-i18n="nav.files">Files</span></button>
+  </nav>
+  <section data-id="scp" data-pane="camera" data-label="LV super control panel" data-i18n-label="panel.scp">
     <h2 class="hrow"><span data-i18n="panel.scp">LV super control panel</span> <button id="propsReload" class="mini" data-i18n="scp.reload">reload</button></h2>
     <div id="modeBox"></div>
     <div id="props"></div>
     <div id="roProps" hidden></div>
   </section>
-  <section data-id="af" data-label="AF target (AF Area)" data-i18n-label="panel.af" data-feat="af_area">
+  <section data-id="af" data-pane="focus" data-label="AF target (AF Area)" data-i18n-label="panel.af" data-feat="af_area">
     <h2 data-i18n="panel.af">AF target (AF Area)</h2>
     <div class="row" id="afModes" data-feat="af_modes">
       <button class="w" data-af="33024" data-i18n="af.33024">All Targets</button>
@@ -421,7 +550,7 @@ body.webcam{cursor:none;display:flex;align-items:center;justify-content:center}
       <span id="afInfo" class="mut"></span>
     </div>
   </section>
-  <section data-id="movie" data-label="Movie" data-i18n-label="panel.movie" data-feat="movie">
+  <section data-id="movie" data-pane="tools" data-label="Movie" data-i18n-label="panel.movie" data-feat="movie">
     <h2 data-i18n="panel.movie">Movie</h2>
     <div class="row">
       <button class="w" id="movStart" data-i18n="movie.start">Start recording</button>
@@ -430,7 +559,7 @@ body.webcam{cursor:none;display:flex;align-items:center;justify-content:center}
     </div>
     <div class="row"><span id="movQuality" class="mut"></span></div>
   </section>
-  <section data-id="prog" data-label="Shooting options" data-i18n-label="panel.prog">
+  <section data-id="prog" data-pane="tools" data-label="Shooting options" data-i18n-label="panel.prog">
     <h2 data-i18n="panel.prog">Shooting options</h2>
     <div class="row" id="rowIv" hidden>
       <span data-i18n="prog.timelapse">Time lapse shooting</span>
@@ -459,7 +588,7 @@ body.webcam{cursor:none;display:flex;align-items:center;justify-content:center}
       <span id="takeInfo" class="mut"></span>
     </div>
   </section>
-  <section data-id="shutter" data-label="Shutter button" data-i18n-label="panel.shutter">
+  <section data-id="shutter" data-pane="primary" data-label="Shutter button" data-i18n-label="panel.shutter">
     <div id="shutterBox">
       <div>
         <div id="timerLab"><span data-i18n="timer.label">Self-timer</span></div>
@@ -474,7 +603,7 @@ body.webcam{cursor:none;display:flex;align-items:center;justify-content:center}
       </div>
     </div>
   </section>
-  <section data-id="transfer" data-label="Save to" data-i18n-label="panel.transfer">
+  <section data-id="transfer" data-pane="files" data-label="Save to" data-i18n-label="panel.transfer">
     <h2 data-i18n="panel.transfer">Save to</h2>
     <div class="row">
       <label><input type="radio" name="tr" value="sd" checked> <span data-i18n="transfer.sd">Card only</span></label>
@@ -501,13 +630,18 @@ body.webcam{cursor:none;display:flex;align-items:center;justify-content:center}
     </div>
     <div id="trErr" class="warn"></div>
   </section>
-  <section data-id="card" data-label="Playback" data-i18n-label="panel.card" data-feat="playback">
+  <section data-id="card" data-pane="files" data-label="Playback" data-i18n-label="panel.card" data-feat="playback">
     <h2 data-i18n="panel.card">Playback</h2>
     <div class="row"><button id="galOpen" data-i18n="card.index">Index display</button><button id="reload" data-i18n="card.reload">Reload</button><span id="count" class="mut"></span></div>
     <div id="gal"></div>
   </section>
 </div>
 </main>
+<div id="watchDock" aria-label="Watch capture controls">
+  <button id="watchHalf" type="button" aria-label="Autofocus"></button>
+  <div id="watchValues">E-M1 · READY</div>
+  <button id="watchShoot" type="button" aria-label="Take picture"></button>
+</div>
 </div>
 <div id="galOv" hidden>
   <div class="galbar">
@@ -886,7 +1020,11 @@ const I18N={en:{
   "layout.panels": "Panels",
   "layout.settings": "Settings",
   "layout.close": "Close",
-  "layout.reset": "Reset"
+  "layout.reset": "Reset",
+  "nav.camera": "Camera",
+  "nav.focus": "Focus",
+  "nav.tools": "Tools",
+  "nav.files": "Files"
 }};
 const LANG=(()=>{try{const l=localStorage.getItem('omcap.lang');if(l&&I18N[l])return l}catch{}
   const n=(navigator.language||'en').slice(0,2);return I18N[n]?n:'en'})();
@@ -904,6 +1042,16 @@ function applyI18n(root=document){
   root.querySelectorAll('[data-i18n-label]').forEach(e=>e.dataset.label=tr(e.dataset.i18nLabel));
 }
 applyI18n();
+const PANE_KEY='omcap.pane';
+function setPane(pane){
+  const panels=document.querySelector('#panels');
+  if(!panels||!['camera','focus','tools','files'].includes(pane)) return;
+  panels.dataset.pane=pane;
+  document.querySelectorAll('[data-panel-nav]').forEach(b=>b.setAttribute('aria-selected',String(b.dataset.panelNav===pane)));
+  try{localStorage.setItem(PANE_KEY,pane)}catch{}
+}
+document.querySelectorAll('[data-panel-nav]').forEach(b=>b.onclick=()=>setPane(b.dataset.panelNav));
+try{setPane(localStorage.getItem(PANE_KEY)||'camera')}catch{setPane('camera')}
 const params=new URLSearchParams(location.search);
 async function api(path,body){
   let r;
@@ -1136,6 +1284,7 @@ function renderStrip(){
   for(const [c,t] of out){const e=document.createElement('span');if(c)e.className=c;e.textContent=t;s.append(e)}
   const w=$('#live').naturalWidth;
   if(st.live&&w){const e=document.createElement('span');e.className='sz';e.textContent=w+'×'+$('#live').naturalHeight;s.append(e)}
+  $('#watchValues').textContent=out.slice(0,3).map(x=>x[1]).join(' · ')||'E-M1 · READY';
   s.hidden=!out.length||!st.live;
 }
 /* Shooting mode: segmented control (Wi-Fi) or read-only card (USB: the mode dial decides) */
@@ -2204,6 +2353,8 @@ $('#half').onclick=async()=>{
   msg(hit?tr('msg.inFocus'):tr('msg.noFocus'),!hit);
   drawAf();
 };
+$('#watchShoot').onclick=()=>$('#shoot').click();
+$('#watchHalf').onclick=()=>$('#half').click();
 $('#reset').onclick=()=>act(tr('msg.reset'),'/api/mode',{mode:'rec'});
 $('#ivStart').onclick=()=>act(tr('msg.tlStarted'),'/api/interval',{count:+$('#ivCount').value,seconds:+$('#ivSec').value});
 $('#brStart').onclick=()=>act(tr('msg.bktStarted'),'/api/bracket',{frames:+$('#brFrames').value,step:+$('#brStep').value});
