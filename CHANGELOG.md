@@ -12,6 +12,7 @@
 - Also camera-tested with the PTP backend: interval shooting (3 frames, 5 s), AE bracketing (3 frames, −0.3/0/+0.3 EV per EXIF, compensation restored), partial reads (picture info from the first 128 KB in 0.02 s; a whole 3.8 MB JPG in 0.22 s) and a full session in the browser (tap focus, Take picture, Index display, single-frame view). Not tested: Linux.
 
 ### Shooting and settings
+- USB MF drive: Near 3/2/1 and Far 1/2/3 in the AF section move the focus like the focus ring (PTP 0x9487, step sizes as libgphoto2). Shown only with AF mode MF or S-AF+MF and write enabled; the camera ignores it in S-AF. Camera-tested 2026-11-13: about 0.1 s per step, three clearly different step sizes. Not over Wi-Fi: no command (REQ-F28, basis for the Star AF aid REQ-F24).
 - USB LV super control panel: AF mode, Metering mode, Flash mode, Record mode, Aspect ratio, Image stabilizer and Face priority, with values mapped on the camera (`out/research/usb_value_mapping.md`). Only in P/A/S/M as on the camera (manual p.24). Read and write tested 2026-11-13. Not over Wi-Fi: no command (REQ-F10).
 - USB: shutter speeds that libgphoto2 lists as fractions (3.2 s = 32/10, 1/1.3 s = 10/13 …) are offered and named like on the camera; ISO AUTO/LOW are named by value, not by position; the read-only flag of each setting comes from the camera; the aperture list is limited by the lens limits the camera reports (d07f/d080) (REQ-F10).
 - USB Take picture focuses on the tapped AF field (camera-tested at 140 mm, REQ-F34).
