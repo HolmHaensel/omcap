@@ -320,7 +320,7 @@ class UsbCamera:
             self.gp, self.backend = ptp_gphoto, "ptp"
             self._c = self.gp.Camera()
             try:
-                self._open()
+                self._open(tries=4 if backend == "ptp" else 1)  # auto: one try, then libgphoto2
                 return
             except CameraError as e:
                 if backend == "ptp":
@@ -330,9 +330,9 @@ class UsbCamera:
         self._c = self.gp.Camera()
         self._open()
 
-    def _open(self):
+    def _open(self, tries=4):
         error = None
-        for _ in range(4):
+        for _ in range(tries):
             # The macOS service ptpcamerad claims the camera as soon as it is plugged in.
             subprocess.run(["killall", "-9", "ptpcamerad"], capture_output=True)
             try:

@@ -45,6 +45,7 @@ class Datasets(unittest.TestCase):
 class FakeTransport:
     def __init__(self, replies):
         self.replies, self.sent = list(replies), []
+        self.events = []
 
     def write(self, data, timeout=5000):
         self.sent.append(bytes(data))
@@ -57,8 +58,12 @@ class FakeTransport:
             raise ptp.PtpError("timeout", code=-7)
         return r
 
+    def poll_events(self, timeout=10):
+        if self.replies and self.replies[0] is not None:
+            self.events.append((0x4005, (0x10001,)))
+
     def read_event(self, timeout=10):
-        return (0x4005, (0x10001,)) if self.replies and self.replies[0] is not None else None
+        return self.events.pop(0) if self.events else None
 
 
 def pkt(typ, code, tid, body=b""):

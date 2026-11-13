@@ -28,7 +28,7 @@ class FakePtp:
             0xD008: {"type": 4, "writable": True, "value": 65236, "enum": [60536, 65236, 0, 300]},
             0xD007: {"type": 4, "writable": True, "value": 65533, "enum": [65535, 65533, 200]},
             0xD06D: {"type": 6, "writable": True, "value": 1024 << 16 | 768,
-                     "enum": [640 << 16 | 480, 1024 << 16 | 768, 1280 << 16 | 960]},
+                     "enum": [0, 640 << 16 | 480, 1024 << 16 | 768, 1280 << 16 | 960]},
             0xD006: {"type": 4, "writable": False, "value": 1, "enum": [1, 2, 3, 4, 8]},
             0xD04A: {"type": 4, "writable": False, "value": 14, "range": (14, 140, 1)},
             0x5001: {"type": 2, "writable": False, "value": 80},
@@ -78,6 +78,7 @@ class Values(unittest.TestCase):
         self.assertEqual(list(c.get_single_config("exposurecompensation").get_choices()), ["-5", "-0.3", "0", "0.3"])
         self.assertEqual(list(c.get_single_config("iso").get_choices()), ["Auto", "Low", "200"])
         self.assertEqual(c.get_single_config("liveviewsize").get_value(), "1024x768")
+        self.assertEqual(list(c.get_single_config("liveviewsize").get_choices()), ["640x480", "1024x768", "1280x960"])
         self.assertEqual(c.get_single_config("batterylevel").get_value(), "80%")
         self.assertTrue(c.get_single_config("d006").get_readonly())
         self.assertEqual(c.get_single_config("d04a").get_range(), (14, 140, 1))
@@ -97,10 +98,13 @@ class Values(unittest.TestCase):
 
     def test_unknown_named_value_is_refused(self):
         c = camera(FakePtp())
-        w = c.get_single_config("aperture")
-        w.set_value("1.2")
-        with self.assertRaises(pg.GPhoto2Error):
-            c.set_single_config("aperture", w)
+        for name, text in (("aperture", "1.2"), ("liveviewsize", "800x600"), ("d00c", "Auto")):
+            fake = c._ptp
+            fake.props.setdefault(0xD00C, {"type": 4, "writable": True, "value": 1})
+            w = c.get_single_config(name)
+            w.set_value(text)
+            with self.assertRaises(pg.GPhoto2Error):
+                c.set_single_config(name, w)
 
     def test_opcode_runs_operation(self):
         fake = FakePtp()
@@ -166,10 +170,48 @@ class Card(unittest.TestCase):
             second = FakePtp()
             camera(second, path).folder_list_folders("/")
             self.assertEqual(second.info_calls, 2)  # only the spot check
-            other = FakePtp()  # another card: same handles, other names
-            other.objects[1]["name"] = "XXX"
+            other = FakePtp()  # another card: same handles and names, other size
+            other.objects[4]["size"] = 1234
             camera(other, path).folder_list_folders("/")
-            self.assertEqual(other.info_calls, 1 + 5)
+            self.assertEqual(other.info_calls, 2 + 5)
+
+
+class FakeLib:
+    """libusb stand-in for UsbTransport: bulk reads from a script of (rc, bytes)."""
+
+    def __init__(self, reads):
+        self.reads = reads
+
+    def libusb_bulk_transfer(self, h, ep, buf, size, got, timeout):
+        rc, data = self.reads.pop(0)
+        ctypes_memmove(buf, data, len(data))
+        got._obj.value = len(data)
+        return rc
+
+
+def ctypes_memmove(buf, data, n):
+    import ctypes
+    ctypes.memmove(buf, data, n)
+
+
+class Transport(unittest.TestCase):
+    def transport(self, reads):
+        t = ptp.UsbTransport.__new__(ptp.UsbTransport)
+        t.lib, t.h, t.ep_in, t._buf = FakeLib(reads), 1, 0x82, None
+        t._events, t._irq, t._irq_live = [], None, False
+        return t
+
+    def test_timeout_after_some_bytes_keeps_them(self):
+        t = self.transport([(-7, b"abc"), (-7, b"")])
+        self.assertEqual(t.read(timeout=200), b"abc")
+        with self.assertRaises(ptp.PtpError):
+            t.read(timeout=200)
+
+    def test_late_callback_after_close_is_ignored(self):
+        t = self.transport([])
+        t._irq_live = True
+        t._on_irq(None)
+        self.assertFalse(t._irq_live)
 
 
 class Backend(unittest.TestCase):

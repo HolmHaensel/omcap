@@ -240,6 +240,9 @@ class UsbTransport:
         self._irq_live = self.lib.libusb_submit_transfer(self._irq) == 0
 
     def _on_irq(self, _ptr):
+        if self._irq is None:  # late callback after close()
+            self._irq_live = False
+            return
         t = self._irq.contents
         self._irq_live = False
         if t.status == 0:  # LIBUSB_TRANSFER_COMPLETED
@@ -278,13 +281,20 @@ class UsbTransport:
             self._buf = ctypes.create_string_buffer(size)
         got = ctypes.c_int()
         r = self.lib.libusb_bulk_transfer(self.h, self.ep_in, self._buf, size, ctypes.byref(got), timeout)
-        if r != 0:
+        if r != 0 and not (r == -7 and got.value > 0):  # a timeout after some bytes: keep them
             raise PtpError("USB read failed (%d)" % r, code=r)
         return ctypes.string_at(self._buf, got.value)
 
     def read_event(self, timeout=10):
         """Next event (code, params) or None after `timeout` ms."""
-        if not self._events and self._irq is not None:
+        self.poll_events(timeout)
+        return self._events.pop(0) if self._events else None
+
+    def poll_events(self, timeout=10):
+        """Collect pending events into the queue (without taking one)."""
+        if self._irq is not None and not self._irq_live and self.h:
+            self._submit_irq()  # after a transfer error: listen again
+        if not self._events and self._irq is not None and self._irq_live:
             end = time.monotonic() + timeout / 1000.0
             while not self._events:
                 left = int((end - time.monotonic()) * 1000)
@@ -298,7 +308,6 @@ class UsbTransport:
                 ev = parse_event(b.raw[:got.value])
                 if ev:
                     self._events.append(ev)
-        return self._events.pop(0) if self._events else None
 
     def close(self):
         if self._irq is not None:
@@ -310,12 +319,14 @@ class UsbTransport:
                     self._pump(50)
             if not self._irq_live:  # never free a transfer libusb still owns
                 self.lib.libusb_free_transfer(self._irq)
+            if self._irq_live:
+                self._leaked = True  # libusb still owns the transfer: do not tear libusb down under it
             self._irq, self.h = None, h
         if self.h:
             self.lib.libusb_release_interface(self.h, 0)
             self.lib.libusb_close(self.h)
             self.h = None
-        if self.ctx.value:
+        if self.ctx.value and not getattr(self, "_leaked", False):
             self.lib.libusb_exit(self.ctx)
             self.ctx = ctypes.c_void_p()
 
@@ -327,7 +338,6 @@ class PtpCamera:
     def __init__(self, transport):
         self.t = transport
         self.tid = 0
-        self.events = []  # events read while waiting for an answer (see transact)
 
     def transact(self, code, params=(), data=None, want_data=False, timeout=5000):
         """Returns (data or None, response params). Raises PtpError on a response other than OK."""
@@ -346,9 +356,7 @@ class PtpCamera:
             except PtpError as e:
                 if e.code != -7 or time.monotonic() > deadline:  # -7 = LIBUSB_ERROR_TIMEOUT
                     raise
-                ev = self.t.read_event(10)
-                if ev:
-                    self.events.append(ev)
+                self.t.poll_events(10)  # without the async transfer: take the event the camera may wait on
                 continue
             if len(pkt) < 12:
                 continue
@@ -462,6 +470,4 @@ class PtpCamera:
         self.transact(OP_SHUTTER, (step,))
 
     def event(self, timeout=10):
-        if self.events:
-            return self.events.pop(0)
         return self.t.read_event(timeout)

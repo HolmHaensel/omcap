@@ -5,6 +5,14 @@
 - Docs: README notes that USB works on Linux over libgphoto2 (not tested yet: camera mounting by the desktop, udev access); libgphoto2 stays the USB backend there.
 - USB: shutter speeds that libgphoto2 lists as fractions (3.2 s = 32/10, 1/1.3 s = 10/13 …) are offered and named like on the camera; ISO AUTO/LOW are named by value, not by position; the read-only flag of each setting comes from the camera; the aperture list is limited by the lens limits the camera reports (d07f/d080) (REQ-F10, from the maintainer's gphoto2 dump).
 
+### USB backend and performance
+- New USB backend on the app's own PTP layer (`omcap/ptp.py`, ctypes/libusb) with a gphoto2-compatible shim (`omcap/ptp_gphoto.py`), so the USB session logic is unchanged. Option `--usb-backend auto|ptp|gphoto2`: `auto` (default on macOS) uses the PTP layer and falls back to libgphoto2 when it cannot connect; elsewhere the default stays libgphoto2 (Linux). `/api/status` reports `usb_backend` (REQ-F28, camera-tested on macOS 2026-11-13).
+- Card index by file handle with a disk cache (`out/cache/ptp_index.json`); a spot check of the oldest and newest file detects another card. Measured with about 2950 files: first connect without cache 44.8 s, later connects 6.9–9.1 s (libgphoto2: about 9 s plus 51–72 s index in the background). Card list 0.1 s.
+- Live view with the PTP backend: 1024×768 at 26.4 fps (libgphoto2 14–20.6 fps), 1280×960 at 15.0 fps. 1280×960 no longer needs the self-built libgphoto2 (REQ-F36).
+- Focus by tap: 0.4–0.6 s (libgphoto2 1.3–1.5 s). Take picture: 4.5 s in total, files in the card list at once (JPG and ORF) after 2.8 s.
+- Idle event check costs 10 ms instead of about 0.3 s: on macOS short synchronous interrupt reads deliver no events, so the PTP layer keeps one asynchronous read submitted.
+- Not tested yet with the PTP backend: mode dial follow (REQ-F30), BULB, LIVE TIME and LIVECOMP, interval and bracketing, partial reads, Linux.
+
 ### Shooting and focus
 - M mode quick select: BULB, LIVE TIME, LIVECOMP and Off (back to the last shutter speed) in the shooting options, for Wi-Fi and USB; tested on both 2026-11-13. USB: LIVE TIME is recognised when libgphoto2 reports it as a raw fraction (65535/65533); Off falls back to 1/60 s when no earlier speed is known (REQ-F31).
 - Wi-Fi Take picture uses `exec_takemotion com=starttake` with the tapped AF point in shooting mode instead of switching to shutter mode. It focuses on the tapped point, live view keeps running, and the shot takes 1.2–1.5 s instead of about 7 s (camera-tested). Long exposures (slower than 1/4 s), BULB, LIVE TIME, LIVECOMP, self-timer and Movie keep the shutter-button route; no second shot after a timeout (REQ-F34).
@@ -15,10 +23,9 @@
 - USB LV super control panel: AF mode, Metering mode, Flash mode, Record mode, Aspect ratio, Image stabilizer and Face priority, with values mapped on the camera (`out/research/usb_value_mapping.md`). Only in P/A/S/M as on the camera (manual p.24). Reading tested; setting not tested. Not over Wi-Fi: no command (REQ-F10, branch `usb-foundation`).
 
 ### Live view and USB
-- USB live view size can be chosen (up to 1280×960) when libgphoto2 keeps the size, i.e. development version 2.5.34.1 or later. With 2.5.34 the size stays 1024×768 and the choice is hidden. Tested 1280×960 at 13.8 fps (REQ-F36).
+- USB live view size can be chosen (up to 1280×960) with the PTP backend (macOS default) or with libgphoto2 2.5.34.1 or later. With libgphoto2 2.5.34 the size stays 1024×768 and the choice is hidden. Tested 1280×960 at 13.8 fps with libgphoto2 and 15.0 fps with the PTP backend (REQ-F36).
 - USB live view stall after connecting fixed: the pause counter is thread-safe. The mode dial check runs every 3 s and ignores the event the camera sends when live view starts. Measured 14.3 fps and 17.8 fps at 1024×768, Take picture 4.7–5.3 s, picture shown 0.35 s later.
 - Research endpoint `/api/usbprops` reads single USB properties and their choices (for the value mapping, REQ-F10).
-- Own PTP layer `omcap/ptp.py` (ctypes/libusb), not used by the app yet. Read-only camera test passed 2026-11-13: open 0.31 s, 2936 handles 0.013 s, object info ~10 ms, thumbnail 12 ms, 64 KB partial read 8 ms (REQ-F28).
 
 ### Playback and files
 - Open in OM Workspace in the single-frame view (macOS, only when OM Workspace is installed): saves the missing files of the shot to the computer first (ORF when only the JPG was saved), then opens it. USB tested 2026-11-13; Wi-Fi untested (REQ-F17).
@@ -31,12 +38,12 @@
 
 ### Quality and docs
 - CI on GitHub: offline tests on every push to `main` and `release-*` and on pull requests (Ubuntu with Python 3.9 and 3.12, macOS with 3.12) (REQ-Q08).
-- 141 offline tests pass on `usb-ptp` (2026-11-13).
+- 161 offline tests pass on `usb-ptp` (2026-11-13).
 - README: "Stop" section, feature table and parity rows.
 
 ### Known issues
 - Wi-Fi drops out on the Mac (it leaves the camera network). Once, an app started from the launcher got "No route to host" while the shell reached the camera (macOS Local Network permission suspected).
-- USB: live view pauses up to ~70 s after connecting while the card list is read. The PTP card index should fix this.
+- USB with the libgphoto2 backend (fallback, Linux): live view pauses up to ~70 s after connecting while the card list is read. The PTP backend reads the card index in about 38 s once, then 7–9 s per connect.
 - USB, All Targets + Halfway: the green AF field may not match where the camera focused.
 - A lens change is only noticed with the next photo (USB and Wi-Fi).
 

@@ -11,7 +11,8 @@ other properties as "dXXX" with the decimal value; opcode "0x9481,0x3" runs an o
 What is faster than libgphoto2 (measured 2026-11-13, out/research/usb_performance.md):
 - card index: all object handles in one call (0.01 s); object infos are kept on disk by handle, so only new
   files are asked for after the first connect (libgphoto2 reads all 2900 files at every connect, 51-72 s);
-- event check: one interrupt read (10 ms) instead of ~0.3 s;
+- event check: one asynchronous interrupt transfer stays submitted (omcap/ptp.py), an idle check costs ~10 ms
+  instead of ~0.3 s;
 - live view size: any size the camera offers, also with libgphoto2 2.5.34 installed.
 """
 import json
@@ -31,7 +32,6 @@ GP_ERROR, GP_ERROR_NOT_SUPPORTED, GP_ERROR_IO = -1, -6, -7
 EV_OBJECT_ADDED = (0x4002, 0xC002, 0xC102)  # standard and Olympus OM-D "object added"
 EV_PROP_CHANGED = (0xC008, 0xC108)
 FOLDER_FORMAT = 0x3001
-LV_SIZES = ("320x240", "640x480", "800x600", "1024x768", "1280x960")
 INDEX_VERSION = 1
 
 
@@ -48,7 +48,7 @@ def _wrap(fn):
             return fn(*args, **kwargs)
         except ptp.PtpError as e:
             raise GPhoto2Error("PTP: %s" % e, GP_ERROR_IO)
-        except (struct.error, IndexError, KeyError) as e:
+        except (struct.error, IndexError, KeyError, ValueError, TypeError) as e:
             raise GPhoto2Error("PTP: unexpected answer (%s)" % e)
     call.__name__ = fn.__name__
     return call
@@ -173,8 +173,8 @@ class CardIndex:
     """Object handle -> (storage, parent, name, size, mtime, folder), kept on disk between sessions.
 
     The E-M1 keeps the handles of a card across sessions. A cached entry is trusted only after a spot check:
-    the newest and the oldest cached handle must still have the same name, otherwise the cache is dropped
-    (other card, or the card was formatted)."""
+    the oldest and the three newest cached files must still have the same name, size and date, otherwise the
+    cache is dropped (other card, or the card was formatted)."""
 
     def __init__(self, cache_path=None):
         self.cache_path = cache_path
@@ -219,9 +219,9 @@ class CardIndex:
         """Read the handles of all storages and the infos of handles not in the cache."""
         handles = cam.handles()
         cached = self._read_cache()
-        known = [h for h in handles if h in cached]
-        for h in (known[:1] + known[-1:]) if known else []:
-            if cam.object_info(h)["name"] != cached[h][2]:
+        files = [h for h in handles if h in cached and not cached[h][5]]
+        for h in dict.fromkeys(files[:1] + files[-3:]):
+            if self.entry(cam.object_info(h)) != cached[h]:
                 cached = {}
                 break
         objects = {}
@@ -233,9 +233,10 @@ class CardIndex:
             self.save()
 
     def add(self, cam, handle):
+        # not saved: at the "object added" event the camera may still be writing the file (size and date
+        # changed later, measured 2026-11-13), and a wrong entry would fail the spot check at the next connect
         v = self.objects[handle] = self.entry(cam.object_info(handle))
         self._by_name[(v[0], v[1], v[2])] = handle
-        self.save()
         return self.objects[handle]
 
     # paths like libgphoto2: /store_00010001/DCIM/100OLYMP/P1010001.JPG
@@ -346,10 +347,11 @@ class Camera:
         desc = cam.prop_desc(code)
         dtype = desc["type"]
         values = desc.get("enum", [])
-        if name == "liveviewsize" and not values:
-            choices = list(LV_SIZES)
-        else:
-            choices = [text(v, dtype) for v in values]
+        if name == "liveviewsize":
+            values = [v for v in values if v]  # 0 = no live view (the E-M1 lists it first)
+            if not values:
+                raise GPhoto2Error("no live view sizes offered", GP_ERROR_NOT_SUPPORTED)
+        choices = [text(v, dtype) for v in values]
         rng = desc.get("range")
         if rng and wtype == GP_WIDGET_MENU:
             wtype = GP_WIDGET_RANGE
@@ -380,9 +382,6 @@ class Camera:
         dtype = desc["type"]
         # the raw value whose text is the wanted one (as libgphoto2 does); else a number for dXXX
         raw = next((v for v in desc.get("enum", []) if text(v, dtype) == value), None)
-        if raw is None and name == "liveviewsize":
-            w, h = (int(v) for v in value.split("x"))
-            raw = w << 16 | h
         if raw is None:
             if name in NAMED:
                 raise GPhoto2Error("value not offered: %s=%s" % (name, value), GP_ERROR_NOT_SUPPORTED)
