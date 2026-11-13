@@ -2200,7 +2200,7 @@ $('#lastShot').onclick=()=>{
 let lvGen=0;
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 function startLiveLoop(){
-  const g=++lvGen; let seq=0, shown=null;
+  const g=++lvGen; let seq=0;
   (async()=>{
     while(g===lvGen){
       try{
@@ -2210,7 +2210,7 @@ function startLiveLoop(){
         const url=URL.createObjectURL(await r.blob()), next=new Image(); next.src=url;
         try{await next.decode()}catch{URL.revokeObjectURL(url);continue} // bad frame: skip it
         if(g!==lvGen){URL.revokeObjectURL(url);break}
-        $('#live').src=url; if(shown) URL.revokeObjectURL(shown); shown=url;
+        const old=$('#live').src; $('#live').src=url; if(old.startsWith('blob:')) URL.revokeObjectURL(old); // also the last one of an earlier loop
       }catch{await sleep(1000)} // server restarting or gone
     }
   })();

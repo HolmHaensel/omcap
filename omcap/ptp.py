@@ -459,6 +459,7 @@ class PtpCamera:
         a size chosen in the app stays. Checked once per session."""
         if getattr(self, "_lv_checked", False):
             return
+        # writes only after the app checked the write permission (UsbCamera.start_liveview starts the loop)
         desc = self.prop_desc(DPC_LV_SIZE)
         if not desc["value"]:
             self.set_prop(DPC_LV_SIZE, LV_SIZE_DEFAULT, desc["type"])

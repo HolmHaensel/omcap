@@ -32,11 +32,13 @@ Contributions, tests with other bodies and ideas are very welcome.
 | USB backend (`--usb-backend`) | – | yes: `auto` (default on macOS) uses the app's own PTP layer and falls back to libgphoto2 (tested on macOS); Linux: libgphoto2, not tested |
 | Tap the 9×9 AF grid to focus, AF target shown in green | yes | yes |
 | AF Area (All Targets, Single Target, Small Target, Group Target) | – (no command over Wi-Fi) | yes |
-| Focus Stacking On/Off (8 frames merged in the camera; P/A/S/M) | – (no command over Wi-Fi) | yes (tested 2026-11-13) |
+| Focus Stacking On/Off (8 frames, 16 files with JPG+ORF, merged in the camera; P/A/S/M) | – (no command over Wi-Fi) | yes (tested 2026-11-13) |
 | Focus ring (MF): Near/Far in three step sizes, AF mode MF or S-AF+MF | – (no command over Wi-Fi) | yes (tested 2026-11-13) |
 | Shutter button: Take picture, Press halfway (hold focus, then take picture) | yes (Take picture focuses on the tapped AF point and takes 1.2–1.5 s; long exposures and Movie use the shutter button route) | yes (Take picture focuses on the tapped AF field) |
+| Shutter blackout: short black frame over the live view on Take picture | yes | yes |
+| "In focus" / "No focus" chip after AF (with S-AF the camera only releases in focus) | yes (after a tap) | yes (after a tap, Halfway and Take picture) |
 | Self-timer (Off, 2 s, 12 s; the button becomes Cancel self-timer while it runs) | yes | yes |
-| New picture in the last-shot corner and Index display right after Take picture | yes (8.4 s after the click, of which 7.2 s is the camera's shot) | yes (5–6 s after the click; the camera reports new files) |
+| New picture in the last-shot corner (fades out after 6 s) and Index display right after Take picture | yes (8.4 s after the click, of which 7.2 s is the camera's shot) | yes (5–6 s after the click; the camera reports new files) |
 | LV super control panel: Shooting mode, shutter speed, aperture, exposure compensation, ISO, WB, drive, Picture Mode, Art filter | yes | most (mode dial only) |
 | Shooting mode follows the mode dial, values reload by themselves (during live view) | not needed (the app sets the mode) | yes, tested: P, A, S, M, Movie read correctly; iAUTO, ART, SCN, PHOTO STORY show as P; after a shot iAUTO is shown from the picture's EXIF |
 | M mode quick select: BULB, LIVE TIME, LIVECOMP, Off | yes (tested 2026-11-13) | yes (tested 2026-11-13) |
@@ -68,10 +70,9 @@ Contributions, tests with other bodies and ideas are very welcome.
 USB the tilt is only updated when the session starts), changing AF Area over Wi-Fi and the shooting mode
 over USB (the camera offers no command for it).
 
-**Planned (next releases):** Mac app with a menu bar icon, Windows over Wi-Fi, movie and focus stacking over USB (0.7), Star AF focus aid (star
-sharpness while you turn the focus ring), subject detection in live view on the computer (face/eye,
+**Planned (next releases):** Mac app with a menu bar icon, Windows over Wi-Fi, movie settings and Focus BKT over USB (0.7), subject detection in live view on the computer (face/eye,
 later animals and birds; the E-M1 itself sends no face frames) with "Focus on subject", film looks and
-a look lab on the computer. Ideas and wishes are welcome in [Discussions](https://github.com/HolmHaensel/omcap/discussions).
+a look lab on the computer, later a Star AF focus aid (star sharpness while you turn the focus ring). Ideas and wishes are welcome in [Discussions](https://github.com/HolmHaensel/omcap/discussions).
 
 The interface is in English; all texts are in one translation table (`I18N` in
 `omcap/web/index.html`), so more languages can be added.

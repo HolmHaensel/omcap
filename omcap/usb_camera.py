@@ -70,6 +70,9 @@ DIAL_EVENT = re.compile(r"c003, Param1 0*3\b", re.I)
 FOCUS_EVENT = re.compile(r"c003, Param1 0*([12])\b(?:, Param2 ([0-9a-f]{8}))?", re.I)
 
 
+AF_SINGLE = 2  # d003 value of S-AF
+
+
 def parse_af_result(text):
     """(in focus, position or None) from a c003 AF event text, None if it is no AF result."""
     m = FOCUS_EVENT.search(text or "")
@@ -309,6 +312,7 @@ class UsbCamera:
     shooting = False
     _take_t0 = None  # start of a running long exposure (BULB, LIVE TIME, LIVECOMP)
     last_press = 0.0  # time of the last shutter command or written setting (see __init__)
+    saf_shot = False  # S-AF during the running shot: no focus means no release
 
     # setting named as over Wi-Fi -> gphoto name, display names from the choice values
     PROPS = {
@@ -959,9 +963,10 @@ class UsbCamera:
                 return True
             if self._new_files and kind == self.gp.GP_EVENT_TIMEOUT and stop == "quiet":
                 return True
-            if stop == "quiet" and not self._new_files and kind == self.gp.GP_EVENT_UNKNOWN \
+            if stop == "quiet" and self.saf_shot and not self._new_files and kind == self.gp.GP_EVENT_UNKNOWN \
                     and parse_af_result(str(data)) == (False, None):
-                # no focus: with S-AF the camera does not release; wait briefly in case Release Priority is on
+                # no focus in S-AF: the camera does not release (Release Priority S is off by default); C-AF
+                # releases anyway by default, so only S-AF stops early
                 self.af_failed = True
                 end = min(end, time.monotonic() + 1.0)
         return False
@@ -1071,6 +1076,7 @@ class UsbCamera:
                 pass
             marks.append(("paused", time.monotonic() - t0))
             stacking = self._stacking_on()  # read before the release: the camera is busy afterwards
+            self.saf_shot = int(float(self._value("d003"))) == AF_SINGLE
             self._shutter(OP_FULL)
             self._shutter(OP_RELEASE)
             marks.append(("released", time.monotonic() - t0))
