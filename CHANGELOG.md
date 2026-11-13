@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Single-frame view: "Open in OM Workspace" (only when OM Workspace is installed); saves the shot to the computer first if needed and opens the ORF, otherwise the JPG (REQ-F17).
 - Playback: the thumbnails in the Playback section open the single-frame view (click or Enter), like the tiles in Index display; Playback and the single-frame view now lie above the shutter bar in narrow windows (REQ-F27).
 - USB live view size can be chosen like over Wi-Fi (up to 1280×960) when libgphoto2 keeps the size (development version 2.5.34.1 or later; with 2.5.34 it stays 1024×768 and the choice is hidden). Measured 1280×960 at 13.8 fps (REQ-F36).
 - CI on GitHub: offline tests on every push to `main`/`release-*` and on pull requests (Ubuntu with Python 3.9 and 3.12, macOS with 3.12) (REQ-Q08).

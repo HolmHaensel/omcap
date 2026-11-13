@@ -130,5 +130,18 @@ class LiveStartRetry(unittest.TestCase):
             self.run_start(9)
 
 
+
+class OmWorkspace(unittest.TestCase):
+    def test_detects_app_folder(self):
+        old = server.os.path.isdir
+        try:
+            server.os.path.isdir = lambda p: p == "/Applications/OM Workspace.app"
+            self.assertTrue(server.om_workspace_installed())
+            server.os.path.isdir = lambda p: False
+            self.assertFalse(server.om_workspace_installed())
+        finally:
+            server.os.path.isdir = old
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -677,6 +677,12 @@ def hsl_auto_run(dest):
     threading.Thread(target=run, daemon=True).start()
 
 
+def om_workspace_installed():
+    """OM Workspace (OM System's free raw developer) on this Mac, for "Open in OM Workspace"."""
+    return any(os.path.isdir(os.path.join(d, "OM Workspace.app"))
+               for d in ("/Applications", os.path.expanduser("~/Applications")))
+
+
 def capture_path(name):
     p = os.path.join(captures_dir(), os.path.basename(name))
     if not os.path.isfile(p):
@@ -939,6 +945,7 @@ class Handler(BaseHTTPRequestHandler):
                     "type": conn_type, "features": cam.features,
                     "model": cam.caminfo(), "host": cam.host,
                     "cgis": sorted(cam.commandlist()), "allow_write": cam.allow_write,
+                    "om_workspace": om_workspace_installed(),
                 })
             if u.path == "/api/level":
                 if conn_type != "usb":

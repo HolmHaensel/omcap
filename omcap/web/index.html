@@ -530,7 +530,7 @@ body.webcam{cursor:none;display:flex;align-items:center;justify-content:center}
     <span class="sp"></span>
     <button id="vInfoBtn" data-i18n-title="info.title"></button>
     <button id="vFit" data-i18n="view.fit">Fit</button>
-    <button id="vGet" data-i18n="card.saveToMac">Save to computer</button><button id="vHsl" data-i18n="hsl.btn">HSL</button><button id="vOvl" data-i18n="card.overlay">Overlay</button><button id="vClose" data-i18n="card.close">Close</button>
+    <button id="vGet" data-i18n="card.saveToMac">Save to computer</button><button id="vHsl" data-i18n="hsl.btn">HSL</button><button id="vWs" hidden data-i18n="view.ws">Open in OM Workspace</button><button id="vOvl" data-i18n="card.overlay">Overlay</button><button id="vClose" data-i18n="card.close">Close</button>
   </div>
   <div id="vBody">
     <div id="vImgBox"><img id="vImg" alt=""><div id="vStrip" hidden></div></div>
@@ -852,6 +852,7 @@ const I18N={en:{
   "local.none": "No files yet.",
   "local.view": "View",
   "local.ws": "OM Workspace",
+  "view.ws": "Open in OM Workspace",
   "hsl.btn": "HSL",
   "hsl.title": "HSL colour profile",
   "hsl.apply": "Apply",
@@ -1707,6 +1708,18 @@ $('#hslAuto').onchange=hslAutoSend; $('#hslAutoPreset').onchange=hslAutoSend;
 (async()=>{let o={};try{o=JSON.parse(localStorage.getItem('omcap.hslAuto'))||{}}catch{}
   try{await hslPresets()}catch{return}
   if(o.preset)$('#hslAutoPreset').value=o.preset; if(o.enabled){$('#hslAuto').checked=true;hslAutoSend()}})();
+/* Open in OM Workspace (REQ-F17): saves the shot to the computer first if needed; ORF before JPG */
+$('#vWs').onclick=async()=>{
+  const s=vList[vIdx], info=t=>{$('#vInfo').textContent=t};
+  try{
+    let files=[]; try{files=await api('/api/local')}catch{}
+    const have=new Set(files.map(f=>f.name)), loc=f=>f.local||f.name;
+    if(!(s.files||[]).some(f=>have.has(loc(f)))) await downloadShot(s,info);
+    const pick=(s.files||[]).find(f=>/\.orf$/i.test(loc(f)))||(s.files||[]).find(f=>/\.jpe?g$/i.test(loc(f)));
+    if(!pick) return;
+    await api('/api/open',{name:loc(pick)}); info(tr('msg.openedWs'));
+  }catch(e){info(e.message)}
+};
 $('#vOvl').onclick=()=>{overlay(bigUrl(vList[vIdx]));closeViewer();closeGal()};
 document.addEventListener('keydown',e=>{
   if($('#layoutDlg').open) return;
@@ -2253,6 +2266,7 @@ async function enterApp(){
   try{
     const s=await api('/api/status');
     canWrite=s.allow_write;
+    $('#vWs').hidden=!s.om_workspace; // only when OM Workspace is installed on this computer
     features=new Set(s.features); isUsb=s.type==='usb';
     applyFeatures();
     statusBase={model:s.model,conn:s.type==='usb'?'USB':'Wi-Fi',rights:canWrite?tr('app.write'):tr('app.readOnly')};
