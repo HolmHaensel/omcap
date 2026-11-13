@@ -32,6 +32,7 @@ Contributions, tests with other bodies and ideas are very welcome.
 | USB backend (`--usb-backend`) | – | yes: `auto` (default on macOS) uses the app's own PTP layer and falls back to libgphoto2 (tested on macOS); Linux: libgphoto2, not tested |
 | Tap the 9×9 AF grid to focus, AF target shown in green | yes | yes |
 | AF Area (All Targets, Single Target, Small Target, Group Target) | – (no command over Wi-Fi) | yes |
+| Focus Stacking On/Off (8 frames merged in the camera; P/A/S/M) | – (no command over Wi-Fi) | yes (tested 2026-11-13) |
 | Focus ring (MF): Near/Far in three step sizes, AF mode MF or S-AF+MF | – (no command over Wi-Fi) | yes (tested 2026-11-13) |
 | Shutter button: Take picture, Press halfway (hold focus, then take picture) | yes (Take picture focuses on the tapped AF point and takes 1.2–1.5 s; long exposures and Movie use the shutter button route) | yes (Take picture focuses on the tapped AF field) |
 | Self-timer (Off, 2 s, 12 s; the button becomes Cancel self-timer while it runs) | yes | yes |
