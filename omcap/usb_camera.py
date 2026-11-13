@@ -845,7 +845,8 @@ class UsbCamera:
                     self._read_focus_position()
             finally:
                 self._shutter(OP_RELEASE)
-            self._events(0.2)
+            # no extra event wait here: each idle libgphoto2 event check costs ~0.3 s (150 ms timeout
+            # plus one retry); the next check (dial watch or next focus) collects what is left
         finally:
             self._hold_add(-1)
         return self.focus_ok
