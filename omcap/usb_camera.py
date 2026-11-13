@@ -178,7 +178,12 @@ USB_TABLES = {
     "d01d": {"0": "S-IS Off", "1": "S-IS1", "2": "S-IS2", "3": "S-IS3", "4": "S-IS AUTO"},
     "d01a": {"0": "Face Priority Off", "32769": "Face Priority On", "32770": "Face & Eye Priority On",
              "32771": "Face & R. Eye Priority On", "32772": "Face & L. Eye Priority On"},  # 32771 inferred
+    "d0cb": {"1": "On", "2": "Off"},  # Focus Stacking (FW 4.x, mapped 2026-11-13; libgphoto2's d065 does not change)
 }
+# Bracketing kind d020: 2 = Off, 3 = Focus BKT (mapped 2026-11-13). Focus Stacking needs Focus BKT; the camera then
+# switches by itself to Silent Sequential H, electronic shutter (1/16000 … 1/8 s) and flash off (E-M1 manual, p.174).
+BKT_OFF, BKT_FOCUS = 2, 3
+STACK_WAIT = 16.0  # 8 frames in ~3.5 s, the merged JPG ~13.6 s after the release (measured 2026-11-13)
 
 
 def _table_names(code):
@@ -302,6 +307,7 @@ class UsbCamera:
         "aspect": ("d01b", _aspect_names),
         "stabilizer": ("d01d", _table_names("d01d")),
         "facepriority": ("d01a", _table_names("d01a")),
+        "focusstacking": ("d0cb", _table_names("d0cb")),
     }
 
     def __init__(self, allow_write=False, backend="gphoto2"):
@@ -763,10 +769,32 @@ class UsbCamera:
     def set_prop(self, prop, value):
         if prop not in self.PROPS:
             raise CameraError("Not available over USB: %s" % prop)
-        if prop == "shutspeedvalue" and value in LONG_EXPOSURE:
+        if prop == "focusstacking":
+            self._set_focus_stacking(str(value) == "1")
+        elif prop == "shutspeedvalue" and value in LONG_EXPOSURE:
             self._set("d01c", LONG_EXPOSURE[value])
         else:
             self._set(self.PROPS[prop][0], value)
+
+    def _set_focus_stacking(self, on):
+        """Focus Stacking on or off; also sets the bracketing kind (Focus BKT) and keeps the earlier one."""
+        self._need_write()
+        if on:
+            kind = int(float(self._value("d020")))
+            if kind != BKT_FOCUS:
+                self._bkt_before = kind
+            self._set("d020", BKT_FOCUS)
+            self._set("d0cb", 1)
+        else:
+            self._set("d0cb", 2)
+            self._set("d020", getattr(self, "_bkt_before", BKT_OFF))
+        self.refresh()  # drive mode, shutter limits and flash change with it; they arrive with a new session
+
+    def _stacking_on(self):
+        try:
+            return str(self._value("d0cb")) == "1"
+        except CameraError:
+            return False
 
     def set_af_area(self, mode=None, field=None):
         if mode is not None:
@@ -991,7 +1019,10 @@ class UsbCamera:
             self._shutter(OP_FULL)
             self._shutter(OP_RELEASE)
             marks.append(("released", time.monotonic() - t0))
+            stacking = self._stacking_on()
             self._events(SHOT_TIMEOUT, "quiet")
+            if stacking:  # 16 frames come first, the merged picture last
+                self._events(max(0.0, STACK_WAIT - (time.monotonic() - t0)))
             marks.append(("files", time.monotonic() - t0))
             if self._new_files:
                 self._events(1.5)  # the second format (ORF or JPG) follows shortly after

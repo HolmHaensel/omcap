@@ -288,6 +288,21 @@ class MovieServer(unittest.TestCase):
         cam.movie_stop.assert_not_called()
 
 
+class FocusStacking(unittest.TestCase):
+    def test_on_sets_focus_bkt_and_off_restores_kind(self):
+        cam = usb_camera.UsbCamera.__new__(usb_camera.UsbCamera)
+        fake = FakePtp()
+        fake.props[0xD020] = {"type": 2, "writable": True, "value": 1, "enum": [2, 1, 3, 0]}
+        fake.props[0xD0CB] = {"type": 2, "writable": True, "value": 2, "enum": [2, 1]}
+        cam.gp, cam._c, cam._lock, cam.allow_write = pg, camera(fake), threading.Lock(), True
+        cam.refresh = mock.Mock()
+        cam.set_prop("focusstacking", "1")
+        self.assertEqual((fake.props[0xD020]["value"], fake.props[0xD0CB]["value"]), (3, 1))
+        cam.set_prop("focusstacking", "2")
+        self.assertEqual((fake.props[0xD020]["value"], fake.props[0xD0CB]["value"]), (1, 2))  # earlier kind back
+        self.assertEqual(cam.refresh.call_count, 2)
+
+
 class Backend(unittest.TestCase):
     def test_auto_falls_back_to_libgphoto2(self):
         with mock.patch.object(usb_camera.UsbCamera, "_open") as op, \

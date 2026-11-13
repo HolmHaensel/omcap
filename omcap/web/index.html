@@ -797,6 +797,7 @@ const I18N={en:{
   "prop.aspect": "Aspect ratio",
   "prop.stabilizer": "Image stabilizer",
   "prop.facepriority": "Face priority",
+  "prop.focusstacking": "Focus Stacking",
   "prop.colortone": "Picture Mode",
   "prop.artfilter": "Art filter",
   "prop.colorphase": "Partial Color",
@@ -1044,6 +1045,8 @@ const FEATURES={
   flashmode:{show:inMode('P','A','S','M')}, recordmode:{show:inMode('P','A','S','M')},
   aspect:{show:inMode('P','A','S','M')}, stabilizer:{show:inMode('P','A','S','M')},
   facepriority:{show:inMode('P','A','S','M')},
+  // Focus Stacking (USB d0cb, FW 4.x): Bracketing is only in P/A/S/M (manual p.82, 174)
+  focusstacking:{show:inMode('P','A','S','M')},
   colorphase:{show:p=>p.takemode.value==='ART'?p.artfilter.value==='partcolor':['P','A','S','M'].includes(p.takemode.value)&&p.colortone.value==='partcolor'},
 };
 let lastProps=null,propsFailed=false;
