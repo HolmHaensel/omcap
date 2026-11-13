@@ -1714,7 +1714,9 @@ $('#vWs').onclick=async()=>{
   try{
     let files=[]; try{files=await api('/api/local')}catch{}
     const have=new Set(files.map(f=>f.name)), loc=f=>f.local||f.name;
-    if(!(s.files||[]).some(f=>have.has(loc(f)))) await downloadShot(s,info);
+    for(const f of (s.files||[]).filter(f=>!have.has(loc(f)))){ // only what is missing (saving never overwrites)
+      info(tr('card.loading',{name:f.name})); f.local=(await api('/api/download',{path:f.path,size:f.size})).name}
+    local();
     const pick=(s.files||[]).find(f=>/\.orf$/i.test(loc(f)))||(s.files||[]).find(f=>/\.jpe?g$/i.test(loc(f)));
     if(!pick) return;
     await api('/api/open',{name:loc(pick)}); info(tr('msg.openedWs'));
