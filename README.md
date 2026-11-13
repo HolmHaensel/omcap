@@ -24,6 +24,15 @@ Maybe OM System finds an idea or two here for their future cameras.
 
 Contributions, tests with other bodies and ideas are very welcome.
 
+### Other cameras: PEN-F
+
+E-M1 Capture is built and tested on the E-M1 Mark I, but it can bring other Olympus bodies of the
+same generation back to life too. A user reports running it successfully with an **Olympus PEN-F**,
+and with a PEN-F colour emulation (PEN-F style COLOR profiles; see also the app's own
+[HSL color profiles](#hsl-color-profiles-software)). These setups are tested by users, not by the
+maintainer: functions and terms follow the E-M1 manual, and some controls may differ on the PEN-F.
+Please report what works on your body in [Discussions](https://github.com/HolmHaensel/omcap/discussions).
+
 ## Features
 
 | Feature | Wi-Fi | USB |
