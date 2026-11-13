@@ -372,6 +372,25 @@ class UsbCamera:
     def _value(self, name):
         return self._call(lambda: self._c.get_single_config(name).get_value())
 
+    def read_props(self, codes):
+        """Research: value and choices of single properties ("d003"), one by one.
+
+        Never reads the whole group "other" (empty values crash libgphoto2)."""
+        out = {}
+        for code in codes:
+            if not re.fullmatch(r"d[0-9a-f]{3}", code):
+                continue
+            def read(c=code):
+                w = self._c.get_single_config(c)
+                choices = [w.get_choice(i) for i in range(w.count_choices())] \
+                    if w.get_type() in (self.gp.GP_WIDGET_MENU, self.gp.GP_WIDGET_RADIO) else None
+                return {"value": w.get_value(), "choices": choices}
+            try:
+                out[code] = self._call(read)
+            except CameraError as e:
+                out[code] = {"error": str(e)}
+        return out
+
     def _has_widget(self, name):
         try:
             self._call(lambda: self._c.get_single_config(name))
