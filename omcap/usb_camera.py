@@ -183,7 +183,7 @@ USB_TABLES = {
 # Bracketing kind d020: 2 = Off, 3 = Focus BKT (mapped 2026-11-13). Focus Stacking needs Focus BKT; the camera then
 # switches by itself to Silent Sequential H, electronic shutter (1/16000 … 1/8 s) and flash off (E-M1 manual, p.174).
 BKT_OFF, BKT_FOCUS = 2, 3
-STACK_WAIT = 16.0  # 8 frames in ~3.5 s, the merged JPG ~13.6 s after the release (measured 2026-11-13)
+STACK_WAIT = 16.0  # 8 frames (16 files with JPG+ORF) in ~3.5 s, the merged JPG ~13.6 s after the release (2026-11-13)
 
 
 def _table_names(code):
@@ -310,6 +310,7 @@ class UsbCamera:
         "facepriority": ("d01a", _table_names("d01a")),
         "focusstacking": ("d0cb", _table_names("d0cb")),
     }
+    OPTIONAL = {"focusstacking"}  # not on every body / firmware
 
     def __init__(self, allow_write=False, backend="gphoto2"):
         """backend: "ptp" (own PTP layer, omcap/ptp_gphoto.py), "gphoto2" (libgphoto2) or "auto"
@@ -545,7 +546,12 @@ class UsbCamera:
             def read():
                 w = self._c.get_single_config(name)
                 return w.get_value(), list(w.get_choices()), not w.get_readonly()
-            value, choices, writable = self._call(read)
+            try:
+                value, choices, writable = self._call(read)
+            except CameraError:
+                if key in self.OPTIONAL:
+                    continue  # e.g. firmware without Focus Stacking: hide the setting, keep the panel
+                raise
             if key == "artfilter":  # d010 also holds the kind of filter (from 34305)
                 choices = [c for c in choices if int(c) >= 34305]
             if key == "shutspeedvalue":  # M only: BULB, LIVE TIME, LIVECOMP are in d01c
@@ -784,14 +790,21 @@ class UsbCamera:
         """Focus Stacking on or off; also sets the bracketing kind (Focus BKT) and keeps the earlier one."""
         self._need_write()
         if on:
+            if LONG_LABELS.get(self._value("shutterspeed")):  # the camera stacks with the electronic shutter only
+                raise CameraError("Focus Stacking: choose a normal shutter speed first (not BULB, LIVE TIME, LIVECOMP)")
             kind = int(float(self._value("d020")))
             if kind != BKT_FOCUS:
-                self._bkt_before = kind
+                self._bkt_before = kind  # lost after a reconnect: Off then sets Bracketing Off
             self._set("d020", BKT_FOCUS)
-            self._set("d0cb", 1)
+            try:
+                self._set("d0cb", 1)
+            except CameraError:
+                self._set("d020", getattr(self, "_bkt_before", BKT_OFF))  # e.g. a lens without Focus BKT (p.173)
+                raise
         else:
             self._set("d0cb", 2)
-            self._set("d020", getattr(self, "_bkt_before", BKT_OFF))
+            if int(float(self._value("d020"))) == BKT_FOCUS:  # leave another bracketing kind alone
+                self._set("d020", getattr(self, "_bkt_before", BKT_OFF))
         self.refresh()  # drive mode, shutter limits and flash change with it; they arrive with a new session
 
     def _stacking_on(self):
@@ -1020,12 +1033,12 @@ class UsbCamera:
             with self._lock:  # let a running preview request finish
                 pass
             marks.append(("paused", time.monotonic() - t0))
+            stacking = self._stacking_on()  # read before the release: the camera is busy afterwards
             self._shutter(OP_FULL)
             self._shutter(OP_RELEASE)
             marks.append(("released", time.monotonic() - t0))
-            stacking = self._stacking_on()
             self._events(SHOT_TIMEOUT, "quiet")
-            if stacking:  # 16 frames come first, the merged picture last
+            if stacking:  # 8 frames (16 files) come first, the merged picture last
                 self._events(max(0.0, STACK_WAIT - (time.monotonic() - t0)))
             marks.append(("files", time.monotonic() - t0))
             if self._new_files:

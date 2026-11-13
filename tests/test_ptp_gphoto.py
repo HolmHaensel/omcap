@@ -302,6 +302,25 @@ class FocusStacking(unittest.TestCase):
         self.assertEqual((fake.props[0xD020]["value"], fake.props[0xD0CB]["value"]), (1, 2))  # earlier kind back
         self.assertEqual(cam.refresh.call_count, 2)
 
+    def test_panel_without_focus_stacking(self):
+        cam = usb_camera.UsbCamera.__new__(usb_camera.UsbCamera)
+        cam.gp, cam._lock = pg, threading.Lock()
+        cam._c = mock.Mock()
+
+        def widget(name):
+            if name == "d0cb":
+                raise pg.GPhoto2Error("not supported", pg.GP_ERROR_NOT_SUPPORTED)
+            w = mock.Mock()
+            w.get_value.return_value = "1"
+            w.get_choices.return_value = ["1"]
+            w.get_readonly.return_value = 0
+            return w
+        cam._c.get_single_config.side_effect = widget
+        with mock.patch.object(cam, "_within_lens_limits", side_effect=lambda c: c):
+            props = cam.props()
+        self.assertNotIn("focusstacking", props)
+        self.assertIn("metering", props)
+
 
 class Backend(unittest.TestCase):
     def test_auto_falls_back_to_libgphoto2(self):

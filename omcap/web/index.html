@@ -1034,7 +1034,7 @@ const FEATURES={
   expcomp:{show:either(inMode('P','A','S','ART'),inMovie('P','A','S'))},
   isospeedvalue:{show:either(inMode('P','A','S','M','ART'),inMovie('M')),names:{Auto:'AUTO',Low:'LOW'}},
   wbvalue:{show:inMode('P','A','S','M','ART','movie'),names:{0:'AUTO',18:'5300K',16:'7500K',17:'6000K',20:'3000K',35:'4000K',64:'Underwater',23:'5500K Flash',256:'One-touch 1',257:'One-touch 2',258:'One-touch 3',259:'One-touch 4',512:'CWB'}},
-  drivemode:{show:inMode('iAuto','P','A','S','M','ART','B'),names:{normal:'Single','lowvib-normal':'Anti-Shock Single','silent-normal':'Silent Single','continuous-H':'Sequential H','silent-continuous-H':'Silent Sequential H','continuous-L':'Sequential L','lowvib-continuous-L':'Anti-Shock Sequential L','silent-continuous-L':'Silent Sequential L',selftimer:'Self-timer','lowvib-selftimer':'Anti-Shock Self-timer','silent-selftimer':'Silent Self-timer',customselftimer:'Custom Self-timer','lowvib-customselftimer':'Anti-Shock Custom Self-timer','silent-customselftimer':'Silent Custom Self-timer'}},
+  drivemode:{show:(p=>(inMode('iAuto','P','A','S','M','ART','B'))(p)&&!(p.focusstacking&&p.focusstacking.value==='1')),names:{normal:'Single','lowvib-normal':'Anti-Shock Single','silent-normal':'Silent Single','continuous-H':'Sequential H','silent-continuous-H':'Silent Sequential H','continuous-L':'Sequential L','lowvib-continuous-L':'Anti-Shock Sequential L','silent-continuous-L':'Silent Sequential L',selftimer:'Self-timer','lowvib-selftimer':'Anti-Shock Self-timer','silent-selftimer':'Silent Self-timer',customselftimer:'Custom Self-timer','lowvib-customselftimer':'Anti-Shock Custom Self-timer','silent-customselftimer':'Silent Custom Self-timer'}},
   colortone:{show:inMode('P','A','S','M'),names:{ifinish:'i-Enhance',vivid:'Vivid',natural:'Natural',flat:'Muted',portrait:'Portrait',monotone:'Monotone',custom:'Custom',eportrait:'e-Portrait',underwater:'Underwater',colorcreator:'Color Creator',...ART_NAMES}},
   artfilter:{show:inMode('ART'),names:{...ART_NAMES,program:'ART BKT'}},
   // Movie mode (n): exposure for movies (manual p.71)
@@ -1042,7 +1042,7 @@ const FEATURES={
   // USB only (no Wi-Fi command): Super Control Panel items, P/A/S/M only (manual p.24); live control (p.30) may
   // also offer some in ART and Movie: widen only after a camera check (QA 2026-11-13)
   focusmode:{show:inMode('P','A','S','M')}, metering:{show:inMode('P','A','S','M')},
-  flashmode:{show:inMode('P','A','S','M')}, recordmode:{show:inMode('P','A','S','M')},
+  flashmode:{show:(p=>(inMode('P','A','S','M'))(p)&&!(p.focusstacking&&p.focusstacking.value==='1'))}, recordmode:{show:inMode('P','A','S','M')},
   aspect:{show:inMode('P','A','S','M')}, stabilizer:{show:inMode('P','A','S','M')},
   facepriority:{show:inMode('P','A','S','M')},
   // Focus Stacking (USB d0cb, FW 4.x): Bracketing is only in P/A/S/M (manual p.82, 174)
@@ -1207,8 +1207,10 @@ function applyContext(){
   const movOk=isUsb?!/^live/.test(sp||'')&&!seq:mv;
   if(movSec&&lastProps) movSec.classList.toggle('mode-off',!movOk&&st.movie==null);
   $('#timerLab').classList.toggle('mode-off',mv); $('#timerSeg').classList.toggle('mode-off',mv);
-  $('#rowBr').hidden=!['P','A','S'].includes(m);
-  const longExp=features.has('long')&&m==='M'&&/^live/.test(sp||'');
+  // Focus Stacking on (USB): the camera fixes drive, shutter (electronic) and flash; no long exposures, no app AE BKT
+  const stack=isUsb&&lastProps&&lastProps.focusstacking&&lastProps.focusstacking.value==='1';
+  $('#rowBr').hidden=!['P','A','S'].includes(m)||stack;
+  const longExp=features.has('long')&&m==='M'&&/^live/.test(sp||'')&&!stack;
   $('#rowLong').hidden=!longExp&&st.take==null;
   if(longExp) $('#longName').textContent=FEATURES.shutspeedvalue.names[sp];
   $('#takePrep').hidden=!(longExp&&sp==='livecomp'&&isUsb);
@@ -1225,7 +1227,8 @@ let lastNormalSp=null;
 function renderLongSeg(m,sp){
   const v=lastProps&&lastProps.shutspeedvalue, row=$('#rowLongSel'), seg=$('#longSeg');
   const opts=v&&v.enum?['livebulb','livetime','livecomp'].filter(o=>v.enum.includes(o)):[];
-  row.hidden=!(features.has('long')&&m==='M'&&v&&v.writable&&opts.length);
+  const stack=isUsb&&lastProps&&lastProps.focusstacking&&lastProps.focusstacking.value==='1';
+  row.hidden=!(features.has('long')&&m==='M'&&v&&v.writable&&opts.length)||stack;
   if(row.hidden) return;
   if(sp&&!/^live/.test(sp)) lastNormalSp=sp;
   // without an earlier speed (camera was already on BULB etc.) use 1/60 s: USB names it "1/60", Wi-Fi "60"

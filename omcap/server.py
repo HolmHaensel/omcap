@@ -1160,6 +1160,8 @@ class Handler(BaseHTTPRequestHandler):
             if b["mode"] == "rec":
                 cam.stage = 0  # emergency exit in case the camera is stuck in "shutter"
         elif path == "/api/set":
+            if b["prop"] == "focusstacking":
+                ensure_idle()  # switching rebuilds the USB session
             cam.set_prop(b["prop"], b["value"])
         elif path == "/api/shoot":
             ensure_idle()
