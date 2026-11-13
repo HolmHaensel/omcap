@@ -41,7 +41,7 @@ Contributions, tests with other bodies and ideas are very welcome.
 | M mode quick select: BULB, LIVE TIME, LIVECOMP, Off | yes (tested 2026-11-13) | yes (tested 2026-11-13) |
 | AF mode, Metering mode, Flash mode, Record mode, Aspect ratio, Image stabilizer, Face priority in the LV super control panel | – (no command) | yes (tested) |
 | Aperture list limited to the attached lens (read from EXIF) | yes | yes (after the first picture of the session; before that only the focal length) |
-| Movie: Start/Stop recording, movie shooting mode P/A/S/M | yes | – (not built; planned for 0.7) |
+| Movie: Start/Stop recording, movie shooting mode P/A/S/M | yes (switches to Movie mode while recording) | Start/Stop recording: yes, in every shooting mode like the movie button (tested 2026-11-13); movie settings not built |
 | Time lapse shooting, AE BKT | built, untested | yes, tested with the PTP backend (3 frames, 2026-11-13) |
 | Quit E-M1 Capture button | yes (tested while connected and from the start screen) | yes (tested from the start screen; while connected not yet) |
 | Playback: Index display, Calendar display, single-frame view, save to computer | yes | yes |
