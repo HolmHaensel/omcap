@@ -194,8 +194,8 @@ saved on the computer. Measured on macOS with about 2950 files and the PTP backe
 | Focus by tap | 0.4–0.6 s | 1.3–1.5 s |
 | Take picture | 4.5 s; files in the list at once | 4.7–5.3 s |
 
-The shooting mode follows the mode dial during live view with libgphoto2; the PTP backend does not
-have this tested yet. Other settings changed on the camera itself are picked up with **reload** in
+The shooting mode follows the mode dial during live view (both backends, tested); each turn rebuilds the
+USB session (8–10 s), so quick turns in a row show only the last position. Other settings changed on the camera itself are picked up with **reload** in
 the LV super control panel (rebuilds the USB session, about 9 s with libgphoto2). After unplugging and plugging the
 cable in again while the app runs, connecting may fail with *Could not claim the USB device*:
 stop the app and start it again.
