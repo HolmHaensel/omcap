@@ -1,5 +1,36 @@
 # Changelog
 
+## Unreleased (0.7)
+
+### USB backend and performance
+- New USB backend on the app's own PTP layer (`omcap/ptp.py`, ctypes/libusb) with a gphoto2-compatible shim (`omcap/ptp_gphoto.py`), so the USB session logic is unchanged. Option `--usb-backend auto|ptp|gphoto2`: `auto` (default on macOS) uses the PTP layer and falls back to libgphoto2 when it cannot connect; elsewhere the default stays libgphoto2 (Linux). `/api/status` reports `usb_backend` (REQ-F28, camera-tested on macOS 2026-11-13).
+- Card index by file handle with a disk cache (`out/cache/ptp_index.json`), read at connect before PC control (10–12 ms per file instead of ~26 ms); a spot check of name, size and date of four files detects another card. Measured with about 2950 files: first connect without cache 44.8 s, later connects 6.9–9.2 s, also right after a shot (libgphoto2: about 9 s plus 51–72 s index in the background). Card list 0.1 s.
+- Live view with the PTP backend: 1024×768 at 19.5–26.4 fps (libgphoto2 14–20.6 fps), 1280×960 at 15.0 fps. 1280×960 no longer needs the self-built libgphoto2 (REQ-F36).
+- Focus by tap: 0.4–0.6 s (libgphoto2 1.3–1.5 s). Take picture: 4.5–4.8 s in total, JPG and ORF in the card list at once.
+- Idle event check costs 10 ms instead of about 0.3 s: on macOS synchronous interrupt reads shorter than ~150 ms never deliver an event, so the PTP layer keeps one asynchronous read submitted.
+- Camera-tested with the PTP backend: BULB, LIVE TIME and LIVECOMP (REQ-F31) and the mode dial (REQ-F30). During a long exposure and its noise reduction the session is never rebuilt (the camera ends the noise reduction with the same event as the mode dial); file events lost in a rebuilt session are taken from the card index.
+- Also camera-tested with the PTP backend: interval shooting (3 frames, 5 s), AE bracketing (3 frames, −0.3/0/+0.3 EV per EXIF, compensation restored), partial reads (picture info from the first 128 KB in 0.02 s; a whole 3.8 MB JPG in 0.22 s) and a full session in the browser (tap focus, Take picture, Index display, single-frame view). Not tested: Linux.
+
+### Shooting and settings
+- USB LV super control panel: AF mode, Metering mode, Flash mode, Record mode, Aspect ratio, Image stabilizer and Face priority, with values mapped on the camera (`out/research/usb_value_mapping.md`). Only in P/A/S/M as on the camera (manual p.24). Read and write tested 2026-11-13. Not over Wi-Fi: no command (REQ-F10).
+- USB: shutter speeds that libgphoto2 lists as fractions (3.2 s = 32/10, 1/1.3 s = 10/13 …) are offered and named like on the camera; ISO AUTO/LOW are named by value, not by position; the read-only flag of each setting comes from the camera; the aperture list is limited by the lens limits the camera reports (d07f/d080) (REQ-F10).
+- USB Take picture focuses on the tapped AF field (camera-tested at 140 mm, REQ-F34).
+- USB: the idle event wait after releasing the focus tap is removed (about 0.3 s per tap).
+- Research endpoint `/api/usbprops` reads single USB properties and their choices (for the value mapping, REQ-F10).
+
+### App and docs
+- The app releases the camera when it is stopped with Ctrl+C or `kill` (leaves PC control and closes the session); before, the camera could stop answering until it was switched off.
+- README: USB on Linux works over libgphoto2 (not tested yet: camera mounting by the desktop, udev access); libgphoto2 stays the USB backend there.
+- 165 offline tests pass on `usb-ptp` (2026-11-13).
+
+### Known issues
+- LIVECOMP: a stop press shortly after the start (4–8 s) is ignored by the camera and the exposure keeps running; a later press ends it (probably after the first composite frame, Composite Settings). The app does not show that the exposure still runs.
+- Mode dial over USB: the new mode arrives only when PC control is switched on again, so each turn rebuilds the session (8–10 s); quick turns in a row show only the last position.
+- Wi-Fi drops out on the Mac (it leaves the camera network). Once, an app started from the launcher got "No route to host" while the shell reached the camera (macOS Local Network permission suspected).
+- USB with the libgphoto2 backend (fallback, Linux): live view pauses up to ~70 s after connecting while the card list is read.
+- USB, All Targets + Halfway: the green AF field may not match where the camera focused.
+- A lens change is only noticed with the next photo (USB and Wi-Fi).
+
 ## 0.6.0 – 2026-11-13
 
 - Wi-Fi Take picture uses `exec_takemotion com=starttake` with the tapped AF point in shooting mode instead of switching to the shutter mode: focuses on the tapped point, the live view keeps running, and the shot takes 1.2–1.5 s instead of about 7 s (camera-tested). Only for normal shots: long exposures (slower than 1/4 s, BULB / LIVE TIME / LIVECOMP), the self-timer and Movie mode keep the shutter-button route, which is also the fallback when the camera refuses (REQ-F34).

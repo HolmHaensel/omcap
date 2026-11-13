@@ -28,23 +28,25 @@ Contributions, tests with other bodies and ideas are very welcome.
 
 | Feature | Wi-Fi | USB |
 |---|---|---|
-| Live view with selectable size, zoom, Displayed Grid, overlay, second monitor | yes | yes (size choice up to 1280×960 needs libgphoto2 2.5.34.1 or later, see below; otherwise fixed 1024×768) |
+| Live view with selectable size, zoom, Displayed Grid, overlay, second monitor | yes | yes (size choice up to 1280×960 with the PTP backend on macOS; with libgphoto2 it needs 2.5.34.1 or later, see below) |
+| USB backend (`--usb-backend`) | – | yes: `auto` (default on macOS) uses the app's own PTP layer and falls back to libgphoto2 (tested on macOS); Linux: libgphoto2, not tested |
 | Tap the 9×9 AF grid to focus, AF target shown in green | yes | yes |
 | AF Area (All Targets, Single Target, Small Target, Group Target) | – (no command over Wi-Fi) | yes |
-| Shutter button: Take picture, Press halfway (hold focus, then take picture) | yes (Take picture focuses on the tapped AF point and takes about 1.2 s) | yes |
+| Shutter button: Take picture, Press halfway (hold focus, then take picture) | yes (Take picture focuses on the tapped AF point and takes 1.2–1.5 s; long exposures and Movie use the shutter button route) | yes (Take picture focuses on the tapped AF field) |
 | Self-timer (Off, 2 s, 12 s; the button becomes Cancel self-timer while it runs) | yes | yes |
-| New picture in the last-shot corner and Index display right after Take picture | yes (about 2 s after the shot) | yes (the camera reports new files) |
+| New picture in the last-shot corner and Index display right after Take picture | yes (8.4 s after the click, of which 7.2 s is the camera's shot) | yes (5–6 s after the click; the camera reports new files) |
 | LV super control panel: Shooting mode, shutter speed, aperture, exposure compensation, ISO, WB, drive, Picture Mode, Art filter | yes | most (mode dial only) |
 | Shooting mode follows the mode dial, values reload by themselves (during live view) | not needed (the app sets the mode) | yes, tested: P, A, S, M, Movie read correctly; iAUTO, ART, SCN, PHOTO STORY show as P; after a shot iAUTO is shown from the picture's EXIF |
-| M mode quick select: BULB, LIVE TIME, LIVECOMP, Off | built, untested | built, untested |
+| M mode quick select: BULB, LIVE TIME, LIVECOMP, Off | yes (tested 2026-11-13) | yes (tested 2026-11-13) |
+| AF mode, Metering mode, Flash mode, Record mode, Aspect ratio, Image stabilizer, Face priority in the LV super control panel | – (no command) | yes (tested) |
 | Aperture list limited to the attached lens (read from EXIF) | yes | yes (after the first picture of the session; before that only the focal length) |
-| Movie: Start/Stop recording, movie shooting mode P/A/S/M | yes | – (not built, unknown over USB) |
-| Time lapse shooting, AE BKT | built, untested | built, untested |
-| Quit E-M1 Capture button | yes (tested without a camera connection) | yes (tested without a camera connection) |
+| Movie: Start/Stop recording, movie shooting mode P/A/S/M | yes | – (not built; planned for 0.7) |
+| Time lapse shooting, AE BKT | built, untested | yes, tested with the PTP backend (3 frames, 2026-11-13) |
+| Quit E-M1 Capture button | yes (tested while connected and from the start screen) | yes (tested from the start screen; while connected not yet) |
 | Playback: Index display, Calendar display, single-frame view, save to computer | yes | yes |
 | Card list saved on the computer, shown at once when you connect (the camera's list follows) | yes | yes |
 | Playback: shooting data (Overall display), line on thumbnails | yes | yes |
-| Open in OM Workspace from the single-frame view (macOS, only when OM Workspace is installed) | yes | yes |
+| Open in OM Workspace from the single-frame view (macOS, only when OM Workspace is installed) | yes (not tested yet) | yes (tested 2026-11-13) |
 | Save to card only or card and computer | yes | yes |
 | Free card space in the header | yes (free shots, live from the live view) | yes |
 | Current focal length in the header, ISO with ISO Auto, shutter speed and aperture the camera uses in auto modes | yes (sent with the live view) | – (no live USB property found) |
@@ -64,7 +66,7 @@ Contributions, tests with other bodies and ideas are very welcome.
 USB the tilt is only updated when the session starts), changing AF Area over Wi-Fi and the shooting mode
 over USB (the camera offers no command for it).
 
-**Planned (next releases):** Mac app with a menu bar icon, Windows over Wi-Fi, Star AF focus aid (star
+**Planned (next releases):** Mac app with a menu bar icon, Windows over Wi-Fi, movie and focus stacking over USB (0.7), Star AF focus aid (star
 sharpness while you turn the focus ring), subject detection in live view on the computer (face/eye,
 later animals and birds; the E-M1 itself sends no face frames) with "Focus on subject", film looks and
 a look lab on the computer. Ideas and wishes are welcome in [Discussions](https://github.com/HolmHaensel/omcap/discussions).
@@ -83,8 +85,8 @@ The interface is in English; all texts are in one translation table (`I18N` in
 | | Wi-Fi | USB |
 |---|---|---|
 | Camera | OM-D E-M1 Mark I (tested: firmware 4.6) | same |
-| Computer | macOS (tested), Python 3.9 or newer; Windows probably works (not tested) | macOS only (libgphoto2 is not available on Windows) |
-| Extra software | none (standard library only) | `gphoto2` Python package (includes libgphoto2) |
+| Computer | macOS (tested), Python 3.9 or newer; Linux and Windows should work (not tested) | macOS (tested); Linux possible over libgphoto2 (not tested); not Windows (no libgphoto2) |
+| Extra software | none (standard library only) | `gphoto2` Python package via `".[usb]"` (includes libgphoto2 for the fallback and Linux, and the libusb the own PTP backend uses on macOS, else Homebrew libusb) |
 | Cable / network | the camera's own Wi-Fi | USB cable |
 
 ## Installation
@@ -101,7 +103,7 @@ python3 -m venv .venv
 
 **Double-click** `E-M1 Capture.command` (macOS) in the project folder. The app starts and opens
 the browser at <http://127.0.0.1:8765/>; the start screen shows which connection found the camera.
-On Windows use `E-M1 Capture.bat` (Wi-Fi only, not tested yet).
+On Windows use `E-M1 Capture.bat` (Wi-Fi only, not tested yet). On Linux start it in the terminal (below).
 
 Or in the Terminal (read only without `--allow-write`):
 
@@ -177,18 +179,46 @@ Measured with the E-M1 Mark I:
 4. Start the app and choose **USB connection**. The app stops the macOS service
    `ptpcamerad`, which would otherwise hold the camera.
 
-Notes: after connecting, the camera reads its card index once (about 1 min); meanwhile the card
-list saved on the computer is shown. Live view runs at about 15 fps with a fixed size. The shooting mode follows the mode
-dial during live view. Other settings changed on the camera itself are picked up with **reload** in
-the LV super control panel (rebuilds the USB session, about 9 s). After unplugging and plugging the
+USB backend: `--usb-backend auto` (default on macOS: PTP layer, libgphoto2 if it cannot connect),
+`ptp` (PTP layer only) or `gphoto2` (libgphoto2 only; default on Linux). `GET /api/status` reports the backend in use.
+
+Notes: the first connect reads the camera's card index once (about 40 s with the PTP backend, the
+card list saved on the computer is shown meanwhile); later connects take 7–9 s, because the index is
+saved on the computer. Measured on macOS with about 2950 files and the PTP backend:
+
+| | PTP backend (macOS default) | libgphoto2 (fallback) |
+|---|---|---|
+| Connect | 7–9 s (44.8 s without saved index) | about 9 s, card index 51–72 s in the background |
+| Live view 1024×768 | 19.5–26.4 fps | 14–20.6 fps |
+| Live view 1280×960 | 15.0 fps | 13.8–15 fps (needs the newer libgphoto2, see below) |
+| Focus by tap | 0.4–0.6 s | 1.3–1.5 s |
+| Take picture | 4.5–4.8 s; files in the list at once | 4.7–5.3 s |
+
+The shooting mode follows the mode dial during live view (both backends, tested); each turn rebuilds the
+USB session (8–10 s), so quick turns in a row show only the last position. Other settings changed on the camera itself are picked up with **reload** in
+the LV super control panel (rebuilds the USB session, about 9 s with libgphoto2). After unplugging and plugging the
 cable in again while the app runs, connecting may fail with *Could not claim the USB device*:
 stop the app and start it again.
 
+### Using USB on Linux (possible, not tested yet)
+
+The USB connection runs over libgphoto2, which is native on Linux; the `gphoto2` Python package ships
+wheels with libgphoto2 for Linux (x86_64, aarch64). Install as above with `".[usb]"`, then:
+
+- Desktop file managers (GVFS/KDE) may mount the camera first: unmount it, or stop the mounting service
+  (e.g. `gvfs-gphoto2-volume-monitor`) before you start the app.
+- Your user needs access to the USB device: libgphoto2's udev rules (package `libgphoto2` / `libgphoto2-6`) do
+  this; otherwise run the app with the right group or a udev rule for vendor `07b4`, product `0130`.
+- Steps 2 and 3 above apply as on macOS; step 1 and `ptpcamerad` are macOS only.
+
+Reports from Linux users are welcome (open an issue with distribution, camera firmware and what worked).
+
 ### Larger USB live view (optional)
 
-libgphoto2 2.5.34 (bundled with the `gphoto2` Python package) fixes the USB live view at 1024×768. The
-development version of libgphoto2 (2.5.34.1 or later) keeps a chosen size, and the app then shows **Size**
-over USB too (up to 1280×960, about 14 fps). Until a release contains it, build it yourself (macOS, Homebrew):
+On macOS the default PTP backend already offers **Size** over USB up to 1280×960; no extra build is needed.
+Only the libgphoto2 fallback needs the steps below: libgphoto2 2.5.34 (bundled with the `gphoto2` Python
+package) fixes the USB live view at 1024×768. The development version of libgphoto2 (2.5.34.1 or later)
+keeps a chosen size (13.8 fps measured at 1280×960). Until a release contains it, build it yourself (macOS, Homebrew):
 
 ```sh
 brew install autoconf automake libtool gettext pkgconf libusb libexif

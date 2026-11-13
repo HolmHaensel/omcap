@@ -117,11 +117,25 @@ def lv_size_from_d06d(value, area=None):
     return 1280, 960
 
 
+SHUTTER_VALUE = re.compile(r"\d+(/\d+)?")  # libgphoto2: "60", "1/250", "32/10" (3.2 s), "10/13" (1/1.3 s)
+
+
 def _shutter_names(choices):
+    """Camera style: 1/250 s -> "250", 1/1.3 s -> "1.3", 3.2 s -> '3.2"', 60 s -> '60"'."""
     names = {}
     for c in choices:
-        names[c] = c.split("/", 1)[1] if c.startswith("1/") else c + '"'
+        n, _, d = c.partition("/")
+        n, d = int(n), int(d or 1)
+        if n >= d:
+            names[c] = "%g\"" % (n / d)
+        else:
+            names[c] = str(d) if n == 1 else "%g" % (d / n)
     return names
+
+
+def _iso_names(choices):
+    """By value, not by position: libgphoto2 names AUTO and LOW "Auto" / "Low"."""
+    return {c: {"auto": "AUTO", "low": "LOW"}.get(c.lower(), c) for c in choices}
 
 
 def _ev_names(choices):
@@ -139,6 +153,30 @@ PICTURE_VALUES = [33281, 33537, 2, 1, 32771, 32769, 33025, 33793, 34561, 34049] 
 def _picture_names(choices):
     table = dict(zip(map(str, PICTURE_VALUES), PICTURE_NAMES))
     return {c: table.get(str(c), c) for c in choices}
+
+
+# Super Control Panel settings over USB, values mapped on the camera 2026-11-13 and written from the app
+# (out/research/usb_value_mapping.md, usb_control_matrix.md); "inferred" values follow the pattern but were not seen
+USB_TABLES = {
+    "d003": {"2": "S-AF", "32770": "C-AF", "1": "MF", "32769": "S-AF+MF"},
+    "d004": {"32769": "Digital ESP", "2": "Center weighted", "4": "Spot", "32785": "Spot HI",
+             "32786": "Spot SH"},  # 32786 inferred
+    "d005": {"1": "Flash Auto", "3": "Fill-in", "2": "Flash Off"},  # other flash modes not mapped yet
+    "d00d": {"257": "LF", "258": "LN", "259": "MN", "260": "SN", "32": "RAW", "289": "LF+RAW",
+             "290": "LN+RAW", "291": "MN+RAW", "292": "SN+RAW"},  # SN and LF/MN/SN+RAW inferred
+    "d01d": {"0": "S-IS Off", "1": "S-IS1", "2": "S-IS2", "3": "S-IS3", "4": "S-IS AUTO"},
+    "d01a": {"0": "Face Priority Off", "32769": "Face Priority On", "32770": "Face & Eye Priority On",
+             "32771": "Face & R. Eye Priority On", "32772": "Face & L. Eye Priority On"},  # 32771 inferred
+}
+
+
+def _table_names(code):
+    return lambda choices: {c: USB_TABLES[code][c] for c in choices if c in USB_TABLES[code]}
+
+
+def _aspect_names(choices):
+    """d01b: width << 16 | height, e.g. 262147 = 4:3."""
+    return {c: "%d:%d" % (int(c) >> 16, int(c) & 0xFFFF) for c in choices if int(c) >> 16 and int(c) & 0xFFFF}
 
 
 def parse_battery(value):
@@ -206,7 +244,9 @@ class UsbLive:
             data = self.camera.preview_frame()
             if data is None:
                 failures += 1
-                if failures >= 10 and not self.camera.shooting and not self.camera.stage:
+                # not during an exposure or its noise reduction (last_press lies in the future then)
+                if failures >= 10 and not self.camera.shooting and not self.camera.stage \
+                        and time.monotonic() >= self.camera.last_press:
                     self.camera.reopen("live view failed 10x")  # session broken: rebuild
                     failures = 0
                 time.sleep(0.3)
@@ -231,20 +271,31 @@ class UsbCamera:
     stage = 0
     lvqty = None
     features = FEATURES
+    shooting = False
+    _take_t0 = None  # start of a running long exposure (BULB, LIVE TIME, LIVECOMP)
 
     # setting named as over Wi-Fi -> gphoto name, display names from the choice values
     PROPS = {
         "shutspeedvalue": ("shutterspeed", _shutter_names),
         "focalvalue": ("aperture", None),
         "expcomp": ("exposurecompensation", _ev_names),
-        "isospeedvalue": ("iso", lambda ch: {ch[0]: "AUTO", ch[1]: "LOW"}),
+        "isospeedvalue": ("iso", _iso_names),
         "wbvalue": ("whitebalance", lambda ch: dict(zip(ch, WB_NAMES)) if len(ch) == len(WB_NAMES) else {}),
         "drivemode": ("d009", _drive_names),
         "colortone": ("d010", _picture_names),
         "artfilter": ("d010", _picture_names),
+        "focusmode": ("d003", _table_names("d003")),
+        "metering": ("d004", _table_names("d004")),
+        "flashmode": ("d005", _table_names("d005")),
+        "recordmode": ("d00d", _table_names("d00d")),
+        "aspect": ("d01b", _aspect_names),
+        "stabilizer": ("d01d", _table_names("d01d")),
+        "facepriority": ("d01a", _table_names("d01a")),
     }
 
-    def __init__(self, allow_write=False):
+    def __init__(self, allow_write=False, backend="gphoto2"):
+        """backend: "ptp" (own PTP layer, omcap/ptp_gphoto.py), "gphoto2" (libgphoto2) or "auto"
+        (own PTP layer, libgphoto2 if it cannot connect, e.g. on Linux)."""
         self.allow_write = allow_write
         self.stage = 0
         self._new_files = []
@@ -256,20 +307,36 @@ class UsbCamera:
         self._files = None
         self._event_log = []
         self.last_af = None
-        self.gp = _gp()
         self._lock = threading.Lock()
         self._hold, self._hold_lock = 0, threading.Lock()
         self.shooting = False  # short image dropouts are normal while shooting
-        self._c = self.gp.Camera()
-        self._open()
+        self._connect(backend)
         # libgphoto2 2.5.34 forces 1024x768 on every live image; newer versions (master 2.5.34.1,
         # 2026-11-12) keep a chosen size and offer the widget "liveviewsize" (REQ-F36)
         self.features = FEATURES + (["lvsize"] if self._has_widget("liveviewsize") else [])
         self.live = UsbLive(self)
 
-    def _open(self):
+    def _connect(self, backend):
+        if backend not in ("ptp", "gphoto2", "auto"):
+            raise CameraError("Unknown USB backend: %s" % backend)
+        if backend in ("ptp", "auto"):
+            from . import ptp_gphoto
+            self.gp, self.backend = ptp_gphoto, "ptp"
+            self._c = self.gp.Camera()
+            try:
+                self._open(tries=4 if backend == "ptp" else 1)  # auto: one try, then libgphoto2
+                return
+            except CameraError as e:
+                if backend == "ptp":
+                    raise
+                print("USB: own PTP layer could not connect (%s), using libgphoto2" % e, flush=True)
+        self.gp, self.backend = _gp(), "gphoto2"
+        self._c = self.gp.Camera()
+        self._open()
+
+    def _open(self, tries=4):
         error = None
-        for _ in range(4):
+        for _ in range(tries):
             # The macOS service ptpcamerad claims the camera as soon as it is plugged in.
             subprocess.run(["killall", "-9", "ptpcamerad"], capture_output=True)
             try:
@@ -309,8 +376,19 @@ class UsbCamera:
         try:
             self._open()
             self._apply_lv_size_locked()  # keep the chosen size after a rebuilt session
+            self._resync_files_locked()
         except (CameraError, self.gp.GPhoto2Error):
             pass
+
+    def _resync_files_locked(self):
+        """After a rebuilt session: files whose "added" event was lost go to the card list (PTP backend)."""
+        if getattr(self, "_files", None) is None or not hasattr(self._c, "file_paths"):
+            return
+        for path in self._c.file_paths():
+            if path not in self._files and path not in self._pending:
+                self._pending.append(path)
+                if path.lower().endswith((".jpg", ".jpeg")):
+                    self.last_jpg = path
 
     @property
     def hold(self):
@@ -326,7 +404,7 @@ class UsbCamera:
         """Read pending events without waiting; True if the mode dial was turned.
 
         Files shot on the camera body go to the card list only, not to the app's next shot."""
-        if self.hold or self.stage:
+        if self.hold or self.stage or self.shooting:  # a long exposure also sends 0xC003
             return False
         turned = False
         with self._lock:
@@ -371,6 +449,35 @@ class UsbCamera:
 
     def _value(self, name):
         return self._call(lambda: self._c.get_single_config(name).get_value())
+
+    def read_props(self, codes):
+        """Research: value and choices of single properties ("d003"), one by one.
+
+        Never reads the whole group "other" (empty values crash libgphoto2)."""
+        out = {}
+        for code in codes:
+            if not re.fullmatch(r"d[0-9a-f]{3}", code):
+                continue
+            def read(c=code):
+                w = self._c.get_single_config(c)
+                choices = [w.get_choice(i) for i in range(w.count_choices())] \
+                    if w.get_type() in (self.gp.GP_WIDGET_MENU, self.gp.GP_WIDGET_RADIO) else None
+                return {"value": w.get_value(), "choices": choices}
+            try:
+                out[code] = self._call(read)
+            except CameraError as e:
+                out[code] = {"error": str(e)}
+        return out
+
+    def _within_lens_limits(self, choices):
+        """d07f / d080: smallest and largest f-number x10 of the lens (E-M1: 35 / 220 with a 14-140)."""
+        try:
+            lo, hi = (int(float(self._value(c))) / 10 for c in ("d07f", "d080"))
+        except (CameraError, ValueError):
+            return choices
+        if not (lo and hi):
+            return choices
+        return [c for c in choices if not re.fullmatch(r"[\d.]+", c) or lo - 0.05 <= float(c) <= hi + 0.05]
 
     def _has_widget(self, name):
         try:
@@ -419,16 +526,20 @@ class UsbCamera:
         for key, (name, namer) in self.PROPS.items():
             def read():
                 w = self._c.get_single_config(name)
-                return w.get_value(), list(w.get_choices())
-            value, choices = self._call(read)
+                return w.get_value(), list(w.get_choices()), not w.get_readonly()
+            value, choices, writable = self._call(read)
             if key == "artfilter":  # d010 also holds the kind of filter (from 34305)
                 choices = [c for c in choices if int(c) >= 34305]
             if key == "shutspeedvalue":  # M only: BULB, LIVE TIME, LIVECOMP are in d01c
-                choices = [c for c in choices if re.fullmatch(r"(1/)?\d+(\.\d+)?", c)]
+                choices = [c for c in choices if SHUTTER_VALUE.fullmatch(c) and c not in LONG_LABELS]
                 specials = list(LONG_EXPOSURE)
                 value = LONG_LABELS.get(value, value)
                 choices = specials + choices
-            out[key] = {"value": value, "writable": True, "enum": choices,
+            if name in USB_TABLES:  # offer only mapped values
+                choices = [c for c in choices if c in USB_TABLES[name]]
+            if key == "focalvalue":  # the lens limits (current at session setup, at the current focal length)
+                choices = self._within_lens_limits(choices)
+            out[key] = {"value": value, "writable": writable, "enum": choices,
                         "names": namer([c for c in choices if not c.startswith("live")]) if namer else {}}
         return out
 
@@ -585,7 +696,8 @@ class UsbCamera:
         full = self._call(self._c.file_get_info, folder, name)  # keeps the data of .file alive
         info = full.file
         t = time.localtime(info.mtime)
-        time.sleep(0.002)  # do not starve live view and commands
+        if self.backend == "gphoto2":
+            time.sleep(0.002)  # do not starve live view and commands (libgphoto2 reads each file here)
         return {
             "dir": folder, "name": name, "size": info.size, "isdir": False,
             "date": ((t.tm_year - 1980) << 9) | (t.tm_mon << 5) | t.tm_mday,
@@ -669,17 +781,33 @@ class UsbCamera:
 
     def take_start(self, exposuremin=None, upperlimit=None):
         # BULB runs while the button is held; LIVE TIME and LIVECOMP take one press each
-        if self._is_bulb():
-            self._shutter(OP_FULL)
-        else:
-            self._pulse()
+        self.shooting = True  # no live view images during the exposure: never rebuild the session meanwhile
+        self._take_t0 = time.monotonic()
+        try:
+            if self._is_bulb():
+                self._shutter(OP_FULL)
+            else:
+                self._pulse()
+        except Exception:
+            self.shooting, self._take_t0 = False, None
+            raise
 
     def take_stop(self):
-        if self._is_bulb():
-            self._shutter(OP_RELEASE)
-        else:
-            self._pulse()
-        self._events(2.0)
+        try:
+            if self._is_bulb():
+                self._shutter(OP_RELEASE)
+            else:
+                self._pulse()
+            self._events(2.0)
+        finally:
+            self.shooting = False
+            # noise reduction after a long exposure takes about as long as the exposure and ends with
+            # 0xC003/3 like the mode dial: keep the dial check and session rebuilds quiet for that time
+            # (seen 2026-11-13). A Stop without a running exposure (e.g. to end a stuck LIVECOMP) only presses.
+            if self._take_t0 is not None:
+                now = time.monotonic()
+                self.last_press = now + (now - self._take_t0)
+            self._take_t0 = None
 
     def _shutter(self, step):
         self._need_write()
@@ -793,7 +921,8 @@ class UsbCamera:
                     self._read_focus_position()
             finally:
                 self._shutter(OP_RELEASE)
-            self._events(0.2)
+            # no extra event wait here: each idle libgphoto2 event check costs ~0.3 s (150 ms timeout
+            # plus one retry); the next check (dial watch or next focus) collects what is left
         finally:
             self._hold_add(-1)
         return self.focus_ok

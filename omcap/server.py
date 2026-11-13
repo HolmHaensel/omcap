@@ -11,7 +11,9 @@ import errno
 import json
 import os
 import re
+import signal
 import subprocess
+import sys
 import tempfile
 import threading
 import time
@@ -47,7 +49,7 @@ WIFI_FEATURES = ["liveview", "lvsize", "af_area", "stages", "scp", "time_lapse",
 cam = None   # active connection, None before the choice on the start screen
 live = None
 conn_type = None
-options = {"host": "192.168.0.10", "allow_write": False}
+options = {"host": "192.168.0.10", "allow_write": False, "usb_backend": "gphoto2"}
 allowed_hosts = set()
 movtime_cache = {}  # (path, size) -> seconds
 lens_cache = {}  # card path -> lens data from EXIF
@@ -131,7 +133,7 @@ def connect(kind):
         c.caminfo()  # reports at once if the camera does not answer
         cam, live = c, LiveView(LV_PORT)
     elif kind == "usb":
-        c = usb_camera.UsbCamera(allow_write=options["allow_write"])
+        c = usb_camera.UsbCamera(allow_write=options["allow_write"], backend=options["usb_backend"])
         cam, live = c, c.live
         start_index(c)
     else:
@@ -146,6 +148,12 @@ def disconnect():
     global cam, live, conn_type
     if cam is None:
         return
+    if conn_type == "usb" and state.get("take"):
+        try:
+            cam.take_stop()  # BULB: let go of the shutter button before the session closes
+        except (CameraError, WriteBlocked):
+            pass
+        state["take"] = None
     try:
         if live.running:
             cam.stop_liveview()
@@ -950,6 +958,7 @@ class Handler(BaseHTTPRequestHandler):
                     "model": cam.caminfo(), "host": cam.host,
                     "cgis": sorted(cam.commandlist()), "allow_write": cam.allow_write,
                     "om_workspace": om_workspace_installed(),
+                    "usb_backend": getattr(cam, "backend", None),
                 })
             if u.path == "/api/level":
                 if conn_type != "usb":
@@ -957,6 +966,10 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send(cam.level())
             if u.path == "/api/afarea":
                 return self._send(af_area())
+            if u.path == "/api/usbprops":  # research: read USB properties, e.g. ?codes=d003,d004
+                if conn_type != "usb":
+                    raise CameraError("Only over USB")
+                return self._send(cam.read_props(q.get("codes", "").lower().split(",")))
             if u.path == "/api/lvext":  # research: camera status sent with the Wi-Fi live view
                 return self._send(live.ext_info() if hasattr(live, "ext_info") else {"error": "no Wi-Fi live view"})
             if u.path == "/api/state":
@@ -1236,6 +1249,10 @@ def main(argv=None):
                    help="folder for saved pictures (captures/) and the preview cache (out/cache/); default: current folder")
     p.add_argument("--no-browser", action="store_true", help="do not open the browser at start")
     p.add_argument("--timing", action="store_true", help="print every request with its duration")
+    p.add_argument("--usb-backend", choices=("auto", "ptp", "gphoto2"),
+                   default="auto" if sys.platform == "darwin" else "gphoto2",
+                   help="USB: own PTP layer (ptp), libgphoto2 (gphoto2) or the PTP layer with libgphoto2 as fallback "
+                        "(auto, default on macOS; Linux uses libgphoto2)")
     a = p.parse_args(argv)
     Handler.timing = a.timing
     url = "http://127.0.0.1:%d/" % a.port
@@ -1265,12 +1282,18 @@ def main(argv=None):
     SETTINGS_FILE = os.path.join(a.data_dir, "omcap-settings.json")
     load_save_cfg()
     HSL_OUT = os.path.join(a.data_dir, "out", "hsl")
-    options.update(host=a.host, allow_write=a.allow_write)
+    options.update(host=a.host, allow_write=a.allow_write, usb_backend=a.usb_backend)
+    from . import ptp_gphoto
+    ptp_gphoto.Camera.index_cache = os.path.join(a.data_dir, "out", "cache", "ptp_index.json")
     allowed_hosts.update({"127.0.0.1:%d" % a.port, "localhost:%d" % a.port})
     print("em1-capture %s  %s  (%s)" % (__version__, url, "WRITE ENABLED" if a.allow_write else "read only"))
     print("Keep this window open while you use the app; stop with Ctrl+C.")
     if not a.no_browser:
         open_browser(url)
+
+    def stop(*_):
+        raise KeyboardInterrupt  # kill / logout: end like Ctrl+C, so the camera is released below
+    signal.signal(signal.SIGTERM, stop)
     try:
         server.serve_forever()
     except KeyboardInterrupt:
@@ -1278,6 +1301,10 @@ def main(argv=None):
     else:
         print("E-M1 Capture stopped.")
     finally:
+        try:
+            disconnect()  # USB: leave PC control and close the session, else the camera may hang until power off
+        except Exception as e:
+            print("Disconnecting the camera failed:", e)
         server.server_close()
         http_server = None
     return 0

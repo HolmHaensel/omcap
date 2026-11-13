@@ -26,6 +26,29 @@ class Dial(unittest.TestCase):
         cam._c = C()
         return cam
 
+    def take(self, start):
+        from unittest import mock
+        cam = self.make([])
+        cam.allow_write = True
+        cam._is_bulb = lambda: False
+        cam._events = lambda *a: False
+        with mock.patch.object(cam, "_shutter"):
+            if start:
+                cam.take_start()
+                cam._take_t0 -= 5  # a 5 s exposure
+            cam.take_stop()
+        return cam
+
+    def test_quiet_after_exposure(self):
+        cam = self.take(start=True)
+        self.assertGreater(cam.last_press, time.monotonic() + 3)  # noise reduction ~ exposure time
+        self.assertFalse(cam.shooting)
+        self.assertIsNone(cam._take_t0)
+
+    def test_stop_without_exposure_keeps_dial_check(self):
+        cam = self.take(start=False)  # e.g. a second Stop click
+        self.assertLessEqual(cam.last_press, time.monotonic())
+
     def test_dial_event(self):
         self.assertTrue(self.make([(1, "PTP Event c003, Param1 00000003")]).dial_turned())
 
