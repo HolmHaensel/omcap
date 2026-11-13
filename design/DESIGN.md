@@ -21,6 +21,26 @@ shooting values, autofocus and shutter release.
 Typography now has explicit display, title, heading, body, metadata, label and camera-value levels.
 Camera values retain IBM Plex Mono; navigation and explanatory text retain Inter/system UI.
 
+### Manual-led fast workflow
+
+The E-M1 manual establishes a mode-dependent control hierarchy rather than a flat settings grid:
+
+- **P:** the camera balances shutter and aperture; exposure compensation is the immediate adjustment
+  (manual pp. 38, 51).
+- **A:** aperture is primary and the camera selects shutter speed (manual p. 39).
+- **S:** shutter speed is primary and the camera selects aperture (manual p. 40).
+- **M:** shutter speed and aperture are both primary; exposure compensation is unavailable
+  (manual pp. 41, 51).
+- **Movie:** P/A/S/M movie exposure is selected before recording; exposure values cannot be changed
+  while recording (manual p. 71).
+- **Focus:** the AF target is selected directly in the frame; AF Area changes the target-selection
+  strategy rather than the shooting workflow (manual pp. 54–56).
+
+The interface therefore shows only the mode-relevant exposure controls plus ISO and white balance by
+default. Drive, color, metering, record mode and other Super Control Panel settings remain available
+behind **All settings**. Navigation uses the user tasks **Shoot, Focus, Sequence, Review** rather than
+camera implementation categories.
+
 ## Principles
 
 1. **Live view is the hero.** It takes the left/centre of the screen at 4:3; panels sit beside it on the

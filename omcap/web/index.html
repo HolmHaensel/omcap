@@ -135,6 +135,13 @@ button:disabled{color:var(--disabled);opacity:.6;cursor:not-allowed}
 #props label.ro strong{font-family:var(--font-value);font-size:18px;font-weight:500;color:var(--text)}
 #props label.ro{grid-column:1/-1;border-style:dashed;border-color:var(--line-strong)}
 #props label.wide{grid-column:1/-1}
+#props:not(.expanded) label.advanced{display:none!important}
+#props label.quick-primary{border-color:var(--accent-line);background:var(--accent-soft)}
+#props[data-primary-count="1"] label.quick-primary{grid-column:1/-1;min-height:78px}
+#props[data-primary-count="1"] label.quick-primary select{font-size:24px}
+#workflowHint{min-height:34px;margin:-2px 0 9px;padding:0 2px;color:var(--muted);font-size:var(--fs-meta);line-height:1.35}
+.section-actions{display:flex;align-items:center;gap:4px}
+#propsMore{font-size:10px;padding:3px 8px;background:transparent;color:var(--muted);white-space:nowrap}
 #modeBox{margin-bottom:var(--s2)}
 #modeBox .seg{flex-wrap:wrap}
 #modeBox .seg button{flex:1;width:auto;min-width:0;padding:0 2px;height:38px;font-family:var(--font-value);font-size:13px}
@@ -517,14 +524,15 @@ section h2{margin-bottom:10px;color:#b9bec4;font-size:var(--fs-label);font-weigh
 </div>
 <div id="panels" data-pane="camera">
   <nav id="panelNav" aria-label="Control groups">
-    <button type="button" data-panel-nav="camera" aria-selected="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="12" cy="12" r="7"/><circle cx="12" cy="12" r="2"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg><span data-i18n="nav.camera">Camera</span></button>
+    <button type="button" data-panel-nav="camera" aria-selected="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="12" cy="12" r="7"/><circle cx="12" cy="12" r="2"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg><span data-i18n="nav.camera">Shoot</span></button>
     <button type="button" data-panel-nav="focus" aria-selected="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M8 3H3v5M16 3h5v5M8 21H3v-5M16 21h5v-5"/><circle cx="12" cy="12" r="3"/></svg><span data-i18n="nav.focus">Focus</span></button>
-    <button type="button" data-panel-nav="tools" aria-selected="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M4 6h10M18 6h2M4 12h2M10 12h10M4 18h7M15 18h5"/><circle cx="16" cy="6" r="2"/><circle cx="8" cy="12" r="2"/><circle cx="13" cy="18" r="2"/></svg><span data-i18n="nav.tools">Tools</span></button>
-    <button type="button" data-panel-nav="files" aria-selected="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="m7 16 3-3 2 2 3-4 3 5"/></svg><span data-i18n="nav.files">Files</span></button>
+    <button type="button" data-panel-nav="tools" aria-selected="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M4 6h10M18 6h2M4 12h2M10 12h10M4 18h7M15 18h5"/><circle cx="16" cy="6" r="2"/><circle cx="8" cy="12" r="2"/><circle cx="13" cy="18" r="2"/></svg><span data-i18n="nav.tools">Sequence</span></button>
+    <button type="button" data-panel-nav="files" aria-selected="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="m7 16 3-3 2 2 3-4 3 5"/></svg><span data-i18n="nav.files">Review</span></button>
   </nav>
   <section data-id="scp" data-pane="camera" data-label="LV super control panel" data-i18n-label="panel.scp">
-    <h2 class="hrow"><span data-i18n="panel.scp">LV super control panel</span> <button id="propsReload" class="mini" data-i18n="scp.reload">reload</button></h2>
+    <h2 class="hrow"><span data-i18n="quick.title">Quick controls</span><span class="section-actions"><button id="propsMore" type="button" hidden data-i18n="quick.all">All settings</button><button id="propsReload" class="mini" data-i18n="scp.reload">reload</button></span></h2>
     <div id="modeBox"></div>
+    <div id="workflowHint"></div>
     <div id="props"></div>
     <div id="roProps" hidden></div>
   </section>
@@ -1021,10 +1029,21 @@ const I18N={en:{
   "layout.settings": "Settings",
   "layout.close": "Close",
   "layout.reset": "Reset",
-  "nav.camera": "Camera",
+  "nav.camera": "Shoot",
   "nav.focus": "Focus",
-  "nav.tools": "Tools",
-  "nav.files": "Files"
+  "nav.tools": "Sequence",
+  "nav.files": "Review",
+  "quick.title": "Quick controls",
+  "quick.all": "All settings",
+  "quick.less": "Quick only",
+  "quick.hint.iAuto": "Frame, focus and shoot. The camera chooses the exposure.",
+  "quick.hint.P": "Set brightness. The camera balances shutter speed and aperture.",
+  "quick.hint.A": "Choose depth of field. The camera selects the shutter speed.",
+  "quick.hint.S": "Choose motion. The camera selects the aperture.",
+  "quick.hint.M": "Choose shutter speed and aperture directly.",
+  "quick.hint.ART": "Choose the look first, then fine-tune brightness.",
+  "quick.hint.movie": "Choose movie exposure before recording. Values lock while recording.",
+  "quick.hint.default": "Only controls available in this shooting mode are shown."
 }};
 const LANG=(()=>{try{const l=localStorage.getItem('omcap.lang');if(l&&I18N[l])return l}catch{}
   const n=(navigator.language||'en').slice(0,2);return I18N[n]?n:'en'})();
@@ -1311,6 +1330,33 @@ function renderModeBox(p){
   }
   box.append(seg);
 }
+let showAllSettings=false;
+function workflowFor(p){
+  const mode=p.takemode&&p.takemode.value;
+  const movieMode=mode==='movie'&&p.exposemovie&&p.exposemovie.value;
+  let primary=[];
+  if(mode==='movie') primary=['exposemovie'];
+  else if(mode==='A') primary=['focalvalue'];
+  else if(mode==='S') primary=['shutspeedvalue'];
+  else if(mode==='M') primary=['shutspeedvalue','focalvalue'];
+  else if(mode==='ART') primary=['artfilter'];
+  else if(['P','S','A'].includes(mode)) primary=['expcomp'];
+  const quick=[...primary,'isospeedvalue','wbvalue'];
+  if(['P','A','S','ART'].includes(mode)||['P','A','S'].includes(movieMode)) quick.push('expcomp');
+  if(movieMode==='A') quick.push('focalvalue');
+  if(movieMode==='S') quick.push('shutspeedvalue');
+  if(movieMode==='M') quick.push('shutspeedvalue','focalvalue');
+  if(mode==='iAuto') quick.push('drivemode');
+  return{mode,primary,quick:[...new Set(quick)]};
+}
+function syncSettingsToggle(){
+  const box=$('#props'),button=$('#propsMore'),hasAdvanced=!!box.querySelector('label.advanced');
+  box.classList.toggle('expanded',showAllSettings);
+  button.hidden=!hasAdvanced;
+  button.textContent=tr(showAllSettings?'quick.less':'quick.all');
+  button.setAttribute('aria-expanded',String(showAllSettings));
+}
+$('#propsMore').onclick=()=>{showAllSettings=!showAllSettings;syncSettingsToggle()};
 function renderProps(){
   const p=lastProps,box=$('#props');
   if(!p) return;
@@ -1319,6 +1365,8 @@ function renderProps(){
   renderRo();
   box.innerHTML='';
   renderModeBox(p);
+  const workflow=workflowFor(p);
+  $('#workflowHint').textContent=tr('quick.hint.'+workflow.mode,null,tr('quick.hint.default'));
   for(const [k,f] of Object.entries(FEATURES)){
     const v=p[k];
     if(k==='takemode') continue; // own control above the tiles (renderModeBox)
@@ -1326,6 +1374,9 @@ function renderProps(){
     // Value names: table (val.<setting>.<value>) before the camera names and from FEATURES
     const name=o=>tr('val.'+k+'.'+o,null,'')||(v.names&&v.names[o])||(f.names&&f.names[o])||o;
     const l=document.createElement('label'); l.textContent=tr('prop.'+k); l.dataset.id=k; l.dataset.label=tr('prop.'+k);
+    l.classList.toggle('quick-primary',workflow.primary.includes(k));
+    l.classList.toggle('advanced',!workflow.quick.includes(k));
+    l.dataset.quickOrder=String((workflow.quick.indexOf(k)+1||100)+100);
     const sel=document.createElement('select'); sel.disabled=!canWrite;
     const opts=v.enum.filter(o=>!(f.skip&&f.skip(o,p)));
     if(!opts.includes(v.value)) opts.unshift(v.value);
@@ -1339,6 +1390,10 @@ function renderProps(){
     l.append(sel); box.append(l);
   }
   applyLayout();
+  const primaryCount=box.querySelectorAll('label.quick-primary:not([hidden])').length;
+  box.dataset.primaryCount=String(primaryCount);
+  box.querySelectorAll('label[data-quick-order]').forEach(l=>{l.style.order=l.dataset.quickOrder});
+  syncSettingsToggle();
   applyContext();
 }
 /* Show and hide shooting options depending on the mode (manual p.41, 85) */
