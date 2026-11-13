@@ -12,6 +12,7 @@
 - Also camera-tested with the PTP backend: interval shooting (3 frames, 5 s), AE bracketing (3 frames, −0.3/0/+0.3 EV per EXIF, compensation restored), partial reads (picture info from the first 128 KB in 0.02 s; a whole 3.8 MB JPG in 0.22 s) and a full session in the browser (tap focus, Take picture, Index display, single-frame view). Not tested: Linux.
 
 ### Shooting and settings
+- USB movie recording: Start/Stop recording presses the camera's REC button (movie button, PTP 0x948C), so it records in every shooting mode (E-M1 manual, p.26), not only in Movie mode; hidden during BULB / LIVE TIME / LIVECOMP and with sequential shooting (p.27). PHOTO STORY and some SCN modes read as P over USB: there the camera does not record although the button is shown. Live view keeps running while recording, the MOV file goes to the card list, a recording is ended when the app disconnects or quits. Camera-tested 2026-11-13 in S and in Movie mode. Movie settings (frame rate, quality, audio) not over USB yet (REQ-F37).
 - USB Focus ring (MF): Near 3/2/1 and Far 1/2/3 in the AF section move the focus like the focus ring (PTP 0x9487, step sizes as libgphoto2). Shown only with AF mode MF or S-AF+MF and write enabled; the camera ignores it in S-AF. Camera-tested 2026-11-13: about 0.1 s per step, three clearly different step sizes. Not over Wi-Fi: no command (REQ-F28, basis for the Star AF aid REQ-F24).
 - USB LV super control panel: AF mode, Metering mode, Flash mode, Record mode, Aspect ratio, Image stabilizer and Face priority, with values mapped on the camera (`out/research/usb_value_mapping.md`). Only in P/A/S/M as on the camera (manual p.24). Read and write tested 2026-11-13. Not over Wi-Fi: no command (REQ-F10).
 - USB: shutter speeds that libgphoto2 lists as fractions (3.2 s = 32/10, 1/1.3 s = 10/13 …) are offered and named like on the camera; ISO AUTO/LOW are named by value, not by position; the read-only flag of each setting comes from the camera; the aperture list is limited by the lens limits the camera reports (d07f/d080) (REQ-F10).
@@ -22,9 +23,10 @@
 ### App and docs
 - The app releases the camera when it is stopped with Ctrl+C or `kill` (leaves PC control and closes the session); before, the camera could stop answering until it was switched off.
 - README: USB on Linux works over libgphoto2 (not tested yet: camera mounting by the desktop, udev access); libgphoto2 stays the USB backend there.
-- 165 offline tests pass on `usb-ptp` (2026-11-13).
+- 169 offline tests pass (2026-11-13).
 
 ### Known issues
+- USB movie: the app does not check that the camera really started recording (PHOTO STORY, some SCN modes, a full card); then it shows a recording that does not run until Stop recording is clicked.
 - LIVECOMP: a stop press shortly after the start (4–8 s) is ignored by the camera and the exposure keeps running; a later press ends it (probably after the first composite frame, Composite Settings). The app does not show that the exposure still runs.
 - Mode dial over USB: the new mode arrives only when PC control is switched on again, so each turn rebuilds the session (8–10 s); quick turns in a row show only the last position.
 - Wi-Fi drops out on the Mac (it leaves the camera network). Once, an app started from the launcher got "No route to host" while the shell reached the camera (macOS Local Network permission suspected).

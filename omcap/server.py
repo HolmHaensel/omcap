@@ -154,6 +154,12 @@ def disconnect():
         except (CameraError, WriteBlocked):
             pass
         state["take"] = None
+    if conn_type == "usb" and state.get("movie"):
+        try:
+            cam.movie_stop()  # end the recording before the session closes
+        except (CameraError, WriteBlocked):
+            pass
+        state["movie"] = None
     try:
         if live.running:
             cam.stop_liveview()
@@ -1189,6 +1195,20 @@ class Handler(BaseHTTPRequestHandler):
                     cam.take_stop()
                 finally:
                     state["take"] = None
+        elif path == "/api/movie" and conn_type == "usb":
+            # USB: the movie button records in every shooting mode (manual p.26), no mode switch
+            # the REC button toggles: never press it for Stop when the app did not start a recording
+            if b.get("action") == "start":
+                ensure_idle()
+                cam.movie_start()
+                state["movie"] = {"since": time.time()}
+            else:
+                if not state["movie"]:
+                    raise CameraError("No recording is running")
+                try:
+                    cam.movie_stop()
+                finally:
+                    state["movie"] = None
         elif path == "/api/movie":
             if b.get("action") == "start":
                 # Over Wi-Fi the camera only records movies in Movie mode (n): switch briefly

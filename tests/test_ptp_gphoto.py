@@ -262,6 +262,32 @@ class MfDrive(unittest.TestCase):
         self.assertEqual(fake.calls, [])
 
 
+class Movie(unittest.TestCase):
+    def test_button_press_and_release(self):
+        cam = usb_camera.UsbCamera.__new__(usb_camera.UsbCamera)
+        fake = FakePtp()
+        cam.gp, cam._c, cam._lock, cam.allow_write = pg, camera(fake), threading.Lock(), True
+        cam._new_files, cam._pending, cam._event_log, cam.last_jpg = ["x"], [], [], None
+        cam.movie_start()
+        self.assertTrue(cam.shooting)  # no session rebuild while recording
+        cam._events = lambda *a: False  # no camera events in this test
+        cam.movie_stop()
+        self.assertFalse(cam.shooting)
+        self.assertEqual([c for c in fake.calls if c[0] == "op"], [("op", 0x948C, (1,)), ("op", 0x948C, (0,))] * 2)
+        self.assertEqual(cam._new_files, [])
+
+
+class MovieServer(unittest.TestCase):
+    def test_stop_without_recording_does_not_press(self):
+        from omcap import server
+        cam = mock.Mock()
+        with mock.patch.object(server, "cam", cam), mock.patch.object(server, "conn_type", "usb"), \
+                mock.patch.dict(server.state, {"movie": None}):
+            with self.assertRaises(usb_camera.CameraError):
+                server.Handler._action(server.Handler.__new__(server.Handler), "/api/movie", {"action": "stop"})
+        cam.movie_stop.assert_not_called()
+
+
 class Backend(unittest.TestCase):
     def test_auto_falls_back_to_libgphoto2(self):
         with mock.patch.object(usb_camera.UsbCamera, "_open") as op, \
