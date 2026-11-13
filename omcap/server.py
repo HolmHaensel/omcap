@@ -277,7 +277,8 @@ def capture():
         yield
     finally:
         try:
-            if was_live:  # a mode switch ends the live view
+            # a mode switch ends the live view; Wi-Fi starttake and USB keep it running
+            if was_live and (not live.running or live.age is None or live.age > 2):
                 start_live()
         finally:
             busy.release()

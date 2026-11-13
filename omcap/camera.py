@@ -19,6 +19,7 @@ HEADERS = {"User-Agent": "OlympusCameraKit"}
 SAVED_COMMANDS = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "commandlist.xml")
 
 FOCUS_WAIT = 2.0       # time between 1stpush and 2ndpush
+TAKE_STOP_WAIT = 0.5  # s between starttake and stoptake (one frame in single-frame drive)
 SAVE_WAIT = 1.5        # wait for the camera to finish saving before switching the mode back
 LIST_RETRIES = 6       # retry get_imglist this many times on HTTP 520 (camera is still writing)
 LIST_RETRY_WAIT = 1.0  # seconds between attempts
@@ -126,6 +127,7 @@ class Camera:
         self._lock = threading.Lock()
         self._commands = None
         self._touch = None  # (lvqty, touch_frame()); the camera only changes it together with lvqty
+        self.af_point = None  # last tapped AF point "XXXXxYYYY" (touch frame grid), used by shoot()
 
     # --- Transport -------------------------------------------------------
     def _open(self, cgi, query=None, data=None, timeout=None):
@@ -339,6 +341,7 @@ class Camera:
         if not (f["x"] <= x <= f["x"] + f["w"] and f["y"] <= y <= f["y"] + f["h"]):
             raise CameraError("AF point is outside the active area")
         point = "%04dx%04d" % (x, y)
+        self.af_point = point
         reply = self.write("exec_takemotion", com="assignafframe", point=point)
         self.write("exec_takemotion", com="takeready", point=point)
         try:
@@ -395,6 +398,11 @@ class Camera:
             raise error
 
     def shoot(self):
+        """Take one picture. First `starttake` with the tapped point in mode "rec" (E-M1: answer after
+        ~0.8 s, focuses on that point, no switch to "shutter"; REQ-F34); if the camera refuses,
+        the shutter-button route (~7 s)."""
+        if self.take_point():
+            return
         try:
             self.press(1)
             time.sleep(FOCUS_WAIT)
@@ -402,6 +410,24 @@ class Camera:
             time.sleep(0.5)
         finally:
             self.press(0)
+
+    def take_point(self):
+        """Focus on the last tapped point (or the camera's AF target) and shoot; False if refused."""
+        q = {"com": "starttake"}
+        if self.af_point:
+            q["point"] = self.af_point
+        try:
+            reply = self.write("exec_takemotion", **q)
+            ok = ET.fromstring(reply).findtext("take", "").strip().lower() == "ok"
+        except (CameraError, ET.ParseError):
+            return False
+        finally:
+            time.sleep(TAKE_STOP_WAIT)
+            try:
+                self.write("exec_takemotion", com="stoptake")  # ends the take (sequential: the burst)
+            except CameraError:
+                pass
+        return ok
 
     def take_start(self, exposuremin=None, upperlimit=None):
         """Start a long exposure (parameters per the command list, values untested)."""
