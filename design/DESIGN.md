@@ -1,7 +1,7 @@
 # E-M1 Capture – design
 
 Design canvas (private to the maintainer, ask for access): Live View, 2026-11-11.
-Tokens: [`tokens.css`](tokens.css). Planned for version 0.4.
+Tokens: [`tokens.css`](tokens.css). Implemented in version 0.4.0 (2026-11-11); the build order below is done.
 
 ## Principles
 
@@ -90,7 +90,7 @@ recording a movie, read only, Wi-Fi drop-out (last good frame kept, "No signal f
 | Image only / Simplified display / Overall display | INFO button cycle during playback | p.62 |
 | View zoom 1×/2×/4× | not a camera function (the camera's own is Magnify / Zoom frame AF, ×3–×14); label it as the app's view zoom | – |
 
-## Build order for `omcap/web/index.html` (feature-dev, one step per commit)
+## Build order for `omcap/web/index.html` (done in 0.4.0; kept as record)
 
 1. Load `design/tokens.css` (inline copy in the page) and switch colours, type and radii to tokens; dark only.
 2. New page skeleton: header row, two columns (live view 1044 px max / right column 340 px), responsive

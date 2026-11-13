@@ -31,21 +31,21 @@ Contributions, tests with other bodies and ideas are very welcome.
 | Live view with selectable size, zoom, Displayed Grid, overlay, second monitor | yes | yes (size choice up to 1280×960 needs libgphoto2 2.5.34.1 or later, see below; otherwise fixed 1024×768) |
 | Tap the 9×9 AF grid to focus, AF target shown in green | yes | yes |
 | AF Area (All Targets, Single Target, Small Target, Group Target) | – (no command over Wi-Fi) | yes |
-| Shutter button: Take picture, Press halfway (hold focus, then take picture) | yes (Take picture focuses on the tapped AF point and takes about 1.2 s) | yes |
+| Shutter button: Take picture, Press halfway (hold focus, then take picture) | yes (Take picture focuses on the tapped AF point and takes 1.2–1.5 s; long exposures and Movie use the shutter button route) | yes (Take picture focuses on the tapped AF field) |
 | Self-timer (Off, 2 s, 12 s; the button becomes Cancel self-timer while it runs) | yes | yes |
-| New picture in the last-shot corner and Index display right after Take picture | yes (about 2 s after the shot) | yes (the camera reports new files) |
+| New picture in the last-shot corner and Index display right after Take picture | yes (8.4 s after the click, of which 7.2 s is the camera's shot) | yes (5–6 s after the click; the camera reports new files) |
 | LV super control panel: Shooting mode, shutter speed, aperture, exposure compensation, ISO, WB, drive, Picture Mode, Art filter | yes | most (mode dial only) |
 | Shooting mode follows the mode dial, values reload by themselves (during live view) | not needed (the app sets the mode) | yes, tested: P, A, S, M, Movie read correctly; iAUTO, ART, SCN, PHOTO STORY show as P; after a shot iAUTO is shown from the picture's EXIF |
-| M mode quick select: BULB, LIVE TIME, LIVECOMP, Off | built, untested | built, untested |
+| M mode quick select: BULB, LIVE TIME, LIVECOMP, Off | yes (tested 2026-11-13) | yes (tested 2026-11-13) |
 | AF mode, Metering mode, Flash mode, Record mode, Aspect ratio, Image stabilizer, Face priority in the LV super control panel | – (no command) | yes (reading tested, setting untested) |
 | Aperture list limited to the attached lens (read from EXIF) | yes | yes (after the first picture of the session; before that only the focal length) |
-| Movie: Start/Stop recording, movie shooting mode P/A/S/M | yes | – (not built, unknown over USB) |
+| Movie: Start/Stop recording, movie shooting mode P/A/S/M | yes | – (not built; planned for 0.7) |
 | Time lapse shooting, AE BKT | built, untested | built, untested |
-| Quit E-M1 Capture button | yes (tested without a camera connection) | yes (tested without a camera connection) |
+| Quit E-M1 Capture button | yes (tested while connected and from the start screen) | yes (tested from the start screen; while connected not yet) |
 | Playback: Index display, Calendar display, single-frame view, save to computer | yes | yes |
 | Card list saved on the computer, shown at once when you connect (the camera's list follows) | yes | yes |
 | Playback: shooting data (Overall display), line on thumbnails | yes | yes |
-| Open in OM Workspace from the single-frame view (macOS, only when OM Workspace is installed) | yes | yes |
+| Open in OM Workspace from the single-frame view (macOS, only when OM Workspace is installed) | yes (not tested yet) | yes (tested 2026-11-13) |
 | Save to card only or card and computer | yes | yes |
 | Free card space in the header | yes (free shots, live from the live view) | yes |
 | Current focal length in the header, ISO with ISO Auto, shutter speed and aperture the camera uses in auto modes | yes (sent with the live view) | – (no live USB property found) |
@@ -65,7 +65,7 @@ Contributions, tests with other bodies and ideas are very welcome.
 USB the tilt is only updated when the session starts), changing AF Area over Wi-Fi and the shooting mode
 over USB (the camera offers no command for it).
 
-**Planned (next releases):** Mac app with a menu bar icon, Windows over Wi-Fi, Star AF focus aid (star
+**Planned (next releases):** Mac app with a menu bar icon, Windows over Wi-Fi, movie and focus stacking over USB (0.7), Star AF focus aid (star
 sharpness while you turn the focus ring), subject detection in live view on the computer (face/eye,
 later animals and birds; the E-M1 itself sends no face frames) with "Focus on subject", film looks and
 a look lab on the computer. Ideas and wishes are welcome in [Discussions](https://github.com/HolmHaensel/omcap/discussions).
@@ -179,7 +179,7 @@ Measured with the E-M1 Mark I:
    `ptpcamerad`, which would otherwise hold the camera.
 
 Notes: after connecting, the camera reads its card index once (about 1 min); meanwhile the card
-list saved on the computer is shown. Live view runs at about 15 fps with a fixed size. The shooting mode follows the mode
+list saved on the computer is shown. Live view runs at about 14–18 fps at 1024×768. The shooting mode follows the mode
 dial during live view. Other settings changed on the camera itself are picked up with **reload** in
 the LV super control panel (rebuilds the USB session, about 9 s). After unplugging and plugging the
 cable in again while the app runs, connecting may fail with *Could not claim the USB device*:
@@ -189,7 +189,7 @@ stop the app and start it again.
 
 libgphoto2 2.5.34 (bundled with the `gphoto2` Python package) fixes the USB live view at 1024×768. The
 development version of libgphoto2 (2.5.34.1 or later) keeps a chosen size, and the app then shows **Size**
-over USB too (up to 1280×960, about 14 fps). Until a release contains it, build it yourself (macOS, Homebrew):
+over USB too (up to 1280×960, 13.8 fps measured). Until a release contains it, build it yourself (macOS, Homebrew):
 
 ```sh
 brew install autoconf automake libtool gettext pkgconf libusb libexif
