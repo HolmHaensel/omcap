@@ -451,9 +451,12 @@ class PtpCamera:
         return False
 
     # Olympus OM-D
-    def liveview_frame(self, tries=25):
-        """One JPEG from the live view (0x9484, param 1); retries shortly while the camera is busy."""
-        for _ in range(tries):
+    def liveview_frame(self, wait=1.0):
+        """One JPEG from the live view (0x9484, param 1); retries while the camera is busy, up to `wait` s
+        (libgphoto2: 25 x 40 ms). The app rebuilds the session after 10 failed frames, so a shorter wait
+        would end long exposures (BULB, LIVE TIME, LIVECOMP) after about a second (seen 2026-11-13)."""
+        end = time.monotonic() + wait
+        while True:
             try:
                 data = self.transact(OP_LIVEVIEW, (1,), want_data=True)[0]
             except PtpError as e:
@@ -462,8 +465,9 @@ class PtpCamera:
                 data = None
             if data and len(data) >= 1024 and data[:2] == b"\xff\xd8":
                 return data
+            if time.monotonic() > end:
+                return None
             time.sleep(0.005)
-        return None
 
     def shutter(self, step):
         """0x9481: 1 half press, 3 press all the way, 6 release (tested on the E-M1)."""

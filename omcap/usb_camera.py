@@ -269,6 +269,7 @@ class UsbCamera:
     stage = 0
     lvqty = None
     features = FEATURES
+    shooting = False
 
     # setting named as over Wi-Fi -> gphoto name, display names from the choice values
     PROPS = {
@@ -372,8 +373,19 @@ class UsbCamera:
         try:
             self._open()
             self._apply_lv_size_locked()  # keep the chosen size after a rebuilt session
+            self._resync_files_locked()
         except (CameraError, self.gp.GPhoto2Error):
             pass
+
+    def _resync_files_locked(self):
+        """After a rebuilt session: files whose "added" event was lost go to the card list (PTP backend)."""
+        if getattr(self, "_files", None) is None or not hasattr(self._c, "file_paths"):
+            return
+        for path in self._c.file_paths():
+            if path not in self._files and path not in self._pending:
+                self._pending.append(path)
+                if path.lower().endswith((".jpg", ".jpeg")):
+                    self.last_jpg = path
 
     @property
     def hold(self):
@@ -389,7 +401,7 @@ class UsbCamera:
         """Read pending events without waiting; True if the mode dial was turned.
 
         Files shot on the camera body go to the card list only, not to the app's next shot."""
-        if self.hold or self.stage:
+        if self.hold or self.stage or self.shooting:  # a long exposure also sends 0xC003
             return False
         turned = False
         with self._lock:
@@ -766,17 +778,29 @@ class UsbCamera:
 
     def take_start(self, exposuremin=None, upperlimit=None):
         # BULB runs while the button is held; LIVE TIME and LIVECOMP take one press each
-        if self._is_bulb():
-            self._shutter(OP_FULL)
-        else:
-            self._pulse()
+        self.shooting = True  # no live view images during the exposure: never rebuild the session meanwhile
+        self._take_t0 = time.monotonic()
+        try:
+            if self._is_bulb():
+                self._shutter(OP_FULL)
+            else:
+                self._pulse()
+        except Exception:
+            self.shooting = False
+            raise
 
     def take_stop(self):
-        if self._is_bulb():
-            self._shutter(OP_RELEASE)
-        else:
-            self._pulse()
-        self._events(2.0)
+        try:
+            if self._is_bulb():
+                self._shutter(OP_RELEASE)
+            else:
+                self._pulse()
+            self._events(2.0)
+        finally:
+            self.shooting = False
+            # noise reduction after a long exposure takes about as long as the exposure and ends with
+            # 0xC003/3 like the mode dial: keep the dial check quiet for that time (seen 2026-11-13)
+            self.last_press = time.monotonic() + (time.monotonic() - getattr(self, "_take_t0", time.monotonic()))
 
     def _shutter(self, step):
         self._need_write()

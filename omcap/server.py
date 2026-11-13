@@ -11,6 +11,7 @@ import errno
 import json
 import os
 import re
+import signal
 import subprocess
 import sys
 import tempfile
@@ -1283,6 +1284,10 @@ def main(argv=None):
     print("Keep this window open while you use the app; stop with Ctrl+C.")
     if not a.no_browser:
         open_browser(url)
+
+    def stop(*_):
+        raise KeyboardInterrupt  # kill / logout: end like Ctrl+C, so the camera is released below
+    signal.signal(signal.SIGTERM, stop)
     try:
         server.serve_forever()
     except KeyboardInterrupt:
@@ -1290,6 +1295,10 @@ def main(argv=None):
     else:
         print("E-M1 Capture stopped.")
     finally:
+        try:
+            disconnect()  # USB: leave PC control and close the session, else the camera may hang until power off
+        except Exception as e:
+            print("Disconnecting the camera failed:", e)
         server.server_close()
         http_server = None
     return 0

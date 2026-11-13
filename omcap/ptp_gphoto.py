@@ -386,7 +386,15 @@ class Camera:
             if name in NAMED:
                 raise GPhoto2Error("value not offered: %s=%s" % (name, value), GP_ERROR_NOT_SUPPORTED)
             raw = parse_int(value, dtype)
-        cam.set_prop(code, raw, dtype)
+        end = time.monotonic() + 3.0
+        while True:
+            try:
+                cam.set_prop(code, raw, dtype)
+                return
+            except ptp.PtpError as e:  # busy shortly after a shot (noise reduction, saving)
+                if e.code != ptp.RC_BUSY or time.monotonic() > end:
+                    raise
+                time.sleep(0.2)
 
     @_wrap
     def get_storageinfo(self):
@@ -440,6 +448,12 @@ class Camera:
         if not h:
             raise GPhoto2Error("file not found: %s/%s" % (folder, name))
         return h
+
+    @_wrap
+    def file_paths(self):
+        """Paths of all files in the card index (not a gphoto2 method; used after a rebuilt session)."""
+        self._ensure_index()
+        return [self._index.path(h) for h, v in self._index.objects.items() if not v[5]]
 
     @_wrap
     def folder_list_folders(self, folder):
