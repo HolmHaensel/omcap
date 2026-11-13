@@ -27,7 +27,12 @@ EXPOSURE_PROGRAM = {"1": "M", "2": "P", "3": "A", "4": "S", "8": "movie", "11": 
 WB_NAMES = ["AUTO", "5300K", "7500K", "6000K", "3000K", "4000K", "Underwater", "5500K Flash",
             "One-touch 1", "One-touch 2", "One-touch 3", "One-touch 4", "CWB"]
 FEATURES = ["liveview", "af_area", "af_modes", "stages", "scp", "time_lapse", "ae_bkt",
-            "playback", "transfer", "long", "mf_drive"]
+            "playback", "transfer", "long", "mf_drive", "movie"]
+
+# Movie button, PTP 0x948C (Olympus OM-D MovieRecButton): 1 press, 0 release; each press toggles recording.
+# The camera records in all shooting modes except PHOTO STORY, not during BULB / LIVE TIME / LIVECOMP,
+# sequential shooting or time lapse (E-M1 manual, p.26-27).
+OP_MOVIE_BUTTON = 0x948C
 
 # Manual focus drive, PTP 0x9487 (Olympus OM-D MFDrive): direction 1 near / 2 far, step size as libgphoto2
 # ("manualfocusdrive": Near/Far 1 = 0x03, 2 = 0x0e, 3 = 0x3c). Basis for the Star AF aid (REQ-F24).
@@ -827,6 +832,31 @@ class UsbCamera:
             w.set_value(",".join("0x%x" % v for v in (code,) + params))
             self._c.set_single_config("opcode", w)
         self._call(send)
+
+    def _movie_button(self):
+        self._need_write()
+        self.last_press = time.monotonic()
+        self._opcode(OP_MOVIE_BUTTON, 1)
+        self._opcode(OP_MOVIE_BUTTON, 0)
+
+    def movie_start(self):
+        """Start recording like the movie button; the session is not rebuilt while recording."""
+        self.shooting = True
+        try:
+            self._movie_button()
+        except Exception:
+            self.shooting = False
+            raise
+
+    def movie_stop(self):
+        """Stop recording; the new movie file goes to the card list when the camera reports it."""
+        try:
+            self._movie_button()
+            self._events(3.0, "quiet")
+        finally:
+            self.shooting = False
+            self.last_press = time.monotonic() + 5  # writing the file ends with events like the mode dial
+        self._new_files = []  # the movie is no "new shot" of the shutter: card list only
 
     def mf_drive(self, direction, step):
         """Move the focus like turning the focus ring (MF, S-AF+MF): direction "near"/"far", step 1-3."""
