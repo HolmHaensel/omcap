@@ -41,6 +41,10 @@ default. Drive, color, metering, record mode and other Super Control Panel setti
 behind **All settings**. Navigation uses the user tasks **Shoot, Focus, Sequence, Review** rather than
 camera implementation categories.
 
+The **Sequence** navigation icon follows the E-M1 Sequential H/L symbol: stacked image frames with
+motion lines on the left (manual p. 57). The H/L speed suffix is omitted because the tab also contains
+bracketing, time lapse and movie sequences.
+
 On mobile, live-view size is automatic rather than another shooting control. The app starts at the
 smallest stream that still covers the physical display resolution, up to 1280×960, then steps down
 when a rolling five-second sample falls below 12 complete fps, exceeds 18% damaged frames, or stalls.
