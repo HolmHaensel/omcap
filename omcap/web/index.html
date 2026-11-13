@@ -1742,7 +1742,8 @@ async function local(){
     const url='/captures/'+encodeURIComponent(i.name);
     const see=document.createElement('button'); see.textContent=tr('local.view'); see.onclick=()=>window.open(url,'_blank');
     const ov=document.createElement('button'); ov.textContent=tr('card.overlay'); ov.onclick=()=>overlay(url);
-    const ws=document.createElement('button'); ws.textContent=tr('local.ws'); ws.onclick=()=>act(tr('msg.openedWs'),'/api/open',{name:i.name});
+    const ws=document.createElement('button'); ws.textContent=tr('local.ws'); ws.hidden=$('#vWs').hidden; // only with OM Workspace
+    ws.onclick=()=>act(tr('msg.openedWs'),'/api/open',{name:i.name});
     const hb=document.createElement('button'); hb.textContent=tr('hsl.btn'); hb.onclick=()=>hslOpen(i.name);
     d.append(n,see,ov,hb,ws); box.append(d);
   }

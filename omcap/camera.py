@@ -303,6 +303,8 @@ class Camera:
         q = {"mode": mode}
         if mode == "rec":
             self._touch = None  # re-read once after every mode switch
+            if lvqty and lvqty != self.lvqty:
+                self.af_point = None  # the touch grid depends on the live view size
             self.lvqty = lvqty or self.lvqty
             if self.lvqty:
                 # The camera takes lvqty only on a switch from "play" to "rec".
@@ -401,8 +403,10 @@ class Camera:
         """Take one picture. First `starttake` with the tapped point in mode "rec" (E-M1: answer after
         ~0.8 s, focuses on that point, no switch to "shutter"; REQ-F34); if the camera refuses,
         the shutter-button route (~7 s)."""
-        if self.take_point():
+        self.mode_switched = False
+        if self._starttake_suits() and self.take_point():
             return
+        self.mode_switched = True  # the shutter-button route ends the live view
         try:
             self.press(1)
             time.sleep(FOCUS_WAIT)
@@ -411,23 +415,46 @@ class Camera:
         finally:
             self.press(0)
 
+    def _starttake_suits(self):
+        """starttake/stoptake is tested for normal shots only (2026-11-13). Long exposures (BULB, LIVE TIME,
+        LIVECOMP, slower than 1/4 s), the self-timer and Movie mode keep the shutter-button route."""
+        try:
+            mode, speed, drive = (self.prop(p) or "" for p in ("takemode", "shutspeedvalue", "drivemode"))
+        except CameraError:
+            return False
+        slow = '"' in speed or (re.fullmatch(r"[\d.]+", speed) and float(speed) < 4)  # "4" = 1/4 s
+        return mode != "movie" and not speed.startswith("live") and not slow and "selftimer" not in drive
+
     def take_point(self):
-        """Focus on the last tapped point (or the camera's AF target) and shoot; False if refused."""
+        """Focus on the last tapped point (or the camera's AF target) and shoot.
+
+        False only if the camera refuses (HTTP 520 or <take> not ok): then nothing was taken and the
+        caller may use the shutter-button route. Other errors are raised, so no second picture."""
         q = {"com": "starttake"}
         if self.af_point:
             q["point"] = self.af_point
         try:
             reply = self.write("exec_takemotion", **q)
+        except CameraError as e:
+            if e.code == 520:
+                return False
+            self._stop_take()  # a timeout may still have started the take
+            raise
+        try:
             ok = ET.fromstring(reply).findtext("take", "").strip().lower() == "ok"
-        except (CameraError, ET.ParseError):
-            return False
-        finally:
-            time.sleep(TAKE_STOP_WAIT)
-            try:
-                self.write("exec_takemotion", com="stoptake")  # ends the take (sequential: the burst)
-            except CameraError:
-                pass
+        except ET.ParseError:
+            ok = None  # unknown answer: stop and report, do not shoot a second time
+        time.sleep(TAKE_STOP_WAIT)
+        self._stop_take()  # ends the take (sequential drive: the burst)
+        if ok is None:
+            raise CameraError("Unexpected answer to starttake")
         return ok
+
+    def _stop_take(self):
+        try:
+            self.write("exec_takemotion", com="stoptake")
+        except CameraError:
+            pass
 
     def take_start(self, exposuremin=None, upperlimit=None):
         """Start a long exposure (parameters per the command list, values untested)."""

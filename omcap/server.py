@@ -273,12 +273,15 @@ def capture():
     if not busy.acquire(blocking=False):
         raise CameraError("Camera is busy")
     was_live = live.running
+    if hasattr(cam, "mode_switched"):
+        cam.mode_switched = True  # only a starttake shot inside clears it
     try:
         yield
     finally:
         try:
-            # a mode switch ends the live view; Wi-Fi starttake and USB keep it running
-            if was_live and (not live.running or live.age is None or live.age > 2):
+            # a mode switch ends the live view (Wi-Fi shutter-button route); starttake keeps it running
+            if was_live and (getattr(cam, "mode_switched", True) or not live.running
+                             or live.age is None or live.age > 2):
                 start_live()
         finally:
             busy.release()

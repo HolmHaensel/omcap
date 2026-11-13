@@ -31,9 +31,9 @@ Contributions, tests with other bodies and ideas are very welcome.
 | Live view with selectable size, zoom, Displayed Grid, overlay, second monitor | yes | yes (size choice up to 1280×960 needs libgphoto2 2.5.34.1 or later, see below; otherwise fixed 1024×768) |
 | Tap the 9×9 AF grid to focus, AF target shown in green | yes | yes |
 | AF Area (All Targets, Single Target, Small Target, Group Target) | – (no command over Wi-Fi) | yes |
-| Shutter button: Take picture, Press halfway (hold focus, then take picture) | yes | yes |
+| Shutter button: Take picture, Press halfway (hold focus, then take picture) | yes (Take picture focuses on the tapped AF point and takes about 1.2 s) | yes |
 | Self-timer (Off, 2 s, 12 s; the button becomes Cancel self-timer while it runs) | yes | yes |
-| New picture in the last-shot corner and Index display right after Take picture | yes (about 8 s, 7 s of it the camera) | yes (the camera reports new files) |
+| New picture in the last-shot corner and Index display right after Take picture | yes (about 2 s after the shot) | yes (the camera reports new files) |
 | LV super control panel: Shooting mode, shutter speed, aperture, exposure compensation, ISO, WB, drive, Picture Mode, Art filter | yes | most (mode dial only) |
 | Shooting mode follows the mode dial, values reload by themselves (during live view) | not needed (the app sets the mode) | yes, tested: P, A, S, M, Movie read correctly; iAUTO, ART, SCN, PHOTO STORY show as P; after a shot iAUTO is shown from the picture's EXIF |
 | M mode quick select: BULB, LIVE TIME, LIVECOMP, Off | built, untested | built, untested |
@@ -44,6 +44,7 @@ Contributions, tests with other bodies and ideas are very welcome.
 | Playback: Index display, Calendar display, single-frame view, save to computer | yes | yes |
 | Card list saved on the computer, shown at once when you connect (the camera's list follows) | yes | yes |
 | Playback: shooting data (Overall display), line on thumbnails | yes | yes |
+| Open in OM Workspace from the single-frame view (macOS, only when OM Workspace is installed) | yes | yes |
 | Save to card only or card and computer | yes | yes |
 | Free card space in the header | yes (free shots, live from the live view) | yes |
 | Current focal length in the header, ISO with ISO Auto, shutter speed and aperture the camera uses in auto modes | yes (sent with the live view) | – (no live USB property found) |
