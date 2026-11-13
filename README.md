@@ -37,6 +37,7 @@ Contributions, tests with other bodies and ideas are very welcome.
 | LV super control panel: Shooting mode, shutter speed, aperture, exposure compensation, ISO, WB, drive, Picture Mode, Art filter | yes | most (mode dial only) |
 | Shooting mode follows the mode dial, values reload by themselves (during live view) | not needed (the app sets the mode) | yes, tested: P, A, S, M, Movie read correctly; iAUTO, ART, SCN, PHOTO STORY show as P; after a shot iAUTO is shown from the picture's EXIF |
 | M mode quick select: BULB, LIVE TIME, LIVECOMP, Off | built, untested | built, untested |
+| AF mode, Metering mode, Flash mode, Record mode, Aspect ratio, Image stabilizer, Face priority in the LV super control panel | – (no command) | yes (reading tested, setting untested) |
 | Aperture list limited to the attached lens (read from EXIF) | yes | yes (after the first picture of the session; before that only the focal length) |
 | Movie: Start/Stop recording, movie shooting mode P/A/S/M | yes | – (not built, unknown over USB) |
 | Time lapse shooting, AE BKT | built, untested | built, untested |

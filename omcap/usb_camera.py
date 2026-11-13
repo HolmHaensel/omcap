@@ -141,6 +141,30 @@ def _picture_names(choices):
     return {c: table.get(str(c), c) for c in choices}
 
 
+# Super Control Panel settings over USB, values mapped on the camera 2026-11-13
+# (out/research/usb_value_mapping.md); "inferred" values follow the pattern but were not seen
+USB_TABLES = {
+    "d003": {"2": "S-AF", "32770": "C-AF", "1": "MF", "32769": "S-AF+MF"},
+    "d004": {"32769": "Digital ESP", "2": "Center weighted", "4": "Spot", "32785": "Spot HI",
+             "32786": "Spot SH"},  # 32786 inferred
+    "d005": {"1": "Flash Auto", "3": "Fill-in", "2": "Flash Off"},  # other flash modes not mapped yet
+    "d00d": {"257": "LF", "258": "LN", "259": "MN", "260": "SN", "32": "RAW", "289": "LF+RAW",
+             "290": "LN+RAW", "291": "MN+RAW", "292": "SN+RAW"},  # MN/SN and LF/MN/SN+RAW inferred
+    "d01d": {"0": "S-IS Off", "1": "S-IS1", "2": "S-IS2", "3": "S-IS3", "4": "S-IS AUTO"},  # 3/4 inferred
+    "d01a": {"0": "Face Priority Off", "32769": "Face Priority On", "32770": "Face & Eye Priority On",
+             "32771": "Face & R. Eye Priority On", "32772": "Face & L. Eye Priority On"},  # 32770/1 inferred
+}
+
+
+def _table_names(code):
+    return lambda choices: {c: USB_TABLES[code][c] for c in choices if c in USB_TABLES[code]}
+
+
+def _aspect_names(choices):
+    """d01b: width << 16 | height, e.g. 262147 = 4:3."""
+    return {c: "%d:%d" % (int(c) >> 16, int(c) & 0xFFFF) for c in choices if int(c) >> 16 and int(c) & 0xFFFF}
+
+
 def parse_battery(value):
     """Battery level in percent from the gphoto2 value ('80%', '80', 80), else None."""
     m = re.fullmatch(r"\s*(\d{1,3})\s*%?\s*", str(value))
@@ -242,6 +266,13 @@ class UsbCamera:
         "drivemode": ("d009", _drive_names),
         "colortone": ("d010", _picture_names),
         "artfilter": ("d010", _picture_names),
+        "focusmode": ("d003", _table_names("d003")),
+        "metering": ("d004", _table_names("d004")),
+        "flashmode": ("d005", _table_names("d005")),
+        "recordmode": ("d00d", _table_names("d00d")),
+        "aspect": ("d01b", _aspect_names),
+        "stabilizer": ("d01d", _table_names("d01d")),
+        "facepriority": ("d01a", _table_names("d01a")),
     }
 
     def __init__(self, allow_write=False):
@@ -447,6 +478,8 @@ class UsbCamera:
                 specials = list(LONG_EXPOSURE)
                 value = LONG_LABELS.get(value, value)
                 choices = specials + choices
+            if name in USB_TABLES:  # offer only mapped values
+                choices = [c for c in choices if c in USB_TABLES[name]]
             out[key] = {"value": value, "writable": True, "enum": choices,
                         "names": namer([c for c in choices if not c.startswith("live")]) if namer else {}}
         return out

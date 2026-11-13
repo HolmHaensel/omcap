@@ -778,6 +778,13 @@ const I18N={en:{
   "prop.isospeedvalue": "ISO sensitivity",
   "prop.wbvalue": "White balance",
   "prop.drivemode": "Sequential shooting/self-timer",
+  "prop.focusmode": "AF mode",
+  "prop.metering": "Metering mode",
+  "prop.flashmode": "Flash mode",
+  "prop.recordmode": "Record mode",
+  "prop.aspect": "Aspect ratio",
+  "prop.stabilizer": "Image stabilizer",
+  "prop.facepriority": "Face priority",
   "prop.colortone": "Picture Mode",
   "prop.artfilter": "Art filter",
   "prop.colorphase": "Partial Color",
@@ -1019,6 +1026,11 @@ const FEATURES={
   artfilter:{show:inMode('ART'),names:{...ART_NAMES,program:'ART BKT'}},
   // Movie mode (n): exposure for movies (manual p.71)
   exposemovie:{show:inMode('movie'),names:{P:'P Program Auto',A:'A Aperture priority',S:'S Shutter priority',M:'M Manual'}},
+  // USB only (no Wi-Fi command): Super Control Panel items, not shown in Movie mode (manual p.24)
+  focusmode:{show:inMode('P','A','S','M')}, metering:{show:inMode('P','A','S','M')},
+  flashmode:{show:inMode('P','A','S','M')}, recordmode:{show:inMode('P','A','S','M')},
+  aspect:{show:inMode('P','A','S','M')}, stabilizer:{show:inMode('P','A','S','M')},
+  facepriority:{show:inMode('P','A','S','M')},
   colorphase:{show:p=>p.takemode.value==='ART'?p.artfilter.value==='partcolor':['P','A','S','M'].includes(p.takemode.value)&&p.colortone.value==='partcolor'},
 };
 let lastProps=null,propsFailed=false;
