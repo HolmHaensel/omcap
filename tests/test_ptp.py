@@ -52,7 +52,13 @@ class FakeTransport:
     def read(self, size=0, timeout=5000):
         if not self.replies:
             raise ptp.PtpError("timeout", code=-7)
-        return self.replies.pop(0)
+        r = self.replies.pop(0)
+        if r is None:  # simulated short timeout while the camera is busy
+            raise ptp.PtpError("timeout", code=-7)
+        return r
+
+    def read_event(self, timeout=10):
+        return (0x4005, (0x10001,)) if self.replies and self.replies[0] is not None else None
 
 
 def pkt(typ, code, tid, body=b""):
@@ -69,6 +75,12 @@ class Transactions(unittest.TestCase):
         payload, _ = cam.transact(0x1009, (5,), want_data=True)
         self.assertEqual(payload, data)
         self.assertEqual(struct.unpack_from("<IHHII", t.sent[0]), (16, ptp.CMD, 0x1009, 1, 5))
+
+    def test_events_read_while_waiting(self):
+        t = FakeTransport([None, pkt(ptp.RESP, ptp.RC_OK, 1)])
+        cam = ptp.PtpCamera(t)
+        cam.set_prop(0xD052, 1, 4)
+        self.assertEqual(cam.event(), (0x4005, (0x10001,)))
 
     def test_error_response(self):
         cam = ptp.PtpCamera(FakeTransport([pkt(ptp.RESP, ptp.RC_BUSY, 1)]))

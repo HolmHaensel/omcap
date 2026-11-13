@@ -235,6 +235,7 @@ class PtpCamera:
     def __init__(self, transport):
         self.t = transport
         self.tid = 0
+        self.events = []  # events read while waiting for an answer (see transact)
 
     def transact(self, code, params=(), data=None, want_data=False, timeout=5000):
         """Returns (data or None, response params). Raises PtpError on a response other than OK."""
@@ -244,8 +245,19 @@ class PtpCamera:
         if data is not None:
             self.t.write(struct.pack("<IHHI", 12 + len(data), DATA, code, tid) + bytes(data))
         payload = None
+        deadline = time.monotonic() + timeout / 1000
         while True:
-            pkt = self.t.read(timeout=timeout)
+            # Read in short slices and keep the event pipe empty meanwhile: libgphoto2 polls the
+            # interrupt endpoint all the time; the camera may hold its answer until its event is taken
+            try:
+                pkt = self.t.read(timeout=200)
+            except PtpError as e:
+                if e.code != -7 or time.monotonic() > deadline:  # -7 = LIBUSB_ERROR_TIMEOUT
+                    raise
+                ev = self.t.read_event(10)
+                if ev:
+                    self.events.append(ev)
+                continue
             if len(pkt) < 12:
                 continue
             length, typ, rc, ptid = struct.unpack_from("<IHHI", pkt)
@@ -312,14 +324,15 @@ class PtpCamera:
     def prop_desc(self, code):
         return parse_prop_desc(self.transact(OP_PROP_DESC, (code,), want_data=True)[0])
 
-    def set_prop(self, code, value, dtype):
-        self.transact(OP_SET_PROP, (code,), data=pack_value(value, dtype))
+    def set_prop(self, code, value, dtype, timeout=5000):
+        self.transact(OP_SET_PROP, (code,), data=pack_value(value, dtype), timeout=timeout)
 
     def pc_mode(self, on=True, wait=5.0):
         """Camera control mode d052: 1 = PC control (needed for live view and shooting), 2 = camera.
         Like libgphoto2: write, then poll the property until it reads the new value."""
         want = 1 if on else 2
-        self.set_prop(DPC_CONTROL_MODE, want, 4)
+        # libgphoto2 waits up to 20 s (its port timeout) for this answer; the E-M1 needs longer than 5 s
+        self.set_prop(DPC_CONTROL_MODE, want, 4, timeout=20000)
         end = time.monotonic() + wait
         while time.monotonic() < end:
             try:
@@ -351,4 +364,6 @@ class PtpCamera:
         self.transact(OP_SHUTTER, (step,))
 
     def event(self, timeout=10):
+        if self.events:
+            return self.events.pop(0)
         return self.t.read_event(timeout)
