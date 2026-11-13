@@ -435,7 +435,9 @@ class Camera:
             return (GP_EVENT_FOLDER_ADDED if entry[5] else GP_EVENT_FILE_ADDED), CameraFilePath(folder, name)
         if code in EV_PROP_CHANGED:
             return GP_EVENT_UNKNOWN, "PTP Property %04x changed" % (p1 & 0xFFFF)
-        return GP_EVENT_UNKNOWN, "PTP Event %04x, Param1 %08x" % (code, p1)
+        # all parameters: 0xC003 carries the AF result and position after Param1 (diagnosis 2026-11-13)
+        return GP_EVENT_UNKNOWN, "PTP Event %04x, " % code + ", ".join(
+            "Param%d %08x" % (i + 1, p) for i, p in enumerate(params or [0]))
 
     # Card
     def _ensure_index(self):

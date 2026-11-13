@@ -64,6 +64,20 @@ OP_FIRST, OP_SECOND, OP_FULL, OP_SECOND_BACK, OP_RELEASE = 1, 2, 3, 4, 6
 # the new value only arrives with a new session. d006 knows only M, P, A, S, Movie: iAUTO, ART, SCN
 # and PHOTO STORY read as P
 DIAL_EVENT = re.compile(r"c003, Param1 0*3\b", re.I)
+# AF result of a half press, mapped on the camera 2026-11-13: Param1 1 = in focus, Param2 = focus position
+# (x << 16 | y in the 1280×960 grid), Param3 = frame size (99×67); Param1 2 = no focus (Param2/3 = 0).
+# 0xC003/3 also follows a written setting or a shot. Counting any c003 reported "in focus" also when AF failed.
+FOCUS_EVENT = re.compile(r"c003, Param1 0*([12])\b(?:, Param2 ([0-9a-f]{8}))?", re.I)
+
+
+def parse_af_result(text):
+    """(in focus, position or None) from a c003 AF event text, None if it is no AF result."""
+    m = FOCUS_EVENT.search(text or "")
+    if not m:
+        return None
+    pos = int(m.group(2), 16) if m.group(2) else 0
+    ok = m.group(1) == "1"
+    return ok, ({"x": pos >> 16, "y": pos & 0xFFFF} if ok and pos else None)
 DIAL_EVERY = 3.0  # seconds between event checks; each costs ~0.3 s of live view (measured 2026-11-12)
 # seconds after a shutter command, written setting or live view start in which 0xC003/3 is not the dial.
 # Two check intervals: the camera also sends it a little after a shot, and it is only read every DIAL_EVERY s
@@ -940,10 +954,16 @@ class UsbCamera:
         while time.monotonic() < end:
             kind, data = self._call(self._c.wait_for_event, 150)
             self._on_event(kind, data)
-            if kind == self.gp.GP_EVENT_UNKNOWN and stop and stop in str(data).lower():
+            if kind == self.gp.GP_EVENT_UNKNOWN and stop and (
+                    stop.search(str(data)) if hasattr(stop, "search") else stop in str(data).lower()):
                 return True
             if self._new_files and kind == self.gp.GP_EVENT_TIMEOUT and stop == "quiet":
                 return True
+            if stop == "quiet" and not self._new_files and kind == self.gp.GP_EVENT_UNKNOWN \
+                    and parse_af_result(str(data)) == (False, None):
+                # no focus: with S-AF the camera does not release; wait briefly in case Release Priority is on
+                self.af_failed = True
+                end = min(end, time.monotonic() + 1.0)
         return False
 
     def take_new_files(self):
@@ -1002,7 +1022,8 @@ class UsbCamera:
         self.last_af = {"x": x, "y": y}
 
     def focus(self):
-        """Focus like half press and release. Returns True when the camera confirmed focus (event c003).
+        """Focus like half press and release. Returns True when the camera reports focus (event c003, Param1 1),
+        False when it reports none (Param1 2) or sends no result.
 
         Live view is paused meanwhile: during AF the camera delivers no preview frames, and ten
         failed frames would make the live view loop rebuild the whole session (~9 s, file index lost).
@@ -1018,10 +1039,16 @@ class UsbCamera:
             self._event_log = []
             self._shutter(OP_FIRST)
             try:
-                self.focus_ok = bool(self._events(FOCUS_WAIT, "c003"))
-                # the position is only used for All Targets; reading it costs up to 1.5 s
-                if getattr(self, "af_mode", AF_ALL) == AF_ALL:
-                    self._read_focus_position()
+                result = parse_af_result(self._event_log[-1]) if self._events(FOCUS_WAIT, FOCUS_EVENT) else None
+                self.focus_ok = bool(result and result[0])
+                if result and result[1]:
+                    self.last_af = result[1]  # exact and at once (d05d/d05e lag behind)
+                elif result and not result[0]:
+                    self.last_af = {"x": 0, "y": 0}  # no focus: no green field
+                elif self.focus_ok and getattr(self, "af_mode", AF_ALL) == AF_ALL:
+                    self._read_focus_position()  # libgphoto2 backend: events carry Param1 only
+                if result is None:
+                    print("USB focus: no AF result from the camera within %.0f s" % FOCUS_WAIT, flush=True)
             finally:
                 self._shutter(OP_RELEASE)
             # no extra event wait here: each idle libgphoto2 event check costs ~0.3 s (150 ms timeout
@@ -1047,6 +1074,8 @@ class UsbCamera:
             self._shutter(OP_FULL)
             self._shutter(OP_RELEASE)
             marks.append(("released", time.monotonic() - t0))
+            self.af_failed = False
+            self._event_log = []
             self._events(SHOT_TIMEOUT, "quiet")
             if stacking:  # 8 frames (16 files) come first, the merged picture last
                 self._events(max(0.0, STACK_WAIT - (time.monotonic() - t0)))
@@ -1057,8 +1086,11 @@ class UsbCamera:
             self._hold_add(-1)
             self.shooting = False
             marks.append(("done", time.monotonic() - t0))
-            print("USB shot: " + ", ".join("%s %.1f s" % m for m in marks), flush=True)
+            print("USB shot: " + ", ".join("%s %.1f s" % m for m in marks)
+                  + ("" if self._new_files else ", events " + ("; ".join(self._event_log[-6:]) or "none")), flush=True)
         new = self.take_new_files()
         if not new:
+            if getattr(self, "af_failed", False):
+                raise CameraError("Camera did not release: no focus found (S-AF releases only in focus)")
             raise CameraError("Camera did not release, probably no focus found")
         return new

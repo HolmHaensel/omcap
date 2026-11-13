@@ -1035,9 +1035,27 @@ class Handler(BaseHTTPRequestHandler):
                 return self._image(read_jpg(q["path"]) if conn_type == "usb" else cam.read_file(q["path"]), q)
             if u.path == "/live.mjpg":
                 return self._mjpeg()
+            if u.path == "/live.jpg":
+                return self._live_frame(int(q.get("seq") or 0))
             self._send({"error": "not found"}, code=404)
         except (CameraError, WriteBlocked, KeyError, OSError, ValueError, ET.ParseError) as e:
             self._send({"error": str(e)}, code=502)
+
+    def _live_frame(self, seq):
+        """Next live frame after `seq` (waits up to 3 s); 204 if none. The main page shows the live view this
+        way: a browser can stop showing an MJPEG stream after one bad part (seen 2026-11-13)."""
+        new_seq, frame = live.wait_frame(seq)  # not connected: do_GET already answered 409
+        if frame is None or new_seq == seq:
+            self.send_response(204)
+            self.end_headers()
+            return
+        self.send_response(200)
+        self.send_header("Content-Type", "image/jpeg")
+        self.send_header("Content-Length", str(len(frame)))
+        self.send_header("Cache-Control", "no-store")
+        self.send_header("X-Seq", str(new_seq))
+        self.end_headers()
+        self.wfile.write(frame)
 
     def _mjpeg(self):
         self.send_response(200)
