@@ -117,11 +117,25 @@ def lv_size_from_d06d(value, area=None):
     return 1280, 960
 
 
+SHUTTER_VALUE = re.compile(r"\d+(/\d+)?")  # libgphoto2: "60", "1/250", "32/10" (3.2 s), "10/13" (1/1.3 s)
+
+
 def _shutter_names(choices):
+    """Camera style: 1/250 s -> "250", 1/1.3 s -> "1.3", 3.2 s -> '3.2"', 60 s -> '60"'."""
     names = {}
     for c in choices:
-        names[c] = c.split("/", 1)[1] if c.startswith("1/") else c + '"'
+        n, _, d = c.partition("/")
+        n, d = int(n), int(d or 1)
+        if n >= d:
+            names[c] = "%g\"" % (n / d)
+        else:
+            names[c] = str(d) if n == 1 else "%g" % (d / n)
     return names
+
+
+def _iso_names(choices):
+    """By value, not by position: libgphoto2 names AUTO and LOW "Auto" / "Low"."""
+    return {c: {"auto": "AUTO", "low": "LOW"}.get(c.lower(), c) for c in choices}
 
 
 def _ev_names(choices):
@@ -261,7 +275,7 @@ class UsbCamera:
         "shutspeedvalue": ("shutterspeed", _shutter_names),
         "focalvalue": ("aperture", None),
         "expcomp": ("exposurecompensation", _ev_names),
-        "isospeedvalue": ("iso", lambda ch: {ch[0]: "AUTO", ch[1]: "LOW"}),
+        "isospeedvalue": ("iso", _iso_names),
         "wbvalue": ("whitebalance", lambda ch: dict(zip(ch, WB_NAMES)) if len(ch) == len(WB_NAMES) else {}),
         "drivemode": ("d009", _drive_names),
         "colortone": ("d010", _picture_names),
@@ -422,6 +436,16 @@ class UsbCamera:
                 out[code] = {"error": str(e)}
         return out
 
+    def _within_lens_limits(self, choices):
+        """d07f / d080: smallest and largest f-number x10 of the lens (E-M1: 35 / 220 with a 14-140)."""
+        try:
+            lo, hi = (int(float(self._value(c))) / 10 for c in ("d07f", "d080"))
+        except (CameraError, ValueError):
+            return choices
+        if not (lo and hi):
+            return choices
+        return [c for c in choices if not re.fullmatch(r"[\d.]+", c) or lo - 0.05 <= float(c) <= hi + 0.05]
+
     def _has_widget(self, name):
         try:
             self._call(lambda: self._c.get_single_config(name))
@@ -469,18 +493,20 @@ class UsbCamera:
         for key, (name, namer) in self.PROPS.items():
             def read():
                 w = self._c.get_single_config(name)
-                return w.get_value(), list(w.get_choices())
-            value, choices = self._call(read)
+                return w.get_value(), list(w.get_choices()), not w.get_readonly()
+            value, choices, writable = self._call(read)
             if key == "artfilter":  # d010 also holds the kind of filter (from 34305)
                 choices = [c for c in choices if int(c) >= 34305]
             if key == "shutspeedvalue":  # M only: BULB, LIVE TIME, LIVECOMP are in d01c
-                choices = [c for c in choices if re.fullmatch(r"(1/)?\d+(\.\d+)?", c)]
+                choices = [c for c in choices if SHUTTER_VALUE.fullmatch(c) and c not in LONG_LABELS]
                 specials = list(LONG_EXPOSURE)
                 value = LONG_LABELS.get(value, value)
                 choices = specials + choices
             if name in USB_TABLES:  # offer only mapped values
                 choices = [c for c in choices if c in USB_TABLES[name]]
-            out[key] = {"value": value, "writable": True, "enum": choices,
+            if key == "focalvalue":  # the lens limits (current at session setup, at the current focal length)
+                choices = self._within_lens_limits(choices)
+            out[key] = {"value": value, "writable": writable, "enum": choices,
                         "names": namer([c for c in choices if not c.startswith("live")]) if namer else {}}
         return out
 

@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- USB: shutter speeds that libgphoto2 lists as fractions (3.2 s = 32/10, 1/1.3 s = 10/13 …) are offered and named like on the camera; ISO AUTO/LOW are named by value, not by position; the read-only flag of each setting comes from the camera; the aperture list is limited by the lens limits the camera reports (d07f/d080) (REQ-F10, from the maintainer's gphoto2 dump).
+
 ### Shooting and focus
 - M mode quick select: BULB, LIVE TIME, LIVECOMP and Off (back to the last shutter speed) in the shooting options, for Wi-Fi and USB; tested on both 2026-11-13. USB: LIVE TIME is recognised when libgphoto2 reports it as a raw fraction (65535/65533); Off falls back to 1/60 s when no earlier speed is known (REQ-F31).
 - Wi-Fi Take picture uses `exec_takemotion com=starttake` with the tapped AF point in shooting mode instead of switching to shutter mode. It focuses on the tapped point, live view keeps running, and the shot takes 1.2–1.5 s instead of about 7 s (camera-tested). Long exposures (slower than 1/4 s), BULB, LIVE TIME, LIVECOMP, self-timer and Movie keep the shutter-button route; no second shot after a timeout (REQ-F34).
