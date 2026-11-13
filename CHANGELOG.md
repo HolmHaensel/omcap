@@ -9,7 +9,7 @@
 - Focus by tap: 0.4–0.6 s (libgphoto2 1.3–1.5 s). Take picture: 4.5–4.8 s in total, JPG and ORF in the card list at once.
 - Idle event check costs 10 ms instead of about 0.3 s: on macOS synchronous interrupt reads shorter than ~150 ms never deliver an event, so the PTP layer keeps one asynchronous read submitted.
 - Camera-tested with the PTP backend: BULB, LIVE TIME and LIVECOMP (REQ-F31) and the mode dial (REQ-F30). During a long exposure and its noise reduction the session is never rebuilt (the camera ends the noise reduction with the same event as the mode dial); file events lost in a rebuilt session are taken from the card index.
-- Not tested yet with the PTP backend: interval and bracketing, partial reads, Linux.
+- Also camera-tested with the PTP backend: interval shooting (3 frames, 5 s), AE bracketing (3 frames, −0.3/0/+0.3 EV per EXIF, compensation restored), partial reads (picture info from the first 128 KB in 0.02 s; a whole 3.8 MB JPG in 0.22 s) and a full session in the browser (tap focus, Take picture, Index display, single-frame view). Not tested: Linux.
 
 ### Shooting and settings
 - USB LV super control panel: AF mode, Metering mode, Flash mode, Record mode, Aspect ratio, Image stabilizer and Face priority, with values mapped on the camera (`out/research/usb_value_mapping.md`). Only in P/A/S/M as on the camera (manual p.24). Read and write tested 2026-11-13. Not over Wi-Fi: no command (REQ-F10).
