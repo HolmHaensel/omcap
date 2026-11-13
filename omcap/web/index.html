@@ -968,7 +968,7 @@ function shotMode(path){
     usbShotMode=m===5?'iAuto':null; renderProps()}).catch(()=>{});
 }
 let isUsb=false; // connection type from /api/status
-let st={stage:0,job:{}},canWrite=false,wasBusy=false,blank=0,connected=false,features=new Set(),af=null;
+let st={stage:0,job:{}},canWrite=false,wasBusy=false,blank=0,frozen=0,lastSig=null,connected=false,features=new Set(),af=null;
 let quitting=false;
 async function tick(){
   if(view||!connected||quitting) return;
@@ -985,6 +985,11 @@ async function tick(){
   // image in error state although data arrives: reconnect
   blank=st.live&&!stale&&$('#live').complete&&!w?blank+1:0;
   if(blank>=2){blank=0;$('#live').src='/live.mjpg?'+Date.now()}
+  // watchdog: the server has fresh frames but the image shows black or no longer changes (browser stopped
+  // decoding the stream without an error, seen 2026-11-13): reconnect after three ticks (~4.5 s)
+  const sig=!stale&&st.live&&w?liveSignature():null;
+  frozen=sig&&(sig.black||sig.key===lastSig)?frozen+1:0; lastSig=sig&&sig.key;
+  if(frozen>=3){frozen=0;$('#live').src='/live.mjpg?'+Date.now()}
   const off=st.live&&w&&st.lvqty&&w!==parseInt(st.lvqty,10);
   $('#lvSize').textContent=stale?tr('lv.noSignal',{s:Math.round(st.lv_age)}):st.live&&w?tr('lv.receiving',{w,h:$('#live').naturalHeight}):'';
   $('#lvSize').className=off||stale?'warn':'mut';
@@ -2003,6 +2008,14 @@ function edgeThreshold(mag,top,floor){ // threshold such that about the fraction
 }
 const AID_KEY='omcap.aids', AID_IDS=['aidHist','aidRgb','aidClip','aidPeak'];
 const aidOff=document.createElement('canvas'), aidCtx=aidOff.getContext('2d',{willReadFrequently:true});
+const sigCv=document.createElement('canvas'), sigCtx=(sigCv.width=32,sigCv.height=24,sigCv.getContext('2d',{willReadFrequently:true}));
+/* 32×24 sample of the shown live image: key changes with every new frame (sensor noise), black if nearly dark */
+function liveSignature(){
+  try{sigCtx.drawImage($('#live'),0,0,32,24)}catch{return null}
+  const d=sigCtx.getImageData(0,0,32,24).data; let sum=0,h=0;
+  for(let i=0;i<d.length;i+=4){const v=d[i]+d[i+1]+d[i+2];sum+=v;h=(h*31+v)|0}
+  return {key:h,black:sum<d.length/4*3*4}; // mean below 4/255
+}
 const PEAK_RGB={white:[255,255,255],black:[0,0,0],red:[255,40,40],yellow:[255,230,0]};
 function aidSave(){try{const o={col:$('#aidPeakCol').value};AID_IDS.forEach(i=>o[i]=$('#'+i).checked);localStorage.setItem(AID_KEY,JSON.stringify(o))}catch{}}
 (()=>{try{const o=JSON.parse(localStorage.getItem(AID_KEY))||{};

@@ -64,8 +64,11 @@ OP_FIRST, OP_SECOND, OP_FULL, OP_SECOND_BACK, OP_RELEASE = 1, 2, 3, 4, 6
 # the new value only arrives with a new session. d006 knows only M, P, A, S, Movie: iAUTO, ART, SCN
 # and PHOTO STORY read as P
 DIAL_EVENT = re.compile(r"c003, Param1 0*3\b", re.I)
-DIAL_QUIET = 3.0  # seconds after a shutter command or live view start in which 0xC003 is not the dial
 DIAL_EVERY = 3.0  # seconds between event checks; each costs ~0.3 s of live view (measured 2026-11-12)
+# seconds after a shutter command, written setting or live view start in which 0xC003/3 is not the dial.
+# Two check intervals: the camera also sends it a little after a shot, and it is only read every DIAL_EVERY s
+# (seen 3.1 s after a shot, 2026-11-13). A real dial turn in that time is missed; turn it again.
+DIAL_QUIET = 2 * DIAL_EVERY
 FOCUS_WAIT = 2.0
 FOCUS_POSITION_WAIT = 1.5
 SHOT_TIMEOUT = 20
@@ -254,7 +257,8 @@ class UsbLive:
                 continue
             if time.monotonic() >= next_dial:
                 next_dial = time.monotonic() + DIAL_EVERY
-                if self.camera.dial_turned() and self.camera.reopen_if_idle("mode dial turned"):
+                if self.camera.dial_turned() and self.camera.reopen_if_idle(
+                        "mode dial turned, %s" % getattr(self.camera, "dial_reason", "?")):
                     self.camera.mode_changed_at = time.time()
                     continue
             data = self.camera.preview_frame()
@@ -290,6 +294,7 @@ class UsbCamera:
     features = FEATURES
     shooting = False
     _take_t0 = None  # start of a running long exposure (BULB, LIVE TIME, LIVECOMP)
+    last_press = 0.0  # time of the last shutter command or written setting (see __init__)
 
     # setting named as over Wi-Fi -> gphoto name, display names from the choice values
     PROPS = {
@@ -437,7 +442,10 @@ class UsbCamera:
                 self._on_event(kind, data, shot=False)
                 if kind == self.gp.GP_EVENT_UNKNOWN and DIAL_EVENT.search(str(data)):
                     turned = True
-        return turned and time.monotonic() - self.last_press > DIAL_QUIET
+        since = time.monotonic() - self.last_press
+        # named in the rebuild message: tells a real dial turn from an event after AF or a setting
+        self.dial_reason = "%.1f s after the last command" % since
+        return turned and since > DIAL_QUIET
 
     def refresh(self):
         """Mode dial and other camera changes only arrive with a new session."""
@@ -528,6 +536,8 @@ class UsbCamera:
             w.set_value(str(value))
             self._c.set_single_config(name, w)
         self._call(apply)
+        # a written setting (e.g. the tapped AF field) may also send 0xC003/3; keep a later end (exposure)
+        self.last_press = max(self.last_press, time.monotonic())
 
     # --- Read ---------------------------------------------------------------
     def caminfo(self):

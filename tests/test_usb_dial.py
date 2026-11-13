@@ -60,6 +60,12 @@ class Dial(unittest.TestCase):
         cam.last_press = time.monotonic()
         self.assertFalse(cam.dial_turned())
 
+    def test_reason_names_time_since_last_command(self):
+        cam = self.make([(1, "PTP Event c003, Param1 00000003")])
+        cam.last_press = time.monotonic() - 10
+        self.assertTrue(cam.dial_turned())
+        self.assertRegex(cam.dial_reason, r"^1\d\.\d s after the last command$")
+
     def test_camera_body_shot_goes_to_card_list_only(self):
         class F:
             folder, name = "/store_00010001/DCIM/111OLYMP", "P1.JPG"
