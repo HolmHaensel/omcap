@@ -3,6 +3,58 @@
 Design canvas (private to the maintainer, ask for access): Live View, 2026-11-11.
 Tokens: [`tokens.css`](tokens.css). Implemented in version 0.4.0 (2026-11-11); the build order below is done.
 
+## Task-led redesign prototype
+
+The 2026 redesign keeps the camera terminology and the live-view-first principle, but replaces the
+long control stack with four task groups inspired by the current OM SYSTEM menu hierarchy:
+
+1. **Camera** — shooting mode and exposure values.
+2. **Focus** — AF Area, AF target visibility and manual-focus drive.
+3. **Tools** — movie, time lapse, bracketing and long exposure.
+4. **Files** — transfer settings and playback.
+
+The shutter and self-timer remain visible in every group. Desktop uses a compact control rail beside
+the image. Mobile turns the group selector into bottom navigation and keeps capture directly above it.
+The Apple Watch-sized companion intentionally exposes only the live frame, the three most important
+shooting values, autofocus and shutter release.
+
+Typography now has explicit display, title, heading, body, metadata, label and camera-value levels.
+Camera values retain IBM Plex Mono; navigation and explanatory text retain Inter/system UI.
+
+### Manual-led fast workflow
+
+The E-M1 manual establishes a mode-dependent control hierarchy rather than a flat settings grid:
+
+- **P:** the camera balances shutter and aperture; exposure compensation is the immediate adjustment
+  (manual pp. 38, 51).
+- **A:** aperture is primary and the camera selects shutter speed (manual p. 39).
+- **S:** shutter speed is primary and the camera selects aperture (manual p. 40).
+- **M:** shutter speed and aperture are both primary; exposure compensation is unavailable
+  (manual pp. 41, 51).
+- **Movie:** P/A/S/M movie exposure is selected before recording; exposure values cannot be changed
+  while recording (manual p. 71).
+- **Focus:** the AF target is selected directly in the frame; AF Area changes the target-selection
+  strategy rather than the shooting workflow (manual pp. 54–56).
+
+The interface therefore shows only the mode-relevant exposure controls plus ISO and white balance by
+default. Drive, color, metering, record mode and other Super Control Panel settings remain available
+behind **All settings**. Navigation uses the user tasks **Shoot, Focus, Sequence, Review** rather than
+camera implementation categories.
+
+The **Sequence** navigation icon follows the E-M1 Sequential H/L symbol: stacked image frames with
+motion lines on the left (manual p. 57). The H/L speed suffix is omitted because the tab also contains
+bracketing, time lapse and movie sequences.
+
+Playback icons follow the E-M1 touch UI (manual p. 34): Index is a framed thumbnail matrix, Calendar
+adds a clock/date badge to that matrix, and Full-picture/close-up uses an image frame with the manual's
+zoom marker.
+
+On mobile, live-view size is automatic rather than another shooting control. The app starts at the
+smallest stream that still covers the physical display resolution, up to 1280×960, then steps down
+when a rolling five-second sample falls below 12 complete fps, exceeds 18% damaged frames, or stalls.
+It never adapts while the camera is intentionally busy focusing, shooting, recording or indexing.
+Desktop keeps the explicit size selector for monitoring and focus-check workflows.
+
 ## Principles
 
 1. **Live view is the hero.** It takes the left/centre of the screen at 4:3; panels sit beside it on the
@@ -58,6 +110,9 @@ recording a movie, read only, Wi-Fi drop-out (last good frame kept, "No signal f
 - **Index display:** thumbnail grid grouped by day, sizes S/M/L, multi-select (save to computer),
   "Share Order only" filter, badges ORF+JPG, movie length, Share. Optional one-line EXIF on each
   thumbnail (mode, shutter speed, aperture, ISO).
+- **Grid zoom:** pinch apart moves 4×4 → 3×3 → 2×2; pinch together moves 2×2 → 3×3 → 4×4
+  → Calendar. Trackpad pinch follows the same sequence. The compact toolbar mirrors these states
+  with icons instead of explanatory text.
 - **Calendar display:** month grid (weeks start Monday), a thumbnail and a count per day; a click
   opens that day in Index display.
 - **Single-frame playback:** picture at 4:3 with the value strip, previous/next, Fit / 100 %
