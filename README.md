@@ -8,6 +8,10 @@ A local web app to control an **Olympus OM-D E-M1 (Mark I)** from a computer, ov
 > Olympus. "Olympus", "OM-D" and "OI.Share" are trademarks of their respective owners.
 > Use at your own risk.
 
+![E-M1 Capture over USB: live view with the 9×9 AF grid and the focused field in green, LV super control panel, AF target, movie, shooting options and the shutter buttons](design/screenshots/app-usb-live-view.jpg)
+
+*E-M1 Capture 0.7 with the E-M1 Mark I over USB: live view with AF grid (focused field in green), LV super control panel and Take picture.*
+
 ## Why this project
 
 I love Olympus cameras. The OM-D E-M1 Mark I is a fantastic camera to learn photography with:
