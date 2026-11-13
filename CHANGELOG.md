@@ -1,6 +1,8 @@
 # Changelog
 
-## Unreleased (0.7)
+## 0.7.0 – 2026-11-14
+
+Faster USB, closer to Wi-Fi: the app's own PTP layer, USB settings, focus ring, movie and Focus Stacking over USB, and a round of live view and focus fixes found at the camera.
 
 ### USB backend and performance
 - New USB backend on the app's own PTP layer (`omcap/ptp.py`, ctypes/libusb) with a gphoto2-compatible shim (`omcap/ptp_gphoto.py`), so the USB session logic is unchanged. Option `--usb-backend auto|ptp|gphoto2`: `auto` (default on macOS) uses the PTP layer and falls back to libgphoto2 when it cannot connect; elsewhere the default stays libgphoto2 (Linux). `/api/status` reports `usb_backend` (REQ-F28, camera-tested on macOS 2026-11-13).
@@ -32,14 +34,21 @@
 - CI: the Python 3.9 job runs on `ubuntu-24.04`; GitHub's `ubuntu-latest` moved to 26.04, which has no Python 3.9 for setup-python, so CI on `main` was red since 0.6.0 (REQ-Q08).
 - The app releases the camera when it is stopped with Ctrl+C or `kill` (leaves PC control and closes the session); before, the camera could stop answering until it was switched off.
 - README: USB on Linux works over libgphoto2 (not tested yet: camera mounting by the desktop, udev access); libgphoto2 stays the USB backend there.
-- 169 offline tests pass (2026-11-13).
+- 182 offline tests pass (2026-11-14); CI green on Ubuntu 24.04 (Python 3.9, 3.12) and macOS (3.12).
+- README: other cameras – a user runs E-M1 Capture with a PEN-F and with a PEN-F colour emulation (user-tested); the camera report template asks for the Wi-Fi settings list (REQ-G08).
+
+### Not in 0.7 (moved to 0.7.x / 0.8)
+- Camera changes without rebuilding the USB session, `getrecview` over Wi-Fi, capture target (card / computer) over USB, flash compensation, movie settings over USB, Focus BKT without stacking.
 
 ### Known issues
+- Wi-Fi: the main live view now loads single frames (`/live.jpg`) on both connections; tested over USB, **not yet over Wi-Fi**.
+- Focus Stacking: hiding Drive, Flash and AE BKT while it is on, and refusing it at BULB / LIVE TIME / LIVECOMP, are not camera-tested yet.
+- A touch AF target set on the camera monitor overrides the AF field chosen in the app (remove it on the camera).
 - USB movie: the app does not check that the camera really started recording (PHOTO STORY, some SCN modes, a full card); then it shows a recording that does not run until Stop recording is clicked.
 - LIVECOMP: a stop press shortly after the start (4–8 s) is ignored by the camera and the exposure keeps running; a later press ends it (probably after the first composite frame, Composite Settings). The app does not show that the exposure still runs.
 - Mode dial over USB: the new mode arrives only when PC control is switched on again, so each turn rebuilds the session (8–10 s); quick turns in a row show only the last position.
 - Wi-Fi drops out on the Mac (it leaves the camera network). Once, an app started from the launcher got "No route to host" while the shell reached the camera (macOS Local Network permission suspected).
-- USB with the libgphoto2 backend (fallback, Linux): live view pauses up to ~70 s after connecting while the card list is read.
+- USB with the libgphoto2 backend (fallback, Linux): live view pauses up to ~70 s after connecting while the card list is read (not with the PTP backend on macOS).
 - USB, All Targets + Halfway: the green AF field may not match where the camera focused.
 - A lens change is only noticed with the next photo (USB and Wi-Fi).
 

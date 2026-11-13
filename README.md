@@ -79,7 +79,7 @@ Please report what works on your body in [Discussions](https://github.com/HolmHa
 USB the tilt is only updated when the session starts), changing AF Area over Wi-Fi and the shooting mode
 over USB (the camera offers no command for it).
 
-**Planned (next releases):** Mac app with a menu bar icon, Windows over Wi-Fi, movie settings and Focus BKT over USB (0.7), subject detection in live view on the computer (face/eye,
+**Planned (next releases):** Mac app with a menu bar icon, Windows over Wi-Fi, movie settings and Focus BKT over USB (0.7.x), subject detection in live view on the computer (face/eye,
 later animals and birds; the E-M1 itself sends no face frames) with "Focus on subject", film looks and
 a look lab on the computer, later a Star AF focus aid (star sharpness while you turn the focus ring). Ideas and wishes are welcome in [Discussions](https://github.com/HolmHaensel/omcap/discussions).
 
