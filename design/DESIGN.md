@@ -45,6 +45,10 @@ The **Sequence** navigation icon follows the E-M1 Sequential H/L symbol: stacked
 motion lines on the left (manual p. 57). The H/L speed suffix is omitted because the tab also contains
 bracketing, time lapse and movie sequences.
 
+Playback icons follow the E-M1 touch UI (manual p. 34): Index is a framed thumbnail matrix, Calendar
+adds a clock/date badge to that matrix, and Full-picture/close-up uses an image frame with the manual's
+zoom marker.
+
 On mobile, live-view size is automatic rather than another shooting control. The app starts at the
 smallest stream that still covers the physical display resolution, up to 1280×960, then steps down
 when a rolling five-second sample falls below 12 complete fps, exceeds 18% damaged frames, or stalls.
