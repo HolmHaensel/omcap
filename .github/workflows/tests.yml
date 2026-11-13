@@ -13,7 +13,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest]
+        # ubuntu-24.04, not -latest: the 26.04 runner image has no Python 3.9 build for setup-python
+        os: [ubuntu-24.04, macos-latest]
         python: ["3.9", "3.12"]
         exclude:
           # no Python 3.9 build for the arm64 macOS runners; Ubuntu covers 3.9
