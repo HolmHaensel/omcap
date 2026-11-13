@@ -33,7 +33,9 @@ FEATURES = ["liveview", "af_area", "af_modes", "stages", "scp", "time_lapse", "a
 LONG_EXPOSURE = {"livecomp": "4294967290", "livetime": "4294967293", "livebulb": "4294967292"}
 # This is how libgphoto2 names these values, partly translated
 LONG_LABELS = {"Composite": "livecomp", "Time": "livetime", "Selbstauslöser": "livetime",
-               "Bulb": "livebulb", "Langzeitbelichtung": "livebulb"}
+               "Bulb": "livebulb", "Langzeitbelichtung": "livebulb",
+               # without a name libgphoto2 shows the raw value as a fraction (seen for Time, 2026-11-13)
+               "65535/65530": "livecomp", "65535/65533": "livetime", "65535/65532": "livebulb"}
 
 # Order of the picture mode values (d010) as in the colortone list over Wi-Fi
 PICTURE_NAMES = ["i-Enhance", "Vivid", "Natural", "Muted", "Portrait", "Monotone", "Custom", "e-Portrait",

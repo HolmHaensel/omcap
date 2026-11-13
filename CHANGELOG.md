@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- USB: LIVE TIME is recognised when libgphoto2 reports it as a raw fraction (65535/65533); "Off" in the M-mode quick select falls back to 1/60 s when no earlier speed is known (REQ-F31, camera-tested over USB).
 - Single-frame view: "Open in OM Workspace" (only when OM Workspace is installed); saves the shot to the computer first if needed and opens the ORF, otherwise the JPG (REQ-F17).
 - Playback: the thumbnails in the Playback section open the single-frame view (click or Enter), like the tiles in Index display; Playback and the single-frame view now lie above the shutter bar in narrow windows (REQ-F27).
 - USB live view size can be chosen like over Wi-Fi (up to 1280×960) when libgphoto2 keeps the size (development version 2.5.34.1 or later; with 2.5.34 it stays 1024×768 and the choice is hidden). Measured 1280×960 at 13.8 fps (REQ-F36).

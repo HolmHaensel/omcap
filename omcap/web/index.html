@@ -1192,7 +1192,8 @@ function renderLongSeg(m,sp){
   row.hidden=!(features.has('long')&&m==='M'&&v&&v.writable&&opts.length);
   if(row.hidden) return;
   if(sp&&!/^live/.test(sp)) lastNormalSp=sp;
-  const back=lastNormalSp||v.enum.find(o=>!/^live/.test(o));
+  // without an earlier speed (camera was already on BULB etc.) use 1/60 s: USB names it "1/60", Wi-Fi "60"
+  const back=lastNormalSp||[isUsb?'1/60':'60'].find(o=>v.enum.includes(o))||v.enum.find(o=>!/^live/.test(o));
   seg.innerHTML='';
   for(const o of ['off',...opts]){
     const b=document.createElement('button'); b.type='button'; b.className='w';
