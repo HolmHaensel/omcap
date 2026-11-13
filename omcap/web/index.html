@@ -354,8 +354,13 @@ section h2{margin-bottom:10px;color:#b9bec4;font-size:var(--fs-label);font-weigh
 #timerSeg button+button{border-left:0}
 #shutRow{grid-template-columns:minmax(0,1fr) 76px;align-items:center}
 #shutRow button{height:56px}
-#shutRow #shoot{width:76px;height:76px;padding:0;border:7px solid #101214;border-radius:50%;outline:2px solid var(--accent);font-size:12px;line-height:1.1;box-shadow:0 0 0 1px var(--accent-line)}
+#shutRow #shoot{width:76px;height:76px;padding:0;border:7px solid #101214;border-radius:50%;outline:2px solid var(--accent);font-size:0;line-height:1;box-shadow:0 0 0 1px var(--accent-line);display:inline-flex;align-items:center;justify-content:center}
+#shutRow #shoot::after{content:"";width:20px;height:20px;border:2px solid currentColor;border-radius:50%}
 #shutRow #shoot:active{transform:scale(.96)}
+#shutRow #shoot.cancel{font-size:11px;line-height:1.05;padding:8px}
+#shutRow #shoot.cancel::after{display:none}
+#shutRow #shoot:disabled{outline-color:var(--line);box-shadow:none}
+#shutRow #shoot:disabled::after{border-color:var(--disabled)}
 #shutRow #half{border-radius:28px}
 #panels>[data-id=shutter]{background:#181a1e}
 #panels>[data-id=shutter]::before{content:"CAPTURE";display:block;margin-bottom:8px;color:var(--muted);font-size:9px;font-weight:700;letter-spacing:.14em}
