@@ -94,6 +94,9 @@ button:disabled{color:var(--disabled);opacity:.6;cursor:not-allowed}
 .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:8px}
 .row:last-child{margin-bottom:0}
 .row label{display:flex;gap:4px;align-items:center}
+#blackout{position:absolute;inset:0;background:#000;opacity:0;pointer-events:none;z-index:5}
+#blackout.flash{animation:blackout .18s steps(1,end)}
+@keyframes blackout{0%{opacity:1}100%{opacity:0}}
 #viewport{position:relative;overflow:hidden;background:#000;border-radius:var(--r-lg);aspect-ratio:4/3;width:min(100%,calc(74vh * 4 / 3));margin:0 auto;touch-action:none}
 #zoomLayer{position:absolute;inset:0;transform-origin:0 0}
 #levelGauge{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
@@ -350,6 +353,7 @@ body.webcam{cursor:none;display:flex;align-items:center;justify-content:center}
       <canvas id="aidCv"></canvas>
       <div id="afMark"></div>
     </div>
+    <div id="blackout" aria-hidden="true"></div>
     <canvas id="levelGauge"></canvas>
     <canvas id="histCv" width="160" height="70" hidden></canvas>
     <div id="recChip" hidden><span class="dot"></span><span id="recText"></span></div>
@@ -1810,7 +1814,9 @@ function setZoom(n,cx,cy){
 document.querySelectorAll('[data-z]').forEach(b=>b.onclick=()=>setZoom(+b.dataset.z));
 vp.addEventListener('wheel',e=>{e.preventDefault();const r=vp.getBoundingClientRect();
   setZoom(Math.min(8,Math.max(1,z*(e.deltaY<0?1.2:1/1.2))),e.clientX-r.left,e.clientY-r.top)},{passive:false});
-vp.onpointerdown=e=>{drag={x:e.clientX,y:e.clientY,px,py,moved:false};vp.setPointerCapture(e.pointerId)};
+vp.onpointerdown=e=>{
+  if(e.target.closest('#lastShot')) return; // own click (single-frame view); pointer capture would turn it into an AF tap
+  drag={x:e.clientX,y:e.clientY,px,py,moved:false};vp.setPointerCapture(e.pointerId)};
 vp.onpointermove=e=>{if(!drag)return;const dx=e.clientX-drag.x,dy=e.clientY-drag.y;
   if(Math.hypot(dx,dy)>4)drag.moved=true;
   if(drag.moved&&z>1){px=drag.px+dx;py=drag.py+dy;applyZoom()}};
@@ -2194,12 +2200,15 @@ $('#lastShot').onclick=()=>{
   if(lastOpen) openViewer([lastOpen],0);
   else window.open($('#lastShot').src,'_blank');
 };
+/* Short black frame on release, like the viewfinder of a film camera (REQ-F39) */
+function shutterBlackout(){const b=$('#blackout');b.classList.remove('flash');void b.offsetWidth;b.classList.add('flash')}
 $('#shoot').onclick=async()=>{
   if(timerId!==null){timerStop();timerRes&&timerRes(false);timerRes=null;msg(tr('timer.cancelled'));return}
   const sec=+$('#timerSel').value;
   if(sec&&!await timerStart(sec)) return;
   msg(tr('msg.shooting'));
   const latestBefore=st.latest, newestBefore=lastOpen&&lastOpen.preview.path||(cardLive&&cardShots&&(cardShots.find(x=>isJpg(x.preview))||{preview:{}}).preview.path)||null; // not from the saved list: the card may have changed
+  shutterBlackout();
   if(st.stage>=1){
     if(!await act(tr('msg.shutter'),'/api/shutter',{stage:2})) return;
     await act(tr('msg.taken'),'/api/shutter',{stage:0});
