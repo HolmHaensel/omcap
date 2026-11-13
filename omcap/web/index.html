@@ -232,6 +232,38 @@ dialog h2{margin-top:12px}
 
 #viewer button{background:var(--surface);color:var(--text);border-color:var(--line)}
 #viewer button.on{background:var(--accent);color:var(--accent-ink)}
+.sr-only{position:absolute!important;width:1px!important;height:1px!important;padding:0!important;margin:-1px!important;overflow:hidden!important;clip:rect(0,0,0,0)!important;white-space:nowrap!important;border:0!important}
+#galBody{padding:12px;touch-action:pan-y;overscroll-behavior:contain}
+#galOv .galbar{min-height:54px;padding:8px 14px;background:#111315}
+#galOv .galbar strong{font-size:var(--fs-heading);letter-spacing:-.02em}
+#galCount{font-size:var(--fs-meta);white-space:nowrap}
+.gallery-icon{position:relative;width:36px!important;min-width:36px;height:36px!important;padding:0!important;font-size:0!important;display:inline-flex;align-items:center;justify-content:center}
+.gallery-icon::before,.gallery-icon::after{content:"";position:absolute;display:block}
+.icon-index::before{width:14px;height:14px;border:1.5px solid currentColor;border-radius:2px;box-shadow:7px 0 0 -5.5px currentColor,0 7px 0 -5.5px currentColor,7px 7px 0 -5.5px currentColor}
+.icon-calendar::before{width:15px;height:14px;border:1.5px solid currentColor;border-radius:3px}
+.icon-calendar::after{width:15px;height:4px;top:10px;border-top:1.5px solid currentColor}
+.icon-info::before{content:"i";position:static;font:700 16px/1 var(--font-value)}
+.icon-select::before{width:14px;height:14px;border:1.5px solid currentColor;border-radius:50%}
+.icon-select::after{width:6px;height:3px;border:solid currentColor;border-width:0 0 1.5px 1.5px;transform:rotate(-45deg);top:15px}
+.icon-share::before{width:14px;height:12px;border:1.5px solid currentColor;border-radius:2px;bottom:8px}
+.icon-share::after{content:"↑";position:static;font:16px/1 var(--font-ui);transform:translateY(-4px)}
+.icon-reload::before{content:"↻";position:static;font:18px/1 var(--font-ui)}
+.icon-close::before{content:"×";position:static;font:22px/1 var(--font-ui)}
+.icon-fit::before{width:14px;height:14px;border:1.5px dashed currentColor;border-radius:2px}
+.icon-download::before{content:"↓";position:static;font:18px/1 var(--font-ui)}
+.icon-overlay::before{width:13px;height:13px;border:1.5px solid currentColor;border-radius:2px;box-shadow:4px -4px 0 -2px #111315,4px -4px 0 -1px currentColor}
+.grid-size{font-size:0!important}
+.grid-size::after{font:600 10px/1 var(--font-value)}
+.grid-size[data-sz="4"]::after{content:"2×2"}
+.grid-size[data-sz="9"]::after{content:"3×3"}
+.grid-size[data-sz="16"]::after{content:"4×4"}
+#galExifTog{width:36px;padding:0;justify-content:center}
+#galExifTog .icon-info{display:flex;align-items:center;justify-content:center}
+#galExifTog .icon-info::before{content:"i";font:700 16px/1 var(--font-value)}
+.gidx{transform-origin:center top;transition:opacity var(--t-fast),transform var(--t-fast)}
+#viewer .galbar{min-height:54px;border-color:#2a2d31;background:rgba(10,11,13,.94);flex-wrap:nowrap}
+#viewer #vInfo{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:var(--fs-meta);color:var(--muted)}
+#viewer .gallery-icon{flex:0 0 38px}
 .chip{display:inline-flex;gap:6px;align-items:center;background:var(--surface);border:1px solid var(--line);border-radius:var(--r-pill);padding:3px 10px;font-size:var(--fs-label)}
 body.single{background:#000;height:100vh;overflow:hidden}
 body.webcam{cursor:none;display:flex;align-items:center;justify-content:center}
@@ -401,6 +433,16 @@ section h2{margin-bottom:10px;color:#b9bec4;font-size:var(--fs-label);font-weigh
   label[data-feat=lvsize]{display:none!important}
   #panels{gap:8px}
   #panelNav button{height:50px}
+  #galOv .galbar{gap:5px;padding:7px 8px}
+  #galCount{max-width:180px;overflow:hidden;text-overflow:ellipsis}
+  #galOv .galbar>.sp{display:block;flex-basis:100%;height:0;margin:0}
+  #galBody{padding:8px}
+  .gidx{gap:4px}
+  .dayh{margin-top:14px}
+  .tile .cap{font-size:9px;padding:1px 4px}
+  #viewer .galbar{padding:6px 8px;gap:4px}
+  #viewer #vInfo{position:absolute;left:12px;right:12px;bottom:10px;z-index:3;padding:5px 8px;border-radius:var(--r-pill);background:rgba(10,11,13,.78);text-align:center}
+  #viewer .galbar>.sp{margin-left:auto}
   section{padding:12px}
   #props label{min-height:62px}
   #shutRow{display:flex;justify-content:center;gap:14px}
@@ -664,19 +706,19 @@ section h2{margin-bottom:10px;color:#b9bec4;font-size:var(--fs-label);font-weigh
     <span id="galChip" class="chip" hidden></span>
     <span class="sp"></span>
     <div class="seg" role="group" data-i18n-aria="card.display" aria-label="Display">
-      <button data-v="index" data-i18n="card.index">Index display</button><button data-v="cal" data-i18n="card.calendar">Calendar display</button>
+      <button class="gallery-icon icon-index" data-v="index" data-i18n-title="card.index"><span class="sr-only" data-i18n="card.index">Index display</span></button><button class="gallery-icon icon-calendar" data-v="cal" data-i18n-title="card.calendar"><span class="sr-only" data-i18n="card.calendar">Calendar display</span></button>
     </div>
     <div class="seg" role="group" data-i18n-aria="card.sizes" aria-label="Thumbnail size">
-      <button data-sz="25" data-i18n="card.sizeS">S</button><button data-sz="9" data-i18n="card.sizeM">M</button><button data-sz="4" data-i18n="card.sizeL">L</button>
+      <button class="grid-size" data-sz="16" data-i18n-aria="card.grid4">4×4</button><button class="grid-size" data-sz="9" data-i18n-aria="card.grid3">3×3</button><button class="grid-size" data-sz="4" data-i18n-aria="card.grid2">2×2</button>
     </div>
-    <label class="tog" id="galExifTog"><input type="checkbox" id="galExif"> <span data-i18n="card.exifLine">Shooting data</span></label>
-    <button id="galSelect" data-i18n="card.select">Select</button>
+    <label class="tog" id="galExifTog"><input type="checkbox" id="galExif"><span class="icon-info" aria-hidden="true"></span><span class="sr-only" data-i18n="card.exifLine">Shooting data</span></label>
+    <button id="galSelect" class="gallery-icon icon-select" data-i18n-title="card.select">Select</button>
     <button id="galSaveSel" hidden data-i18n="card.saveSel">Save selected</button>
-    <button id="galShare" data-feat="share_order" data-i18n="card.share">Share Order</button>
+    <button id="galShare" class="gallery-icon icon-share" data-feat="share_order" data-i18n-title="card.share">Share Order</button>
     <button id="galShareSave" data-feat="share_order" data-i18n="card.shareSave" hidden>Save all to computer</button>
     <button id="galShareReset" data-feat="share_order" data-i18n="card.shareReset" hidden>Reset Share Order</button>
-    <button id="galReload" data-i18n="card.reload">Reload</button>
-    <button id="galClose" data-i18n="card.close">Close</button>
+    <button id="galReload" class="gallery-icon icon-reload" data-i18n-title="card.reload">Reload</button>
+    <button id="galClose" class="gallery-icon icon-close" data-i18n-title="card.close">Close</button>
   </div>
   <div id="galBody"></div>
 </div>
@@ -685,9 +727,9 @@ section h2{margin-bottom:10px;color:#b9bec4;font-size:var(--fs-label);font-weigh
     <button id="vPrev" aria-label="Previous picture" data-i18n-aria="card.prev">‹</button><button id="vNext" aria-label="Next picture" data-i18n-aria="card.next">›</button>
     <span id="vInfo"></span>
     <span class="sp"></span>
-    <button id="vInfoBtn" data-i18n-title="info.title"></button>
-    <button id="vFit" data-i18n="view.fit">Fit</button>
-    <button id="vGet" data-i18n="card.saveToMac">Save to computer</button><button id="vHsl" data-i18n="hsl.btn">HSL</button><button id="vWs" hidden data-i18n="view.ws">Open in OM Workspace</button><button id="vOvl" data-i18n="card.overlay">Overlay</button><button id="vClose" data-i18n="card.close">Close</button>
+    <button id="vInfoBtn" class="gallery-icon icon-info" data-i18n-title="info.title"></button>
+    <button id="vFit" class="gallery-icon icon-fit" data-i18n-title="view.fit">Fit</button>
+    <button id="vGet" class="gallery-icon icon-download" data-i18n-title="card.saveToMac">Save to computer</button><button id="vHsl">HSL</button><button id="vWs" hidden data-i18n="view.ws">Open in OM Workspace</button><button id="vOvl" class="gallery-icon icon-overlay" data-i18n-title="card.overlay">Overlay</button><button id="vClose" class="gallery-icon icon-close" data-i18n-title="card.close">Close</button>
   </div>
   <div id="vBody">
     <div id="vImgBox"><img id="vImg" alt=""><div id="vStrip" hidden></div></div>
@@ -760,6 +802,9 @@ const I18N={en:{
   "card.sizeS": "S",
   "card.sizeM": "M",
   "card.sizeL": "L",
+  "card.grid4": "Four-column grid",
+  "card.grid3": "Three-column grid",
+  "card.grid2": "Two-column grid",
   "card.exifLine": "Shooting data",
   "card.select": "Select",
   "card.selectDone": "Done",
@@ -1570,8 +1615,9 @@ function renderStrip12(){
       The camera works through requests one by one, hence at most two at a time. */
 const GAL_KEY='omcap.gallery', MONTHS=tr('months').split(',');
 function loadGal(){try{return JSON.parse(localStorage.getItem(GAL_KEY))||{}}catch{return{}}}
+const GAL_LEVELS=[4,9,16];
 const gv={n:9,mode:'index',day:null,month:null,exif:false,info:'simple',...loadGal(),day:null};
-if(![4,9,25].includes(gv.n)) gv.n=gv.n>25?25:9; // older versions also had 100 per page
+if(!GAL_LEVELS.includes(gv.n)) gv.n=9;
 if(!['image','simple','overall'].includes(gv.info)) gv.info='simple';
 function saveGal(){try{localStorage.setItem(GAL_KEY,JSON.stringify({n:gv.n,mode:gv.mode,exif:gv.exif,info:gv.infoSet?gv.info:undefined,infoSet:gv.infoSet}))}catch{}}
 /* Shooting data (EXIF) per path, one request each; the server reads only the start of each file */
@@ -1717,7 +1763,7 @@ function renderGal(){
     const t=makeTile(s.preview);
     t.classList.toggle('sel',selSet.has(s.preview.path));
     const bd=document.createElement('div'); bd.className='bd'; bd.textContent=s.types; t.append(bd);
-    if(gv.n<=25){const c=document.createElement('div');c.className='cap';c.textContent=`${s.name} · ${tr('date.short',{mon:MONTHS[s.dt.m-1].slice(0,3),d:s.dt.d,time:pad(s.dt.h)+':'+pad(s.dt.mi)})}`;t.append(c)}
+    if(gv.n<=9){const c=document.createElement('div');c.className='cap';c.textContent=s.name;t.append(c)}
     t.onclick=()=>{
       if(selMode){const k=s.preview.path;selSet.has(k)?selSet.delete(k):selSet.add(k);t.classList.toggle('sel',selSet.has(k));
         $('#galSaveSel').textContent=tr('card.saveSel',{n:selSet.size});$('#galSaveSel').disabled=!selSet.size;return}
@@ -1823,6 +1869,30 @@ document.querySelectorAll('[data-v]').forEach(b=>b.onclick=()=>{
   saveGal();renderGal();
 });
 document.querySelectorAll('[data-sz]').forEach(b=>b.onclick=()=>{gv.n=+b.dataset.sz;saveGal();renderGal()});
+function zoomGallery(direction){
+  if(!cardShots) return;
+  if(gv.mode==='cal'){
+    if(direction>0){gv.mode='index';gv.n=16;saveGal();renderGal()}
+    return;
+  }
+  const i=GAL_LEVELS.indexOf(gv.n);
+  if(direction>0&&i>0) gv.n=GAL_LEVELS[i-1];
+  else if(direction<0&&i<GAL_LEVELS.length-1) gv.n=GAL_LEVELS[i+1];
+  else if(direction<0&&i===GAL_LEVELS.length-1){gv.mode='cal';gv.day=null}
+  else return;
+  saveGal();renderGal();
+}
+const galBody=$('#galBody');
+let galleryPinch=null;
+const touchDistance=e=>Math.hypot(e.touches[0].clientX-e.touches[1].clientX,e.touches[0].clientY-e.touches[1].clientY);
+galBody.addEventListener('touchstart',e=>{if(e.touches.length===2)galleryPinch={distance:touchDistance(e),done:false}},{passive:true});
+galBody.addEventListener('touchmove',e=>{
+  if(!galleryPinch||galleryPinch.done||e.touches.length!==2)return;
+  const ratio=touchDistance(e)/galleryPinch.distance;
+  if(ratio>1.22||ratio<.78){e.preventDefault();galleryPinch.done=true;zoomGallery(ratio>1?1:-1)}
+},{passive:false});
+galBody.addEventListener('touchend',e=>{if(e.touches.length<2)galleryPinch=null},{passive:true});
+galBody.addEventListener('wheel',e=>{if(!e.ctrlKey)return;e.preventDefault();zoomGallery(e.deltaY<0?1:-1)},{passive:false});
 /* Single image */
 let vToken=0;
 function viewerUrl(f){
@@ -1872,7 +1942,7 @@ function prefetchNeighbors(){
 }
 /* Picture information: Image only -> Simplified display -> Overall display (INFO button, manual p.62) */
 const INFO_MODES=['image','simple','overall'];
-function infoButton(){$('#vInfoBtn').textContent=tr('info.'+gv.info);$('#vInfoBtn').classList.toggle('on',gv.info!=='image')}
+function infoButton(){const b=$('#vInfoBtn'),text=tr('info.'+gv.info);b.title=text;b.setAttribute('aria-label',text);b.classList.toggle('on',gv.info!=='image')}
 function drawVHist(){
   const im=$('#vImg'),c=$('#vHist'),g=c.getContext('2d');
   g.clearRect(0,0,c.width,c.height);
@@ -1925,8 +1995,9 @@ async function showInfo(s,token){
 }
 $('#vInfoBtn').onclick=()=>{gv.info=INFO_MODES[(INFO_MODES.indexOf(gv.info)+1)%3];gv.infoSet=true;saveGal();if(vList[vIdx])showInfo(vList[vIdx],vToken)};
 $('#vImg').onload=()=>{if(gv.info==='overall')drawVHist()};
-$('#vFit').onclick=()=>{const b=$('#vImgBox');b.classList.toggle('full');$('#vFit').textContent=tr(b.classList.contains('full')?'view.full':'view.fit')};
-function openViewer(list,i){vList=list;vIdx=i;$('#viewer').hidden=false;$('#vImgBox').classList.remove('full');$('#vFit').textContent=tr('view.fit');showShot()}
+function fitButton(){const full=$('#vImgBox').classList.contains('full'),b=$('#vFit'),text=tr(full?'view.full':'view.fit');b.title=text;b.setAttribute('aria-label',text)}
+$('#vFit').onclick=()=>{const b=$('#vImgBox');b.classList.toggle('full');fitButton()};
+function openViewer(list,i){vList=list;vIdx=i;$('#viewer').hidden=false;$('#vImgBox').classList.remove('full');fitButton();showShot()}
 function closeViewer(){vToken++;$('#viewer').hidden=true;$('#vImg').removeAttribute('src');pump()}
 function stepViewer(d){const n=vIdx+d;if(n>=0&&n<vList.length){vIdx=n;showShot()}}
 $('#vPrev').onclick=()=>stepViewer(-1);

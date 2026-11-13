@@ -102,6 +102,9 @@ recording a movie, read only, Wi-Fi drop-out (last good frame kept, "No signal f
 - **Index display:** thumbnail grid grouped by day, sizes S/M/L, multi-select (save to computer),
   "Share Order only" filter, badges ORF+JPG, movie length, Share. Optional one-line EXIF on each
   thumbnail (mode, shutter speed, aperture, ISO).
+- **Grid zoom:** pinch apart moves 4×4 → 3×3 → 2×2; pinch together moves 2×2 → 3×3 → 4×4
+  → Calendar. Trackpad pinch follows the same sequence. The compact toolbar mirrors these states
+  with icons instead of explanatory text.
 - **Calendar display:** month grid (weeks start Monday), a thumbnail and a count per day; a click
   opens that day in Index display.
 - **Single-frame playback:** picture at 4:3 with the value strip, previous/next, Fit / 100 %
