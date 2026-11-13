@@ -41,6 +41,12 @@ default. Drive, color, metering, record mode and other Super Control Panel setti
 behind **All settings**. Navigation uses the user tasks **Shoot, Focus, Sequence, Review** rather than
 camera implementation categories.
 
+On mobile, live-view size is automatic rather than another shooting control. The app starts at the
+smallest stream that still covers the physical display resolution, up to 1280×960, then steps down
+when a rolling five-second sample falls below 12 complete fps, exceeds 18% damaged frames, or stalls.
+It never adapts while the camera is intentionally busy focusing, shooting, recording or indexing.
+Desktop keeps the explicit size selector for monitoring and focus-check workflows.
+
 ## Principles
 
 1. **Live view is the hero.** It takes the left/centre of the screen at 4:3; panels sit beside it on the

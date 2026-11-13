@@ -1,6 +1,7 @@
 """RTP header extension of the Wi-Fi live view (Olympus OPC protocol 1.0a), synthetic packets."""
 import struct
 import unittest
+from unittest import mock
 
 from omcap import liveview
 
@@ -43,6 +44,14 @@ class Extension(unittest.TestCase):
                                             "focal": [14, 140, 65], "af": 1})
         lv.last_frame -= 10  # stale frames: no values
         self.assertIsNone(lv.live_values())
+
+    def test_performance_reports_complete_rate_and_damage(self):
+        lv = liveview.LiveView()
+        with mock.patch.object(liveview.time, "monotonic", return_value=10):
+            lv.frame_marks.extend([(5, True), (6, True), (7, False), (8, True), (9, True), (10, True)])
+            self.assertEqual(lv.performance(), {
+                "fps": 1.0, "drop_ratio": 0.167, "sample_seconds": 5,
+            })
 
     def test_truncated_is_safe(self):
         self.assertEqual(liveview.parse_extension(entry(5, 1)[:6]), {5: []})
