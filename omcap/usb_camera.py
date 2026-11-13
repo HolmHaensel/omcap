@@ -155,18 +155,18 @@ def _picture_names(choices):
     return {c: table.get(str(c), c) for c in choices}
 
 
-# Super Control Panel settings over USB, values mapped on the camera 2026-11-13
-# (out/research/usb_value_mapping.md); "inferred" values follow the pattern but were not seen
+# Super Control Panel settings over USB, values mapped on the camera 2026-11-13 and written from the app
+# (out/research/usb_value_mapping.md, usb_control_matrix.md); "inferred" values follow the pattern but were not seen
 USB_TABLES = {
     "d003": {"2": "S-AF", "32770": "C-AF", "1": "MF", "32769": "S-AF+MF"},
     "d004": {"32769": "Digital ESP", "2": "Center weighted", "4": "Spot", "32785": "Spot HI",
              "32786": "Spot SH"},  # 32786 inferred
     "d005": {"1": "Flash Auto", "3": "Fill-in", "2": "Flash Off"},  # other flash modes not mapped yet
     "d00d": {"257": "LF", "258": "LN", "259": "MN", "260": "SN", "32": "RAW", "289": "LF+RAW",
-             "290": "LN+RAW", "291": "MN+RAW", "292": "SN+RAW"},  # MN/SN and LF/MN/SN+RAW inferred
-    "d01d": {"0": "S-IS Off", "1": "S-IS1", "2": "S-IS2", "3": "S-IS3", "4": "S-IS AUTO"},  # 3/4 inferred
+             "290": "LN+RAW", "291": "MN+RAW", "292": "SN+RAW"},  # SN and LF/MN/SN+RAW inferred
+    "d01d": {"0": "S-IS Off", "1": "S-IS1", "2": "S-IS2", "3": "S-IS3", "4": "S-IS AUTO"},
     "d01a": {"0": "Face Priority Off", "32769": "Face Priority On", "32770": "Face & Eye Priority On",
-             "32771": "Face & R. Eye Priority On", "32772": "Face & L. Eye Priority On"},  # 32770/1 inferred
+             "32771": "Face & R. Eye Priority On", "32772": "Face & L. Eye Priority On"},  # 32771 inferred
 }
 
 
