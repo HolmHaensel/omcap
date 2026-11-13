@@ -21,6 +21,7 @@
 - Research endpoint `/api/usbprops` reads single USB properties and their choices (for the value mapping, REQ-F10).
 
 ### App and docs
+- CI: the Python 3.9 job runs on `ubuntu-24.04`; GitHub's `ubuntu-latest` moved to 26.04, which has no Python 3.9 for setup-python, so CI on `main` was red since 0.6.0 (REQ-Q08).
 - The app releases the camera when it is stopped with Ctrl+C or `kill` (leaves PC control and closes the session); before, the camera could stop answering until it was switched off.
 - README: USB on Linux works over libgphoto2 (not tested yet: camera mounting by the desktop, udev access); libgphoto2 stays the USB backend there.
 - 169 offline tests pass (2026-11-13).
