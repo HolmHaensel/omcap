@@ -289,7 +289,9 @@ class UsbCamera:
         "facepriority": ("d01a", _table_names("d01a")),
     }
 
-    def __init__(self, allow_write=False):
+    def __init__(self, allow_write=False, backend="gphoto2"):
+        """backend: "ptp" (own PTP layer, omcap/ptp_gphoto.py), "gphoto2" (libgphoto2) or "auto"
+        (own PTP layer, libgphoto2 if it cannot connect, e.g. on Linux)."""
         self.allow_write = allow_write
         self.stage = 0
         self._new_files = []
@@ -301,16 +303,32 @@ class UsbCamera:
         self._files = None
         self._event_log = []
         self.last_af = None
-        self.gp = _gp()
         self._lock = threading.Lock()
         self._hold, self._hold_lock = 0, threading.Lock()
         self.shooting = False  # short image dropouts are normal while shooting
-        self._c = self.gp.Camera()
-        self._open()
+        self._connect(backend)
         # libgphoto2 2.5.34 forces 1024x768 on every live image; newer versions (master 2.5.34.1,
         # 2026-11-12) keep a chosen size and offer the widget "liveviewsize" (REQ-F36)
         self.features = FEATURES + (["lvsize"] if self._has_widget("liveviewsize") else [])
         self.live = UsbLive(self)
+
+    def _connect(self, backend):
+        if backend not in ("ptp", "gphoto2", "auto"):
+            raise CameraError("Unknown USB backend: %s" % backend)
+        if backend in ("ptp", "auto"):
+            from . import ptp_gphoto
+            self.gp, self.backend = ptp_gphoto, "ptp"
+            self._c = self.gp.Camera()
+            try:
+                self._open()
+                return
+            except CameraError as e:
+                if backend == "ptp":
+                    raise
+                print("USB: own PTP layer could not connect (%s), using libgphoto2" % e, flush=True)
+        self.gp, self.backend = _gp(), "gphoto2"
+        self._c = self.gp.Camera()
+        self._open()
 
     def _open(self):
         error = None
@@ -663,7 +681,8 @@ class UsbCamera:
         full = self._call(self._c.file_get_info, folder, name)  # keeps the data of .file alive
         info = full.file
         t = time.localtime(info.mtime)
-        time.sleep(0.002)  # do not starve live view and commands
+        if self.backend == "gphoto2":
+            time.sleep(0.002)  # do not starve live view and commands (libgphoto2 reads each file here)
         return {
             "dir": folder, "name": name, "size": info.size, "isdir": False,
             "date": ((t.tm_year - 1980) << 9) | (t.tm_mon << 5) | t.tm_mday,

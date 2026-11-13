@@ -29,7 +29,7 @@ DTYPES = {1: "b", 2: "B", 3: "h", 4: "H", 5: "i", 6: "I", 7: "q", 8: "Q"}
 DT_STRING = 0xFFFF
 
 OP_GET_DEVICE_INFO, OP_OPEN, OP_CLOSE = 0x1001, 0x1002, 0x1003
-OP_STORAGE_IDS, OP_HANDLES, OP_OBJECT_INFO = 0x1004, 0x1007, 0x1008
+OP_STORAGE_IDS, OP_STORAGE_INFO, OP_HANDLES, OP_OBJECT_INFO = 0x1004, 0x1005, 0x1007, 0x1008
 OP_GET_OBJECT, OP_GET_THUMB, OP_GET_PARTIAL = 0x1009, 0x100A, 0x101B
 OP_PROP_DESC, OP_GET_PROP, OP_SET_PROP = 0x1014, 0x1015, 0x1016
 OP_SHUTTER, OP_LIVEVIEW = 0x9481, 0x9484
@@ -156,6 +156,7 @@ def _libusb():
     lib.libusb_interrupt_transfer.argtypes = lib.libusb_bulk_transfer.argtypes
     lib.libusb_control_transfer.argtypes = [vp, cu8, cu8, cu16, cu16, vp, cu16, ctypes.c_uint]
     lib.libusb_close.argtypes = [vp]
+    lib.libusb_exit.argtypes = [vp]
     return lib
 
 
@@ -181,6 +182,7 @@ class UsbTransport:
                 break
             time.sleep(0.5)
         if not self.h:
+            self.close()
             raise PtpError("USB camera not reachable")
         self.ep_in, self.ep_out, self.ep_int = self._endpoints()
 
@@ -226,6 +228,9 @@ class UsbTransport:
             self.lib.libusb_release_interface(self.h, 0)
             self.lib.libusb_close(self.h)
             self.h = None
+        if self.ctx.value:
+            self.lib.libusb_exit(self.ctx)
+            self.ctx = ctypes.c_void_p()
 
 
 # --- PTP session -----------------------------------------------------------------------------------
@@ -304,6 +309,12 @@ class PtpCamera:
 
     def storage_ids(self):
         return read_array(self.transact(OP_STORAGE_IDS, want_data=True)[0], 0, "I")[0]
+
+    def storage_info(self, storage):
+        """Capacity and free space in bytes (GetStorageInfo 0x1005)."""
+        buf = self.transact(OP_STORAGE_INFO, (storage,), want_data=True)[0]
+        _type, _fs, _access, capacity, free, _images = struct.unpack_from("<HHHQQI", buf, 0)
+        return {"capacity": capacity, "free": free}
 
     def handles(self, storage=0xFFFFFFFF, parent=0):
         return read_array(self.transact(OP_HANDLES, (storage, 0, parent), want_data=True)[0], 0, "I")[0]
