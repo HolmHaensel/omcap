@@ -300,6 +300,12 @@ class Camera:
         try:
             cam.open()
             self._model = cam.device_info()["model"]
+            # Card index first: GetObjectInfo takes 10-12 ms in camera mode but ~26 ms under PC control
+            # (measured 2026-11-13, 2948 files: ~30 s instead of 88 s; with the disk cache well under 1 s)
+            try:
+                self._index.load(cam)
+            except ptp.PtpError:
+                pass  # loaded later on first use
             # PC control: needed for live view and shooting (libgphoto2 does the same at init)
             if not cam.pc_mode(True):
                 raise ptp.PtpError("camera did not switch to computer control")

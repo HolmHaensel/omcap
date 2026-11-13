@@ -126,6 +126,29 @@ def pack_value(value, dtype):
 
 
 # --- USB transport ---------------------------------------------------------------------------------
+class _Timeval(ctypes.Structure):
+    _fields_ = [("tv_sec", ctypes.c_long), ("tv_usec", ctypes.c_long)]
+
+
+_TRANSFER_CB = ctypes.CFUNCTYPE(None, ctypes.c_void_p)
+
+
+class _Transfer(ctypes.Structure):
+    """struct libusb_transfer (without the iso packet descriptors)."""
+    _fields_ = [("dev_handle", ctypes.c_void_p), ("flags", ctypes.c_uint8), ("endpoint", ctypes.c_ubyte),
+                ("type", ctypes.c_ubyte), ("timeout", ctypes.c_uint), ("status", ctypes.c_int),
+                ("length", ctypes.c_int), ("actual_length", ctypes.c_int), ("callback", _TRANSFER_CB),
+                ("user_data", ctypes.c_void_p), ("buffer", ctypes.c_void_p), ("num_iso_packets", ctypes.c_int)]
+
+
+def parse_event(raw):
+    """Interrupt container: length u32, type u16, code u16, transaction u32, then u32 params."""
+    if len(raw) < 12:
+        return None
+    _, _, code, _ = struct.unpack_from("<IHHI", raw)
+    return code, struct.unpack_from("<%dI" % ((len(raw) - 12) // 4), raw, 12)
+
+
 def _libusb():
     """libusb-1.0: the copy bundled with python-gphoto2, else Homebrew or the system."""
     candidates = []
@@ -157,6 +180,11 @@ def _libusb():
     lib.libusb_control_transfer.argtypes = [vp, cu8, cu8, cu16, cu16, vp, cu16, ctypes.c_uint]
     lib.libusb_close.argtypes = [vp]
     lib.libusb_exit.argtypes = [vp]
+    lib.libusb_alloc_transfer.restype = ctypes.POINTER(_Transfer)
+    lib.libusb_alloc_transfer.argtypes = [cint]
+    for f in ("libusb_submit_transfer", "libusb_cancel_transfer", "libusb_free_transfer"):
+        getattr(lib, f).argtypes = [ctypes.POINTER(_Transfer)]
+    lib.libusb_handle_events_timeout_completed.argtypes = [vp, ctypes.POINTER(_Timeval), ctypes.POINTER(cint)]
     return lib
 
 
@@ -168,6 +196,8 @@ class UsbTransport:
         self.ctx = ctypes.c_void_p()
         self.lib.libusb_init(ctypes.byref(self.ctx))
         self.h = None
+        self._buf = None
+        self._events, self._irq, self._irq_live = [], None, False
         for _ in range(tries):
             # macOS: the ptpcamerad service claims the camera as soon as it is plugged in
             subprocess.run(["killall", "-9", "ptpcamerad"], capture_output=True)
@@ -185,6 +215,43 @@ class UsbTransport:
             self.close()
             raise PtpError("USB camera not reachable")
         self.ep_in, self.ep_out, self.ep_int = self._endpoints()
+        self._start_events()
+
+    # Events: on macOS a synchronous interrupt read shorter than ~150 ms never returns an event (measured
+    # 2026-11-13: 10/20/50 ms nothing, 150 ms both AF events), and each check would cost that long. So one
+    # asynchronous interrupt transfer stays submitted, like libgphoto2's libusb1 port does; it completes
+    # while any other transfer runs (libusb handles events then) or in read_event().
+    def _start_events(self):
+        if self.ep_int is None:
+            return
+        self._irq_buf = ctypes.create_string_buffer(64)
+        self._irq_cb = _TRANSFER_CB(self._on_irq)  # keep a reference: libusb calls it later
+        tr = self.lib.libusb_alloc_transfer(0)
+        if not tr:
+            return
+        tr.contents.dev_handle, tr.contents.endpoint, tr.contents.type = self.h, self.ep_int, 3  # interrupt
+        tr.contents.timeout, tr.contents.length = 0, 64
+        tr.contents.callback = self._irq_cb
+        tr.contents.buffer = ctypes.cast(self._irq_buf, ctypes.c_void_p)
+        self._irq, self._irq_live = tr, False
+        self._submit_irq()
+
+    def _submit_irq(self):
+        self._irq_live = self.lib.libusb_submit_transfer(self._irq) == 0
+
+    def _on_irq(self, _ptr):
+        t = self._irq.contents
+        self._irq_live = False
+        if t.status == 0:  # LIBUSB_TRANSFER_COMPLETED
+            ev = parse_event(ctypes.string_at(self._irq_buf, t.actual_length))
+            if ev:
+                self._events.append(ev)
+        if t.status in (0, 2) and self.h:  # completed or timed out: keep listening (not after an error)
+            self._submit_irq()
+
+    def _pump(self, timeout_ms):
+        tv = _Timeval(timeout_ms // 1000, (timeout_ms % 1000) * 1000)
+        self.lib.libusb_handle_events_timeout_completed(self.ctx, ctypes.byref(tv), None)
 
     def _endpoints(self):
         buf = (ctypes.c_ubyte * 512)()
@@ -206,24 +273,44 @@ class UsbTransport:
             raise PtpError("USB write failed (%d)" % r)
 
     def read(self, size=1 << 20, timeout=5000):
+        # one buffer for all reads: a new 1 MB buffer per read (and copying all of it) cost ~20 ms
+        if self._buf is None or len(self._buf) < size:
+            self._buf = ctypes.create_string_buffer(size)
         got = ctypes.c_int()
-        b = ctypes.create_string_buffer(size)
-        r = self.lib.libusb_bulk_transfer(self.h, self.ep_in, b, size, ctypes.byref(got), timeout)
+        r = self.lib.libusb_bulk_transfer(self.h, self.ep_in, self._buf, size, ctypes.byref(got), timeout)
         if r != 0:
             raise PtpError("USB read failed (%d)" % r, code=r)
-        return b.raw[:got.value]
+        return ctypes.string_at(self._buf, got.value)
 
     def read_event(self, timeout=10):
-        got = ctypes.c_int()
-        b = ctypes.create_string_buffer(64)
-        r = self.lib.libusb_interrupt_transfer(self.h, self.ep_int, b, 64, ctypes.byref(got), timeout)
-        if r != 0 or got.value < 12:
-            return None
-        _, _, code, _ = struct.unpack_from("<IHHI", b.raw)
-        params = struct.unpack_from("<%dI" % ((got.value - 12) // 4), b.raw, 12)
-        return code, params
+        """Next event (code, params) or None after `timeout` ms."""
+        if not self._events and self._irq is not None:
+            end = time.monotonic() + timeout / 1000.0
+            while not self._events:
+                left = int((end - time.monotonic()) * 1000)
+                if left <= 0:
+                    break
+                self._pump(left)
+        elif not self._events:  # no async transfer: synchronous read (>= 150 ms on macOS)
+            got = ctypes.c_int()
+            b = ctypes.create_string_buffer(64)
+            if self.lib.libusb_interrupt_transfer(self.h, self.ep_int, b, 64, ctypes.byref(got), timeout) == 0:
+                ev = parse_event(b.raw[:got.value])
+                if ev:
+                    self._events.append(ev)
+        return self._events.pop(0) if self._events else None
 
     def close(self):
+        if self._irq is not None:
+            h, self.h = self.h, None  # the callback must not resubmit
+            if self._irq_live:
+                self.lib.libusb_cancel_transfer(self._irq)
+                end = time.monotonic() + 1.0
+                while self._irq_live and time.monotonic() < end:
+                    self._pump(50)
+            if not self._irq_live:  # never free a transfer libusb still owns
+                self.lib.libusb_free_transfer(self._irq)
+            self._irq, self.h = None, h
         if self.h:
             self.lib.libusb_release_interface(self.h, 0)
             self.lib.libusb_close(self.h)
