@@ -996,6 +996,7 @@ async function tick(){
   else if(st.mode_at&&st.mode_at!==modeAt){modeAt=st.mode_at;usbShotMode=null;props();msg(tr('msg.modeDial'))} // USB: mode dial turned
   $('#half').classList.toggle('on',st.stage>=1); $('#half').setAttribute('aria-pressed',st.stage>=1?'true':'false');
   $('#empty').hidden=st.live;
+  $('#live').style.visibility=st.live?'':'hidden'; // live view off: dark picture area, not the last frame
   $('#lvStart').hidden=st.live||!canWrite; $('#lvStop').hidden=!st.live;
   renderStrip();
   const w=$('#live').naturalWidth, stale=st.live&&st.lv_age>3;
