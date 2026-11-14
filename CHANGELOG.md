@@ -1,6 +1,8 @@
 # Changelog
 
-## Unreleased
+## 0.7.6 – 2026-11-14
+
+Playback on a phone: pinch to zoom, swipe between pictures, pinch for the Index display size.
 
 - Single-frame view on a phone (in the fitted view; "Fit" 1:1 keeps scrolling): pinch with two fingers zooms the picture (up to 6×), one finger moves the zoomed picture, a double tap switches between 1× and 2.5×; the mouse wheel zooms on the computer. Before, a pinch zoomed the whole page. At 1× a sideways swipe shows the next or previous picture: one finger or a mouse drag (past 60 px), or a sideways wheel – Magic Mouse, trackpad, Shift + wheel (past 80 px, one picture per gesture; a new swipe during the momentum of the last one counts, no click needed); the picture follows and slides out, and gives only a little at the first and last picture. The ‹ › buttons stay in the bar. Swipe tried 2026-11-14. (REQ-F48)
 - Index display on a phone (touch only): pinch changes the grid like a photo library – the grid scales smoothly with the fingers and settles on the nearest size (S 5×5, M 3×3, L 2×2) when they lift; one finger still scrolls. Tried on an iPhone 2026-11-14. (REQ-F48)
