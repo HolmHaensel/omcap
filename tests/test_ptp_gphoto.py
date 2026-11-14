@@ -335,7 +335,7 @@ class Level(unittest.TestCase):
 
     def test_live_tilt_signed(self):
         cam = self.cam({0xD053: 65532, 0xD055: 25})  # -0.4 and +2.5 degrees
-        self.assertEqual(cam.level(), {"a": -0.4, "b": 2.5, "mode": "M"})
+        self.assertEqual(cam.level(), {"a": -0.4, "b": 2.5})
 
     def test_last_value_while_shooting(self):
         values = {0xD053: 10, 0xD055: 0}
@@ -343,6 +343,11 @@ class Level(unittest.TestCase):
         cam.level()
         cam.shooting, values[0xD053] = True, 50
         self.assertEqual(cam.level()["a"], 1.0)
+
+    def test_first_call_while_shooting_does_not_read(self):
+        cam = self.cam({})  # any camera read would fail with KeyError
+        cam.shooting = True
+        self.assertIsNone(cam.level())
 
     def test_needs_ptp_backend(self):
         cam = usb_camera.UsbCamera.__new__(usb_camera.UsbCamera)

@@ -311,6 +311,7 @@ class UsbCamera:
     features = FEATURES
     shooting = False
     _take_t0 = None  # start of a running long exposure (BULB, LIVE TIME, LIVECOMP)
+    _last_level = None  # last level gauge reading, returned while a shot, movie or card read holds the camera
     last_press = 0.0  # time of the last shutter command or written setting (see __init__)
     saf_shot = False  # S-AF during the running shot: no focus means no release
 
@@ -609,21 +610,20 @@ class UsbCamera:
             return None
 
     def level(self):
-        """Tilt in degrees (a = roll left/right d053, b = pitch forward/back d055) and the current mode.
+        """Horizon (a, d053) and tilt (b, d055) in degrees, as the camera's Level gauge (manual p.37).
 
         The descriptor of d053/d055 keeps the session-start value; GetDevicePropValue follows the camera
         live under PC control (camera-tested 2026-11-14). Only the PTP backend can read it, so the
         Level Gauge is shown with that backend only (feature "level"). While a shot or card read holds
-        the connection the last values are returned."""
+        the connection the last values (or None) are returned, so the gauge stands still meanwhile."""
         if not hasattr(self._c, "get_prop_value"):
             raise CameraError("Level gauge needs the own PTP backend (--usb-backend ptp or auto)")
         if self.hold or self.shooting:
-            if getattr(self, "_last_level", None):
-                return self._last_level
+            return self._last_level
         def tenths(v):  # the E-M1 reports d053/d055 as unsigned 16 bit: 65532 = -0.4 degrees
             return (v - 65536 if v > 32767 else v) / 10
         a, b = (tenths(self._call(self._c.get_prop_value, code)) for code in (0xD053, 0xD055))
-        self._last_level = {"a": a, "b": b, "mode": EXPOSURE_PROGRAM.get(str(self._value("d006")), "?")}
+        self._last_level = {"a": a, "b": b}  # no mode: d006 only changes with a new session (mode dial events)
         return self._last_level
 
     def af_area(self):

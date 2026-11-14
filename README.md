@@ -81,9 +81,8 @@ Please report what works on your body in [Discussions](https://github.com/HolmHa
 | HSL colour profiles in the app (HSL button, auto-apply, before/after) | yes | yes (untested) |
 | Start by double-click, browser opens by itself | yes | yes |
 
-**Not possible with the E-M1 Mark I:** a live level gauge over Wi-Fi (the camera sends no tilt there; over USB
-it works with the app's own PTP layer), changing AF Area over Wi-Fi and the shooting mode
-over USB (the camera offers no command for it).
+**Not possible with the E-M1 Mark I:** the level gauge over Wi-Fi (no tilt data), changing AF Area over Wi-Fi and the
+shooting mode over USB (the camera offers no command for it).
 
 **Planned (next releases):** Mac app with a menu bar icon, Windows over Wi-Fi, movie settings and Focus BKT over USB (0.7.x), subject detection in live view on the computer (face/eye,
 later animals and birds; the E-M1 itself sends no face frames) with "Focus on subject", film looks and

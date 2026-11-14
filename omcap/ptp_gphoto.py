@@ -336,11 +336,12 @@ class Camera:
 
     @_wrap
     def get_prop_value(self, code):
-        """Live value of a property (not a gphoto2 method): GetDevicePropValue with the descriptor's type."""
+        """Live raw value of a property (not a gphoto2 method): GetDevicePropValue with the descriptor's type;
+        the caller interprets it (e.g. the E-M1 tilt is unsigned 16 bit holding a signed value)."""
         cam = self._cam()
         if code not in self._types:
             self._types[code] = cam.prop_desc(code)["type"]
-        return signed(cam.prop_value(code, self._types[code]), self._types[code])
+        return cam.prop_value(code, self._types[code])
 
     # Settings
     @_wrap

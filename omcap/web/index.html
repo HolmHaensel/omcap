@@ -728,7 +728,7 @@ const I18N={en:{
   "lv.peakBlack": "Black",
   "lv.peakRed": "Red",
   "lv.peakYellow": "Yellow",
-  "lv.roll": "Roll {a}° · Pitch {b}°",
+  "lv.roll": "Horizon {a}° · Tilt {b}°",
   "msg.ready": "Ready.",
   "msg.indexing": "Reading the card index (once per USB session, about 1 min) …",
   "msg.indexDone": "Card index read: pictures are now saved quickly",
@@ -1860,7 +1860,6 @@ async function pollLevel(){
   lvlBusy=true;
   try{
     lvl=await api('/api/level');
-    if(lastProps&&lastProps.takemode.value!==lvl.mode&&st.stage===0) props();
   }catch{lvl=null}finally{lvlBusy=false}
   drawLevel();
 }
