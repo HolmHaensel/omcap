@@ -43,6 +43,7 @@ Please report what works on your body in [Discussions](https://github.com/HolmHa
 |---|---|---|
 | Live view with selectable size, zoom, Displayed Grid, overlay, second monitor | yes | yes (size choice up to 1280×960 with the PTP backend on macOS; with libgphoto2 it needs 2.5.34.1 or later, see below) |
 | USB backend (`--usb-backend`) | – | yes: `auto` (default on macOS) uses the app's own PTP layer and falls back to libgphoto2 (tested on macOS); Linux: libgphoto2, not tested |
+| Level gauge in the live view (roll line and pitch dot) | – (the camera sends no tilt over Wi-Fi) | yes, with the own PTP layer (tested 2026-11-14) |
 | Tap the 9×9 AF grid to focus, AF target shown in green | yes | yes |
 | AF frame on tap with "Show AF targets" off (about 4 s: white focusing, green in focus, red no focus) | yes (tested 2026-11-14) | yes (tried 2026-11-14 in the redesign build) |
 | AF Area (All Targets, Single Target, Small Target, Group Target) | – (no command over Wi-Fi) | yes |
@@ -80,9 +81,8 @@ Please report what works on your body in [Discussions](https://github.com/HolmHa
 | HSL colour profiles in the app (HSL button, auto-apply, before/after) | yes | yes (untested) |
 | Start by double-click, browser opens by itself | yes | yes |
 
-**Not possible with the E-M1 Mark I:** a live level gauge (the camera sends no tilt over Wi-Fi; over
-USB the tilt is only updated when the session starts), changing AF Area over Wi-Fi and the shooting mode
-over USB (the camera offers no command for it).
+**Not possible with the E-M1 Mark I:** the level gauge over Wi-Fi (no tilt data), changing AF Area over Wi-Fi and the
+shooting mode over USB (the camera offers no command for it).
 
 **Planned (next releases):** Mac app with a menu bar icon, Windows over Wi-Fi, movie settings and Focus BKT over USB (0.7.x), subject detection in live view on the computer (face/eye,
 later animals and birds; the E-M1 itself sends no face frames) with "Focus on subject", film looks and

@@ -432,6 +432,11 @@ class PtpCamera:
     def prop_desc(self, code):
         return parse_prop_desc(self.transact(OP_PROP_DESC, (code,), want_data=True)[0])
 
+    def prop_value(self, code, dtype):
+        """Current value (GetDevicePropValue 0x1015). Unlike the descriptor, it follows the camera
+        live under PC control (E-M1: tilt d053/d055, camera-tested 2026-11-14)."""
+        return read_value(self.transact(OP_GET_PROP, (code,), want_data=True)[0], 0, dtype)[0]
+
     def set_prop(self, code, value, dtype, timeout=5000):
         self.transact(OP_SET_PROP, (code,), data=pack_value(value, dtype), timeout=timeout)
 
