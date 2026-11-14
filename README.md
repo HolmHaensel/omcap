@@ -43,7 +43,7 @@ Please report what works on your body in [Discussions](https://github.com/HolmHa
 |---|---|---|
 | Live view with selectable size, zoom, Displayed Grid, overlay, second monitor | yes | yes (size choice up to 1280×960 with the PTP backend on macOS; with libgphoto2 it needs 2.5.34.1 or later, see below) |
 | USB backend (`--usb-backend`) | – | yes: `auto` (default on macOS) uses the app's own PTP layer and falls back to libgphoto2 (tested on macOS); Linux: libgphoto2, not tested |
-| Level gauge in the live view (horizon line and tilt dot) | – (the camera sends no tilt over Wi-Fi) | yes, with the own PTP layer, not with libgphoto2 (switch "Level gauge" in the live view tools, off by default and remembered; tested 2026-11-14) |
+| Level gauge in the live view (horizon line and tilt dot) | – (the camera sends no tilt over Wi-Fi) | yes, with the own PTP layer, not with libgphoto2 (switch "Level gauge" in the live view tools, off by default and remembered; "Level ✓" feedback, optional sound, "Hold angle" for repeat shots from the same angle; tested 2026-11-14) |
 | Tap the 9×9 AF grid to focus, AF target shown in green | yes | yes |
 | AF frame on tap with "Show AF targets" off (about 4 s: white focusing, green in focus, red no focus) | yes (tested 2026-11-14) | yes (tried 2026-11-14 in the redesign build) |
 | AF Area (All Targets, Single Target, Small Target, Group Target) | – (no command over Wi-Fi) | yes |
