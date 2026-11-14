@@ -385,7 +385,7 @@ body.webcam{cursor:none;display:flex;align-items:center;justify-content:center}
     </select></label>
     <span class="vsep"></span>
     <span id="lvTools" hidden>
-      <label class="tog" data-feat="level"><input type="checkbox" id="lvlOn" checked> <span data-i18n="lv.level">Level gauge</span></label>
+      <label class="tog" data-feat="level"><input type="checkbox" id="lvlOn"> <span data-i18n="lv.level">Level gauge</span></label>
       <span id="lvlInfo" class="mut" data-feat="level"></span>
       <label class="tog"><span data-i18n="lv.grid">Displayed Grid</span> <select id="gridType"><option value="" data-i18n="lv.gridOff">Off</option><option value="thirds" data-i18n="lv.gridThirds">Rule of thirds</option><option value="cross" data-i18n="lv.gridCross">Crosshair</option><option value="mesh" data-i18n="lv.gridMesh">Grid</option></select></label>
       <label class="gridAdj" hidden>X <input type="range" id="gridX" min="-50" max="50" value="0"></label>
@@ -1885,7 +1885,7 @@ function drawLevel(){
   g.fillStyle=Math.abs(pitch)<.5?'#3DDC84':'#F5B841';
   g.beginPath(); g.arc(sx,cy-clamp/20*sh,6*d,0,7); g.fill();
 }
-$('#lvlOn').onchange=drawLevel;
+$('#lvlOn').onchange=()=>{aidSave();if(!$('#lvlOn').checked)lvl=null;drawLevel()};
 /* AF Area (USB): 9x9 field grid as on the camera display */
 const AF_NAMES={33024:tr('af.33024'),33025:tr('af.33025'),33026:tr('af.33026'),33027:tr('af.33027')};
 async function loadAf(){try{af=await api('/api/afarea');showAf()}catch(e){msg(tr('msg.afArea',{e:e.message}),true)}}
@@ -2059,7 +2059,8 @@ function edgeThreshold(mag,top,floor){ // threshold such that about the fraction
   for(;b>0;b--){acc+=bins[b]; if(acc>=want) break}
   return Math.max(floor,b/k);
 }
-const AID_KEY='omcap.aids', AID_IDS=['aidHist','aidRgb','aidClip','aidPeak'];
+// lvlOn: Level gauge switch, off by default and remembered like the other live view aids (user 2026-11-14)
+const AID_KEY='omcap.aids', AID_IDS=['aidHist','aidRgb','aidClip','aidPeak','lvlOn'];
 const aidOff=document.createElement('canvas'), aidCtx=aidOff.getContext('2d',{willReadFrequently:true});
 const PEAK_RGB={white:[255,255,255],black:[0,0,0],red:[255,40,40],yellow:[255,230,0]};
 function aidSave(){try{const o={col:$('#aidPeakCol').value};AID_IDS.forEach(i=>o[i]=$('#'+i).checked);localStorage.setItem(AID_KEY,JSON.stringify(o))}catch{}}
@@ -2108,7 +2109,7 @@ function aidTick(){
   }
   og.putImageData(out,0,0);
 }
-AID_IDS.concat('aidPeakCol').forEach(i=>$('#'+i).onchange=()=>{aidSave();aidTick()});
+AID_IDS.filter(i=>i!=='lvlOn').concat('aidPeakCol').forEach(i=>$('#'+i).onchange=()=>{aidSave();aidTick()});  // lvlOn has its own handler
 setInterval(aidTick,250); // 4 frames/s are enough and keep the CPU low
 // Level gauge (USB, PTP backend): own poll, faster than tick(), only while it is shown (REQ-F23)
 setInterval(()=>{if(features.has('level')&&st&&st.live&&$('#lvlOn').checked)pollLevel()},300);
