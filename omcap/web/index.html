@@ -160,7 +160,9 @@ button:disabled{color:var(--disabled);opacity:.6;cursor:not-allowed}
 @keyframes blink{50%{opacity:.25}}
 @media(prefers-reduced-motion:reduce){#recChip .dot{animation:none}}
 /* Wi-Fi on phone width: the live view size follows the screen and the signal (REQ-F45), the manual choice is hidden */
-@media(max-width:700px){label[data-feat=lvsize]{display:none!important}#autoLvStatus:not([hidden]){display:inline-flex}}
+/* only while the automatic size is on (Wi-Fi, write enabled): USB and read-only keep the manual choice */
+body.autoLv label[data-feat=lvsize]{display:none!important}
+#autoLvStatus:not([hidden]){display:inline-flex}
 #viewport.rec{box-shadow:0 0 0 2px var(--rec)}
 #dropChip{position:absolute;left:50%;top:54px;transform:translateX(-50%);height:32px;display:flex;align-items:center;padding:0 14px;border-radius:16px;background:var(--overlay);border:1px solid var(--rec);color:var(--rec-text);z-index:4;pointer-events:none}
 #empty{flex-direction:column;gap:var(--s2);text-align:center}
@@ -1018,8 +1020,8 @@ const AUTO_LV_SLOW_MS=4000; // slowness must last this long: a short dip right a
 const autoLvEnabled=()=>MOBILE_LIVE.matches&&!isUsb&&canWrite&&features.has('lvsize');
 const lvSizeText=size=>size.replace(/^0+/,'').replace('x0','×');
 function autoLvLabel(size){
-  const el=$('#autoLvStatus');
-  el.hidden=!autoLvEnabled();
+  const el=$('#autoLvStatus'), on=autoLvEnabled();
+  el.hidden=!on; document.body.classList.toggle('autoLv',on);
   if(size) el.textContent=tr('lv.auto',{size:lvSizeText(size)});
 }
 function idealMobileLvSize(){
