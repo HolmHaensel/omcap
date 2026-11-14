@@ -8,6 +8,7 @@ import socket
 import struct
 import threading
 import time
+from collections import deque
 
 
 def _words(data):
@@ -80,6 +81,7 @@ class LiveView:
         self.last_frame = None  # time of the last complete frame
         self.ext = {}           # latest RTP extension entries {function id: words}
         self.ext_seen = {}      # function id -> number of frames that carried it
+        self.frame_marks = deque(maxlen=600)  # (time, complete): rolling quality telemetry
         self.cond = threading.Condition()
         self._sock = None
         self._run = False
@@ -96,6 +98,7 @@ class LiveView:
     def start(self):
         self.stop()  # a restart only frees the port afterwards
         self.ext = {}
+        self.frame_marks.clear()
         s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         s.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 1 << 21)
@@ -142,14 +145,32 @@ class LiveView:
             buf += pkt[hdr:]
             if pkt[1] & 0x80:  # marker: frame complete
                 # do not pass on frames with lost packets (about 10 % on Wi-Fi).
-                if not damaged and buf[:2] == b"\xff\xd8" and buf[-2:] == b"\xff\xd9":
-                    with self.cond:
+                complete = not damaged and buf[:2] == b"\xff\xd8" and buf[-2:] == b"\xff\xd9"
+                now = time.monotonic()
+                with self.cond:
+                    self.frame_marks.append((now, complete))
+                    if complete:
                         self.frame = bytes(buf)
                         self.seq += 1
-                        self.last_frame = time.monotonic()
+                        self.last_frame = now
                         self.cond.notify_all()
                 buf = bytearray()
                 damaged = False
+
+    def performance(self, window=5.0):
+        """Recent complete-frame rate and damaged-frame ratio for adaptive live-view quality."""
+        now = time.monotonic()
+        with self.cond:
+            marks = [(t, ok) for t, ok in self.frame_marks if t >= now - window]
+        if len(marks) < 2:
+            return {"fps": None, "drop_ratio": None, "sample_seconds": 0}
+        seconds = max(0.25, marks[-1][0] - marks[0][0])
+        complete = sum(ok for _, ok in marks)
+        return {
+            "fps": round(complete / seconds, 1),
+            "drop_ratio": round((len(marks) - complete) / len(marks), 3),
+            "sample_seconds": round(seconds, 1),
+        }
 
     def live_values(self):
         """Camera values for the page while frames arrive (E-M1 layouts), else None.

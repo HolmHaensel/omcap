@@ -159,6 +159,10 @@ button:disabled{color:var(--disabled);opacity:.6;cursor:not-allowed}
 #recChip .dot{background:var(--rec);animation:blink 1s steps(2) infinite}
 @keyframes blink{50%{opacity:.25}}
 @media(prefers-reduced-motion:reduce){#recChip .dot{animation:none}}
+/* Wi-Fi on phone width: the live view size follows the screen and the signal (REQ-F45), the manual choice is hidden */
+/* only while the automatic size is on (Wi-Fi, write enabled): USB and read-only keep the manual choice */
+body.autoLv label[data-feat=lvsize]{display:none!important}
+#autoLvStatus:not([hidden]){display:inline-flex}
 #viewport.rec{box-shadow:0 0 0 2px var(--rec)}
 #dropChip{position:absolute;left:50%;top:54px;transform:translateX(-50%);height:32px;display:flex;align-items:center;padding:0 14px;border-radius:16px;background:var(--overlay);border:1px solid var(--rec);color:var(--rec-text);z-index:4;pointer-events:none}
 #empty{flex-direction:column;gap:var(--s2);text-align:center}
@@ -335,6 +339,7 @@ body.webcam{cursor:none;display:flex;align-items:center;justify-content:center}
   </div>
   <button id="startGo" disabled data-i18n="start.connect">Connect</button>
   <p id="startMsg" class="mut" style="text-align:center;max-width:560px;margin:8px auto"></p>
+  <p id="startAuto" hidden style="text-align:center;margin:4px auto"><span id="startAutoText"></span> <button id="startAutoStop" class="hbtn quiet" data-i18n="start.autoStop">Stay here</button></p>
   <button class="hbtn quiet quitBtn" data-i18n="app.quit">Quit E-M1 Capture</button>
 </div>
 <div id="stopped" hidden><p data-i18n="app.stopped">E-M1 Capture has stopped. You can close this tab.</p></div>
@@ -352,6 +357,7 @@ body.webcam{cursor:none;display:flex;align-items:center;justify-content:center}
   <button id="hdrLocal" class="hbtn" data-i18n="local.title">On the computer</button>
   <button id="layoutBtn" class="hbtn quiet" data-i18n="app.layout">Customize layout</button>
   <button id="reset" class="hbtn w" data-i18n="app.reset" data-i18n-title="app.resetTitle">Reset camera</button>
+  <button id="phoneBtn" class="hbtn quiet" hidden data-i18n="phone.btn">Phone</button>
   <button id="discon" class="hbtn quiet" data-i18n="app.disconnect">Disconnect</button>
   <button class="hbtn quiet quitBtn" data-i18n="app.quit">Quit E-M1 Capture</button>
   <button id="poweroff" class="hbtn icon w" data-feat="poweroff" data-i18n-aria="app.poweroff" data-i18n-title="app.poweroff"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 3v8"/><path d="M6.3 7.2a8 8 0 1 0 11.4 0"/></svg></button>
@@ -386,6 +392,7 @@ body.webcam{cursor:none;display:flex;align-items:center;justify-content:center}
     <label class="lab" data-feat="lvsize"><span data-i18n="lv.size">Size</span> <select id="lvqty">
       <option>0320x0240</option><option>0640x0480</option><option selected>0800x0600</option><option>1024x0768</option><option>1280x0960</option>
     </select></label>
+    <span id="autoLvStatus" class="chip" hidden data-feat="lvsize"></span>
     <span class="vsep"></span>
     <span id="lvTools" hidden>
       <label class="tog" data-feat="level"><input type="checkbox" id="lvlOn"> <span data-i18n="lv.level">Level gauge</span></label>
@@ -589,6 +596,13 @@ body.webcam{cursor:none;display:flex;align-items:center;justify-content:center}
   <div id="local"></div>
   <div class="row" style="margin-top:12px"><button data-i18n="layout.close">Close</button></div>
 </form></dialog>
+<dialog id="phoneDlg"><form method="dialog">
+  <h2 data-i18n="phone.title">Open on a phone</h2>
+  <p class="mut" data-i18n="phone.hint">Phone in the same home network: scan the code with the camera app. Anyone with this code can control the camera until the app is restarted.</p>
+  <div id="phoneQr" style="display:flex;justify-content:center;margin:12px 0"></div>
+  <p id="phoneUrl" class="mut" style="word-break:break-all;font-size:12px"></p>
+  <div class="row" style="margin-top:12px"><button data-i18n="layout.close">Close</button></div>
+</form></dialog>
 <dialog id="layoutDlg"><form method="dialog">
   <div id="layoutBody"></div>
   <div class="row" style="margin-top:12px"><button data-i18n="layout.close">Close</button><button type="button" id="layoutReset" data-i18n="layout.reset">Reset</button></div>
@@ -686,8 +700,12 @@ const I18N={en:{
   "start.foundCamera": "Camera found",
   "start.notFound": "not found",
   "start.connecting": "Connecting …",
+  "start.auto": "Connecting to {name} over {conn} in {n} s …",
+  "start.autoStop": "Stay here",
   "app.connecting": "connecting …",
   "app.disconnect": "Disconnect",
+  "phone.btn": "Phone", "phone.title": "Open on a phone",
+  "phone.hint": "Phone in the same home network: scan the code with the camera app. Anyone with this code can control the camera until the app is restarted.",
   "app.quit": "Quit E-M1 Capture",
   "app.quitConfirm": "The app stops and the camera connection is closed.",
   "app.stopped": "E-M1 Capture has stopped. You can close this tab.",
@@ -702,6 +720,8 @@ const I18N={en:{
   "lv.start": "Start live view",
   "lv.stop": "Stop live view",
   "lv.size": "Size",
+  "lv.auto": "Auto · {size}",
+  "lv.autoReduced": "Live view adjusted to {size} for a smoother signal",
   "lv.second": "Second monitor",
   "lv.webcam": "Webcam (OBS)",
   "save.folder": "Folder on the computer",
@@ -1003,6 +1023,48 @@ function shotMode(path){
 let isUsb=false; // connection type from /api/status
 let st={stage:0,job:{}},canWrite=false,wasBusy=false,connected=false,features=new Set(),af=null;
 let quitting=false;
+/* Adaptive live view size over Wi-Fi on phone width (REQ-F45, from the redesign, user 2026-11-14): start with the
+   size that fits the screen and step down when frames come too slowly (<12 fps or >18 % lost over 4 s) or stall
+   (>1.5 s), and only when that lasts 4 s; at most every 8 s and never during a shot, job, movie or card read. Desktop and USB keep the manual size. */
+const MOBILE_LIVE=matchMedia('(max-width:700px)');
+const AUTO_LV_SIZES=['0640x0480','0800x0600','1024x0768','1280x0960'];
+let autoLvBusy=false,autoLvLastChange=0,autoLvSlowSince=0;
+const AUTO_LV_SLOW_MS=4000; // slowness must last this long: a short dip right after connecting is no reason (camera test 2026-11-14)
+const autoLvEnabled=()=>MOBILE_LIVE.matches&&!isUsb&&canWrite&&features.has('lvsize');
+const lvSizeText=size=>size.replace(/^0+/,'').replace('x0','×');
+function autoLvLabel(size){
+  const el=$('#autoLvStatus'), on=autoLvEnabled();
+  el.hidden=!on; document.body.classList.toggle('autoLv',on);
+  if(size) el.textContent=tr('lv.auto',{size:lvSizeText(size)});
+}
+function idealMobileLvSize(){
+  const px=Math.min(1280,Math.max(640,Math.ceil($('#viewport').clientWidth*(devicePixelRatio||1))));
+  return AUTO_LV_SIZES.find(s=>parseInt(s,10)>=px)||AUTO_LV_SIZES.at(-1);
+}
+function prepareAutoLiveSize(){
+  if(!autoLvEnabled()){autoLvLabel();return false}
+  const size=idealMobileLvSize();
+  $('#lvqty').value=size; lvPicked=true; autoLvLastChange=Date.now();
+  autoLvLabel(size);
+  return true;
+}
+async function reduceAutoLiveSize(){
+  if(autoLvBusy||!autoLvEnabled()||Date.now()-autoLvLastChange<8000) return;
+  if(st.stage>0||st.busy||st.indexing||st.movie!=null||st.take!=null||(st.job&&st.job.running)) return;
+  const current=st.lvqty||$('#lvqty').value, i=AUTO_LV_SIZES.indexOf(current);
+  if(i<=0) return;
+  const perf=st.lvperf||{}, stale=st.lv_age!=null&&st.lv_age>1.5;
+  const slow=perf.sample_seconds>=4&&((perf.fps!=null&&perf.fps<12)||(perf.drop_ratio!=null&&perf.drop_ratio>.18));
+  if(!stale&&!slow){autoLvSlowSince=0;return}
+  if(!autoLvSlowSince){autoLvSlowSince=Date.now();return}
+  if(Date.now()-autoLvSlowSince<AUTO_LV_SLOW_MS) return;
+  autoLvSlowSince=0;
+  const next=AUTO_LV_SIZES[i-1];
+  autoLvBusy=true; autoLvLastChange=Date.now();
+  $('#lvqty').value=next; lvPicked=true; autoLvLabel(next);
+  msg(tr('lv.autoReduced',{size:lvSizeText(next)}));
+  try{await $('#lvStart').onclick()}finally{autoLvBusy=false}
+}
 async function tick(){
   if(view||!connected||quitting) return;
   const liOld=JSON.stringify(st&&st.lvinfo);
@@ -1017,6 +1079,7 @@ async function tick(){
   $('#lvStart').hidden=st.live||!canWrite; $('#lvStop').hidden=!st.live;
   renderStrip();
   const w=$('#live').naturalWidth, stale=st.live&&st.lv_age>3;
+  if(st.live) reduceAutoLiveSize();
   const off=st.live&&w&&st.lvqty&&w!==parseInt(st.lvqty,10);
   $('#lvSize').textContent=stale?tr('lv.noSignal',{s:Math.round(st.lv_age)}):st.live&&w?tr('lv.receiving',{w,h:$('#live').naturalHeight}):'';
   $('#lvSize').className=off||stale?'warn':'mut';
@@ -2236,6 +2299,7 @@ $('#layoutReset').onclick=()=>{layout={};commit()};
 $('#lvStart').onclick=async()=>{
   try{await api('/api/liveview',{action:'start',lvqty:isUsb&&!lvPicked?null:$('#lvqty').value});startLiveLoop();msg(tr('msg.lvRunning'));await tick();if(features.has('af_area'))loadAf();setTimeout(props,1500)}catch(e){msg(e.message,true)}};
 $('#lvqty').onchange=()=>{lvPicked=true;if(st.live)$('#lvStart').click()};
+MOBILE_LIVE.addEventListener('change',()=>{if(autoLvEnabled())prepareAutoLiveSize();else autoLvLabel()});
 $('#lvStop').onclick=()=>act(tr('msg.lvStopped'),'/api/liveview',{action:'stop'});
 /* Shooting: the whole sequence. If Halfway is just holding focus, press through from there and release,
       as on the real shutter button. All the way and release are merged into it. */
@@ -2424,6 +2488,7 @@ async function pollConn(){
     const last=lastConn();
     selected=c.usb&&c.wifi?(last==='usb'||last==='wifi'?last:null):c.usb?'usb':c.wifi?'wifi':null;
     markSelected();
+    autoConnect(c,last);
     if($('#startMsg').dataset.offline){$('#startMsg').textContent='';$('#startMsg').className='mut';delete $('#startMsg').dataset.offline}
   }catch(e){
     // Server not running, or index.html opened as a file: say how to start the app
@@ -2432,13 +2497,29 @@ async function pollConn(){
     m.textContent=e.message+(location.protocol!=='http:'?'\n'+tr('start.openUrl'):'');
   }finally{polling=false}
 }
+/* Auto-connect (user 2026-11-14): when the connection used last time finds the camera again, connect after a short
+   countdown that can be stopped. Not right after "Disconnect" (sessionStorage) and only once per page load. */
+let autoTimer=null,autoDone=false;
+const AUTO_OFF='omcap.noAutoConnect', AUTO_SECONDS=2;
+function autoConnect(c,last){
+  let off=false; try{off=!!sessionStorage.getItem(AUTO_OFF)}catch{}
+  if(autoDone||autoTimer||off||!last||!c[last]||selected!==last) return;
+  let n=AUTO_SECONDS;
+  const name=(c.names&&c.names[last])||tr('start.foundCamera'), conn=last==='usb'?'USB':'Wi-Fi';
+  const show=()=>{$('#startAuto').hidden=false;$('#startAutoText').textContent=tr('start.auto',{name,conn,n})};
+  show();
+  autoTimer=setInterval(()=>{n--; if(n>0){show();return} stopAuto(); autoDone=true; connectTo(last)},1000);
+}
+function stopAuto(){clearInterval(autoTimer);autoTimer=null;$('#startAuto').hidden=true}
+$('#startAutoStop').onclick=()=>{stopAuto();autoDone=true};
 async function connectTo(kind){
+  stopAuto();
   if(connecting) return;
   connecting=true; selected=kind; markSelected();
   $('#startMsg').className='mut'; $('#startMsg').textContent=tr('start.connecting');
   try{
     await api('/api/connect',{type:kind});
-    try{localStorage.setItem(LAST_KEY,kind)}catch{}
+    try{localStorage.setItem(LAST_KEY,kind);sessionStorage.removeItem(AUTO_OFF)}catch{} // connected again: auto-connect allowed again
     enterApp();
   }catch(e){$('#startMsg').className='warn';$('#startMsg').textContent=e.message}
   finally{connecting=false;markSelected()}
@@ -2459,7 +2540,11 @@ document.querySelectorAll('.quitBtn').forEach(b=>b.onclick=async()=>{
   catch(e){if(e.message!==tr('srv.offline')){msg(e.message||String(e),true);return}} // only "server gone" counts as stopped
   showStopped();
 });
-$('#discon').onclick=async()=>{try{await api('/api/disconnect',{})}catch{}location.reload()};
+$('#phoneBtn').onclick=async()=>{
+  try{const l=await api('/api/lanlink');$('#phoneQr').innerHTML=l.svg;$('#phoneUrl').textContent=l.url;$('#phoneDlg').showModal()}
+  catch(e){msg(e.message,true)}
+};
+$('#discon').onclick=async()=>{try{sessionStorage.setItem(AUTO_OFF,'1')}catch{}try{await api('/api/disconnect',{})}catch{}location.reload()};
 function init(){
   $('#start').hidden=false;
   pollConn();
@@ -2472,6 +2557,8 @@ async function enterApp(){
   try{
     const s=await api('/api/status');
     canWrite=s.allow_write;
+    // Phone link (--lan, REQ-F47): only offered on the computer itself, the phone already has it
+    $('#phoneBtn').hidden=!(s.lan&&['127.0.0.1','localhost','::1','[::1]'].includes(location.hostname));
     $('#vWs').hidden=!s.om_workspace; // only when OM Workspace is installed on this computer
     features=new Set(s.features); isUsb=s.type==='usb';
     applyFeatures();
@@ -2484,9 +2571,12 @@ async function enterApp(){
     // live view first, card list last: the list holds the camera for seconds
     // USB: connecting waits for the card index; once it is read the list costs only milliseconds
     const list=async()=>{try{st=await api('/api/state')}catch{} gallery(isUsb&&!st.indexing)}; // fresh state
-    if(canWrite&&!st.live) $('#lvStart').onclick().finally(list); else list();
     if(st.lvqty) $('#lvqty').value=st.lvqty;
     else if(isUsb) $('#lvqty').value='1024x0768';
+    const autoSize=prepareAutoLiveSize();
+    if(canWrite&&!st.live) $('#lvStart').onclick().finally(list);
+    else if(autoSize&&st.live&&st.lvqty!==$('#lvqty').value) $('#lvStart').onclick().finally(list);
+    else list();
     startLiveLoop();
   }catch(e){$('#status').className='warn';$('#status').textContent=e.message;$('#connChip').hidden=true}
   local(); applyLayout();

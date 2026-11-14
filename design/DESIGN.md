@@ -46,7 +46,7 @@ The live view and *Take picture* are visible at the same time on every screen si
 States: live view off, focusing (amber field), in focus (green field), self-timer running,
 recording a movie, read only, Wi-Fi drop-out (last good frame kept, "No signal for N s").
 
-## Phone (Wi-Fi only)
+## Phone layouts (redesign)
 
 - **Landscape:** values on the left rail, image in the middle, shutter column on the right
   (LV super control panel, self-timer, Take picture 76 px, Press halfway, last shot).
@@ -76,6 +76,7 @@ recording a movie, read only, Wi-Fi drop-out (last good frame kept, "No signal f
 | LV super control panel | "LV super control panel" (live view), "super control panel" (viewfinder) | p.19, p.24 |
 | Level gauge (Horizon, Tilt) | "Level gauge" (INFO cycle in live view; tilt on the vertical bar, horizon on the horizontal bar) | p.35, p.37 |
 | Hold angle, Clear angle, Angle matched, Δ Horizon / Δ Tilt, "Level ✓", Sound | app terms (no manual equivalent) for a held target horizon/tilt and the level feedback, built on "Horizon" and "Tilt" | p.35, p.37 |
+| Phone, Open on a phone, Stay here, Auto · {size}, Live view adjusted to … | app terms (no manual equivalent) for the phone link, auto-connect and the automatic live view size | – |
 | Shooting mode iAUTO / P / A / S / M / ART / Movie | iAUTO, Program shooting, Aperture priority, Shutter priority, Manual shooting, ART, movie mode | p.18, p.38–50 |
 | Shutter speed, Aperture, Exposure compensation | Shutter speed, Aperture value, exposure compensation | p.40–41, p.51 |
 | ISO | ISO sensitivity (panel legend), ISO (menus) | p.24, p.59 |
