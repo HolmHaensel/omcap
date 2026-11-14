@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Open the app on a phone (start with `--lan`): the computer shows a QR code behind the new **Phone** button; the phone scans it and gets a key that is new at every start (kept as a cookie for 12 hours). Other devices without the key see only a note; the QR link is only shown on the computer. The QR code is made by the app itself (no extra package). Tried with a phone 2026-11-14 (REQ-F47).
+
 ## 0.7.4 – 2026-11-14
 
 Level gauge feedback and a held angle (USB).
