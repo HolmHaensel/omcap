@@ -2111,6 +2111,8 @@ function aidTick(){
 }
 AID_IDS.concat('aidPeakCol').forEach(i=>$('#'+i).onchange=()=>{aidSave();aidTick()});
 setInterval(aidTick,250); // 4 frames/s are enough and keep the CPU low
+// Level gauge (USB, PTP backend): own poll, faster than tick(), only while it is shown (REQ-F23)
+setInterval(()=>{if(features.has('level')&&st&&st.live&&$('#lvlOn').checked)pollLevel()},300);
 new ResizeObserver(()=>{drawGrid();applyZoom();drawAf()}).observe(vp);
 
 /* Overlay */

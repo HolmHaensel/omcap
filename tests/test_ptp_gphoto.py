@@ -322,6 +322,35 @@ class FocusStacking(unittest.TestCase):
         self.assertIn("metering", props)
 
 
+class Level(unittest.TestCase):
+    def cam(self, values):
+        cam = usb_camera.UsbCamera.__new__(usb_camera.UsbCamera)
+        fake = FakePtp()
+        fake.props[0xD053] = {"type": 4, "writable": False, "value": 0}
+        fake.props[0xD055] = {"type": 4, "writable": False, "value": 0}
+        fake.prop_value = lambda code, dtype: values[code]
+        cam.gp, cam._c, cam._lock = pg, camera(fake), threading.Lock()
+        cam._hold, cam.shooting = 0, False
+        return cam
+
+    def test_live_tilt_signed(self):
+        cam = self.cam({0xD053: 65532, 0xD055: 25})  # -0.4 and +2.5 degrees
+        self.assertEqual(cam.level(), {"a": -0.4, "b": 2.5, "mode": "M"})
+
+    def test_last_value_while_shooting(self):
+        values = {0xD053: 10, 0xD055: 0}
+        cam = self.cam(values)
+        cam.level()
+        cam.shooting, values[0xD053] = True, 50
+        self.assertEqual(cam.level()["a"], 1.0)
+
+    def test_needs_ptp_backend(self):
+        cam = usb_camera.UsbCamera.__new__(usb_camera.UsbCamera)
+        cam._c = object()
+        with self.assertRaises(usb_camera.CameraError):
+            cam.level()
+
+
 class Backend(unittest.TestCase):
     def test_auto_falls_back_to_libgphoto2(self):
         with mock.patch.object(usb_camera.UsbCamera, "_open") as op, \

@@ -356,6 +356,8 @@ class UsbCamera:
         # libgphoto2 2.5.34 forces 1024x768 on every live image; newer versions (master 2.5.34.1,
         # 2026-11-12) keep a chosen size and offer the widget "liveviewsize" (REQ-F36)
         self.features = FEATURES + (["lvsize"] if self._has_widget("liveviewsize") else [])
+        if hasattr(self._c, "get_prop_value"):  # PTP backend: live tilt (REQ-F23)
+            self.features = self.features + ["level"]
         self.live = UsbLive(self)
 
     def _connect(self, backend):
@@ -607,16 +609,22 @@ class UsbCamera:
             return None
 
     def level(self):
-        """Attitude values in degrees and current mode.
+        """Tilt in degrees (a = roll left/right d053, b = pitch forward/back d055) and the current mode.
 
-        d053/d055 are the real attitude values, but the camera only updates them when
-        the session is established. Hence the Level Gauge is (still) hidden over USB.
-        """
-        def signed(v):
-            v = int(float(v))
+        The descriptor of d053/d055 keeps the session-start value; GetDevicePropValue follows the camera
+        live under PC control (camera-tested 2026-11-14). Only the PTP backend can read it, so the
+        Level Gauge is shown with that backend only (feature "level"). While a shot or card read holds
+        the connection the last values are returned."""
+        if not hasattr(self._c, "get_prop_value"):
+            raise CameraError("Level gauge needs the own PTP backend (--usb-backend ptp or auto)")
+        if self.hold or self.shooting:
+            if getattr(self, "_last_level", None):
+                return self._last_level
+        def tenths(v):  # the E-M1 reports d053/d055 as unsigned 16 bit: 65532 = -0.4 degrees
             return (v - 65536 if v > 32767 else v) / 10
-        return {"a": signed(self._value("d053")), "b": signed(self._value("d055")),
-                "mode": EXPOSURE_PROGRAM.get(str(self._value("d006")), "?")}
+        a, b = (tenths(self._call(self._c.get_prop_value, code)) for code in (0xD053, 0xD055))
+        self._last_level = {"a": a, "b": b, "mode": EXPOSURE_PROGRAM.get(str(self._value("d006")), "?")}
+        return self._last_level
 
     def af_area(self):
         area = {"x0": 216, "x1": 1060, "y0": 160, "y1": 796, "w": 1280, "h": 960}
