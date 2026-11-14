@@ -344,6 +344,7 @@ body.webcam{cursor:none;display:flex;align-items:center;justify-content:center}
   <button id="startGo" disabled data-i18n="start.connect">Connect</button>
   <p id="startMsg" class="mut" style="text-align:center;max-width:560px;margin:8px auto"></p>
   <p id="startAuto" hidden style="text-align:center;margin:4px auto"><span id="startAutoText"></span> <button id="startAutoStop" class="hbtn quiet" data-i18n="start.autoStop">Stay here</button></p>
+  <button id="startPhone" class="hbtn quiet" hidden data-i18n="phone.btn">Phone</button>
   <button class="hbtn quiet quitBtn" data-i18n="app.quit">Quit E-M1 Capture</button>
 </div>
 <div id="stopped" hidden><p data-i18n="app.stopped">E-M1 Capture has stopped. You can close this tab.</p></div>
@@ -2562,6 +2563,7 @@ async function pollConn(){
   polling=true;
   try{
     const c=await api('/api/connections');
+    $('#startPhone').hidden=!(c.lan&&isLocalPage()); // phone link also before connecting (REQ-F47)
     if(c.connected){enterApp();return}
     for(const k of ['usb','wifi']){
       document.querySelector(`.ctile[data-conn=${k}]`).classList.toggle('found',c[k]);
@@ -2623,7 +2625,8 @@ document.querySelectorAll('.quitBtn').forEach(b=>b.onclick=async()=>{
   catch(e){if(e.message!==tr('srv.offline')){msg(e.message||String(e),true);return}} // only "server gone" counts as stopped
   showStopped();
 });
-$('#phoneBtn').onclick=async()=>{
+function isLocalPage(){return ['127.0.0.1','localhost','::1','[::1]'].includes(location.hostname)}
+$('#phoneBtn').onclick=$('#startPhone').onclick=async()=>{
   try{const l=await api('/api/lanlink');$('#phoneQr').innerHTML=l.svg;$('#phoneUrl').textContent=l.url;$('#phoneDlg').showModal()}
   catch(e){msg(e.message,true)}
 };
@@ -2641,7 +2644,7 @@ async function enterApp(){
     const s=await api('/api/status');
     canWrite=s.allow_write;
     // Phone link (--lan, REQ-F47): only offered on the computer itself, the phone already has it
-    $('#phoneBtn').hidden=!(s.lan&&['127.0.0.1','localhost','::1','[::1]'].includes(location.hostname));
+    $('#phoneBtn').hidden=!(s.lan&&isLocalPage());
     $('#vWs').hidden=!s.om_workspace; // only when OM Workspace is installed on this computer
     features=new Set(s.features); isUsb=s.type==='usb';
     applyFeatures();
