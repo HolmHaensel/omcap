@@ -498,11 +498,18 @@ section h2{margin-bottom:10px;color:#b9bec4;font-size:var(--fs-label);font-weigh
    the left, the panels on the right. Before, the columns followed their content, so the live view changed size with
    every tab, and the live column covered the tab bar (user 2026-11-15). Layout only. */
 @media(orientation:landscape) and (max-height:520px) and (max-width:1100px){
-  main{grid-template-columns:minmax(0,1fr) minmax(0,1fr);max-width:none;gap:12px;padding:8px 12px calc(var(--bottomUi,62px) + 12px)}
-  #liveCol{grid-column:1;grid-row:1/span 30;align-self:start;position:sticky;top:8px;z-index:5;max-height:calc(100vh - var(--navH,62px) - 16px);overflow-y:auto;overscroll-behavior:contain}
+  /* the live view is the main element: 60 % of the width and the full screen height; the tab bar only spans the
+     panel column, so it takes no height from the live view */
+  main{grid-template-columns:minmax(0,3fr) minmax(0,2fr);max-width:none;gap:12px;padding:8px 12px calc(var(--bottomUi,62px) + 12px)}
+  #liveCol{grid-column:1;grid-row:1/span 30;align-self:start;position:sticky;top:8px;z-index:5;max-height:calc(100vh - 16px);max-height:calc(100dvh - 16px);overflow-y:auto;overscroll-behavior:contain}
+  #liveCol>*{flex-shrink:0} /* scroll the column instead of squeezing the live view (it was letterboxed) */
   #panels>*:not(#panelNav){grid-column:2!important;grid-row:auto!important}
-  #viewport{width:min(100%,calc((100vh - var(--navH,62px) - 96px) * 4 / 3))}
-  #panelNav{z-index:40}
+  #viewport{width:min(100%,calc((100vh - 16px) * 4 / 3));width:min(100%,calc((100dvh - 16px) * 4 / 3));height:auto;max-height:none;aspect-ratio:4/3}
+  #panelNav{z-index:40;left:calc(18px + (100vw - 36px) * .6)}
+  /* Press halfway left, Take picture right, as in portrait (an older landscape rule put the shutter first) */
+  #shutRow{display:flex;justify-content:space-between;align-items:center;gap:14px}
+  #shutRow #half{order:1;flex:1 1 auto;max-width:200px}
+  #shutRow #shoot{order:2;flex:0 0 76px;height:76px}
 }
 @media(prefers-reduced-motion:reduce){
   *,*::before,*::after{scroll-behavior:auto!important;transition-duration:0s!important;animation-duration:0s!important}
