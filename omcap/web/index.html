@@ -2199,10 +2199,11 @@ $('#lvlOn').onchange=drawLevel;
 const AF_NAMES={33024:tr('af.33024'),33025:tr('af.33025'),33026:tr('af.33026'),33027:tr('af.33027')};
 async function loadAf(){try{af=await api('/api/afarea');showAf()}catch(e){msg(tr('msg.afArea',{e:e.message}),true)}}
 let focusing=false; // discard clicks while focusing, otherwise they pile up
+let afTapShow=0; // until when the tapped frame shows without the AF grid (REQ-F41)
 async function setAf(b){
   const f=b.field||b.focus;
   if(f&&focusing) return;
-  if(f){focusing=true;focusMiss=0;msg(tr('msg.focusing'));focusChipUpdate()}
+  if(f){focusing=true;focusMiss=0;afTapShow=Date.now()+FOCUS_SHOW+3000;msg(tr('msg.focusing'));focusChipUpdate()} // frame shows while focusing
   // show the tapped field at once; the camera needs 0.4-1.5 s to focus (measured over Wi-Fi)
   if(b.field&&af){af={...af,field:b.field,last_af:null};focusHit=null;showAf()}
   try{
@@ -2213,6 +2214,7 @@ async function setAf(b){
     if(f) msg(hit?tr('msg.inFocus'):tr('msg.noFocus'),!hit);
     if(f&&!hit) showNoFocus();
     if(focusHit) setTimeout(drawAf,FOCUS_SHOW+50);
+    if(f){afTapShow=Date.now()+FOCUS_SHOW;drawAf();setTimeout(drawAf,FOCUS_SHOW+50)}
   }
   catch(e){msg(tr('msg.afArea',{e:e.message}),true)}
   finally{if(f) focusing=false}
@@ -2260,9 +2262,24 @@ function drawAf(){
   const c=$('#afGrid'),b=vp.getBoundingClientRect(),d=devicePixelRatio||1;
   if(c.width!==Math.round(b.width*d)||c.height!==Math.round(b.height*d)){c.width=Math.round(b.width*d);c.height=Math.round(b.height*d)}
   const g=c.getContext('2d'); g.clearRect(0,0,c.width,c.height);
-  if(!af||!st.live||!$('#afShow').checked) return;
+  // without the grid ("Show AF targets" off) only the chosen frame shows for a moment after a tap (REQ-F41)
+  const grid=$('#afShow').checked, tapOnly=!grid&&Date.now()<afTapShow;
+  if(!af||!st.live||(!grid&&!tapOnly)) return;
   const a=af.area,X=a.x0/a.w*c.width,Y=a.y0/a.h*c.height,W=(a.x1-a.x0)/a.w*c.width,H=(a.y1-a.y0)/a.h*c.height,cw=W/9,ch=H/9;
   const row=Math.floor((af.field-1)/9),col=(af.field-1)%9;
+  if(tapOnly){
+    // green in focus, red without focus, white while focusing
+    g.strokeStyle=focusHit&&Date.now()<focusHit.until?'#3DDC84':focusMiss>Date.now()?'#FF5A4F':'#fff'; g.lineWidth=2*d;
+    if(af.mode===33024){
+      if(focusHit&&Date.now()<focusHit.until){const r=Math.floor((focusHit.field-1)/9),k=(focusHit.field-1)%9;g.strokeRect(X+k*cw,Y+r*ch,cw,ch)}
+      else g.strokeRect(X,Y,W,H);
+      return;
+    }
+    if(af.mode===33027){const s=Math.min(cw,ch)*.75;g.strokeRect(X+(col+.5)*cw-s/2,Y+(row+.5)*ch-s/2,s,s);return}
+    const n=af.mode===33026?1:0, r0=Math.max(0,row-n),r1=Math.min(8,row+n),c0=Math.max(0,col-n),c1=Math.min(8,col+n);
+    g.strokeRect(X+c0*cw,Y+r0*ch,(c1-c0+1)*cw,(r1-r0+1)*ch);
+    return;
+  }
   g.strokeStyle='rgba(255,255,255,.7)'; g.lineWidth=d; g.setLineDash([3*d,3*d]);
   if(af.mode===33027){
     // Small Target: 81 individual small squares, as on the camera display
