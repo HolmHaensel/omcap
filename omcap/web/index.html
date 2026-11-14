@@ -208,7 +208,7 @@ dialog h2{margin-top:12px}
 #viewer{z-index:31;background:#000;color:var(--text)}
 .galbar{display:flex;gap:6px;flex-wrap:wrap;align-items:center;padding:8px 12px;border-bottom:1px solid var(--line)}
 #viewer .galbar{border-color:#333}
-#galBody{flex:1;overflow:auto;padding:8px;min-height:0}
+#galBody{flex:1;overflow:auto;padding:8px;min-height:0;touch-action:pan-x pan-y} /* pinch changes the grid size, not the page */
 .galbar .seg button{width:auto;padding:0 12px;height:34px}
 .galbar .tog{height:34px}
 .dayh{margin:var(--s4) 0 var(--s2);font-size:var(--fs-label);font-weight:600;color:var(--muted);letter-spacing:.3px;display:flex;gap:var(--s2);align-items:baseline}
@@ -230,6 +230,7 @@ dialog h2{margin-top:12px}
 .cal0{aspect-ratio:4/3;background:var(--panel);opacity:.45;border-radius:3px;padding:3px 6px;font-size:12px;color:var(--mut)}
 .tile .dn{position:absolute;left:0;top:0;padding:2px 8px;font-size:15px;font-weight:700;color:#fff;background:#000b;border-bottom-right-radius:var(--r-sm)} /* calendar: day of the month */
 .tile .ct{position:absolute;right:6px;bottom:6px;padding:1px 8px;font-size:11px;font-weight:600;color:var(--accent-ink);background:var(--accent);border-radius:var(--r-pill)} /* calendar: number of shots that day */
+@media(max-width:700px){.tile .ct{right:2px;bottom:2px;padding:0 5px;font-size:10px}.tile .dn{padding:1px 5px;font-size:12px}} /* phone: the day stays visible */
 #vBody{flex:1;min-height:0;display:flex}
 #vImgBox{flex:1;min-height:0;min-width:0;position:relative}
 #vImg{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;transform-origin:50% 50%}
@@ -1667,7 +1668,8 @@ function renderCal(body){
     if(!shots){const e=document.createElement('div');e.className='cal0';e.textContent=d;grid.append(e);continue}
     const t=makeTile(shots[0].preview);
     const n=document.createElement('div');n.className='dn';n.textContent=d;
-    const c=document.createElement('div');c.className='ct';c.textContent=shots.length===1?tr('card.shot'):tr('card.shots',{n:shots.length});
+    const c=document.createElement('div'),full=shots.length===1?tr('card.shot'):tr('card.shots',{n:shots.length});
+    c.className='ct';c.title=full;c.setAttribute('aria-label',full);c.textContent=MOBILE_LIVE.matches?String(shots.length):full; // phone: only the number
     t.append(n,c);
     t.onclick=()=>{gv.day=key;gv.mode='index';saveGal();renderGal()};
     grid.append(t);
@@ -1696,6 +1698,21 @@ document.querySelectorAll('[data-v]').forEach(b=>b.onclick=()=>{
   saveGal();renderGal();
 });
 document.querySelectorAll('[data-sz]').forEach(b=>b.onclick=()=>{gv.n=+b.dataset.sz;saveGal();renderGal()});
+/* Pinch in Index display (phone): fingers apart = bigger pictures (S 25 -> M 9 -> L 4), together = more pictures */
+(()=>{
+  const body=$('#galBody'), sizes=[25,9,4], pts=new Map(); let d0=0;
+  const dist=()=>{const p=[...pts.values()];return Math.hypot(p[0].x-p[1].x,p[0].y-p[1].y)};
+  body.addEventListener('pointerdown',e=>{if(e.pointerType!=='touch')return;pts.set(e.pointerId,{x:e.clientX,y:e.clientY});if(pts.size===2)d0=dist()});
+  body.addEventListener('pointermove',e=>{
+    if(!pts.has(e.pointerId))return; pts.set(e.pointerId,{x:e.clientX,y:e.clientY});
+    if(pts.size!==2||!d0||gv.mode==='cal')return;
+    const r=dist()/d0, i=sizes.indexOf(gv.n);
+    const next=r>1.35?sizes[Math.min(i+1,2)]:r<0.74?sizes[Math.max(i-1,0)]:gv.n;
+    if(next!==gv.n){gv.n=next;d0=dist();saveGal();renderGal()}
+  });
+  const up=e=>{pts.delete(e.pointerId);if(pts.size<2)d0=0};
+  body.addEventListener('pointerup',up); body.addEventListener('pointercancel',up);
+})();
 /* Single image */
 let vToken=0;
 function viewerUrl(f){
