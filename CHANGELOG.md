@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased (0.7.3)
+
+- USB level gauge: the live view shows the camera's tilt (roll line, pitch dot, values next to the switch), read live with GetDevicePropValue (d053/d055) under PC control; the descriptor the app read before stays at the session-start value. Polled every 0.3 s while it is shown, about 70 ms per read, live view unchanged (30 fps). Own PTP layer only (macOS default); not with libgphoto2 and not over Wi-Fi (no tilt in the Wi-Fi data). Camera-tested 2026-11-14 (REQ-F23).
+
 ## 0.7.2 – 2026-11-14
 
 Small additions found while using 0.7.1.
