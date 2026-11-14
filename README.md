@@ -134,6 +134,14 @@ cd omcap
   running* and ends (Terminal shows *Process completed*). That is normal, the app keeps running in the
   first window. To change between read only and `--allow-write`, stop the running app first.
 
+### On a phone (`--lan`)
+
+Start with `--lan` (for example `.venv/bin/em1-capture --allow-write --lan`) to use the app on a phone in the
+same home network: on the computer click **Phone** in the header and scan the QR code with the phone's camera.
+The phone gets a key that is new at every start and keeps it for 12 hours; other devices in the network see only
+a note to scan the code. The computer itself needs no key. The computer stays connected to the camera (Wi-Fi or
+USB); the phone stays in the home Wi-Fi. Without `--lan` the app answers only on the computer.
+
 ### Stop
 
 - Click **Quit E-M1 Capture** (top right, also on the start screen) and click it again to confirm. The camera connection is closed and the app ends; the page says you can close the tab.
