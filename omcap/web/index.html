@@ -172,6 +172,11 @@ button:disabled{color:var(--disabled);opacity:.6;cursor:not-allowed}
 /* Wi-Fi on phone width: the live view size follows the screen and the signal (REQ-F45), the manual choice is hidden */
 /* only while the automatic size is on (Wi-Fi, write enabled): USB and read-only keep the manual choice */
 body.autoLv label[data-feat=lvsize]{display:none!important}
+/* Phone, upright or turned (REQ-F49): the app picks the live view size itself (Wi-Fi: adaptive, USB: 1024×768),
+   and second-monitor windows and the OBS webcam window make no sense on a phone */
+@media(max-width:700px),(orientation:landscape) and (max-height:520px){
+  label[data-feat=lvsize],#popLive,#popCam,#popPhoto{display:none!important}
+}
 #autoLvStatus:not([hidden]){display:inline-flex}
 #viewport.rec{box-shadow:0 0 0 2px var(--rec)}
 #dropChip{position:absolute;left:50%;top:54px;transform:translateX(-50%);height:32px;display:flex;align-items:center;padding:0 14px;border-radius:16px;background:var(--overlay);border:1px solid var(--rec);color:var(--rec-text);z-index:4;pointer-events:none}
@@ -1265,7 +1270,7 @@ let quitting=false;
 /* Adaptive live view size over Wi-Fi on phone width (REQ-F45, from the redesign, user 2026-11-14): start with the
    size that fits the screen and step down when frames come too slowly (<12 fps or >18 % lost over 4 s) or stall
    (>1.5 s), and only when that lasts 4 s; at most every 8 s and never during a shot, job, movie or card read. Desktop and USB keep the manual size. */
-const MOBILE_LIVE=matchMedia('(max-width:700px)');
+const MOBILE_LIVE=matchMedia('(max-width:700px), (orientation:landscape) and (max-height:520px)'); // a phone, upright or turned (REQ-F49)
 const AUTO_LV_SIZES=['0640x0480','0800x0600','1024x0768','1280x0960'];
 let autoLvBusy=false,autoLvLastChange=0,autoLvSlowSince=0;
 const AUTO_LV_SLOW_MS=4000; // slowness must last this long: a short dip right after connecting is no reason (camera test 2026-11-14)
