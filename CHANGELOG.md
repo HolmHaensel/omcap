@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Phone view, upright or turned (REQ-F49): no live view size choice – the app picks the size itself (Wi-Fi: adaptive, now also with the phone turned; USB: always 1024×768) – and no second-monitor or webcam (OBS) windows, which make no sense on a phone. Tried on an iPhone 2026-11-15.
+
 ## 0.7.6 – 2026-11-14
 
 Playback on a phone: pinch to zoom, swipe between pictures, pinch for the Index display size.
