@@ -1010,10 +1010,11 @@ let st={stage:0,job:{}},canWrite=false,wasBusy=false,connected=false,features=ne
 let quitting=false;
 /* Adaptive live view size over Wi-Fi on phone width (REQ-F45, from the redesign, user 2026-11-14): start with the
    size that fits the screen and step down when frames come too slowly (<12 fps or >18 % lost over 4 s) or stall
-   (>1.5 s); at most every 8 s and never during a shot, job, movie or card read. Desktop and USB keep the manual size. */
+   (>1.5 s), and only when that lasts 4 s; at most every 8 s and never during a shot, job, movie or card read. Desktop and USB keep the manual size. */
 const MOBILE_LIVE=matchMedia('(max-width:700px)');
 const AUTO_LV_SIZES=['0640x0480','0800x0600','1024x0768','1280x0960'];
-let autoLvBusy=false,autoLvLastChange=0;
+let autoLvBusy=false,autoLvLastChange=0,autoLvSlowSince=0;
+const AUTO_LV_SLOW_MS=4000; // slowness must last this long: a short dip right after connecting is no reason (camera test 2026-11-14)
 const autoLvEnabled=()=>MOBILE_LIVE.matches&&!isUsb&&canWrite&&features.has('lvsize');
 const lvSizeText=size=>size.replace(/^0+/,'').replace('x0','×');
 function autoLvLabel(size){
@@ -1039,7 +1040,10 @@ async function reduceAutoLiveSize(){
   if(i<=0) return;
   const perf=st.lvperf||{}, stale=st.lv_age!=null&&st.lv_age>1.5;
   const slow=perf.sample_seconds>=4&&((perf.fps!=null&&perf.fps<12)||(perf.drop_ratio!=null&&perf.drop_ratio>.18));
-  if(!stale&&!slow) return;
+  if(!stale&&!slow){autoLvSlowSince=0;return}
+  if(!autoLvSlowSince){autoLvSlowSince=Date.now();return}
+  if(Date.now()-autoLvSlowSince<AUTO_LV_SLOW_MS) return;
+  autoLvSlowSince=0;
   const next=AUTO_LV_SIZES[i-1];
   autoLvBusy=true; autoLvLastChange=Date.now();
   $('#lvqty').value=next; lvPicked=true; autoLvLabel(next);
