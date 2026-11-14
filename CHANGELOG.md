@@ -3,6 +3,8 @@
 ## Unreleased (0.7.1)
 
 - Calendar display: the day of the month and the number of shots looked alike; the day is now large and bold, the number a yellow badge "12 shots".
+- HSL colour profile window: it grows with the before/after picture (it was fixed at 420 px, so the two pictures did not line up), and the comparison is a line with a handle in the picture (drag, click or arrow keys) instead of a slider below it. Camera-tested 2026-11-14.
+- Live view and the HSL comparison no longer drag a ghost copy of the picture; dragging pans the zoomed live view or moves the before/after line.
 - The live view overlay is switched off for now (buttons hidden): a plain guide picture was mistaken for a multiple exposure. It comes back as a real multiple exposure that combines the frames (REQ-F43).
 
 ## 0.7.0 – 2026-11-14

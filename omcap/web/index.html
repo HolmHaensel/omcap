@@ -178,8 +178,15 @@ button:disabled{color:var(--disabled);opacity:.6;cursor:not-allowed}
 #gal figure{margin:0;font-size:11px;color:var(--mut);min-width:0;overflow-wrap:anywhere}
 #gal img{width:100%;aspect-ratio:4/3;object-fit:cover;background:var(--line);cursor:pointer}
 #gal img:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
-#hslBox{position:relative;max-width:80vw;line-height:0}
-#hslBox img{max-width:80vw;max-height:70vh;display:block}
+#hslDlg{width:fit-content;max-width:calc(100vw - 32px)} /* grows with the before/after picture; other dialogs stay 420 px */
+#hslBox{position:relative;max-width:calc(100vw - 80px);line-height:0}
+#hslBox img{max-width:calc(100vw - 80px);max-height:70vh;display:block}
+#hslBox{cursor:ew-resize;touch-action:none;user-select:none}
+#live,#ovl,#hslBox img{-webkit-user-drag:none;user-select:none} /* drag moves the picture / the before-after line, not a copy of the image */
+#hslHandle{position:absolute;top:0;bottom:0;left:50%;width:2px;margin-left:-1px;background:#fff;box-shadow:0 0 4px #0009;pointer-events:none}
+#hslHandle::after{content:'‹ ›';position:absolute;top:50%;left:50%;width:36px;height:36px;margin:-18px 0 0 -18px;border-radius:50%;background:#fff;color:#111;font:600 15px/34px var(--font-ui,system-ui);text-align:center;box-shadow:0 1px 6px #0009}
+#hslBox .lbl{position:absolute;top:8px;padding:2px 8px;border-radius:var(--r-pill);background:var(--overlay);color:var(--text);font-size:12px;line-height:1.5;pointer-events:none}
+#hslBox:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 #hslBox #hslAfter{position:absolute;left:0;top:0;width:100%;height:100%;object-fit:fill}
 #gal button,#local button{font-size:11px;padding:2px 5px}
 #local div{display:flex;gap:4px;align-items:center;padding:3px 0;font-size:12px}
@@ -349,8 +356,8 @@ body.webcam{cursor:none;display:flex;align-items:center;justify-content:center}
 <div id="liveCol">
   <div id="viewport">
     <div id="zoomLayer">
-      <img id="live" alt="">
-      <img id="ovl" alt="" hidden>
+      <img id="live" alt="" draggable="false">
+      <img id="ovl" alt="" hidden draggable="false">
       <canvas id="grid"></canvas>
       <canvas id="afGrid"></canvas>
       <canvas id="aidCv"></canvas>
@@ -563,10 +570,8 @@ body.webcam{cursor:none;display:flex;align-items:center;justify-content:center}
   </div>
   <div id="hslMsg" class="mut"></div>
   <div id="hslCmp" hidden>
-    <div id="hslBox"><img id="hslBefore" alt=""><img id="hslAfter" alt=""></div>
-    <div class="row"><span class="mut" data-i18n="hsl.before">Before</span>
-      <input type="range" id="hslSlide" min="0" max="100" value="50" style="flex:1">
-      <span class="mut" data-i18n="hsl.after">After</span></div>
+    <div id="hslBox" tabindex="0" role="slider" aria-valuemin="0" aria-valuemax="100" aria-valuenow="50" data-i18n-aria="hsl.compare"><img id="hslBefore" alt="" draggable="false"><img id="hslAfter" alt="" draggable="false"><div id="hslHandle"></div><span class="lbl" style="left:8px" data-i18n="hsl.before">Before</span><span class="lbl" style="right:8px" data-i18n="hsl.after">After</span></div>
+    <input type="range" id="hslSlide" class="sr-only" min="0" max="100" value="50" tabindex="-1" aria-hidden="true">
   </div>
 </form></dialog>
 <dialog id="localDlg"><form method="dialog">
@@ -890,6 +895,7 @@ const I18N={en:{
   "hsl.done": "Done: {name}",
   "hsl.before": "Before",
   "hsl.after": "After",
+  "hsl.compare": "Before and after comparison, drag or use the arrow keys",
   "hsl.close": "Close",
   "hsl.auto": "Apply HSL profile when saving to computer",
   "hsl.notLocal": "Save the picture to the computer first",
@@ -1737,8 +1743,15 @@ $('#hslApply').onclick=async()=>{
     $('#hslCmp').hidden=false; hslClip();
   }catch(e){m.className='warn';m.textContent=e.message}
 };
-function hslClip(){$('#hslAfter').style.clipPath='inset(0 0 0 '+$('#hslSlide').value+'%)'}
+/* Before/after: drag the line in the picture (or arrow keys); before on the left, after on the right */
+function hslClip(){const v=$('#hslSlide').value;$('#hslAfter').style.clipPath='inset(0 0 0 '+v+'%)';$('#hslHandle').style.left=v+'%';$('#hslBox').setAttribute('aria-valuenow',Math.round(v))}
 $('#hslSlide').oninput=hslClip;
+{const box=$('#hslBox');let drag=false;
+  const setX=e=>{const r=box.getBoundingClientRect();$('#hslSlide').value=Math.min(100,Math.max(0,(e.clientX-r.left)/r.width*100));hslClip()};
+  box.onpointerdown=e=>{e.preventDefault();drag=true;box.setPointerCapture(e.pointerId);setX(e)};
+  box.onpointermove=e=>{if(drag)setX(e)};
+  box.onpointerup=box.onpointercancel=()=>{drag=false};
+  box.onkeydown=e=>{const d={ArrowLeft:-5,ArrowRight:5}[e.key];if(!d)return;e.preventDefault();$('#hslSlide').value=Math.min(100,Math.max(0,+$('#hslSlide').value+d));hslClip()}}
 $('#vHsl').onclick=async()=>{
   const s=vList[vIdx]; let files=[];
   try{files=await api('/api/local')}catch{}
@@ -1815,6 +1828,7 @@ vp.addEventListener('wheel',e=>{e.preventDefault();const r=vp.getBoundingClientR
   setZoom(Math.min(8,Math.max(1,z*(e.deltaY<0?1.2:1/1.2))),e.clientX-r.left,e.clientY-r.top)},{passive:false});
 vp.onpointerdown=e=>{
   if(e.target.closest('#lastShot')) return; // own click (single-frame view); pointer capture would turn it into an AF tap
+  e.preventDefault(); // no native image drag
   drag={x:e.clientX,y:e.clientY,px,py,moved:false};vp.setPointerCapture(e.pointerId)};
 vp.onpointermove=e=>{if(!drag)return;const dx=e.clientX-drag.x,dy=e.clientY-drag.y;
   if(Math.hypot(dx,dy)>4)drag.moved=true;
