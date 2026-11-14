@@ -858,6 +858,7 @@ const I18N={en:{
   "lv.inFocus": "In focus",
   "lv.noFocus": "No focus",
   "strip.wb": "WB",
+  "iso.now": "now {v}",
   'start.openUrl':'Then open http://127.0.0.1:8765 in the browser (not the index.html file).',
   'srv.offline':'E-M1 Capture is not running. Start it again: double-click “E-M1 Capture.command” (Windows: “E-M1 Capture.bat”) in the app folder, or in the Terminal in that folder:\n.venv/bin/python -m omcap.server --allow-write',
   "start.usb": "USB connection",
@@ -1039,7 +1040,6 @@ const I18N={en:{
   "card.close": "Close",
   "card.shots": "{n} shots",
   "card.shot": "1 shot",
-  "iso.now": "now {v}",
   "card.open": "Open in single-frame playback",
   "card.reading": "Reading the card …",
   "card.updating": "{n} shots · updating …",
@@ -1390,7 +1390,8 @@ const MODE_SHORT={iAuto:'iAUTO',P:'P',A:'A',S:'S',M:'M',ART:'ART',movie:'Movie',
 function updateIsoAuto(){
   const el=$('#isoAuto'), p=lastProps; if(!el) return;
   const live=st&&st.lvinfo&&st.lvinfo.iso, auto=p&&p.isospeedvalue&&p.isospeedvalue.value==='Auto';
-  el.textContent=auto&&live?tr('iso.now',{v:live}):'';
+  const movie=p&&p.takemode&&p.takemode.value==='movie';  // the value strip leaves ISO out in Movie mode too
+  el.textContent=auto&&live&&!movie?tr('iso.now',{v:live}):'';
 }
 function renderStrip(){
   updateIsoAuto();
@@ -2213,7 +2214,6 @@ async function setAf(b){
     showAf();
     if(f) msg(hit?tr('msg.inFocus'):tr('msg.noFocus'),!hit);
     if(f&&!hit) showNoFocus();
-    if(focusHit) setTimeout(drawAf,FOCUS_SHOW+50);
     if(f){afTapShow=Date.now()+FOCUS_SHOW;drawAf();setTimeout(drawAf,FOCUS_SHOW+50)}
   }
   catch(e){msg(tr('msg.afArea',{e:e.message}),true)}
