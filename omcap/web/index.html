@@ -112,6 +112,8 @@ button:disabled{color:var(--disabled);opacity:.6;cursor:not-allowed}
 #focusChip.ok .dot{background:var(--focus)}
 #focusChip.miss{border-color:var(--rec);color:var(--rec-text)}
 #focusChip.miss .dot{background:var(--rec)}
+#valStrip .sub{color:var(--muted);font-size:.8em;margin-left:-14px} /* ISO the camera picks at ISO AUTO */
+.isoAuto{display:block;font:12px var(--font-value);color:var(--muted);margin-top:2px}
 #valStrip{position:absolute;left:0;right:0;bottom:0;height:44px;display:flex;align-items:center;gap:22px;padding:0 18px;background:linear-gradient(0deg,rgba(0,0,0,.78),rgba(0,0,0,0));font-family:var(--font-value);font-size:17px;font-weight:500;pointer-events:none;z-index:2;white-space:nowrap;overflow:hidden}
 #valStrip .m{color:var(--accent);font-weight:600} #valStrip .sz{margin-left:auto;color:var(--muted);font-size:14px}
 #start{min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:28px;padding:24px 16px}
@@ -1037,6 +1039,7 @@ const I18N={en:{
   "card.close": "Close",
   "card.shots": "{n} shots",
   "card.shot": "1 shot",
+  "iso.now": "now {v}",
   "card.open": "Open in single-frame playback",
   "card.reading": "Reading the card …",
   "card.updating": "{n} shots · updating …",
@@ -1382,7 +1385,15 @@ function valName(k,o){
   return tr('val.'+k+'.'+o,null,'')||(v&&v.names&&v.names[o])||(f.names&&f.names[o])||o;
 }
 const MODE_SHORT={iAuto:'iAUTO',P:'P',A:'A',S:'S',M:'M',ART:'ART',movie:'Movie',B:'B'};
+/* ISO AUTO: the value the camera picks right now, small and grey under AUTO in the ISO tile. Wi-Fi only (sent
+   with the live view, REQ-F29); USB has no live value and shows nothing (user 2026-11-14) */
+function updateIsoAuto(){
+  const el=$('#isoAuto'), p=lastProps; if(!el) return;
+  const live=st&&st.lvinfo&&st.lvinfo.iso, auto=p&&p.isospeedvalue&&p.isospeedvalue.value==='Auto';
+  el.textContent=auto&&live?tr('iso.now',{v:live}):'';
+}
 function renderStrip(){
+  updateIsoAuto();
   const p=lastProps,s=$('#valStrip');
   if(!p||!p.takemode){s.hidden=true;return}
   const g=k=>p[k]&&p[k].value!=null&&p[k].value!==''?p[k].value:null, out=[];
@@ -1394,7 +1405,7 @@ function renderStrip(){
   const liveAp=li.aperture&&!['A','M','B'].includes(mode)?String(li.aperture.toFixed(1)):null;
   const ap=liveAp||g('focalvalue'); if(ap&&!mv) out.push(['',/^[\d.]+$/.test(ap)?'F'+ap:ap]);
   const ec=g('expcomp'); if(ec!=null&&!mv) out.push(['',/^\d/.test(ec)&&+ec>0?'+'+ec:ec]);
-  const iso=g('isospeedvalue'); if(iso&&!mv) out.push(['','ISO '+valName('isospeedvalue',iso)+(iso==='Auto'&&li.iso?' '+li.iso:'')]);
+  const iso=g('isospeedvalue'); if(iso&&!mv){out.push(['','ISO '+valName('isospeedvalue',iso)]); if(iso==='Auto'&&li.iso) out.push(['sub',String(li.iso)])}
   const wb=g('wbvalue'); if(wb!=null) out.push(['',tr('strip.wb')+' '+valName('wbvalue',wb)]);
   s.innerHTML='';
   for(const [c,t] of out){const e=document.createElement('span');if(c)e.className=c;e.textContent=t;s.append(e)}
@@ -1485,6 +1496,7 @@ function renderProps(){
     }).catch(e=>{msg(tr('prop.'+k)+': '+e.message,true);sel.value=v.value});
     if(['drivemode','colortone','artfilter','exposemovie'].includes(k)) l.classList.add('wide');
     l.append(sel); box.append(l);
+    if(k==='isospeedvalue'){const a=document.createElement('span');a.id='isoAuto';a.className='isoAuto';l.append(a);updateIsoAuto()}
   }
   applyLayout();
   const primaryCount=box.querySelectorAll('label.quick-primary:not([hidden])').length;
