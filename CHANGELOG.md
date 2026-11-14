@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Start screen connects by itself: when the connection used last time (USB or Wi-Fi) finds the camera again, the app connects after a 2 s countdown ("Connecting to Olympus E-M1 over Wi-Fi in 2 s …") that "Stay here" stops. Not again right after "Disconnect" in the same window, and only once per page load. The Mac itself still has to be in the camera's Wi-Fi.
+
 ## 0.7.4 – 2026-11-14
 
 Level gauge feedback and a held angle (USB).
