@@ -44,6 +44,7 @@ Please report what works on your body in [Discussions](https://github.com/HolmHa
 | Live view with selectable size, zoom, Displayed Grid, overlay, second monitor | yes | yes (size choice up to 1280×960 with the PTP backend on macOS; with libgphoto2 it needs 2.5.34.1 or later, see below) |
 | USB backend (`--usb-backend`) | – | yes: `auto` (default on macOS) uses the app's own PTP layer and falls back to libgphoto2 (tested on macOS); Linux: libgphoto2, not tested |
 | Tap the 9×9 AF grid to focus, AF target shown in green | yes | yes |
+| AF frame on tap with "Show AF targets" off (about 4 s: white focusing, green in focus, red no focus) | yes (tested 2026-11-14) | yes (tried 2026-11-14 in the redesign build) |
 | AF Area (All Targets, Single Target, Small Target, Group Target) | – (no command over Wi-Fi) | yes |
 | Focus Stacking On/Off (8 frames, 16 files with JPG+ORF, merged in the camera; P/A/S/M) | – (no command over Wi-Fi) | yes (tested 2026-11-13) |
 | Focus ring (MF): Near/Far in three step sizes, AF mode MF or S-AF+MF | – (no command over Wi-Fi) | yes (tested 2026-11-13) |
@@ -66,7 +67,7 @@ Please report what works on your body in [Discussions](https://github.com/HolmHa
 | Open in OM Workspace from the single-frame view (macOS, only when OM Workspace is installed) | yes (not tested yet) | yes (tested 2026-11-13) |
 | Save to card only or card and computer | yes | yes |
 | Free card space in the header | yes (free shots, live from the live view) | yes |
-| Current focal length in the header, ISO with ISO Auto, shutter speed and aperture the camera uses in auto modes | yes (sent with the live view) | – (no live USB property found) |
+| Current focal length in the header, ISO with ISO Auto ("now 800" in the ISO tile and the value strip, not in Movie mode), shutter speed and aperture the camera uses in auto modes | yes (sent with the live view) | – (no live USB property found) |
 | Battery level | yes (during live view, sent with the picture) | yes |
 | Read-only settings (Anti-Shock, Silent, Noise Reduct., BULB/TIME Timer, Digital Tele-converter) | yes | – (no PTP property known) |
 | Share Order: show, save all, reset | yes (in playback) | – (no PTP counterpart known) |
