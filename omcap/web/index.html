@@ -1910,16 +1910,19 @@ function vCentre(e){const b=$('#vImgBox').getBoundingClientRect();return {x:e.cl
   };
   box.addEventListener('pointerup',up); box.addEventListener('pointercancel',up);
   /* Sideways wheel (Magic Mouse, trackpad, Shift + wheel) swipes to the next or previous picture at 1x;
-     the picture follows, past 80 px it changes; one picture per gesture (momentum is ignored until 250 ms quiet). */
-  let wx=0, wLock=false, wQuiet=null;
+     the picture follows, past 80 px it changes; one picture per gesture. The momentum that follows gets weaker and
+     is ignored; a new swipe during it gets stronger again and counts (before, only a click ended the momentum). */
+  let wx=0, wLock=false, wQuiet=null, wLast=0, wAt=0;
   box.addEventListener('wheel',e=>{if(!active(e))return;e.preventDefault();
     const side=Math.abs(e.deltaX)>Math.abs(e.deltaY)&&!e.ctrlKey;
     if(side&&vZoom.s<=1.001){
       const im=$('#vImg'); clearTimeout(wQuiet);
       wQuiet=setTimeout(()=>{wLock=false;if(wx){wx=0;im.style.transition='transform .18s ease-out';im.style.transform=''}},250);
+      const a=Math.abs(e.deltaX), rising=a>3&&a>wLast*1.5&&Date.now()-wAt>120; wLast=a;
+      if(wLock&&rising){wLock=false;wx=0}
       if(wLock) return;
       wx-=e.deltaX; const d=wx<0?1:-1, n=vIdx+d, edge=n<0||n>=vList.length;
-      if(Math.abs(wx)>80&&!edge){wx=0;wLock=true;vSwipe(d);return}
+      if(Math.abs(wx)>80&&!edge){wx=0;wLock=true;wAt=Date.now();vSwipe(d);return}
       im.style.transition='none'; im.style.transform=`translateX(${edge?wx/3:wx}px)`; return;
     }
     if(side) return;
