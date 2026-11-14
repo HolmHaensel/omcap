@@ -1884,11 +1884,22 @@ function vCentre(e){const b=$('#vImgBox').getBoundingClientRect();return {x:e.cl
       const dx=p[0].x-vGest.start.x, dy=p[0].y-vGest.start.y;
       if(Math.hypot(dx,dy)>6) vGest.moved=true;
       if(vZoom.s>1){vZoom.x=vGest.x+dx;vZoom.y=vGest.y+dy;vZoomClamp();vZoomApply()}
+      else if(Math.abs(dx)>Math.abs(dy)){ // swipe: the picture follows the finger, a little stiffer at the ends
+        const edge=(dx>0&&vIdx===0)||(dx<0&&vIdx===vList.length-1);
+        const im=$('#vImg'); im.style.transition='none'; im.style.transform=`translateX(${edge?dx/3:dx}px)`;
+      }
     }
   });
   const up=e=>{
     if(!vPtrs.has(e.pointerId)) return;
     const pos=vPtrs.get(e.pointerId); vPtrs.delete(e.pointerId);
+    if(vGest&&!vGest.pinch&&vZoom.s<=1.001&&e.type==='pointerup'){ // swipe to the next or previous picture
+      const dx=pos.x-vGest.start.x, dy=pos.y-vGest.start.y, im=$('#vImg'), d=dx<0?1:-1, n=vIdx+d;
+      if(Math.abs(dx)>60&&Math.abs(dx)>Math.abs(dy)*1.3&&n>=0&&n<vList.length){
+        vSwipe(d); vGest=null; return;
+      }
+      if(im.style.transform){im.style.transition='transform .18s ease-out';im.style.transform=''}
+    }
     if(vGest&&!vGest.pinch&&!vGest.moved&&e.type==='pointerup'){ // double tap: 1x <-> 2.5x at the tapped point
       const now=Date.now();
       if(now-vTapAt<320&&vTapPos&&Math.hypot(pos.x-vTapPos.x,pos.y-vTapPos.y)<30){vTapAt=0;vZoom.s>1?vZoomReset():vZoomTo(2.5,pos.x,pos.y)}
@@ -1898,11 +1909,35 @@ function vCentre(e){const b=$('#vImgBox').getBoundingClientRect();return {x:e.cl
     vGest=p.length===1?{pinch:false,start:p[0],x:vZoom.x,y:vZoom.y,moved:true}:null; // second finger lifted: keep panning
   };
   box.addEventListener('pointerup',up); box.addEventListener('pointercancel',up);
-  box.addEventListener('wheel',e=>{if(!active(e))return;e.preventDefault();const c=vCentre(e);vZoomTo(vZoom.s*Math.exp(-e.deltaY/300),c.x,c.y)},{passive:false});
+  /* Sideways wheel (Magic Mouse, trackpad, Shift + wheel) swipes to the next or previous picture at 1x;
+     the picture follows, past 80 px it changes; one picture per gesture (momentum is ignored until 250 ms quiet). */
+  let wx=0, wLock=false, wQuiet=null;
+  box.addEventListener('wheel',e=>{if(!active(e))return;e.preventDefault();
+    const side=Math.abs(e.deltaX)>Math.abs(e.deltaY)&&!e.ctrlKey;
+    if(side&&vZoom.s<=1.001){
+      const im=$('#vImg'); clearTimeout(wQuiet);
+      wQuiet=setTimeout(()=>{wLock=false;if(wx){wx=0;im.style.transition='transform .18s ease-out';im.style.transform=''}},250);
+      if(wLock) return;
+      wx-=e.deltaX; const d=wx<0?1:-1, n=vIdx+d, edge=n<0||n>=vList.length;
+      if(Math.abs(wx)>80&&!edge){wx=0;wLock=true;vSwipe(d);return}
+      im.style.transition='none'; im.style.transform=`translateX(${edge?wx/3:wx}px)`; return;
+    }
+    if(side) return;
+    const c=vCentre(e);vZoomTo(vZoom.s*Math.exp(-e.deltaY/300),c.x,c.y)},{passive:false});
 })();
 function openViewer(list,i){vList=list;vIdx=i;$('#viewer').hidden=false;$('#vImgBox').classList.remove('full');$('#vFit').textContent=tr('view.fit');showShot()}
 function closeViewer(){vZoomReset();vToken++;$('#viewer').hidden=true;$('#vImg').removeAttribute('src');pump()}
 function stepViewer(d){const n=vIdx+d;if(n>=0&&n<vList.length){vIdx=n;showShot()}}
+/* Swipe: slide the picture out to the side, show the next one and let it slide in from the other side */
+function vSwipe(d){
+  const im=$('#vImg'), w=$('#vImgBox').clientWidth, calm=matchMedia('(prefers-reduced-motion:reduce)').matches;
+  if(calm){im.style.transform='';stepViewer(d);return}
+  im.style.transition='transform .16s ease-in'; im.style.transform=`translateX(${-d*w}px)`;
+  setTimeout(()=>{
+    stepViewer(d); im.style.transition='none'; im.style.transform=`translateX(${d*w*.35}px)`;
+    requestAnimationFrame(()=>{im.style.transition='transform .2s ease-out';im.style.transform=''});
+  },160);
+}
 $('#vPrev').onclick=()=>stepViewer(-1);
 $('#vNext').onclick=()=>stepViewer(1);
 $('#vClose').onclick=closeViewer;
