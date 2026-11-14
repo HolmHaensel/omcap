@@ -212,8 +212,8 @@ dialog h2{margin-top:12px}
 .calgrid{max-width:1100px;margin:0 auto}
 .calhead{max-width:1100px;margin:0 auto}
 .cal0{aspect-ratio:4/3;background:var(--panel);opacity:.45;border-radius:3px;padding:3px 6px;font-size:12px;color:var(--mut)}
-.tile .dn{position:absolute;left:0;top:0;padding:1px 6px;font-size:12px;font-weight:600;color:#fff;background:#0009;border-bottom-right-radius:3px}
-.tile .ct{position:absolute;right:0;bottom:0;padding:1px 6px;font-size:11px;color:#fff;background:#0009;border-top-left-radius:3px}
+.tile .dn{position:absolute;left:0;top:0;padding:2px 8px;font-size:15px;font-weight:700;color:#fff;background:#000b;border-bottom-right-radius:var(--r-sm)} /* calendar: day of the month */
+.tile .ct{position:absolute;right:6px;bottom:6px;padding:1px 8px;font-size:11px;font-weight:600;color:var(--accent-ink);background:var(--accent);border-radius:var(--r-pill)} /* calendar: number of shots that day */
 #vBody{flex:1;min-height:0;display:flex}
 #vImgBox{flex:1;min-height:0;min-width:0;position:relative}
 #vImg{position:absolute;inset:0;width:100%;height:100%;object-fit:contain}
@@ -546,7 +546,7 @@ body.webcam{cursor:none;display:flex;align-items:center;justify-content:center}
     <span class="sp"></span>
     <button id="vInfoBtn" data-i18n-title="info.title"></button>
     <button id="vFit" data-i18n="view.fit">Fit</button>
-    <button id="vGet" data-i18n="card.saveToMac">Save to computer</button><button id="vHsl" data-i18n="hsl.btn">HSL</button><button id="vWs" hidden data-i18n="view.ws">Open in OM Workspace</button><button id="vOvl" data-i18n="card.overlay">Overlay</button><button id="vClose" data-i18n="card.close">Close</button>
+    <button id="vGet" data-i18n="card.saveToMac">Save to computer</button><button id="vHsl" data-i18n="hsl.btn">HSL</button><button id="vWs" hidden data-i18n="view.ws">Open in OM Workspace</button><button id="vOvl" hidden data-i18n="card.overlay">Overlay</button><button id="vClose" data-i18n="card.close">Close</button>
   </div>
   <div id="vBody">
     <div id="vImgBox"><img id="vImg" alt=""><div id="vStrip" hidden></div></div>
@@ -839,6 +839,7 @@ const I18N={en:{
   "card.calendar": "Calendar display",
   "card.close": "Close",
   "card.shots": "{n} shots",
+  "card.shot": "1 shot",
   "card.open": "Open in single-frame playback",
   "card.reading": "Reading the card …",
   "card.updating": "{n} shots · updating …",
@@ -1332,7 +1333,7 @@ function renderStrip12(){
     const get=document.createElement('button'); get.textContent=tr('card.save');
     get.onclick=()=>downloadShot(s,msg).catch(e=>msg(e.message,true));
     const ov=document.createElement('button'); ov.textContent=tr('card.overlay');
-    ov.onclick=()=>overlay(bigUrl(s));
+    ov.onclick=()=>overlay(bigUrl(s)); ov.hidden=!OVERLAY_ON;
     const n=document.createElement('div'); n.textContent=s.name+' · '+s.types;
     f.append(im,n,get,ov); g.append(f);
   });
@@ -1567,7 +1568,7 @@ function renderCal(body){
     if(!shots){const e=document.createElement('div');e.className='cal0';e.textContent=d;grid.append(e);continue}
     const t=makeTile(shots[0].preview);
     const n=document.createElement('div');n.className='dn';n.textContent=d;
-    const c=document.createElement('div');c.className='ct';c.textContent=shots.length;
+    const c=document.createElement('div');c.className='ct';c.textContent=shots.length===1?tr('card.shot'):tr('card.shots',{n:shots.length});
     t.append(n,c);
     t.onclick=()=>{gv.day=key;gv.mode='index';saveGal();renderGal()};
     grid.append(t);
@@ -1787,7 +1788,7 @@ async function local(){
     const n=document.createElement('span'); n.textContent=i.name;
     const url='/captures/'+encodeURIComponent(i.name);
     const see=document.createElement('button'); see.textContent=tr('local.view'); see.onclick=()=>window.open(url,'_blank');
-    const ov=document.createElement('button'); ov.textContent=tr('card.overlay'); ov.onclick=()=>overlay(url);
+    const ov=document.createElement('button'); ov.textContent=tr('card.overlay'); ov.onclick=()=>overlay(url); ov.hidden=!OVERLAY_ON;
     const ws=document.createElement('button'); ws.textContent=tr('local.ws'); ws.hidden=$('#vWs').hidden; // only with OM Workspace
     ws.onclick=()=>act(tr('msg.openedWs'),'/api/open',{name:i.name});
     const hb=document.createElement('button'); hb.textContent=tr('hsl.btn'); hb.onclick=()=>hslOpen(i.name);
@@ -2068,6 +2069,9 @@ setInterval(aidTick,250); // 4 frames/s are enough and keep the CPU low
 new ResizeObserver(()=>{drawGrid();applyZoom();drawAf()}).observe(vp);
 
 /* Overlay */
+/* Overlay switched off (user 2026-11-14): a plain guide picture is mistaken for a multiple exposure; it comes back
+   as a real multiple exposure that combines the frames (REQ-F43). The code stays, only the buttons are hidden. */
+const OVERLAY_ON=false;
 function overlay(url){const o=$('#ovl');o.src=url;o.hidden=false;o.style.opacity=$('#ovlOp').value/100;$('#ovlRow').hidden=false;msg(tr('msg.overlaySet'))}
 $('#ovlOp').oninput=e=>$('#ovl').style.opacity=e.target.value/100;
 $('#ovlOff').onclick=()=>{const o=$('#ovl');o.hidden=true;o.removeAttribute('src');$('#ovlRow').hidden=true};

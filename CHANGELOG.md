@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased (0.7.1)
+
+- Calendar display: the day of the month and the number of shots looked alike; the day is now large and bold, the number a yellow badge "12 shots".
+- The live view overlay is switched off for now (buttons hidden): a plain guide picture was mistaken for a multiple exposure. It comes back as a real multiple exposure that combines the frames (REQ-F43).
+
 ## 0.7.0 – 2026-11-14
 
 Faster USB, closer to Wi-Fi: the app's own PTP layer, USB settings, focus ring, movie and Focus Stacking over USB, and a round of live view and focus fixes found at the camera.
