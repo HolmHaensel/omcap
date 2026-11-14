@@ -1702,25 +1702,43 @@ document.querySelectorAll('[data-v]').forEach(b=>b.onclick=()=>{
   saveGal();renderGal();
 });
 document.querySelectorAll('[data-sz]').forEach(b=>b.onclick=()=>{gv.n=+b.dataset.sz;saveGal();renderGal()});
-/* Pinch in Index display (phone): fingers apart = bigger pictures (S 25 -> M 9 -> L 4), together = more pictures.
+/* Pinch in Index display (phone), smooth like a photo library: the grid scales with the fingers around the point
+   between them, and on release it settles on the nearest size (S 5x5, M 3x3, L 2x2) and the new grid fades in.
    Touch events, not pointer events: iOS Safari turns a two-finger move in a scrolling area into scrolling and
-   cancels the pointers (seen on an iPhone 2026-11-14). While pinching only the column count of the grid changes;
-   the grid is rebuilt when the fingers lift, so the touched tile stays in place (iOS sends the moves to it). */
+   cancels the pointers (seen on an iPhone 2026-11-14); the grid is rebuilt only after the gesture, because iOS keeps
+   sending the moves to the touched tile. One finger keeps scrolling. */
 (()=>{
-  const body=$('#galBody'), sizes=[25,9,4]; let d0=0, pend=0;
+  const body=$('#galBody'), sizes=[25,9,4], cols={25:5,9:3,4:2};
+  const calm=matchMedia('(prefers-reduced-motion:reduce)');
+  let g=null; // gesture: start distance, scale
   const dist=t=>Math.hypot(t[0].clientX-t[1].clientX,t[0].clientY-t[1].clientY);
-  const preview=n=>body.querySelectorAll('.gidx').forEach(g=>g.style.setProperty('--cols',Math.sqrt(n)));
-  body.addEventListener('touchstart',e=>{if(e.touches.length===2&&gv.mode!=='cal'){d0=dist(e.touches);pend=gv.n}},{passive:true});
+  const setT=(sc,ms)=>{body.style.transition=ms?`transform ${ms}ms ease-out`:'none';body.style.transform=sc===1?'':`scale(${sc})`};
+  body.addEventListener('touchstart',e=>{
+    if(e.touches.length!==2||gv.mode==='cal') return;
+    const r=body.getBoundingClientRect(), t=e.touches;
+    body.style.transformOrigin=`${(t[0].clientX+t[1].clientX)/2-r.left}px ${(t[0].clientY+t[1].clientY)/2-r.top}px`;
+    g={d0:dist(t),sc:1};
+  },{passive:true});
   body.addEventListener('touchmove',e=>{
-    if(e.touches.length!==2||!d0) return;
+    if(!g||e.touches.length!==2) return;
     e.preventDefault(); // two fingers: no page zoom, no scrolling
-    const r=dist(e.touches)/d0, i=Math.max(0,sizes.indexOf(pend));
-    const next=r>1.35?sizes[Math.min(i+1,2)]:r<0.74?sizes[Math.max(i-1,0)]:pend;
-    if(next!==pend){pend=next;d0=dist(e.touches);preview(pend)}
+    g.sc=Math.max(0.35,Math.min(2.8,dist(e.touches)/g.d0)); setT(g.sc,0);
   },{passive:false});
   const end=e=>{
-    if(e.touches&&e.touches.length>=2||!d0) return;
-    d0=0; if(pend&&pend!==gv.n){gv.n=pend;saveGal();renderGal()}
+    if(!g||(e.touches&&e.touches.length>=2)) return;
+    const sc=g.sc, now=cols[gv.n]||3; g=null;
+    // the columns the fingers asked for, then the nearest size the app offers
+    const want=now/sc, target=sizes.reduce((a,b)=>Math.abs(cols[b]-want)<Math.abs(cols[a]-want)?b:a);
+    if(target===gv.n||calm.matches){
+      setT(1,calm.matches?0:180);
+      if(target!==gv.n){gv.n=target;saveGal();renderGal()}
+      return;
+    }
+    setT(now/cols[target],180); // glide to the size the new grid will have
+    setTimeout(()=>{
+      gv.n=target; saveGal(); renderGal(); setT(1,0);
+      body.animate([{opacity:.4},{opacity:1}],{duration:160,easing:'ease-out'});
+    },180);
   };
   body.addEventListener('touchend',end); body.addEventListener('touchcancel',end);
 })();

@@ -140,7 +140,7 @@ cd omcap
 ### On a phone (`--lan`)
 
 Start with `--lan` (for example `.venv/bin/em1-capture --allow-write --lan`) to use the app on a phone in the
-same home network: on the computer click **Phone** in the header and scan the QR code with the phone's camera.
+same home network: on the computer click **Phone** (start screen or header) and scan the QR code with the phone's camera.
 The phone gets a key that is new at every start and keeps it for 12 hours; other devices in the network see only
 a note to scan the code. The computer itself needs no key. The computer stays connected to the camera (Wi-Fi or
 USB); the phone stays in the home Wi-Fi. Without `--lan` the app answers only on the computer.
