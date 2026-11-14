@@ -513,7 +513,7 @@ section h2{margin-bottom:10px;color:#b9bec4;font-size:var(--fs-label);font-weigh
   #liveCol>*{flex-shrink:0} /* scroll the column instead of squeezing the live view (it was letterboxed) */
   #panels>*:not(#panelNav){grid-column:2!important;grid-row:auto!important}
   #viewport{width:min(100%,calc((100vh - 16px) * 4 / 3));width:min(100%,calc((100dvh - 16px) * 4 / 3));height:auto;max-height:none;aspect-ratio:4/3}
-  #panelNav{z-index:40;left:calc(18px + (100vw - 36px) * .6)}
+  #panelNav{z-index:25;left:calc(18px + (100vw - 36px) * .6)} /* above the live column (5), below Playback and the viewer (30) */
   /* Press halfway left, Take picture right, as in portrait (an older landscape rule put the shutter first) */
   #shutRow{display:flex;justify-content:space-between;align-items:center;gap:14px}
   #shutRow #half{order:1;flex:1 1 auto;max-width:200px}
