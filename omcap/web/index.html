@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>E-M1 Capture</title>
 <style>
 /* design tokens, source: design/tokens.css (dark only; shooting stays dark) */
@@ -46,6 +46,7 @@
 /* legacy names used further down, mapped to the tokens */
 :root{--bg:var(--ground);--panel:var(--surface);--fg:var(--text);--mut:var(--muted);--acc:var(--accent);--warn:var(--rec-text);color-scheme:dark}
 *{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%;text-size-adjust:100%} /* no font inflation when the phone turns */
 [hidden]{display:none!important}
 body{margin:0;background:var(--ground);color:var(--text);font:var(--fs-body)/1.4 var(--font-ui)}
 header{display:flex;gap:var(--s3);align-items:center;flex-wrap:wrap;padding:10px 20px;border-bottom:1px solid var(--line)}
@@ -168,6 +169,10 @@ button:disabled{color:var(--disabled);opacity:.6;cursor:not-allowed}
 #recChip .dot{background:var(--rec);animation:blink 1s steps(2) infinite}
 @keyframes blink{50%{opacity:.25}}
 @media(prefers-reduced-motion:reduce){#recChip .dot{animation:none}}
+/* Wi-Fi on phone width: the live view size follows the screen and the signal (REQ-F45), the manual choice is hidden */
+/* only while the automatic size is on (Wi-Fi, write enabled): USB and read-only keep the manual choice */
+body.autoLv label[data-feat=lvsize]{display:none!important}
+#autoLvStatus:not([hidden]){display:inline-flex}
 #viewport.rec{box-shadow:0 0 0 2px var(--rec)}
 #dropChip{position:absolute;left:50%;top:54px;transform:translateX(-50%);height:32px;display:flex;align-items:center;padding:0 14px;border-radius:16px;background:var(--overlay);border:1px solid var(--rec);color:var(--rec-text);z-index:4;pointer-events:none}
 #empty{flex-direction:column;gap:var(--s2);text-align:center}
@@ -195,7 +200,8 @@ button:disabled{color:var(--disabled);opacity:.6;cursor:not-allowed}
 #hslBox{position:relative;max-width:calc(100vw - 80px);line-height:0}
 #hslBox img{max-width:calc(100vw - 80px);max-height:70vh;display:block}
 #hslBox{cursor:ew-resize;touch-action:none;user-select:none}
-#live,#ovl,#hslBox img{-webkit-user-drag:none;user-select:none} /* drag moves the picture / the before-after line, not a copy of the image */
+#live,#ovl,#hslBox img,#vImg{-webkit-user-drag:none;user-select:none}
+.sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap} /* drag moves the picture / the before-after line, not a copy of the image */
 #hslHandle{position:absolute;top:0;bottom:0;left:50%;width:2px;margin-left:-1px;background:#fff;box-shadow:0 0 4px #0009;pointer-events:none}
 #hslHandle::after{content:'‹ ›';position:absolute;top:50%;left:50%;width:36px;height:36px;margin:-18px 0 0 -18px;border-radius:50%;background:#fff;color:#111;font:600 15px/34px var(--font-ui,system-ui);text-align:center;box-shadow:0 1px 6px #0009}
 #hslBox .lbl{position:absolute;top:8px;padding:2px 8px;border-radius:var(--r-pill);background:var(--overlay);color:var(--text);font-size:12px;line-height:1.5;pointer-events:none}
@@ -212,7 +218,7 @@ dialog h2{margin-top:12px}
 #viewer{z-index:31;background:#000;color:var(--text)}
 .galbar{display:flex;gap:6px;flex-wrap:wrap;align-items:center;padding:8px 12px;border-bottom:1px solid var(--line)}
 #viewer .galbar{border-color:#333}
-#galBody{flex:1;overflow:auto;padding:8px;min-height:0}
+#galBody{flex:1;overflow:auto;padding:8px;min-height:0;touch-action:pan-x pan-y} /* pinch changes the grid size, not the page */
 .galbar .seg button{width:auto;padding:0 12px;height:34px}
 .galbar .tog{height:34px}
 .dayh{margin:var(--s4) 0 var(--s2);font-size:var(--fs-label);font-weight:600;color:var(--muted);letter-spacing:.3px;display:flex;gap:var(--s2);align-items:baseline}
@@ -234,9 +240,11 @@ dialog h2{margin-top:12px}
 .cal0{aspect-ratio:4/3;background:var(--panel);opacity:.45;border-radius:3px;padding:3px 6px;font-size:12px;color:var(--mut)}
 .tile .dn{position:absolute;left:0;top:0;padding:2px 8px;font-size:15px;font-weight:700;color:#fff;background:#000b;border-bottom-right-radius:var(--r-sm)} /* calendar: day of the month */
 .tile .ct{position:absolute;right:6px;bottom:6px;padding:1px 8px;font-size:11px;font-weight:600;color:var(--accent-ink);background:var(--accent);border-radius:var(--r-pill)} /* calendar: number of shots that day */
+@media(max-width:700px){.tile .ct{right:2px;bottom:2px;padding:0 5px;font-size:10px}.tile .dn{padding:1px 5px;font-size:12px}} /* phone: the day stays visible */
 #vBody{flex:1;min-height:0;display:flex}
 #vImgBox{flex:1;min-height:0;min-width:0;position:relative}
-#vImg{position:absolute;inset:0;width:100%;height:100%;object-fit:contain}
+#vImg{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;transform-origin:50% 50%}
+#vImgBox:not(.full){touch-action:none;overflow:hidden} /* pinch and pan zoom the picture, not the page */
 #vImgBox.full{overflow:auto}
 #vImgBox.full #vImg{position:static;width:auto;height:auto;max-width:none;object-fit:none}
 #vStrip{position:absolute;left:0;right:0;bottom:0;padding:10px 18px;display:flex;gap:22px;flex-wrap:wrap;align-items:center;background:linear-gradient(0deg,rgba(0,0,0,.8),rgba(0,0,0,0));font:500 17px var(--font-value);pointer-events:none}
@@ -508,6 +516,8 @@ section h2{margin-bottom:10px;color:#b9bec4;font-size:var(--fs-label);font-weigh
   </div>
   <button id="startGo" disabled data-i18n="start.connect">Connect</button>
   <p id="startMsg" class="mut" style="text-align:center;max-width:560px;margin:8px auto"></p>
+  <p id="startAuto" hidden style="text-align:center;margin:4px auto"><span id="startAutoText"></span> <button id="startAutoStop" class="hbtn quiet" data-i18n="start.autoStop">Stay here</button></p>
+  <button id="startPhone" class="hbtn quiet" hidden data-i18n="phone.btn">Phone</button>
   <button class="hbtn quiet quitBtn" data-i18n="app.quit">Quit E-M1 Capture</button>
 </div>
 <div id="stopped" hidden><p data-i18n="app.stopped">E-M1 Capture has stopped. You can close this tab.</p></div>
@@ -527,6 +537,7 @@ section h2{margin-bottom:10px;color:#b9bec4;font-size:var(--fs-label);font-weigh
     <button id="hdrLocal" class="hbtn" data-i18n="local.title">On the computer</button>
     <button id="layoutBtn" class="hbtn quiet" data-i18n="app.layout">Customize layout</button>
     <button id="reset" class="hbtn w" data-i18n="app.reset" data-i18n-title="app.resetTitle">Reset camera</button>
+    <button id="phoneBtn" class="hbtn quiet" hidden data-i18n="phone.btn">Phone</button>
     <button id="discon" class="hbtn quiet" data-i18n="app.disconnect">Disconnect</button>
     <button class="hbtn quiet quitBtn" data-i18n="app.quit">Quit E-M1 Capture</button>
     <button id="poweroff" class="hbtn icon w" data-feat="poweroff" data-i18n-aria="app.poweroff" data-i18n-title="app.poweroff"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 3v8"/><path d="M6.3 7.2a8 8 0 1 0 11.4 0"/></svg></button>
@@ -562,6 +573,7 @@ section h2{margin-bottom:10px;color:#b9bec4;font-size:var(--fs-label);font-weigh
     <label class="lab" data-feat="lvsize"><span data-i18n="lv.size">Size</span> <select id="lvqty">
       <option>0320x0240</option><option>0640x0480</option><option selected>0800x0600</option><option>1024x0768</option><option>1280x0960</option>
     </select></label>
+    <span id="autoLvStatus" class="chip" hidden data-feat="lvsize"></span>
     <span class="vsep"></span>
     <span id="lvTools" hidden>
       <label class="tog" data-feat="level"><input type="checkbox" id="lvlOn"> <span data-i18n="lv.level">Level gauge</span></label>
@@ -754,7 +766,7 @@ section h2{margin-bottom:10px;color:#b9bec4;font-size:var(--fs-label);font-weigh
     <button id="vGet" class="gallery-icon icon-download" data-i18n-title="card.saveToMac">Save to computer</button><button id="vHsl" data-i18n="hsl.btn">HSL</button><button id="vWs" hidden data-i18n="view.ws">Open in OM Workspace</button><button id="vOvl" hidden class="gallery-icon icon-overlay" data-i18n-title="card.overlay">Overlay</button><button id="vClose" class="gallery-icon icon-close" data-i18n-title="card.close">Close</button>
   </div>
   <div id="vBody">
-    <div id="vImgBox"><img id="vImg" alt=""><div id="vStrip" hidden></div></div>
+    <div id="vImgBox"><img id="vImg" alt="" draggable="false"><div id="vStrip" hidden></div></div>
     <aside id="vPanel" hidden><canvas id="vHist" width="288" height="80"></canvas><dl id="vExif"></dl></aside>
   </div>
 </div>
@@ -775,6 +787,13 @@ section h2{margin-bottom:10px;color:#b9bec4;font-size:var(--fs-label);font-weigh
 <dialog id="localDlg"><form method="dialog">
   <h2 data-i18n="local.title">On the computer</h2>
   <div id="local"></div>
+  <div class="row" style="margin-top:12px"><button data-i18n="layout.close">Close</button></div>
+</form></dialog>
+<dialog id="phoneDlg"><form method="dialog">
+  <h2 data-i18n="phone.title">Open on a phone</h2>
+  <p class="mut" data-i18n="phone.hint">Phone in the same home network: scan the code with the camera app. Anyone with this code can control the camera until the app is restarted.</p>
+  <div id="phoneQr" style="display:flex;justify-content:center;margin:12px 0"></div>
+  <p id="phoneUrl" class="mut" style="word-break:break-all;font-size:12px"></p>
   <div class="row" style="margin-top:12px"><button data-i18n="layout.close">Close</button></div>
 </form></dialog>
 <dialog id="layoutDlg"><form method="dialog">
@@ -877,8 +896,12 @@ const I18N={en:{
   "start.foundCamera": "Camera found",
   "start.notFound": "not found",
   "start.connecting": "Connecting …",
+  "start.auto": "Connecting to {name} over {conn} in {n} s …",
+  "start.autoStop": "Stay here",
   "app.connecting": "connecting …",
   "app.disconnect": "Disconnect",
+  "phone.btn": "Phone", "phone.title": "Open on a phone",
+  "phone.hint": "Phone in the same home network: scan the code with the camera app. Anyone with this code can control the camera until the app is restarted.",
   "app.quit": "Quit E-M1 Capture",
   "app.quitConfirm": "The app stops and the camera connection is closed.",
   "app.stopped": "E-M1 Capture has stopped. You can close this tab.",
@@ -893,6 +916,7 @@ const I18N={en:{
   "lv.start": "Start live view",
   "lv.stop": "Stop live view",
   "lv.size": "Size",
+  "lv.auto": "Auto · {size}",
   "lv.autoReduced": "Live view adjusted to {size} for a smoother signal",
   "lv.second": "Second monitor",
   "lv.webcam": "Webcam (OBS)",
@@ -1220,18 +1244,29 @@ function shotMode(path){
 let isUsb=false; // connection type from /api/status
 let st={stage:0,job:{}},canWrite=false,wasBusy=false,connected=false,features=new Set(),af=null;
 let quitting=false;
+/* Adaptive live view size over Wi-Fi on phone width (REQ-F45, from the redesign, user 2026-11-14): start with the
+   size that fits the screen and step down when frames come too slowly (<12 fps or >18 % lost over 4 s) or stall
+   (>1.5 s), and only when that lasts 4 s; at most every 8 s and never during a shot, job, movie or card read. Desktop and USB keep the manual size. */
 const MOBILE_LIVE=matchMedia('(max-width:700px)');
 const AUTO_LV_SIZES=['0640x0480','0800x0600','1024x0768','1280x0960'];
-let autoLvBusy=false,autoLvLastChange=0;
+let autoLvBusy=false,autoLvLastChange=0,autoLvSlowSince=0;
+const AUTO_LV_SLOW_MS=4000; // slowness must last this long: a short dip right after connecting is no reason (camera test 2026-11-14)
 const autoLvEnabled=()=>MOBILE_LIVE.matches&&!isUsb&&canWrite&&features.has('lvsize');
+const lvSizeText=size=>size.replace(/^0+/,'').replace('x0','×');
+function autoLvLabel(size){
+  const el=$('#autoLvStatus'), on=autoLvEnabled();
+  el.hidden=!on; document.body.classList.toggle('autoLv',on);
+  if(size) el.textContent=tr('lv.auto',{size:lvSizeText(size)});
+}
 function idealMobileLvSize(){
   const px=Math.min(1280,Math.max(640,Math.ceil($('#viewport').clientWidth*(devicePixelRatio||1))));
   return AUTO_LV_SIZES.find(s=>parseInt(s,10)>=px)||AUTO_LV_SIZES.at(-1);
 }
 function prepareAutoLiveSize(){
-  if(!autoLvEnabled()) return false;
+  if(!autoLvEnabled()){autoLvLabel();return false}
   const size=idealMobileLvSize();
   $('#lvqty').value=size; lvPicked=true; autoLvLastChange=Date.now();
+  autoLvLabel(size);
   return true;
 }
 async function reduceAutoLiveSize(){
@@ -1241,11 +1276,14 @@ async function reduceAutoLiveSize(){
   if(i<=0) return;
   const perf=st.lvperf||{}, stale=st.lv_age!=null&&st.lv_age>1.5;
   const slow=perf.sample_seconds>=4&&((perf.fps!=null&&perf.fps<12)||(perf.drop_ratio!=null&&perf.drop_ratio>.18));
-  if(!stale&&!slow) return;
+  if(!stale&&!slow){autoLvSlowSince=0;return}
+  if(!autoLvSlowSince){autoLvSlowSince=Date.now();return}
+  if(Date.now()-autoLvSlowSince<AUTO_LV_SLOW_MS) return;
+  autoLvSlowSince=0;
   const next=AUTO_LV_SIZES[i-1];
   autoLvBusy=true; autoLvLastChange=Date.now();
-  $('#lvqty').value=next; lvPicked=true;
-  msg(tr('lv.autoReduced',{size:next.replace(/^0+/,'').replace('x0','×')}));
+  $('#lvqty').value=next; lvPicked=true; autoLvLabel(next);
+  msg(tr('lv.autoReduced',{size:lvSizeText(next)}));
   try{await $('#lvStart').onclick()}finally{autoLvBusy=false}
 }
 async function tick(){
@@ -1886,7 +1924,10 @@ function renderCal(body){
     if(!shots){const e=document.createElement('div');e.className='cal0';e.textContent=d;grid.append(e);continue}
     const t=makeTile(shots[0].preview);
     const n=document.createElement('div');n.className='dn';n.textContent=d;
-    const c=document.createElement('div');c.className='ct';c.textContent=shots.length===1?tr('card.shot'):tr('card.shots',{n:shots.length});
+    const c=document.createElement('div'),full=shots.length===1?tr('card.shot'):tr('card.shots',{n:shots.length});
+    c.className='ct';c.title=full;
+    if(MOBILE_LIVE.matches){c.textContent=String(shots.length);const sr=document.createElement('span');sr.className='sr-only';sr.textContent=' '+full;c.append(sr)} // phone: only the number shows
+    else c.textContent=full;
     t.append(n,c);
     t.onclick=()=>{gv.day=key;gv.mode='index';saveGal();renderGal()};
     grid.append(t);
@@ -1928,17 +1969,50 @@ function zoomGallery(direction){
   else return;
   saveGal();renderGal();
 }
-const galBody=$('#galBody');
-let galleryPinch=null;
-const touchDistance=e=>Math.hypot(e.touches[0].clientX-e.touches[1].clientX,e.touches[0].clientY-e.touches[1].clientY);
-galBody.addEventListener('touchstart',e=>{if(e.touches.length===2)galleryPinch={distance:touchDistance(e),done:false}},{passive:true});
-galBody.addEventListener('touchmove',e=>{
-  if(!galleryPinch||galleryPinch.done||e.touches.length!==2)return;
-  const ratio=touchDistance(e)/galleryPinch.distance;
-  if(ratio>1.22||ratio<.78){e.preventDefault();galleryPinch.done=true;zoomGallery(ratio>1?1:-1)}
-},{passive:false});
-galBody.addEventListener('touchend',e=>{if(e.touches.length<2)galleryPinch=null},{passive:true});
-galBody.addEventListener('wheel',e=>{if(!e.ctrlKey)return;e.preventDefault();zoomGallery(e.deltaY<0?1:-1)},{passive:false});
+/* Pinch in Index display (phone), smooth like a photo library: the grid scales with the fingers around the point
+   between them, and on release it settles on the nearest size (4x4, 3x3, 2x2; pinching in beyond 4x4 opens Calendar display) and the new grid fades in.
+   Touch events, not pointer events: iOS Safari turns a two-finger move in a scrolling area into scrolling and
+   cancels the pointers (seen on an iPhone 2026-11-14); the grid is rebuilt only after the gesture, because iOS keeps
+   sending the moves to the touched tile. One finger keeps scrolling. */
+const calm=matchMedia('(prefers-reduced-motion:reduce)'); // shared by the Playback gestures
+(()=>{
+  const body=$('#galBody'), sizes=[16,9,4], cols={16:4,9:3,4:2};
+  let g=null, pend=null; // g: the gesture (start distance, scale); pend: the size change still gliding after the last one
+  const dist=t=>Math.hypot(t[0].clientX-t[1].clientX,t[0].clientY-t[1].clientY);
+  const setT=(sc,ms)=>{body.style.transition=ms?`transform ${ms}ms ease-out`:'none';body.style.transform=sc===1?'':`scale(${sc})`};
+  body.addEventListener('touchstart',e=>{
+    if(e.touches.length!==2||gv.mode==='cal') return;
+    if(pend){clearTimeout(pend.id);pend.fn()} // a new pinch while the last one still glides: finish it at once
+    const r=body.getBoundingClientRect(), t=e.touches;
+    body.style.transformOrigin=`${(t[0].clientX+t[1].clientX)/2-r.left}px ${(t[0].clientY+t[1].clientY)/2-r.top}px`;
+    g={d0:dist(t),sc:1};
+  },{passive:true});
+  body.addEventListener('touchmove',e=>{
+    if(!g||e.touches.length!==2) return;
+    e.preventDefault(); // two fingers: no page zoom, no scrolling
+    g.sc=Math.max(0.35,Math.min(2.8,dist(e.touches)/g.d0)); setT(g.sc,0);
+  },{passive:false});
+  const end=e=>{
+    if(!g||(e.touches&&e.touches.length>=2)) return;
+    const sc=g.sc, now=cols[gv.n]||3; g=null;
+    // the columns the fingers asked for, then the nearest size the app offers
+    const want=now/sc, target=sizes.reduce((a,b)=>Math.abs(cols[b]-want)<Math.abs(cols[a]-want)?b:a);
+    if(gv.n===16&&want>5.2){setT(1,0);gv.mode='cal';gv.day=null;saveGal();renderGal();return} // smaller than 4x4: Calendar display
+    if(target===gv.n||calm.matches){
+      setT(1,calm.matches?0:180);
+      if(target!==gv.n){gv.n=target;saveGal();renderGal()}
+      return;
+    }
+    setT(now/cols[target],180); // glide to the size the new grid will have
+    const fn=()=>{
+      pend=null; gv.n=target; saveGal(); renderGal(); setT(1,0);
+      body.animate([{opacity:.4},{opacity:1}],{duration:160,easing:'ease-out'});
+    };
+    pend={fn,id:setTimeout(fn,180)};
+  };
+  body.addEventListener('touchend',end); body.addEventListener('touchcancel',end);
+})();
+$('#galBody').addEventListener('wheel',e=>{if(!e.ctrlKey)return;e.preventDefault();zoomGallery(e.deltaY<0?1:-1)},{passive:false}); // trackpad pinch on the computer
 /* Single image */
 let vToken=0;
 function viewerUrl(f){
@@ -1949,6 +2023,7 @@ function viewerUrl(f){
 const movLen=new Map();
 const clockLen=sec=>Math.floor(sec/3600)+':'+pad(Math.floor(sec/60)%60)+':'+pad(sec%60);
 async function showShot(){
+  vZoomReset();
   const s=vList[vIdx], f=s.preview, token=++vToken, im=$('#vImg');
   let info=`${vIdx+1}/${vList.length} · ${s.name} · ${s.types} · ${s.dt.y}-${pad(s.dt.m)}-${pad(s.dt.d)} ${pad(s.dt.h)}:${pad(s.dt.mi)}${s.size?' · '+(s.size/1048576).toFixed(1)+' MB':''}`;
   // movie length only in mode "play", otherwise the camera answers with an error
@@ -2043,10 +2118,112 @@ async function showInfo(s,token){
 $('#vInfoBtn').onclick=()=>{gv.info=INFO_MODES[(INFO_MODES.indexOf(gv.info)+1)%3];gv.infoSet=true;saveGal();if(vList[vIdx])showInfo(vList[vIdx],vToken)};
 $('#vImg').onload=()=>{if(gv.info==='overall')drawVHist()};
 function fitButton(){const full=$('#vImgBox').classList.contains('full'),b=$('#vFit'),text=tr(full?'view.full':'view.fit');b.title=text;b.setAttribute('aria-label',text)}
-$('#vFit').onclick=()=>{const b=$('#vImgBox');b.classList.toggle('full');fitButton()};
+$('#vFit').onclick=()=>{vZoomReset();const b=$('#vImgBox');b.classList.toggle('full');fitButton()};
+/* Pinch to zoom in the single-frame view (phone), pan with one finger while zoomed, double tap 1x / 2.5x,
+   mouse wheel on the computer (user 2026-11-14). Only in the fitted view; "Fit" (1:1) keeps scrolling. */
+const vZoom={s:1,x:0,y:0}, vPtrs=new Map();
+let vGest=null, vTapAt=0, vTapPos=null;
+function vZoomApply(){$('#vImg').style.transform=vZoom.s>1.001?`translate(${vZoom.x}px,${vZoom.y}px) scale(${vZoom.s})`:''}
+function vZoomReset(){vZoom.s=1;vZoom.x=0;vZoom.y=0;vGest=null;vPtrs.clear();vZoomApply()}
+function vZoomClamp(){
+  const b=$('#vImgBox').getBoundingClientRect(), mx=b.width*(vZoom.s-1)/2, my=b.height*(vZoom.s-1)/2;
+  vZoom.x=Math.max(-mx,Math.min(mx,vZoom.x)); vZoom.y=Math.max(-my,Math.min(my,vZoom.y));
+}
+function vZoomTo(s,cx,cy){ // keep the point (cx,cy) relative to the box centre under the fingers
+  s=Math.max(1,Math.min(6,s)); const k=s/vZoom.s;
+  vZoom.x=cx-(cx-vZoom.x)*k; vZoom.y=cy-(cy-vZoom.y)*k; vZoom.s=s; vZoomClamp(); vZoomApply();
+}
+function vCentre(e){const b=$('#vImgBox').getBoundingClientRect();return {x:e.clientX-b.left-b.width/2,y:e.clientY-b.top-b.height/2}}
+(()=>{
+  const box=$('#vImgBox');
+  const active=e=>!box.classList.contains('full')&&!(e.pointerType==='mouse'&&e.button!==0);
+  box.addEventListener('pointerdown',e=>{
+    if(!active(e)) return;
+    box.setPointerCapture(e.pointerId); vPtrs.set(e.pointerId,vCentre(e));
+    const p=[...vPtrs.values()];
+    if(p.length===2) vGest={pinch:true,d:Math.hypot(p[0].x-p[1].x,p[0].y-p[1].y)||1,s:vZoom.s,x:vZoom.x,y:vZoom.y,
+                            c:{x:(p[0].x+p[1].x)/2,y:(p[0].y+p[1].y)/2}};
+    else if(p.length===1) vGest={pinch:false,start:p[0],x:vZoom.x,y:vZoom.y,moved:false};
+  });
+  box.addEventListener('pointermove',e=>{
+    if(!vPtrs.has(e.pointerId)||!vGest) return;
+    vPtrs.set(e.pointerId,vCentre(e)); const p=[...vPtrs.values()];
+    if(vGest.pinch&&p.length>=2){
+      const d=Math.hypot(p[0].x-p[1].x,p[0].y-p[1].y), c={x:(p[0].x+p[1].x)/2,y:(p[0].y+p[1].y)/2};
+      const s=Math.max(1,Math.min(6,vGest.s*d/vGest.d)), k=s/vGest.s;
+      vZoom.s=s; vZoom.x=c.x-(vGest.c.x-vGest.x)*k; vZoom.y=c.y-(vGest.c.y-vGest.y)*k; vZoomClamp(); vZoomApply();
+    }else if(!vGest.pinch){
+      const dx=p[0].x-vGest.start.x, dy=p[0].y-vGest.start.y;
+      if(Math.hypot(dx,dy)>6) vGest.moved=true;
+      if(vZoom.s>1){vZoom.x=vGest.x+dx;vZoom.y=vGest.y+dy;vZoomClamp();vZoomApply()}
+      else if(!vGest.afterPinch&&Math.abs(dx)>Math.abs(dy)){ // swipe: the picture follows the finger, a little stiffer at the ends
+        const edge=(dx>0&&vIdx===0)||(dx<0&&vIdx===vList.length-1);
+        const im=$('#vImg'); im.style.transition='none'; im.style.transform=`translateX(${edge?dx/3:dx}px)`;
+      }
+    }
+  });
+  const up=e=>{
+    if(!vPtrs.has(e.pointerId)) return;
+    const pos=vPtrs.get(e.pointerId); vPtrs.delete(e.pointerId);
+    if(vGest&&!vGest.pinch&&!vGest.afterPinch&&vZoom.s<=1.001&&e.type==='pointerup'){ // swipe to the next or previous picture
+      const dx=pos.x-vGest.start.x, dy=pos.y-vGest.start.y, d=dx<0?1:-1, n=vIdx+d;
+      if(Math.abs(dx)>60&&Math.abs(dx)>Math.abs(dy)*1.3&&n>=0&&n<vList.length){
+        vSwipe(d); vGest=null; return;
+      }
+    }
+    vSnapBack(); // also after a cancelled drag
+    if(vGest&&!vGest.pinch&&!vGest.moved&&e.type==='pointerup'){ // double tap: 1x <-> 2.5x at the tapped point
+      const now=Date.now();
+      if(now-vTapAt<320&&vTapPos&&Math.hypot(pos.x-vTapPos.x,pos.y-vTapPos.y)<30){vTapAt=0;vZoom.s>1?vZoomReset():vZoomTo(2.5,pos.x,pos.y)}
+      else{vTapAt=now;vTapPos=pos}
+    }
+    const p=[...vPtrs.values()];
+    vGest=p.length===1?{pinch:false,start:p[0],x:vZoom.x,y:vZoom.y,moved:true,afterPinch:true}:null; // second finger lifted: keep panning, no swipe
+  };
+  box.addEventListener('pointerup',up); box.addEventListener('pointercancel',up);
+  /* Sideways wheel (Magic Mouse, trackpad, Shift + wheel) swipes to the next or previous picture at 1x;
+     the picture follows, past 80 px it changes; one picture per gesture. The momentum that follows gets weaker and
+     is ignored; a new swipe during it gets stronger again and counts (before, only a click ended the momentum). */
+  let wx=0, wLock=false, wQuiet=null, wLast=0, wAt=0;
+  box.addEventListener('wheel',e=>{if(!active(e))return;e.preventDefault();
+    const side=Math.abs(e.deltaX)>Math.abs(e.deltaY)&&!e.ctrlKey;
+    if(side&&vZoom.s<=1.001){
+      const im=$('#vImg'); clearTimeout(wQuiet);
+      wQuiet=setTimeout(()=>{wLock=false;if(wx){wx=0;vSnapBack()}},250);
+      const a=Math.abs(e.deltaX), rising=a>3&&a>wLast*1.5&&Date.now()-wAt>120; wLast=a;
+      if(wLock&&rising){wLock=false;wx=0}
+      if(wLock) return;
+      wx-=e.deltaX; const d=wx<0?1:-1, n=vIdx+d, edge=n<0||n>=vList.length;
+      if(Math.abs(wx)>80&&!edge){wx=0;wLock=true;wAt=Date.now();vSwipe(d);return}
+      im.style.transition='none'; im.style.transform=`translateX(${edge?wx/3:wx}px)`; return;
+    }
+    if(side) return;
+    const c=vCentre(e);vZoomTo(vZoom.s*Math.exp(-e.deltaY/300),c.x,c.y)},{passive:false});
+})();
 function openViewer(list,i){vList=list;vIdx=i;$('#viewer').hidden=false;$('#vImgBox').classList.remove('full');fitButton();showShot()}
-function closeViewer(){vToken++;$('#viewer').hidden=true;$('#vImg').removeAttribute('src');pump()}
+function closeViewer(){vZoomReset();vToken++;$('#viewer').hidden=true;$('#vImg').removeAttribute('src');pump()}
 function stepViewer(d){const n=vIdx+d;if(n>=0&&n<vList.length){vIdx=n;showShot()}}
+/* Swipe: slide the picture out to the side, show the next one and let it slide in from the other side */
+let vSliding=false;
+/* An unfinished swipe glides back (at once with reduced motion); a zoomed picture keeps its transform. */
+function vSnapBack(){
+  const im=$('#vImg');
+  if(vSliding||vZoom.s>1.001||!im.style.transform) return;
+  im.style.transition=calm.matches?'none':'transform .18s ease-out'; im.style.transform='';
+}
+function vSwipe(d){
+  const im=$('#vImg'), w=$('#vImgBox').clientWidth;
+  if(vSliding) return;
+  if(calm.matches){im.style.transform='';stepViewer(d);return}
+  im.style.transition='transform .16s ease-in'; im.style.transform=`translateX(${-d*w}px)`;
+  const t=vToken; vSliding=true;
+  setTimeout(()=>{
+    vSliding=false;
+    if(t!==vToken||$('#viewer').hidden){im.style.transform='';return} // closed or moved on meanwhile
+    stepViewer(d); im.style.transition='none'; im.style.transform=`translateX(${d*w*.35}px)`;
+    requestAnimationFrame(()=>{im.style.transition='transform .2s ease-out';im.style.transform=''});
+  },160);
+}
 $('#vPrev').onclick=()=>stepViewer(-1);
 $('#vNext').onclick=()=>stepViewer(1);
 $('#vClose').onclick=closeViewer;
@@ -2488,7 +2665,14 @@ AID_IDS.filter(i=>i!=='lvlOn').concat('aidPeakCol').forEach(i=>$('#'+i).onchange
 setInterval(aidTick,250); // 4 frames/s are enough and keep the CPU low
 // Level gauge (USB, PTP backend): own poll, faster than tick(), only while it is shown (REQ-F23)
 setInterval(()=>{if(features.has('level')&&st&&st.live&&$('#lvlOn').checked)pollLevel()},150);
-new ResizeObserver(()=>{drawGrid();applyZoom();drawAf()}).observe(vp);
+new ResizeObserver(()=>{drawGrid();applyZoom();drawAf();drawLevel()}).observe(vp);
+/* Turning the phone: iOS Safari can keep a page zoom from before, so the page looks as if it did not turn.
+   Briefly limiting the scale resets it; the layout itself follows the CSS for portrait/landscape. */
+const VP_META=document.querySelector('meta[name=viewport]'), VP0=VP_META.content; // read once: two quick turns must not keep the limit
+addEventListener('orientationchange',()=>{
+  VP_META.content=VP0+',maximum-scale=1'; setTimeout(()=>{VP_META.content=VP0},400);
+  vZoomReset();
+});
 
 /* Overlay */
 /* Overlay switched off (user 2026-11-14): a plain guide picture is mistaken for a multiple exposure; it comes back
@@ -2545,7 +2729,7 @@ $('#layoutReset').onclick=()=>{layout={};commit()};
 $('#lvStart').onclick=async()=>{
   try{await api('/api/liveview',{action:'start',lvqty:isUsb&&!lvPicked?null:$('#lvqty').value});startLiveLoop();msg(tr('msg.lvRunning'));await tick();if(features.has('af_area'))loadAf();setTimeout(props,1500)}catch(e){msg(e.message,true)}};
 $('#lvqty').onchange=()=>{lvPicked=true;if(st.live)$('#lvStart').click()};
-MOBILE_LIVE.addEventListener('change',()=>{if(autoLvEnabled())prepareAutoLiveSize()});
+MOBILE_LIVE.addEventListener('change',()=>{if(autoLvEnabled())prepareAutoLiveSize();else autoLvLabel();if(!$('#galOv').hidden&&gv.mode==='cal')renderGal()});
 $('#lvStop').onclick=()=>act(tr('msg.lvStopped'),'/api/liveview',{action:'stop'});
 /* Shooting: the whole sequence. If Halfway is just holding focus, press through from there and release,
       as on the real shutter button. All the way and release are merged into it. */
@@ -2727,6 +2911,7 @@ async function pollConn(){
   polling=true;
   try{
     const c=await api('/api/connections');
+    $('#startPhone').hidden=!(c.lan&&isLocalPage()); // phone link also before connecting (REQ-F47)
     if(c.connected){enterApp();return}
     for(const k of ['usb','wifi']){
       document.querySelector(`.ctile[data-conn=${k}]`).classList.toggle('found',c[k]);
@@ -2736,6 +2921,7 @@ async function pollConn(){
     const last=lastConn();
     selected=c.usb&&c.wifi?(last==='usb'||last==='wifi'?last:null):c.usb?'usb':c.wifi?'wifi':null;
     markSelected();
+    autoConnect(c,last);
     if($('#startMsg').dataset.offline){$('#startMsg').textContent='';$('#startMsg').className='mut';delete $('#startMsg').dataset.offline}
   }catch(e){
     // Server not running, or index.html opened as a file: say how to start the app
@@ -2744,13 +2930,29 @@ async function pollConn(){
     m.textContent=e.message+(location.protocol!=='http:'?'\n'+tr('start.openUrl'):'');
   }finally{polling=false}
 }
+/* Auto-connect (user 2026-11-14): when the connection used last time finds the camera again, connect after a short
+   countdown that can be stopped. Not right after "Disconnect" (sessionStorage) and only once per page load. */
+let autoTimer=null,autoDone=false;
+const AUTO_OFF='omcap.noAutoConnect', AUTO_SECONDS=2;
+function autoConnect(c,last){
+  let off=false; try{off=!!sessionStorage.getItem(AUTO_OFF)}catch{}
+  if(autoDone||autoTimer||off||!last||!c[last]||selected!==last) return;
+  let n=AUTO_SECONDS;
+  const name=(c.names&&c.names[last])||tr('start.foundCamera'), conn=last==='usb'?'USB':'Wi-Fi';
+  const show=()=>{$('#startAuto').hidden=false;$('#startAutoText').textContent=tr('start.auto',{name,conn,n})};
+  show();
+  autoTimer=setInterval(()=>{n--; if(n>0){show();return} stopAuto(); autoDone=true; connectTo(last)},1000);
+}
+function stopAuto(){clearInterval(autoTimer);autoTimer=null;$('#startAuto').hidden=true}
+$('#startAutoStop').onclick=()=>{stopAuto();autoDone=true};
 async function connectTo(kind){
+  stopAuto();
   if(connecting) return;
   connecting=true; selected=kind; markSelected();
   $('#startMsg').className='mut'; $('#startMsg').textContent=tr('start.connecting');
   try{
     await api('/api/connect',{type:kind});
-    try{localStorage.setItem(LAST_KEY,kind)}catch{}
+    try{localStorage.setItem(LAST_KEY,kind);sessionStorage.removeItem(AUTO_OFF)}catch{} // connected again: auto-connect allowed again
     enterApp();
   }catch(e){$('#startMsg').className='warn';$('#startMsg').textContent=e.message}
   finally{connecting=false;markSelected()}
@@ -2771,7 +2973,12 @@ document.querySelectorAll('.quitBtn').forEach(b=>b.onclick=async()=>{
   catch(e){if(e.message!==tr('srv.offline')){msg(e.message||String(e),true);return}} // only "server gone" counts as stopped
   showStopped();
 });
-$('#discon').onclick=async()=>{try{await api('/api/disconnect',{})}catch{}location.reload()};
+function isLocalPage(){return ['127.0.0.1','localhost','::1','[::1]'].includes(location.hostname)}
+$('#phoneBtn').onclick=$('#startPhone').onclick=async()=>{
+  try{const l=await api('/api/lanlink');$('#phoneQr').innerHTML=l.svg;$('#phoneUrl').textContent=l.url;$('#phoneDlg').showModal()}
+  catch(e){msg(e.message,true)}
+};
+$('#discon').onclick=async()=>{try{sessionStorage.setItem(AUTO_OFF,'1')}catch{}try{await api('/api/disconnect',{})}catch{}location.reload()};
 function init(){
   $('#start').hidden=false;
   pollConn();
@@ -2784,6 +2991,8 @@ async function enterApp(){
   try{
     const s=await api('/api/status');
     canWrite=s.allow_write;
+    // Phone link (--lan, REQ-F47): only offered on the computer itself, the phone already has it
+    $('#phoneBtn').hidden=!(s.lan&&isLocalPage());
     $('#vWs').hidden=!s.om_workspace; // only when OM Workspace is installed on this computer
     features=new Set(s.features); isUsb=s.type==='usb';
     applyFeatures();

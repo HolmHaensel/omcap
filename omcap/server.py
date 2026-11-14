@@ -8,10 +8,14 @@ The connection (USB or Wi-Fi) is chosen on the start screen.
 import argparse
 import contextlib
 import errno
+import hmac
+import http.cookies
 import json
 import os
 import re
+import secrets
 import signal
+import socket
 import subprocess
 import sys
 import tempfile
@@ -23,7 +27,7 @@ import webbrowser
 import xml.etree.ElementTree as ET
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
-from . import __version__, exif, usb_camera
+from . import __version__, exif, qr, usb_camera
 from .camera import Camera, CameraError, WriteBlocked
 from .liveview import LiveView
 
@@ -51,6 +55,35 @@ live = None
 conn_type = None
 options = {"host": "192.168.0.10", "allow_write": False, "usb_backend": "gphoto2"}
 allowed_hosts = set()
+# Phone in the home network (--lan, REQ-F47): a fresh random key per start; another device needs it once from the
+# QR code, then keeps it as a cookie. The computer itself (loopback) needs no key.
+lan = {"key": None, "url": None}
+LAN_COOKIE = "omcap_key"
+LAN_COOKIE_AGE = 12 * 3600
+
+
+def lan_address():
+    """IPv4 address of this computer in the home network (not the camera's Wi-Fi 192.168.0.x), or None.
+
+    A UDP connect sends nothing; it only asks the system which address it would use."""
+    found = []
+    for target in ("10.255.255.255", "172.31.255.255", "192.168.255.255"):
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        try:
+            s.connect((target, 1))
+            found.append(s.getsockname()[0])
+        except OSError:
+            pass
+        finally:
+            s.close()
+    try:
+        found += [i[4][0] for i in socket.getaddrinfo(socket.gethostname(), None, socket.AF_INET)]
+    except OSError:
+        pass
+    for ip in found:
+        if not ip.startswith(("127.", "0.", "192.168.0.", "169.254.")):
+            return ip
+    return None
 movtime_cache = {}  # (path, size) -> seconds
 lens_cache = {}  # card path -> lens data from EXIF
 exif_cache = {}  # card path -> picture info (shooting data) from EXIF
@@ -118,10 +151,10 @@ def connections():
     """Detected connections with camera names for the start screen."""
     if conn_type is not None:
         return {"connected": conn_type, "wifi": conn_type == "wifi", "usb": conn_type == "usb",
-                "names": {}}
+                "names": {}, "lan": bool(lan["key"])}
     names = {"wifi": wifi_name(), "usb": usb_camera.detect_name()}
     return {"connected": None, "wifi": names["wifi"] is not None, "usb": names["usb"] is not None,
-            "names": names}
+            "names": names, "lan": bool(lan["key"])}
 
 
 def connect(kind):
@@ -870,7 +903,7 @@ def public_state():
     return {
         # busy: shooting sequence or shutter command running (camera may not be in mode "rec")
         "stage": cam.stage, "busy": busy.locked() or state["pressing"], "indexing": state["indexing"], "live": live.running, "lv_age": live.age, "lvqty": cam.lvqty,
-        "lvperf": live.performance() if hasattr(live, "performance") else None, "job": job,
+        "lvperf": getattr(live, "performance", lambda: None)(), "job": job,
         "transfer": state["transfer"], "latest": state["latest"], "play": state["play"] is not None,
         "transfer_error": state["transfer_error"], "hsl_error": hsl_auto["error"],
         "take": now - state["take"] if state["take"] else None,
@@ -893,7 +926,11 @@ class Handler(BaseHTTPRequestHandler):
         t0 = getattr(self, "_t0", None)
         if self.timing and t0 is not None and not self.path.startswith(("/api/state", "/api/connections")):
             print("%s %6.0f ms %s %s %s" % (time.strftime("%H:%M:%S"), (time.monotonic() - t0) * 1000,
-                                              code, self.command, self.path[:80]), flush=True)
+                                              code, self.command, self._log_path()), flush=True)
+
+    def _log_path(self):
+        path = self.path[:80]
+        return "/?key=…" if path.startswith("/?key=") else path  # never print the --lan key
 
     def _send(self, body, ctype="application/json", code=200):
         if isinstance(body, (dict, list)):
@@ -918,18 +955,58 @@ class Handler(BaseHTTPRequestHandler):
         n = int(self.headers.get("Content-Length") or 0)
         return json.loads(self.rfile.read(n) or b"{}")
 
+    def _local(self):
+        return self.client_address[0] in ("127.0.0.1", "::1")
+
+    def _lan_ok(self):
+        """The computer itself always; another device only with the --lan key in its cookie."""
+        if self._local():
+            return True
+        if not lan["key"]:
+            return False
+        cookie = http.cookies.SimpleCookie()
+        try:
+            cookie.load(self.headers.get("Cookie") or "")
+        except http.cookies.CookieError:
+            return False
+        c = cookie.get(LAN_COOKIE)
+        # compare bytes: compare_digest refuses non-ASCII str (a crafted cookie would raise)
+        return bool(c) and hmac.compare_digest(c.value.encode(), lan["key"].encode())
+
+    def _lan_login(self, u):
+        """Phone opened the QR link /?key=...: keep the key as a cookie and continue without it in the URL."""
+        if not lan["key"] or self._local() or u.path != "/" or self.headers.get("Host") not in allowed_hosts:
+            return False
+        key = urllib.parse.parse_qs(u.query).get("key", [""])[0]
+        if not key or not hmac.compare_digest(key.encode(), lan["key"].encode()):
+            return False
+        self.send_response(303)
+        self.send_header("Location", "/")
+        self.send_header("Set-Cookie", "%s=%s; Max-Age=%d; Path=/; HttpOnly; SameSite=Strict"
+                         % (LAN_COOKIE, lan["key"], LAN_COOKIE_AGE))
+        self.send_header("Content-Length", "0")
+        self.end_headers()
+        return True
+
     def _trusted(self):
-        """Only our own UI may control the camera, no foreign web page."""
-        if self.headers.get("Host") not in allowed_hosts:
+        """Only our own UI may control the camera, no foreign web page; other devices only with the --lan key."""
+        if self.headers.get("Host") not in allowed_hosts or not self._lan_ok():
             return False
         origin = self.headers.get("Origin")
         return origin is None or origin in {"http://" + h for h in allowed_hosts}
 
     def do_GET(self):
         self._t0 = time.monotonic()
-        if not self._trusted():
-            return self._send({"error": "Access denied"}, code=403)
         u = urllib.parse.urlparse(self.path)
+        if self._lan_login(u):
+            return None
+        if not self._trusted():
+            if lan["key"] and not self._local() and u.path == "/":
+                return self._send(b"<!doctype html><meta name=viewport content='width=device-width'>"
+                                  b"<p style='font:18px system-ui;padding:24px'>E-M1 Capture: scan the QR code "
+                                  b"(button Phone) on the computer to open the app here.</p>",
+                                  "text/html; charset=utf-8", code=403)
+            return self._send({"error": "Access denied"}, code=403)
         q = {k: v[0] for k, v in urllib.parse.parse_qs(u.query).items()}
         try:
             if u.path == "/":
@@ -957,6 +1034,10 @@ class Handler(BaseHTTPRequestHandler):
                     return self._send(orf_preview(p), "image/jpeg")
                 with open(p, "rb") as f:
                     return self._send(f.read(), "image/jpeg")
+            if u.path == "/api/lanlink":  # QR code for the phone, only on the computer itself (REQ-F47)
+                if not self._local() or not lan["url"]:
+                    return self._send({"error": "Phone link only with --lan, on the computer"}, code=404)
+                return self._send({"url": lan["url"], "svg": qr.svg(lan["url"], scale=5)})
             if cam is None:
                 return self._send({"error": "Not connected"}, code=409)
             if u.path == "/api/status":
@@ -965,6 +1046,7 @@ class Handler(BaseHTTPRequestHandler):
                     "model": cam.caminfo(), "host": cam.host,
                     "cgis": sorted(cam.commandlist()), "allow_write": cam.allow_write,
                     "om_workspace": om_workspace_installed(),
+                    "lan": bool(lan["key"]),
                     "usb_backend": getattr(cam, "backend", None),
                 })
             if u.path == "/api/level":
@@ -1295,6 +1377,9 @@ def main(argv=None):
                    help="folder for saved pictures (captures/) and the preview cache (out/cache/); default: current folder")
     p.add_argument("--no-browser", action="store_true", help="do not open the browser at start")
     p.add_argument("--timing", action="store_true", help="print every request with its duration")
+    p.add_argument("--lan", action="store_true",
+                   help="also open the app on a phone in the home network: shows a QR code with a one-time key "
+                        "(button Phone); other devices need that key")
     p.add_argument("--usb-backend", choices=("auto", "ptp", "gphoto2"),
                    default="auto" if sys.platform == "darwin" else "gphoto2",
                    help="USB: own PTP layer (ptp), libgphoto2 (gphoto2) or the PTP layer with libgphoto2 as fallback "
@@ -1303,7 +1388,8 @@ def main(argv=None):
     Handler.timing = a.timing
     url = "http://127.0.0.1:%d/" % a.port
     try:
-        server = ThreadingHTTPServer(("127.0.0.1", a.port), Handler)
+        lan_ip = lan_address() if a.lan else None  # no home network address: stay on this computer only
+        server = ThreadingHTTPServer(("0.0.0.0" if lan_ip else "127.0.0.1", a.port), Handler)
     except OSError as e:
         if e.errno != errno.EADDRINUSE:
             raise
@@ -1332,6 +1418,15 @@ def main(argv=None):
     from . import ptp_gphoto
     ptp_gphoto.Camera.index_cache = os.path.join(a.data_dir, "out", "cache", "ptp_index.json")
     allowed_hosts.update({"127.0.0.1:%d" % a.port, "localhost:%d" % a.port})
+    if a.lan:
+        ip = lan_ip
+        if ip:
+            lan["key"] = secrets.token_urlsafe(16)
+            lan["url"] = "http://%s:%d/?key=%s" % (ip, a.port, lan["key"])
+            allowed_hosts.add("%s:%d" % (ip, a.port))
+            print("Phone in the home network: scan the QR code (button Phone) or open " + lan["url"])
+        else:
+            print("--lan: no home network address found; the app stays on this computer only.")
     print("em1-capture %s  %s  (%s)" % (__version__, url, "WRITE ENABLED" if a.allow_write else "read only"))
     print("Keep this window open while you use the app; stop with Ctrl+C.")
     if not a.no_browser:
