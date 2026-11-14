@@ -1,6 +1,8 @@
 # Changelog
 
-## Unreleased
+## 0.7.4 – 2026-11-14
+
+Level gauge feedback and a held angle (USB).
 
 - Level gauge feedback and a held angle (USB): within 0.3° of level the line and dot turn green and thicker and a chip says "Level ✓"; an optional short sound (switch "Sound", off by default) plays when the camera gets there. "Hold angle" keeps the current horizon and tilt as the target, shown as a dashed line and a mark; the gauge then shows the deviation ("Δ Horizon … · Δ Tilt … to the held angle") and "Angle matched ✓" – for repeat shots and product series from the same angle. The target is remembered until "Clear angle". Tried by the user 2026-11-14 (REQ-F44).
 
