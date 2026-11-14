@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>E-M1 Capture</title>
 <style>
 /* design tokens, source: design/tokens.css (dark only; shooting stays dark) */
@@ -44,6 +44,7 @@
 /* legacy names used further down, mapped to the tokens */
 :root{--bg:var(--ground);--panel:var(--surface);--fg:var(--text);--mut:var(--muted);--acc:var(--accent);--warn:var(--rec-text);color-scheme:dark}
 *{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%;text-size-adjust:100%} /* no font inflation when the phone turns */
 [hidden]{display:none!important}
 body{margin:0;background:var(--ground);color:var(--text);font:var(--fs-body)/1.4 var(--font-ui)}
 header{display:flex;gap:var(--s3);align-items:center;flex-wrap:wrap;padding:10px 20px;border-bottom:1px solid var(--line)}
@@ -231,7 +232,8 @@ dialog h2{margin-top:12px}
 .tile .ct{position:absolute;right:6px;bottom:6px;padding:1px 8px;font-size:11px;font-weight:600;color:var(--accent-ink);background:var(--accent);border-radius:var(--r-pill)} /* calendar: number of shots that day */
 #vBody{flex:1;min-height:0;display:flex}
 #vImgBox{flex:1;min-height:0;min-width:0;position:relative}
-#vImg{position:absolute;inset:0;width:100%;height:100%;object-fit:contain}
+#vImg{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;transform-origin:50% 50%}
+#vImgBox:not(.full){touch-action:none;overflow:hidden} /* pinch and pan zoom the picture, not the page */
 #vImgBox.full{overflow:auto}
 #vImgBox.full #vImg{position:static;width:auto;height:auto;max-width:none;object-fit:none}
 #vStrip{position:absolute;left:0;right:0;bottom:0;padding:10px 18px;display:flex;gap:22px;flex-wrap:wrap;align-items:center;background:linear-gradient(0deg,rgba(0,0,0,.8),rgba(0,0,0,0));font:500 17px var(--font-value);pointer-events:none}
@@ -1704,6 +1706,7 @@ function viewerUrl(f){
 const movLen=new Map();
 const clockLen=sec=>Math.floor(sec/3600)+':'+pad(Math.floor(sec/60)%60)+':'+pad(sec%60);
 async function showShot(){
+  vZoomReset();
   const s=vList[vIdx], f=s.preview, token=++vToken, im=$('#vImg');
   let info=`${vIdx+1}/${vList.length} · ${s.name} · ${s.types} · ${s.dt.y}-${pad(s.dt.m)}-${pad(s.dt.d)} ${pad(s.dt.h)}:${pad(s.dt.mi)}${s.size?' · '+(s.size/1048576).toFixed(1)+' MB':''}`;
   // movie length only in mode "play", otherwise the camera answers with an error
@@ -1797,9 +1800,62 @@ async function showInfo(s,token){
 }
 $('#vInfoBtn').onclick=()=>{gv.info=INFO_MODES[(INFO_MODES.indexOf(gv.info)+1)%3];gv.infoSet=true;saveGal();if(vList[vIdx])showInfo(vList[vIdx],vToken)};
 $('#vImg').onload=()=>{if(gv.info==='overall')drawVHist()};
-$('#vFit').onclick=()=>{const b=$('#vImgBox');b.classList.toggle('full');$('#vFit').textContent=tr(b.classList.contains('full')?'view.full':'view.fit')};
+$('#vFit').onclick=()=>{vZoomReset();const b=$('#vImgBox');b.classList.toggle('full');$('#vFit').textContent=tr(b.classList.contains('full')?'view.full':'view.fit')};
+/* Pinch to zoom in the single-frame view (phone), pan with one finger while zoomed, double tap 1x / 2.5x,
+   mouse wheel on the computer (user 2026-11-14). Only in the fitted view; "Fit" (1:1) keeps scrolling. */
+const vZoom={s:1,x:0,y:0}, vPtrs=new Map();
+let vGest=null, vTapAt=0, vTapPos=null;
+function vZoomApply(){$('#vImg').style.transform=vZoom.s>1.001?`translate(${vZoom.x}px,${vZoom.y}px) scale(${vZoom.s})`:''}
+function vZoomReset(){vZoom.s=1;vZoom.x=0;vZoom.y=0;vGest=null;vPtrs.clear();vZoomApply()}
+function vZoomClamp(){
+  const b=$('#vImgBox').getBoundingClientRect(), mx=b.width*(vZoom.s-1)/2, my=b.height*(vZoom.s-1)/2;
+  vZoom.x=Math.max(-mx,Math.min(mx,vZoom.x)); vZoom.y=Math.max(-my,Math.min(my,vZoom.y));
+}
+function vZoomTo(s,cx,cy){ // keep the point (cx,cy) relative to the box centre under the fingers
+  s=Math.max(1,Math.min(6,s)); const k=s/vZoom.s;
+  vZoom.x=cx-(cx-vZoom.x)*k; vZoom.y=cy-(cy-vZoom.y)*k; vZoom.s=s; vZoomClamp(); vZoomApply();
+}
+function vCentre(e){const b=$('#vImgBox').getBoundingClientRect();return {x:e.clientX-b.left-b.width/2,y:e.clientY-b.top-b.height/2}}
+(()=>{
+  const box=$('#vImgBox');
+  const active=e=>!box.classList.contains('full')&&!e.target.closest('#vStrip');
+  box.addEventListener('pointerdown',e=>{
+    if(!active(e)) return;
+    box.setPointerCapture(e.pointerId); vPtrs.set(e.pointerId,vCentre(e));
+    const p=[...vPtrs.values()];
+    if(p.length===2) vGest={pinch:true,d:Math.hypot(p[0].x-p[1].x,p[0].y-p[1].y)||1,s:vZoom.s,x:vZoom.x,y:vZoom.y,
+                            c:{x:(p[0].x+p[1].x)/2,y:(p[0].y+p[1].y)/2}};
+    else if(p.length===1) vGest={pinch:false,start:p[0],x:vZoom.x,y:vZoom.y,moved:false};
+  });
+  box.addEventListener('pointermove',e=>{
+    if(!vPtrs.has(e.pointerId)||!vGest) return;
+    vPtrs.set(e.pointerId,vCentre(e)); const p=[...vPtrs.values()];
+    if(vGest.pinch&&p.length>=2){
+      const d=Math.hypot(p[0].x-p[1].x,p[0].y-p[1].y), c={x:(p[0].x+p[1].x)/2,y:(p[0].y+p[1].y)/2};
+      const s=Math.max(1,Math.min(6,vGest.s*d/vGest.d)), k=s/vGest.s;
+      vZoom.s=s; vZoom.x=c.x-(vGest.c.x-vGest.x)*k; vZoom.y=c.y-(vGest.c.y-vGest.y)*k; vZoomClamp(); vZoomApply();
+    }else if(!vGest.pinch){
+      const dx=p[0].x-vGest.start.x, dy=p[0].y-vGest.start.y;
+      if(Math.hypot(dx,dy)>6) vGest.moved=true;
+      if(vZoom.s>1){vZoom.x=vGest.x+dx;vZoom.y=vGest.y+dy;vZoomClamp();vZoomApply()}
+    }
+  });
+  const up=e=>{
+    if(!vPtrs.has(e.pointerId)) return;
+    const pos=vPtrs.get(e.pointerId); vPtrs.delete(e.pointerId);
+    if(vGest&&!vGest.pinch&&!vGest.moved&&e.type==='pointerup'){ // double tap: 1x <-> 2.5x at the tapped point
+      const now=Date.now();
+      if(now-vTapAt<320&&vTapPos&&Math.hypot(pos.x-vTapPos.x,pos.y-vTapPos.y)<30){vTapAt=0;vZoom.s>1?vZoomReset():vZoomTo(2.5,pos.x,pos.y)}
+      else{vTapAt=now;vTapPos=pos}
+    }
+    const p=[...vPtrs.values()];
+    vGest=p.length===1?{pinch:false,start:p[0],x:vZoom.x,y:vZoom.y,moved:true}:null; // second finger lifted: keep panning
+  };
+  box.addEventListener('pointerup',up); box.addEventListener('pointercancel',up);
+  box.addEventListener('wheel',e=>{if(!active(e))return;e.preventDefault();const c=vCentre(e);vZoomTo(vZoom.s*Math.exp(-e.deltaY/300),c.x,c.y)},{passive:false});
+})();
 function openViewer(list,i){vList=list;vIdx=i;$('#viewer').hidden=false;$('#vImgBox').classList.remove('full');$('#vFit').textContent=tr('view.fit');showShot()}
-function closeViewer(){vToken++;$('#viewer').hidden=true;$('#vImg').removeAttribute('src');pump()}
+function closeViewer(){vZoomReset();vToken++;$('#viewer').hidden=true;$('#vImg').removeAttribute('src');pump()}
 function stepViewer(d){const n=vIdx+d;if(n>=0&&n<vList.length){vIdx=n;showShot()}}
 $('#vPrev').onclick=()=>stepViewer(-1);
 $('#vNext').onclick=()=>stepViewer(1);
@@ -2242,7 +2298,14 @@ AID_IDS.filter(i=>i!=='lvlOn').concat('aidPeakCol').forEach(i=>$('#'+i).onchange
 setInterval(aidTick,250); // 4 frames/s are enough and keep the CPU low
 // Level gauge (USB, PTP backend): own poll, faster than tick(), only while it is shown (REQ-F23)
 setInterval(()=>{if(features.has('level')&&st&&st.live&&$('#lvlOn').checked)pollLevel()},150);
-new ResizeObserver(()=>{drawGrid();applyZoom();drawAf()}).observe(vp);
+new ResizeObserver(()=>{drawGrid();applyZoom();drawAf();drawLevel()}).observe(vp);
+/* Turning the phone: iOS Safari can keep a page zoom from before, so the page looks as if it did not turn.
+   Briefly limiting the scale resets it; the layout itself follows the CSS for portrait/landscape. */
+addEventListener('orientationchange',()=>{
+  const m=document.querySelector('meta[name=viewport]'), c=m.content;
+  m.content=c+',maximum-scale=1'; setTimeout(()=>{m.content=c},400);
+  vZoomReset();
+});
 
 /* Overlay */
 /* Overlay switched off (user 2026-11-14): a plain guide picture is mistaken for a multiple exposure; it comes back

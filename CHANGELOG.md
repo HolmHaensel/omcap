@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- Single-frame view on a phone: pinch with two fingers zooms the picture (up to 6×), one finger moves the zoomed picture, a double tap switches between 1× and 2.5×; the mouse wheel zooms on the computer. Before, a pinch zoomed the whole page.
+- Turning the phone: a page zoom left from before is reset, the font is no longer enlarged by the phone, and the level gauge is redrawn; the layout switches between portrait and landscape as before.
+
 ## 0.7.5 – 2026-11-14
 
 The app on a phone, a start screen that connects by itself, and a live view size that follows the phone.
