@@ -869,7 +869,8 @@ def public_state():
     now = time.time()
     return {
         # busy: shooting sequence or shutter command running (camera may not be in mode "rec")
-        "stage": cam.stage, "busy": busy.locked() or state["pressing"], "indexing": state["indexing"], "live": live.running, "lv_age": live.age, "lvqty": cam.lvqty, "job": job,
+        "stage": cam.stage, "busy": busy.locked() or state["pressing"], "indexing": state["indexing"], "live": live.running, "lv_age": live.age, "lvqty": cam.lvqty,
+        "lvperf": live.performance() if hasattr(live, "performance") else None, "job": job,
         "transfer": state["transfer"], "latest": state["latest"], "play": state["play"] is not None,
         "transfer_error": state["transfer_error"], "hsl_error": hsl_auto["error"],
         "take": now - state["take"] if state["take"] else None,

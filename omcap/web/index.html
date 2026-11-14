@@ -159,6 +159,8 @@ button:disabled{color:var(--disabled);opacity:.6;cursor:not-allowed}
 #recChip .dot{background:var(--rec);animation:blink 1s steps(2) infinite}
 @keyframes blink{50%{opacity:.25}}
 @media(prefers-reduced-motion:reduce){#recChip .dot{animation:none}}
+/* Wi-Fi on phone width: the live view size follows the screen and the signal (REQ-F45), the manual choice is hidden */
+@media(max-width:700px){label[data-feat=lvsize]{display:none!important}#autoLvStatus:not([hidden]){display:inline-flex}}
 #viewport.rec{box-shadow:0 0 0 2px var(--rec)}
 #dropChip{position:absolute;left:50%;top:54px;transform:translateX(-50%);height:32px;display:flex;align-items:center;padding:0 14px;border-radius:16px;background:var(--overlay);border:1px solid var(--rec);color:var(--rec-text);z-index:4;pointer-events:none}
 #empty{flex-direction:column;gap:var(--s2);text-align:center}
@@ -386,6 +388,7 @@ body.webcam{cursor:none;display:flex;align-items:center;justify-content:center}
     <label class="lab" data-feat="lvsize"><span data-i18n="lv.size">Size</span> <select id="lvqty">
       <option>0320x0240</option><option>0640x0480</option><option selected>0800x0600</option><option>1024x0768</option><option>1280x0960</option>
     </select></label>
+    <span id="autoLvStatus" class="chip" hidden data-feat="lvsize"></span>
     <span class="vsep"></span>
     <span id="lvTools" hidden>
       <label class="tog" data-feat="level"><input type="checkbox" id="lvlOn"> <span data-i18n="lv.level">Level gauge</span></label>
@@ -702,6 +705,8 @@ const I18N={en:{
   "lv.start": "Start live view",
   "lv.stop": "Stop live view",
   "lv.size": "Size",
+  "lv.auto": "Auto · {size}",
+  "lv.autoReduced": "Live view adjusted to {size} for a smoother signal",
   "lv.second": "Second monitor",
   "lv.webcam": "Webcam (OBS)",
   "save.folder": "Folder on the computer",
@@ -1003,6 +1008,44 @@ function shotMode(path){
 let isUsb=false; // connection type from /api/status
 let st={stage:0,job:{}},canWrite=false,wasBusy=false,connected=false,features=new Set(),af=null;
 let quitting=false;
+/* Adaptive live view size over Wi-Fi on phone width (REQ-F45, from the redesign, user 2026-11-14): start with the
+   size that fits the screen and step down when frames come too slowly (<12 fps or >18 % lost over 4 s) or stall
+   (>1.5 s); at most every 8 s and never during a shot, job, movie or card read. Desktop and USB keep the manual size. */
+const MOBILE_LIVE=matchMedia('(max-width:700px)');
+const AUTO_LV_SIZES=['0640x0480','0800x0600','1024x0768','1280x0960'];
+let autoLvBusy=false,autoLvLastChange=0;
+const autoLvEnabled=()=>MOBILE_LIVE.matches&&!isUsb&&canWrite&&features.has('lvsize');
+const lvSizeText=size=>size.replace(/^0+/,'').replace('x0','×');
+function autoLvLabel(size){
+  const el=$('#autoLvStatus');
+  el.hidden=!autoLvEnabled();
+  if(size) el.textContent=tr('lv.auto',{size:lvSizeText(size)});
+}
+function idealMobileLvSize(){
+  const px=Math.min(1280,Math.max(640,Math.ceil($('#viewport').clientWidth*(devicePixelRatio||1))));
+  return AUTO_LV_SIZES.find(s=>parseInt(s,10)>=px)||AUTO_LV_SIZES.at(-1);
+}
+function prepareAutoLiveSize(){
+  if(!autoLvEnabled()){autoLvLabel();return false}
+  const size=idealMobileLvSize();
+  $('#lvqty').value=size; lvPicked=true; autoLvLastChange=Date.now();
+  autoLvLabel(size);
+  return true;
+}
+async function reduceAutoLiveSize(){
+  if(autoLvBusy||!autoLvEnabled()||Date.now()-autoLvLastChange<8000) return;
+  if(st.stage>0||st.busy||st.indexing||st.movie!=null||st.take!=null||(st.job&&st.job.running)) return;
+  const current=st.lvqty||$('#lvqty').value, i=AUTO_LV_SIZES.indexOf(current);
+  if(i<=0) return;
+  const perf=st.lvperf||{}, stale=st.lv_age!=null&&st.lv_age>1.5;
+  const slow=perf.sample_seconds>=4&&((perf.fps!=null&&perf.fps<12)||(perf.drop_ratio!=null&&perf.drop_ratio>.18));
+  if(!stale&&!slow) return;
+  const next=AUTO_LV_SIZES[i-1];
+  autoLvBusy=true; autoLvLastChange=Date.now();
+  $('#lvqty').value=next; lvPicked=true; autoLvLabel(next);
+  msg(tr('lv.autoReduced',{size:lvSizeText(next)}));
+  try{await $('#lvStart').onclick()}finally{autoLvBusy=false}
+}
 async function tick(){
   if(view||!connected||quitting) return;
   const liOld=JSON.stringify(st&&st.lvinfo);
@@ -1017,6 +1060,7 @@ async function tick(){
   $('#lvStart').hidden=st.live||!canWrite; $('#lvStop').hidden=!st.live;
   renderStrip();
   const w=$('#live').naturalWidth, stale=st.live&&st.lv_age>3;
+  if(st.live) reduceAutoLiveSize();
   const off=st.live&&w&&st.lvqty&&w!==parseInt(st.lvqty,10);
   $('#lvSize').textContent=stale?tr('lv.noSignal',{s:Math.round(st.lv_age)}):st.live&&w?tr('lv.receiving',{w,h:$('#live').naturalHeight}):'';
   $('#lvSize').className=off||stale?'warn':'mut';
@@ -2236,6 +2280,7 @@ $('#layoutReset').onclick=()=>{layout={};commit()};
 $('#lvStart').onclick=async()=>{
   try{await api('/api/liveview',{action:'start',lvqty:isUsb&&!lvPicked?null:$('#lvqty').value});startLiveLoop();msg(tr('msg.lvRunning'));await tick();if(features.has('af_area'))loadAf();setTimeout(props,1500)}catch(e){msg(e.message,true)}};
 $('#lvqty').onchange=()=>{lvPicked=true;if(st.live)$('#lvStart').click()};
+MOBILE_LIVE.addEventListener('change',()=>{if(autoLvEnabled())prepareAutoLiveSize();else autoLvLabel()});
 $('#lvStop').onclick=()=>act(tr('msg.lvStopped'),'/api/liveview',{action:'stop'});
 /* Shooting: the whole sequence. If Halfway is just holding focus, press through from there and release,
       as on the real shutter button. All the way and release are merged into it. */
@@ -2484,9 +2529,12 @@ async function enterApp(){
     // live view first, card list last: the list holds the camera for seconds
     // USB: connecting waits for the card index; once it is read the list costs only milliseconds
     const list=async()=>{try{st=await api('/api/state')}catch{} gallery(isUsb&&!st.indexing)}; // fresh state
-    if(canWrite&&!st.live) $('#lvStart').onclick().finally(list); else list();
     if(st.lvqty) $('#lvqty').value=st.lvqty;
     else if(isUsb) $('#lvqty').value='1024x0768';
+    const autoSize=prepareAutoLiveSize();
+    if(canWrite&&!st.live) $('#lvStart').onclick().finally(list);
+    else if(autoSize&&st.live&&st.lvqty!==$('#lvqty').value) $('#lvStart').onclick().finally(list);
+    else list();
     startLiveLoop();
   }catch(e){$('#status').className='warn';$('#status').textContent=e.message;$('#connChip').hidden=true}
   local(); applyLayout();

@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Wi-Fi on phone width: the live view size follows the screen and the signal. It starts with the size that fits the screen and steps down one size when frames come too slowly (under 12 fps or more than 18 % lost over 4 s) or stall for more than 1.5 s, at most every 8 s and never during a shot, job, movie or card read; a chip "Auto · 800×600" shows the size. `/api/state` reports the live view rate and lost frames (`lvperf`). Desktop and USB keep the manual size. Built in the redesign, moved to `main` (REQ-F45). Not yet tested at the camera.
+
 ## 0.7.4 – 2026-11-14
 
 Level gauge feedback and a held angle (USB).
