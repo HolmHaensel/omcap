@@ -925,7 +925,11 @@ class Handler(BaseHTTPRequestHandler):
         t0 = getattr(self, "_t0", None)
         if self.timing and t0 is not None and not self.path.startswith(("/api/state", "/api/connections")):
             print("%s %6.0f ms %s %s %s" % (time.strftime("%H:%M:%S"), (time.monotonic() - t0) * 1000,
-                                              code, self.command, self.path[:80]), flush=True)
+                                              code, self.command, self._log_path()), flush=True)
+
+    def _log_path(self):
+        path = self.path[:80]
+        return "/?key=…" if path.startswith("/?key=") else path  # never print the --lan key
 
     def _send(self, body, ctype="application/json", code=200):
         if isinstance(body, (dict, list)):
@@ -965,14 +969,15 @@ class Handler(BaseHTTPRequestHandler):
         except http.cookies.CookieError:
             return False
         c = cookie.get(LAN_COOKIE)
-        return bool(c) and hmac.compare_digest(c.value, lan["key"])
+        # compare bytes: compare_digest refuses non-ASCII str (a crafted cookie would raise)
+        return bool(c) and hmac.compare_digest(c.value.encode(), lan["key"].encode())
 
     def _lan_login(self, u):
         """Phone opened the QR link /?key=...: keep the key as a cookie and continue without it in the URL."""
         if not lan["key"] or self._local() or u.path != "/" or self.headers.get("Host") not in allowed_hosts:
             return False
         key = urllib.parse.parse_qs(u.query).get("key", [""])[0]
-        if not key or not hmac.compare_digest(key, lan["key"]):
+        if not key or not hmac.compare_digest(key.encode(), lan["key"].encode()):
             return False
         self.send_response(303)
         self.send_header("Location", "/")
@@ -1382,7 +1387,8 @@ def main(argv=None):
     Handler.timing = a.timing
     url = "http://127.0.0.1:%d/" % a.port
     try:
-        server = ThreadingHTTPServer(("0.0.0.0" if a.lan else "127.0.0.1", a.port), Handler)
+        lan_ip = lan_address() if a.lan else None  # no home network address: stay on this computer only
+        server = ThreadingHTTPServer(("0.0.0.0" if lan_ip else "127.0.0.1", a.port), Handler)
     except OSError as e:
         if e.errno != errno.EADDRINUSE:
             raise
@@ -1412,7 +1418,7 @@ def main(argv=None):
     ptp_gphoto.Camera.index_cache = os.path.join(a.data_dir, "out", "cache", "ptp_index.json")
     allowed_hosts.update({"127.0.0.1:%d" % a.port, "localhost:%d" % a.port})
     if a.lan:
-        ip = lan_address()
+        ip = lan_ip
         if ip:
             lan["key"] = secrets.token_urlsafe(16)
             lan["url"] = "http://%s:%d/?key=%s" % (ip, a.port, lan["key"])

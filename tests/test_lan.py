@@ -33,6 +33,14 @@ class LanKey(unittest.TestCase):
         self.assertFalse(handler("192.168.178.50", cookie="omcap_key=wrong")._trusted())
         self.assertTrue(handler("192.168.178.50", cookie="omcap_key=secret-key")._trusted())
 
+    def test_non_ascii_cookie_is_refused_not_crashing(self):
+        self.assertFalse(handler("192.168.178.50", cookie="omcap_key=\u00e9t\u00e9")._trusted())
+
+    def test_key_not_in_timing_log(self):
+        h = handler("192.168.178.50")
+        h.path = "/?key=secret-key"
+        self.assertNotIn("secret", h._log_path())
+
     def test_foreign_host_refused_even_with_key(self):
         self.assertFalse(handler("192.168.178.50", cookie="omcap_key=secret-key", host="evil.example:8765")._trusted())
 

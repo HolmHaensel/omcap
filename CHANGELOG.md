@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- Open the app on a phone (start with `--lan`): the computer shows a QR code behind the new **Phone** button; the phone scans it and gets a key that is new at every start (kept as a cookie for 12 hours). Other devices without the key see only a note; the QR link is only shown on the computer. The QR code is made by the app itself (no extra package). Tried with a phone 2026-11-14 (REQ-F47).
+- Open the app on a phone (start with `--lan`): the computer shows a QR code behind the new **Phone** button; the phone scans it and gets a key that is new at every start (kept as a cookie for 12 hours). Other devices without the key see only a note; the QR link is only shown on the computer. The QR code is made by the app itself (no extra package). A phone with the key can do everything the computer can (also Quit, Open in OM Workspace on the computer); the key stays in the phone's browser history. Without a home network address `--lan` stays on the computer. Tried with a phone 2026-11-14 while the computer was connected over Wi-Fi (REQ-F47).
 
 ## 0.7.4 – 2026-11-14
 
