@@ -74,6 +74,7 @@ recording a movie, read only, Wi-Fi drop-out (last good frame kept, "No signal f
 | In the app | Manual | Page |
 |---|---|---|
 | LV super control panel | "LV super control panel" (live view), "super control panel" (viewfinder) | p.19, p.24 |
+| Level gauge (Horizon, Tilt) | "Level gauge" (INFO cycle in live view; tilt on the vertical bar, horizon on the horizontal bar) | p.35, p.37 |
 | Shooting mode iAUTO / P / A / S / M / ART / Movie | iAUTO, Program shooting, Aperture priority, Shutter priority, Manual shooting, ART, movie mode | p.18, p.38–50 |
 | Shutter speed, Aperture, Exposure compensation | Shutter speed, Aperture value, exposure compensation | p.40–41, p.51 |
 | ISO | ISO sensitivity (panel legend), ISO (menus) | p.24, p.59 |
