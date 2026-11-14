@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.7.6 – 2026-11-14
+
+Playback on a phone: pinch to zoom, swipe between pictures, pinch for the Index display size.
+
+- Single-frame view on a phone (in the fitted view; "Fit" 1:1 keeps scrolling): pinch with two fingers zooms the picture (up to 6×), one finger moves the zoomed picture, a double tap switches between 1× and 2.5×; the mouse wheel zooms on the computer. Before, a pinch zoomed the whole page. At 1× a sideways swipe shows the next or previous picture: one finger or a mouse drag (past 60 px), or a sideways wheel – Magic Mouse, trackpad, Shift + wheel (past 80 px, one picture per gesture; a new swipe during the momentum of the last one counts, no click needed); the picture follows and slides out, and gives only a little at the first and last picture. The ‹ › buttons stay in the bar. Swipe tried 2026-11-14. (REQ-F48)
+- Index display on a phone (touch only): pinch changes the grid like a photo library – the grid scales smoothly with the fingers and settles on the nearest size (S 5×5, M 3×3, L 2×2) when they lift; one finger still scrolls. Tried on an iPhone 2026-11-14. (REQ-F48)
+- Calendar display on a phone (width up to 700 px, redrawn when the phone turns): the badge shows only the number of shots ("12"; the full "12 shots" stays as a tooltip and is read by screen readers) and the day and badge are smaller, so the day stays visible. (REQ-F48)
+- The **Phone** button (with `--lan`) is also on the start screen, so the QR code can be shown before a camera is connected (REQ-F47).
+- Turning the phone: a page zoom left from before is reset, the font is no longer enlarged by the phone, and the level gauge is redrawn; the layout switches between portrait and landscape as before. Phone gestures tried on a phone 2026-11-14; the rotation fix is not confirmed yet (REQ-F48).
+
 ## 0.7.5 – 2026-11-14
 
 The app on a phone, a start screen that connects by itself, and a live view size that follows the phone.

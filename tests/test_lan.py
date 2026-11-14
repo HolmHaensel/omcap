@@ -49,6 +49,16 @@ class LanKey(unittest.TestCase):
             self.assertFalse(handler("192.168.178.50", cookie="omcap_key=secret-key")._trusted())
 
 
+class Connections(unittest.TestCase):
+    def test_lan_flag_in_both_branches(self):
+        with mock.patch.dict(server.lan, {"key": "k"}), mock.patch.object(server, "conn_type", "usb"):
+            self.assertTrue(server.connections()["lan"])
+        with mock.patch.dict(server.lan, {"key": None}), mock.patch.object(server, "conn_type", None), \
+                mock.patch.object(server, "wifi_name", return_value=None), \
+                mock.patch.object(server.usb_camera, "detect_name", return_value=None):
+            self.assertFalse(server.connections()["lan"])
+
+
 class LanAddress(unittest.TestCase):
     def test_camera_network_is_skipped(self):
         with mock.patch.object(server.socket, "socket") as sock, \

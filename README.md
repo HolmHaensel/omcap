@@ -45,6 +45,7 @@ Please report what works on your body in [Discussions](https://github.com/HolmHa
 | USB backend (`--usb-backend`) | – | yes: `auto` (default on macOS) uses the app's own PTP layer and falls back to libgphoto2 (tested on macOS); Linux: libgphoto2, not tested |
 | Level gauge in the live view (horizon line and tilt dot) | – (the camera sends no tilt over Wi-Fi) | yes, with the own PTP layer, not with libgphoto2 (switch "Level gauge" in the live view tools, off by default and remembered; "Level ✓" feedback, optional sound, "Hold angle" for repeat shots from the same angle; tested 2026-11-14) |
 | Open the app on a phone in the home network (`--lan`, QR code behind **Phone**) | yes (tried 2026-11-14) | yes (not tried yet with the computer on USB) |
+| Phone gestures in Playback: pinch zoom and swipe in the single-frame view (also Magic Mouse / trackpad / Shift + wheel on the computer), pinch for the Index display size, compact calendar badge | yes (tried on a phone 2026-11-14) | yes (same page code, UI only; not tried separately on USB) |
 | Start screen connects by itself to the camera used last time (2 s, **Stay here** stops it) | yes (tested 2026-11-14) | yes (USB reconnect not tested yet) |
 | Live view size follows the screen and the signal on phone width ("Auto · 800×600") | yes (tested 2026-11-14) | – (USB keeps the manual size: the PTP live view needs no step-down, 26 fps at 1024×768) |
 | Tap the 9×9 AF grid to focus, AF target shown in green | yes | yes |
@@ -140,10 +141,12 @@ cd omcap
 ### On a phone (`--lan`)
 
 Start with `--lan` (for example `.venv/bin/em1-capture --allow-write --lan`) to use the app on a phone in the
-same home network: on the computer click **Phone** in the header and scan the QR code with the phone's camera.
+same home network: on the computer click **Phone** (start screen or header) and scan the QR code with the phone's camera.
 The phone gets a key that is new at every start and keeps it for 12 hours; other devices in the network see only
 a note to scan the code. The computer itself needs no key. The computer stays connected to the camera (Wi-Fi or
 USB); the phone stays in the home Wi-Fi. Without `--lan` the app answers only on the computer.
+On the phone, pinch zooms a picture in the single-frame view (double tap: 1× / 2.5×), a sideways swipe at 1× shows
+the next or previous picture, and pinch changes the size of Index display; turning the phone switches between the portrait and landscape layout.
 
 ### Stop
 

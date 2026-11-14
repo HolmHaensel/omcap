@@ -151,10 +151,10 @@ def connections():
     """Detected connections with camera names for the start screen."""
     if conn_type is not None:
         return {"connected": conn_type, "wifi": conn_type == "wifi", "usb": conn_type == "usb",
-                "names": {}}
+                "names": {}, "lan": bool(lan["key"])}
     names = {"wifi": wifi_name(), "usb": usb_camera.detect_name()}
     return {"connected": None, "wifi": names["wifi"] is not None, "usb": names["usb"] is not None,
-            "names": names}
+            "names": names, "lan": bool(lan["key"])}
 
 
 def connect(kind):
