@@ -37,3 +37,9 @@ body:
       label: Wi-Fi command list (optional)
       description: "Output of: curl -s -H 'User-Agent: OlympusCameraKit' http://192.168.0.10/get_commandlist.cgi"
       render: xml
+  - type: textarea
+    id: desclist
+    attributes:
+      label: Wi-Fi settings list (optional)
+      description: "Output of (read-only, in shooting mode): curl -s -H 'User-Agent: OlympusCameraKit' 'http://192.168.0.10/get_camprop.cgi?com=desc&propname=desclist' – shows which settings and values your body offers"
+      render: xml

@@ -8,6 +8,10 @@ A local web app to control an **Olympus OM-D E-M1 (Mark I)** from a computer, ov
 > Olympus. "Olympus", "OM-D" and "OI.Share" are trademarks of their respective owners.
 > Use at your own risk.
 
+![E-M1 Capture over USB: live view with the 9×9 AF grid and the focused field in green, LV super control panel, AF target, movie, shooting options and the shutter buttons](design/screenshots/app-usb-live-view.jpg)
+
+*E-M1 Capture 0.7 with the E-M1 Mark I over USB: live view with AF grid (focused field in green), LV super control panel and Take picture.*
+
 ## Why this project
 
 I love Olympus cameras. The OM-D E-M1 Mark I is a fantastic camera to learn photography with:
@@ -24,13 +28,24 @@ Maybe OM System finds an idea or two here for their future cameras.
 
 Contributions, tests with other bodies and ideas are very welcome.
 
+### Other cameras: PEN-F
+
+E-M1 Capture is built and tested on the E-M1 Mark I, but it can bring other Olympus bodies of the
+same generation back to life too. A user reports running it successfully with an **Olympus PEN-F**,
+and with a PEN-F colour emulation (PEN-F style COLOR profiles; see also the app's own
+[HSL color profiles](#hsl-color-profiles-software)). These setups are tested by users, not by the
+maintainer: functions and terms follow the E-M1 manual, and some controls may differ on the PEN-F.
+Please report what works on your body in [Discussions](https://github.com/HolmHaensel/omcap/discussions).
+
 ## Features
 
 | Feature | Wi-Fi | USB |
 |---|---|---|
 | Live view with selectable size, zoom, Displayed Grid, overlay, second monitor | yes | yes (size choice up to 1280×960 with the PTP backend on macOS; with libgphoto2 it needs 2.5.34.1 or later, see below) |
 | USB backend (`--usb-backend`) | – | yes: `auto` (default on macOS) uses the app's own PTP layer and falls back to libgphoto2 (tested on macOS); Linux: libgphoto2, not tested |
+| Level gauge in the live view (horizon line and tilt dot) | – (the camera sends no tilt over Wi-Fi) | yes, with the own PTP layer, not with libgphoto2 (switch "Level gauge" in the live view tools, off by default and remembered; "Level ✓" feedback, optional sound, "Hold angle" for repeat shots from the same angle; tested 2026-11-14) |
 | Tap the 9×9 AF grid to focus, AF target shown in green | yes | yes |
+| AF frame on tap with "Show AF targets" off (about 4 s: white focusing, green in focus, red no focus) | yes (tested 2026-11-14) | yes (tried 2026-11-14 in the redesign build) |
 | AF Area (All Targets, Single Target, Small Target, Group Target) | – (no command over Wi-Fi) | yes |
 | Focus Stacking On/Off (8 frames, 16 files with JPG+ORF, merged in the camera; P/A/S/M) | – (no command over Wi-Fi) | yes (tested 2026-11-13) |
 | Focus ring (MF): Near/Far in three step sizes, AF mode MF or S-AF+MF | – (no command over Wi-Fi) | yes (tested 2026-11-13) |
@@ -53,7 +68,7 @@ Contributions, tests with other bodies and ideas are very welcome.
 | Open in OM Workspace from the single-frame view (macOS, only when OM Workspace is installed) | yes (not tested yet) | yes (tested 2026-11-13) |
 | Save to card only or card and computer | yes | yes |
 | Free card space in the header | yes (free shots, live from the live view) | yes |
-| Current focal length in the header, ISO with ISO Auto, shutter speed and aperture the camera uses in auto modes | yes (sent with the live view) | – (no live USB property found) |
+| Current focal length in the header, ISO with ISO Auto ("now 800" in the ISO tile and the value strip, not in Movie mode), shutter speed and aperture the camera uses in auto modes | yes (sent with the live view) | – (no live USB property found) |
 | Battery level | yes (during live view, sent with the picture) | yes |
 | Read-only settings (Anti-Shock, Silent, Noise Reduct., BULB/TIME Timer, Digital Tele-converter) | yes | – (no PTP property known) |
 | Share Order: show, save all, reset | yes (in playback) | – (no PTP counterpart known) |
@@ -66,11 +81,10 @@ Contributions, tests with other bodies and ideas are very welcome.
 | HSL colour profiles in the app (HSL button, auto-apply, before/after) | yes | yes (untested) |
 | Start by double-click, browser opens by itself | yes | yes |
 
-**Not possible with the E-M1 Mark I:** a live level gauge (the camera sends no tilt over Wi-Fi; over
-USB the tilt is only updated when the session starts), changing AF Area over Wi-Fi and the shooting mode
-over USB (the camera offers no command for it).
+**Not possible with the E-M1 Mark I:** the level gauge over Wi-Fi (no tilt data), changing AF Area over Wi-Fi and the
+shooting mode over USB (the camera offers no command for it).
 
-**Planned (next releases):** Mac app with a menu bar icon, Windows over Wi-Fi, movie settings and Focus BKT over USB (0.7), subject detection in live view on the computer (face/eye,
+**Planned (next releases):** Mac app with a menu bar icon, Windows over Wi-Fi, movie settings and Focus BKT over USB (0.7.x), subject detection in live view on the computer (face/eye,
 later animals and birds; the E-M1 itself sends no face frames) with "Focus on subject", film looks and
 a look lab on the computer, later a Star AF focus aid (star sharpness while you turn the focus ring). Ideas and wishes are welcome in [Discussions](https://github.com/HolmHaensel/omcap/discussions).
 

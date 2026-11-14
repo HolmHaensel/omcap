@@ -1,6 +1,39 @@
 # Changelog
 
-## Unreleased (0.7)
+## 0.7.4 – 2026-11-14
+
+Level gauge feedback and a held angle (USB).
+
+- Level gauge feedback and a held angle (USB): within 0.3° of level the line and dot turn green and thicker and a chip says "Level ✓"; an optional short sound (switch "Sound", off by default) plays when the camera gets there. "Hold angle" keeps the current horizon and tilt as the target, shown as a dashed line and a mark; the gauge then shows the deviation ("Δ Horizon … · Δ Tilt … to the held angle") and "Angle matched ✓" – for repeat shots and product series from the same angle. The target is remembered until "Clear angle". Tried by the user 2026-11-14 (REQ-F44).
+
+## 0.7.3 – 2026-11-14
+
+The level gauge over USB.
+
+- USB level gauge: the live view shows the camera's tilt (horizon line, tilt dot, values next to the switch), read live with GetDevicePropValue (d053/d055) under PC control; the descriptor the app read before stays at the session-start value. Polled every 0.15 s while it is shown (about 35–70 ms per read, live view unchanged at 30 fps); in between the line and the dot glide to the newest value, so the gauge moves smoothly. Own PTP layer only (macOS default); hidden with libgphoto2 and over Wi-Fi (no tilt in the Wi-Fi data). The values read "Horizon" and "Tilt" as in the manual (p.37). The gauge stands still during a shot, a movie recording or a card read. Switched on and off with "Level gauge" in the live view tools: off by default, the choice is remembered like the other live view aids; while it is off the camera is not asked. Camera-tested 2026-11-14 (REQ-F23).
+
+## 0.7.2 – 2026-11-14
+
+Small additions found while using 0.7.1.
+
+- AF frame on tap without the grid: with "Show AF targets" off, a tap still shows the chosen AF frame for about 4 s – white while focusing, green in focus, red without focus (REQ-F41). Camera-tested over Wi-Fi 2026-11-14; over USB tried by the user in the redesign build (same code) on 2026-11-14.
+- Wi-Fi smoke test of the 0.7 page 2026-11-14: live view from single frames at 19 fps without gaps, tap focus with In focus / No focus, shutter blackout and Take picture with the last-shot picture.
+- ISO AUTO over Wi-Fi: the ISO the camera picks right now shows small and grey under AUTO in the ISO tile ("now 800") and next to ISO AUTO in the value strip (not in Movie mode); from the live view data (REQ-F29). Not over USB (no live value). Camera-tested over Wi-Fi 2026-11-14.
+
+## 0.7.1 – 2026-11-14
+
+Fixes in the browser page found while using 0.7.0.
+
+- Calendar display: the day of the month and the number of shots looked alike; the day is now large and bold, the number a yellow badge "12 shots".
+- HSL colour profile window: it grows with the before/after picture (it was fixed at 420 px, so the two pictures did not line up), and the comparison is a line with a handle in the picture (drag, click or arrow keys) instead of a slider below it. Camera-tested 2026-11-14.
+- Live view and the HSL comparison no longer drag a ghost copy of the picture; dragging pans the zoomed live view or moves the before/after line.
+- Single-frame view: the INFO button shows the details (Overall display) on the first click, then Simplified display, then Image only; the button is highlighted only while the details are open.
+- Live view off: the picture area turns dark instead of keeping the last frame (single-frame live view keeps the last picture).
+- The live view overlay is switched off for now (buttons hidden): a plain guide picture was mistaken for a multiple exposure. It comes back as a real multiple exposure that combines the frames (REQ-F43).
+
+## 0.7.0 – 2026-11-14
+
+Faster USB, closer to Wi-Fi: the app's own PTP layer, USB settings, focus ring, movie and Focus Stacking over USB, and a round of live view and focus fixes found at the camera.
 
 ### USB backend and performance
 - New USB backend on the app's own PTP layer (`omcap/ptp.py`, ctypes/libusb) with a gphoto2-compatible shim (`omcap/ptp_gphoto.py`), so the USB session logic is unchanged. Option `--usb-backend auto|ptp|gphoto2`: `auto` (default on macOS) uses the PTP layer and falls back to libgphoto2 when it cannot connect; elsewhere the default stays libgphoto2 (Linux). `/api/status` reports `usb_backend` (REQ-F28, camera-tested on macOS 2026-11-13).
@@ -32,14 +65,21 @@
 - CI: the Python 3.9 job runs on `ubuntu-24.04`; GitHub's `ubuntu-latest` moved to 26.04, which has no Python 3.9 for setup-python, so CI on `main` was red since 0.6.0 (REQ-Q08).
 - The app releases the camera when it is stopped with Ctrl+C or `kill` (leaves PC control and closes the session); before, the camera could stop answering until it was switched off.
 - README: USB on Linux works over libgphoto2 (not tested yet: camera mounting by the desktop, udev access); libgphoto2 stays the USB backend there.
-- 169 offline tests pass (2026-11-13).
+- 182 offline tests pass (2026-11-14); CI green on Ubuntu 24.04 (Python 3.9, 3.12) and macOS (3.12).
+- README: other cameras – a user runs E-M1 Capture with a PEN-F and with a PEN-F colour emulation (user-tested); the camera report template asks for the Wi-Fi settings list (REQ-G08).
+
+### Not in 0.7 (moved to 0.7.x / 0.8)
+- Camera changes without rebuilding the USB session, `getrecview` over Wi-Fi, capture target (card / computer) over USB, flash compensation, movie settings over USB, Focus BKT without stacking.
 
 ### Known issues
+- Wi-Fi: the main live view now loads single frames (`/live.jpg`) on both connections; tested over USB, **not yet over Wi-Fi**.
+- Focus Stacking: hiding Drive, Flash and AE BKT while it is on, and refusing it at BULB / LIVE TIME / LIVECOMP, are not camera-tested yet.
+- A touch AF target set on the camera monitor overrides the AF field chosen in the app (remove it on the camera).
 - USB movie: the app does not check that the camera really started recording (PHOTO STORY, some SCN modes, a full card); then it shows a recording that does not run until Stop recording is clicked.
 - LIVECOMP: a stop press shortly after the start (4–8 s) is ignored by the camera and the exposure keeps running; a later press ends it (probably after the first composite frame, Composite Settings). The app does not show that the exposure still runs.
 - Mode dial over USB: the new mode arrives only when PC control is switched on again, so each turn rebuilds the session (8–10 s); quick turns in a row show only the last position.
 - Wi-Fi drops out on the Mac (it leaves the camera network). Once, an app started from the launcher got "No route to host" while the shell reached the camera (macOS Local Network permission suspected).
-- USB with the libgphoto2 backend (fallback, Linux): live view pauses up to ~70 s after connecting while the card list is read.
+- USB with the libgphoto2 backend (fallback, Linux): live view pauses up to ~70 s after connecting while the card list is read (not with the PTP backend on macOS).
 - USB, All Targets + Halfway: the green AF field may not match where the camera focused.
 - A lens change is only noticed with the next photo (USB and Wi-Fi).
 

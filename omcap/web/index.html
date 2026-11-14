@@ -112,6 +112,8 @@ button:disabled{color:var(--disabled);opacity:.6;cursor:not-allowed}
 #focusChip.ok .dot{background:var(--focus)}
 #focusChip.miss{border-color:var(--rec);color:var(--rec-text)}
 #focusChip.miss .dot{background:var(--rec)}
+#levelChip{position:absolute;left:50%;top:92px;transform:translateX(-50%);display:flex;align-items:center;gap:8px;height:32px;padding:0 14px;border-radius:16px;background:var(--overlay);border:1px solid var(--focus-line);color:var(--focus);font-weight:600;pointer-events:none;z-index:4}
+#levelChip .dot{background:var(--focus)}
 #valStrip .sub{color:var(--muted);font-size:.8em;margin-left:-14px} /* ISO the camera picks at ISO AUTO */
 .isoAuto{display:block;font:12px var(--font-value);color:var(--muted);margin-top:2px}
 #valStrip{position:absolute;left:0;right:0;bottom:0;height:44px;display:flex;align-items:center;gap:22px;padding:0 18px;background:linear-gradient(0deg,rgba(0,0,0,.78),rgba(0,0,0,0));font-family:var(--font-value);font-size:17px;font-weight:500;pointer-events:none;z-index:2;white-space:nowrap;overflow:hidden}
@@ -547,6 +549,7 @@ section h2{margin-bottom:10px;color:#b9bec4;font-size:var(--fs-label);font-weigh
     <div id="recChip" hidden><span class="dot"></span><span id="recText"></span></div>
     <div id="dropChip" hidden></div>
     <div id="focusChip" hidden><span class="dot"></span><span id="focusChipText"></span></div>
+    <div id="levelChip" hidden><span class="dot"></span><span id="levelChipText"></span></div>
     <div id="valStrip" hidden></div>
     <div id="timerCount" hidden></div>
     <img id="lastShot" alt="" hidden data-i18n-title="last.title">
@@ -561,7 +564,12 @@ section h2{margin-bottom:10px;color:#b9bec4;font-size:var(--fs-label);font-weigh
     </select></label>
     <span class="vsep"></span>
     <span id="lvTools" hidden>
-      <label class="tog" data-feat="level"><input type="checkbox" id="lvlOn" checked> <span data-i18n="lv.level">Level gauge</span></label>
+      <label class="tog" data-feat="level"><input type="checkbox" id="lvlOn"> <span data-i18n="lv.level">Level gauge</span></label>
+      <span data-feat="level"><span id="lvlTools" hidden>
+        <button class="w" id="lvlHold" data-i18n="lv.hold">Hold angle</button>
+        <button class="w" id="lvlClear" data-i18n="lv.clear" hidden>Clear angle</button>
+        <label class="tog"><input type="checkbox" id="lvlSound"> <span data-i18n="lv.sound">Sound</span></label>
+      </span></span>
       <span id="lvlInfo" class="mut" data-feat="level"></span>
       <label class="tog"><span data-i18n="lv.grid">Displayed Grid</span> <select id="gridType"><option value="" data-i18n="lv.gridOff">Off</option><option value="thirds" data-i18n="lv.gridThirds">Rule of thirds</option><option value="cross" data-i18n="lv.gridCross">Crosshair</option><option value="mesh" data-i18n="lv.gridMesh">Grid</option></select></label>
       <label class="gridAdj" hidden>X <input type="range" id="gridX" min="-50" max="50" value="0"></label>
@@ -743,7 +751,7 @@ section h2{margin-bottom:10px;color:#b9bec4;font-size:var(--fs-label);font-weigh
     <span class="sp"></span>
     <button id="vInfoBtn" class="gallery-icon icon-info" data-i18n-title="info.title"></button>
     <button id="vFit" class="gallery-icon icon-fit" data-i18n-title="view.fit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="14" height="12" rx="1.5"/><path d="m5.5 14 3-3 2.5 2 2-2 2 3"/><circle cx="17.5" cy="7.5" r="3.5" fill="var(--surface)"/><path d="M17.5 5.8v3.4M15.8 7.5h3.4"/></svg><span class="sr-only" data-i18n="view.fit">Fit</span></button>
-    <button id="vGet" class="gallery-icon icon-download" data-i18n-title="card.saveToMac">Save to computer</button><button id="vHsl">HSL</button><button id="vWs" hidden data-i18n="view.ws">Open in OM Workspace</button><button id="vOvl" hidden class="gallery-icon icon-overlay" data-i18n-title="card.overlay">Overlay</button><button id="vClose" class="gallery-icon icon-close" data-i18n-title="card.close">Close</button>
+    <button id="vGet" class="gallery-icon icon-download" data-i18n-title="card.saveToMac">Save to computer</button><button id="vHsl" data-i18n="hsl.btn">HSL</button><button id="vWs" hidden data-i18n="view.ws">Open in OM Workspace</button><button id="vOvl" hidden class="gallery-icon icon-overlay" data-i18n-title="card.overlay">Overlay</button><button id="vClose" class="gallery-icon icon-close" data-i18n-title="card.close">Close</button>
   </div>
   <div id="vBody">
     <div id="vImgBox"><img id="vImg" alt=""><div id="vStrip" hidden></div></div>
@@ -920,7 +928,12 @@ const I18N={en:{
   "lv.peakBlack": "Black",
   "lv.peakRed": "Red",
   "lv.peakYellow": "Yellow",
-  "lv.roll": "Roll {a}° · Pitch {b}°",
+  "lv.roll": "Horizon {a}° · Tilt {b}°",
+  "lv.delta": "Δ Horizon {a}° · Δ Tilt {b}° to the held angle",
+  "lv.hold": "Hold angle", "lv.clear": "Clear angle", "lv.sound": "Sound",
+  "lv.levelOk": "Level", "lv.angleOk": "Angle matched",
+  "msg.angleHeld": "Angle held: Horizon {a}° · Tilt {b}°",
+  "msg.noLevel": "No level reading yet: start live view with the Level gauge on",
   "msg.ready": "Ready.",
   "msg.indexing": "Reading the card index (once per USB session, about 1 min) …",
   "msg.indexDone": "Card index read: pictures are now saved quickly",
@@ -1240,6 +1253,7 @@ async function tick(){
   const liOld=JSON.stringify(st&&st.lvinfo);
   try{st=await api('/api/state')}catch(e){if(e.message===tr('srv.offline'))msg(e.message,true);return}
   if(JSON.stringify(st.lvinfo)!==liOld) showStatus();
+  if(!st.live&&lvl){lvl=null;lvlShown=null;drawLevel()} // live view stopped: clear the level gauge
   if(modeAt===undefined) modeAt=st.mode_at||null; // first tick after loading: no message for an old turn
   else if(st.mode_at&&st.mode_at!==modeAt){modeAt=st.mode_at;usbShotMode=null;props();msg(tr('msg.modeDial'))} // USB: mode dial turned
   $('#half').classList.toggle('on',st.stage>=1); $('#half').setAttribute('aria-pressed',st.stage>=1?'true':'false');
@@ -2164,38 +2178,89 @@ vp.onpointerup=e=>{
 };
 /* Level Gauge (USB): spirit level, also watch the mode dial */
 let lvl=null,lvlBusy=false,lvPicked=false;
+// The camera is asked every 0.15 s; in between the drawing glides towards the last value (about 0.1 s),
+// so the line moves smoothly instead of jumping with every reading (user 2026-11-14)
+let lvlShown=null,lvlAnim=0,lvlT=0;
+const LVL_TAU=.1;
 async function pollLevel(){
   if(!connected||lvlBusy||!isUsb) return;
   lvlBusy=true;
   try{
     lvl=await api('/api/level');
-    if(lastProps&&lastProps.takemode.value!==lvl.mode&&st.stage===0) props();
   }catch{lvl=null}finally{lvlBusy=false}
+  if(!lvlAnim){lvlT=performance.now();lvlAnim=requestAnimationFrame(lvlStep)}
+}
+function lvlStep(t){
+  lvlAnim=0;
+  if(!lvl||!$('#lvlOn').checked){lvlShown=null;drawLevel();return}
+  const k=1-Math.exp(-Math.max(0,t-lvlT)/1000/LVL_TAU); lvlT=t;
+  if(!lvlShown) lvlShown={a:lvl.a,b:lvl.b};
+  else{lvlShown.a+=(lvl.a-lvlShown.a)*k;lvlShown.b+=(lvl.b-lvlShown.b)*k}
   drawLevel();
+  if(Math.abs(lvl.a-lvlShown.a)>.02||Math.abs(lvl.b-lvlShown.b)>.02) lvlAnim=requestAnimationFrame(lvlStep);
+}
+/* Feedback and a held target angle (REQ-F44): within LVL_TOL of level (or of the held angle) the line and dot
+   turn green and thicker and a chip says so, optionally with a short sound; "Hold angle" keeps the current
+   horizon/tilt as the target (remembered until "Clear angle"), for repeat shots from the same angle. */
+const LVL_TOL=.3, LVL_KEY='omcap.levelTarget';
+let lvlTarget=(()=>{try{return JSON.parse(localStorage.getItem(LVL_KEY))}catch{return null}})();
+let lvlWasOk=false,lvlBeepAt=0,lvlAudio=null;
+const lvlFmt=v=>(v>0?'+':'')+v.toFixed(1);
+function lvlAudioInit(){  // create and unlock audio on a click (browsers block sound started from timers)
+  try{lvlAudio=lvlAudio||new (window.AudioContext||window.webkitAudioContext)();if(lvlAudio.state==='suspended')lvlAudio.resume()}catch{}
+}
+function lvlBeep(){
+  try{lvlAudioInit();
+    const o=lvlAudio.createOscillator(),g=lvlAudio.createGain();
+    o.frequency.value=1320;g.gain.value=.08;o.connect(g).connect(lvlAudio.destination);o.start();o.stop(lvlAudio.currentTime+.08)}catch{}
+}
+function lvlFeedback(ok){
+  $('#levelChip').hidden=!ok;
+  if(ok) $('#levelChipText').textContent=tr(lvlTarget?'lv.angleOk':'lv.levelOk')+' ✓';
+  if(ok&&!lvlWasOk&&$('#lvlSound').checked&&Date.now()-lvlBeepAt>1000){lvlBeepAt=Date.now();lvlBeep()}
+  lvlWasOk=ok;
 }
 function drawLevel(){
   const c=$('#levelGauge'),b=vp.getBoundingClientRect(),d=devicePixelRatio||1;
   if(c.width!==Math.round(b.width*d)||c.height!==Math.round(b.height*d)){c.width=Math.round(b.width*d);c.height=Math.round(b.height*d)}
   const g=c.getContext('2d'); g.clearRect(0,0,c.width,c.height);
-  const on=features.has('level')&&lvl&&st.live&&$('#lvlOn').checked;
-  $('#lvlInfo').textContent=on?tr('lv.roll',{a:lvl.a.toFixed(1),b:lvl.b.toFixed(1)}):'';
-  if(!on) return;
-  const W=c.width,H=c.height,cx=W/2,cy=H/2,len=W*.2,roll=lvl.a,pitch=lvl.b,ok=Math.abs(roll)<.5;
+  const sw=features.has('level')&&$('#lvlOn').checked;
+  $('#lvlTools').hidden=!sw; $('#lvlClear').hidden=!lvlTarget;
+  const on=sw&&lvl&&st.live;
+  if(!on){$('#lvlInfo').textContent='';lvlFeedback(false);return}
+  // a little hysteresis: once matched it stays matched up to LVL_TOL+0.1, so the chip does not flicker at the edge
+  const t=lvlTarget||{a:0,b:0}, da=lvl.a-t.a, db=lvl.b-t.b, tol=lvlWasOk?LVL_TOL+.1:LVL_TOL, okA=Math.abs(da)<tol, okB=Math.abs(db)<tol;
+  $('#lvlInfo').textContent=lvlTarget?tr('lv.delta',{a:lvlFmt(da),b:lvlFmt(db)}):tr('lv.roll',{a:lvl.a.toFixed(1),b:lvl.b.toFixed(1)});
+  lvlFeedback(okA&&okB);
+  const v=lvlShown||lvl, W=c.width,H=c.height,cx=W/2,cy=H/2,len=W*.2;
   g.lineCap='round';
   // reference marks left and right, the movable line tilts with the camera
   g.strokeStyle='rgba(255,255,255,.75)'; g.lineWidth=2*d;
   g.beginPath(); g.moveTo(cx-len-30*d,cy); g.lineTo(cx-len-6*d,cy); g.moveTo(cx+len+6*d,cy); g.lineTo(cx+len+30*d,cy); g.stroke();
-  g.save(); g.translate(cx,cy); g.rotate(roll*Math.PI/180);
-  g.strokeStyle=ok?'#3DDC84':'#F5B841'; g.lineWidth=3*d;
+  if(lvlTarget){  // the held angle as a dashed guide
+    g.save(); g.translate(cx,cy); g.rotate(t.a*Math.PI/180); g.setLineDash([8*d,6*d]);
+    g.strokeStyle='rgba(255,255,255,.6)'; g.lineWidth=2*d; g.beginPath(); g.moveTo(-len,0); g.lineTo(len,0); g.stroke(); g.restore();
+  }
+  g.save(); g.translate(cx,cy); g.rotate(v.a*Math.PI/180);
+  g.strokeStyle=okA?'#3DDC84':'#F5B841'; g.lineWidth=(okA?5:3)*d;
   g.beginPath(); g.moveTo(-len,0); g.lineTo(len,0); g.stroke(); g.restore();
-  // forward/backward tilt as a dot on a vertical scale
-  const sx=W-24*d,sh=H*.3,clamp=Math.max(-20,Math.min(20,pitch));
+  // forward/backward tilt as a dot on a vertical scale; the held tilt as a short mark
+  const sx=W-24*d,sh=H*.3,pos=p=>cy-Math.max(-20,Math.min(20,p))/20*sh;
   g.strokeStyle='rgba(255,255,255,.75)'; g.lineWidth=2*d;
-  g.beginPath(); g.moveTo(sx,cy-sh); g.lineTo(sx,cy+sh); g.moveTo(sx-10*d,cy); g.lineTo(sx+10*d,cy); g.stroke();
-  g.fillStyle=Math.abs(pitch)<.5?'#3DDC84':'#F5B841';
-  g.beginPath(); g.arc(sx,cy-clamp/20*sh,6*d,0,7); g.fill();
+  g.beginPath(); g.moveTo(sx,cy-sh); g.lineTo(sx,cy+sh); g.moveTo(sx-10*d,pos(t.b)); g.lineTo(sx+10*d,pos(t.b)); g.stroke();
+  g.fillStyle=okB?'#3DDC84':'#F5B841';
+  g.beginPath(); g.arc(sx,pos(v.b),(okB?8:6)*d,0,7); g.fill();
 }
-$('#lvlOn').onchange=drawLevel;
+$('#lvlOn').onchange=()=>{aidSave();if(!$('#lvlOn').checked){lvl=null;lvlShown=null}drawLevel()};
+$('#lvlSound').addEventListener('change',()=>{if($('#lvlSound').checked)lvlAudioInit()});
+document.addEventListener('pointerdown',()=>{if($('#lvlSound').checked)lvlAudioInit()},{once:true}); // restored switch: unlock on the first click
+$('#lvlHold').onclick=()=>{
+  if(!lvl){msg(tr('msg.noLevel'),true);return}
+  lvlTarget={a:+lvl.a.toFixed(1),b:+lvl.b.toFixed(1)};
+  try{localStorage.setItem(LVL_KEY,JSON.stringify(lvlTarget))}catch{}
+  msg(tr('msg.angleHeld',{a:lvlFmt(lvlTarget.a),b:lvlFmt(lvlTarget.b)})); drawLevel();
+};
+$('#lvlClear').onclick=()=>{lvlTarget=null;try{localStorage.removeItem(LVL_KEY)}catch{} drawLevel()};
 /* AF Area (USB): 9x9 field grid as on the camera display */
 const AF_NAMES={33024:tr('af.33024'),33025:tr('af.33025'),33026:tr('af.33026'),33027:tr('af.33027')};
 async function loadAf(){try{af=await api('/api/afarea');showAf()}catch(e){msg(tr('msg.afArea',{e:e.message}),true)}}
@@ -2369,7 +2434,8 @@ function edgeThreshold(mag,top,floor){ // threshold such that about the fraction
   for(;b>0;b--){acc+=bins[b]; if(acc>=want) break}
   return Math.max(floor,b/k);
 }
-const AID_KEY='omcap.aids', AID_IDS=['aidHist','aidRgb','aidClip','aidPeak'];
+// lvlOn: Level gauge switch, off by default and remembered like the other live view aids (user 2026-11-14)
+const AID_KEY='omcap.aids', AID_IDS=['aidHist','aidRgb','aidClip','aidPeak','lvlOn','lvlSound'];
 const aidOff=document.createElement('canvas'), aidCtx=aidOff.getContext('2d',{willReadFrequently:true});
 const PEAK_RGB={white:[255,255,255],black:[0,0,0],red:[255,40,40],yellow:[255,230,0]};
 function aidSave(){try{const o={col:$('#aidPeakCol').value};AID_IDS.forEach(i=>o[i]=$('#'+i).checked);localStorage.setItem(AID_KEY,JSON.stringify(o))}catch{}}
@@ -2418,8 +2484,10 @@ function aidTick(){
   }
   og.putImageData(out,0,0);
 }
-AID_IDS.concat('aidPeakCol').forEach(i=>$('#'+i).onchange=()=>{aidSave();aidTick()});
+AID_IDS.filter(i=>i!=='lvlOn').concat('aidPeakCol').forEach(i=>$('#'+i).onchange=()=>{aidSave();aidTick()});  // lvlOn has its own handler
 setInterval(aidTick,250); // 4 frames/s are enough and keep the CPU low
+// Level gauge (USB, PTP backend): own poll, faster than tick(), only while it is shown (REQ-F23)
+setInterval(()=>{if(features.has('level')&&st&&st.live&&$('#lvlOn').checked)pollLevel()},150);
 new ResizeObserver(()=>{drawGrid();applyZoom();drawAf()}).observe(vp);
 
 /* Overlay */
