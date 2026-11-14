@@ -284,7 +284,7 @@ dialog h2{margin-top:12px}
 .grid-size::after{font:600 10px/1 var(--font-value)}
 .grid-size[data-sz="4"]::after{content:"2×2"}
 .grid-size[data-sz="9"]::after{content:"3×3"}
-.grid-size[data-sz="16"]::after{content:"4×4"}
+.grid-size[data-sz="25"]::after{content:"5×5"}
 #galExifTog{width:36px;padding:0;justify-content:center}
 #galExifTog .icon-info{display:flex;align-items:center;justify-content:center}
 #galExifTog .icon-info::before{content:"i";font:700 16px/1 var(--font-value)}
@@ -769,7 +769,7 @@ section h2{margin-bottom:10px;color:#b9bec4;font-size:var(--fs-label);font-weigh
       <button class="gallery-icon icon-index" data-v="index" data-i18n-title="card.index"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="1.5"/><path d="M9 5v14M15 5v14M3 12h18"/></svg><span class="sr-only" data-i18n="card.index">Index display</span></button><button class="gallery-icon icon-calendar" data-v="cal" data-i18n-title="card.calendar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><rect x="3" y="5" width="15" height="13" rx="1.5"/><path d="M8 5v13M13 5v13M3 11h15"/><circle cx="17.5" cy="16.5" r="4" fill="var(--surface)"/><path d="M17.5 14.2v2.5l1.7 1"/></svg><span class="sr-only" data-i18n="card.calendar">Calendar display</span></button>
     </div>
     <div class="seg" role="group" data-i18n-aria="card.sizes" aria-label="Thumbnail size">
-      <button class="grid-size" data-sz="16" data-i18n-aria="card.grid4">4×4</button><button class="grid-size" data-sz="9" data-i18n-aria="card.grid3">3×3</button><button class="grid-size" data-sz="4" data-i18n-aria="card.grid2">2×2</button>
+      <button class="grid-size" data-sz="25" data-i18n-aria="card.grid5">5×5</button><button class="grid-size" data-sz="9" data-i18n-aria="card.grid3">3×3</button><button class="grid-size" data-sz="4" data-i18n-aria="card.grid2">2×2</button>
     </div>
     <label class="tog" id="galExifTog"><input type="checkbox" id="galExif"><span class="icon-info" aria-hidden="true"></span><span class="sr-only" data-i18n="card.exifLine">Shooting data</span></label>
     <button id="galSelect" class="gallery-icon icon-select" data-i18n-title="card.select">Select</button>
@@ -867,7 +867,7 @@ const I18N={en:{
   "card.sizeS": "S",
   "card.sizeM": "M",
   "card.sizeL": "L",
-  "card.grid4": "Four-column grid",
+  "card.grid5": "Five-column grid",
   "card.grid3": "Three-column grid",
   "card.grid2": "Two-column grid",
   "card.exifLine": "Shooting data",
@@ -1725,8 +1725,9 @@ function renderStrip12(){
       The camera works through requests one by one, hence at most two at a time. */
 const GAL_KEY='omcap.gallery', MONTHS=tr('months').split(',');
 function loadGal(){try{return JSON.parse(localStorage.getItem(GAL_KEY))||{}}catch{return{}}}
-const GAL_LEVELS=[4,9,16];
+const GAL_LEVELS=[4,9,25]; // 5×5, 3×3, 2×2 as on main (user 2026-11-15)
 const gv={n:9,mode:'index',day:null,month:null,exif:false,info:'simple',...loadGal(),day:null};
+if(gv.n===16) gv.n=25; // saved by the earlier 4×4 grid
 if(!GAL_LEVELS.includes(gv.n)) gv.n=9;
 if(!['image','simple','overall'].includes(gv.info)) gv.info='simple';
 function saveGal(){try{localStorage.setItem(GAL_KEY,JSON.stringify({n:gv.n,mode:gv.mode,exif:gv.exif,info:gv.infoSet?gv.info:undefined,infoSet:gv.infoSet}))}catch{}}
@@ -1985,7 +1986,7 @@ document.querySelectorAll('[data-sz]').forEach(b=>b.onclick=()=>{gv.n=+b.dataset
 function zoomGallery(direction){
   if(!cardShots) return;
   if(gv.mode==='cal'){
-    if(direction>0){gv.mode='index';gv.n=16;saveGal();renderGal()}
+    if(direction>0){gv.mode='index';gv.n=25;saveGal();renderGal()}
     return;
   }
   const i=GAL_LEVELS.indexOf(gv.n);
@@ -1996,18 +1997,18 @@ function zoomGallery(direction){
   saveGal();renderGal();
 }
 /* Pinch in Index display (phone), smooth like a photo library: the grid scales with the fingers around the point
-   between them, and on release it settles on the nearest size (4x4, 3x3, 2x2; pinching in beyond 4x4 opens Calendar display) and the new grid fades in.
+   between them, and on release it settles on the nearest size (5x5, 3x3, 2x2; pinching in beyond 5x5 opens Calendar display, spreading in Calendar display goes back to 5x5) and the new grid fades in.
    Touch events, not pointer events: iOS Safari turns a two-finger move in a scrolling area into scrolling and
    cancels the pointers (seen on an iPhone 2026-11-14); the grid is rebuilt only after the gesture, because iOS keeps
    sending the moves to the touched tile. One finger keeps scrolling. */
 const calm=matchMedia('(prefers-reduced-motion:reduce)'); // shared by the Playback gestures
 (()=>{
-  const body=$('#galBody'), sizes=[16,9,4], cols={16:4,9:3,4:2};
+  const body=$('#galBody'), sizes=[25,9,4], cols={25:5,9:3,4:2};
   let g=null, pend=null; // g: the gesture (start distance, scale); pend: the size change still gliding after the last one
   const dist=t=>Math.hypot(t[0].clientX-t[1].clientX,t[0].clientY-t[1].clientY);
   const setT=(sc,ms)=>{body.style.transition=ms?`transform ${ms}ms ease-out`:'none';body.style.transform=sc===1?'':`scale(${sc})`};
   body.addEventListener('touchstart',e=>{
-    if(e.touches.length!==2||gv.mode==='cal') return;
+    if(e.touches.length!==2) return;
     if(pend){clearTimeout(pend.id);pend.fn()} // a new pinch while the last one still glides: finish it at once
     const r=body.getBoundingClientRect(), t=e.touches;
     body.style.transformOrigin=`${(t[0].clientX+t[1].clientX)/2-r.left}px ${(t[0].clientY+t[1].clientY)/2-r.top}px`;
@@ -2020,10 +2021,16 @@ const calm=matchMedia('(prefers-reduced-motion:reduce)'); // shared by the Playb
   },{passive:false});
   const end=e=>{
     if(!g||(e.touches&&e.touches.length>=2)) return;
-    const sc=g.sc, now=cols[gv.n]||3; g=null;
+    const sc=g.sc; g=null;
+    if(gv.mode==='cal'){ // Calendar display: spreading the fingers goes back to Index display 5x5
+      if(sc>1.25){setT(1,0);gv.mode='index';gv.n=25;saveGal();renderGal();body.animate([{opacity:.4},{opacity:1}],{duration:160,easing:'ease-out'})}
+      else setT(1,calm.matches?0:180);
+      return;
+    }
+    const now=cols[gv.n]||3;
     // the columns the fingers asked for, then the nearest size the app offers
     const want=now/sc, target=sizes.reduce((a,b)=>Math.abs(cols[b]-want)<Math.abs(cols[a]-want)?b:a);
-    if(gv.n===16&&want>5.2){setT(1,0);gv.mode='cal';gv.day=null;saveGal();renderGal();return} // smaller than 4x4: Calendar display
+    if(gv.n===25&&want>6.2){setT(1,0);gv.mode='cal';gv.day=null;saveGal();renderGal();return} // smaller than 5x5: Calendar display
     if(target===gv.n||calm.matches){
       setT(1,calm.matches?0:180);
       if(target!==gv.n){gv.n=target;saveGal();renderGal()}
