@@ -41,13 +41,13 @@ Please report what works on your body in [Discussions](https://github.com/HolmHa
 
 | Feature | Wi-Fi | USB |
 |---|---|---|
-| Live view with selectable size, zoom, Displayed Grid, overlay, second monitor | yes | yes (size choice up to 1280×960 with the PTP backend on macOS; with libgphoto2 it needs 2.5.34.1 or later, see below) |
+| Live view with selectable size, zoom, Displayed Grid, overlay, second monitor (size choice and second monitor on the computer only, hidden on a phone, REQ-F49) | yes | yes (size choice up to 1280×960 with the PTP backend on macOS; with libgphoto2 it needs 2.5.34.1 or later, see below) |
 | USB backend (`--usb-backend`) | – | yes: `auto` (default on macOS) uses the app's own PTP layer and falls back to libgphoto2 (tested on macOS); Linux: libgphoto2, not tested |
 | Level gauge in the live view (horizon line and tilt dot) | – (the camera sends no tilt over Wi-Fi) | yes, with the own PTP layer, not with libgphoto2 (switch "Level gauge" in the live view tools, off by default and remembered; "Level ✓" feedback, optional sound, "Hold angle" for repeat shots from the same angle; tested 2026-11-14) |
 | Open the app on a phone in the home network (`--lan`, QR code behind **Phone**) | yes (tried 2026-11-14) | yes (not tried yet with the computer on USB) |
 | Phone gestures in Playback: pinch zoom and swipe in the single-frame view (also Magic Mouse / trackpad / Shift + wheel on the computer), pinch for the Index display size, compact calendar badge | yes (tried on a phone 2026-11-14) | yes (same page code, UI only; not tried separately on USB) |
 | Start screen connects by itself to the camera used last time (2 s, **Stay here** stops it) | yes (tested 2026-11-14) | yes (USB reconnect not tested yet) |
-| Live view size follows the screen and the signal on phone width ("Auto · 800×600") | yes (tested 2026-11-14) | – (USB keeps the manual size: the PTP live view needs no step-down, 26 fps at 1024×768) |
+| Live view size follows the screen and the signal on a phone (up to 700 px wide, or turned with up to 520 px height; "Auto · 800×600") | yes (tested 2026-11-14) | – (on a phone always 1024×768, on the computer the manual size: the PTP live view needs no step-down, 26 fps at 1024×768) |
 | Tap the 9×9 AF grid to focus, AF target shown in green | yes | yes |
 | AF frame on tap with "Show AF targets" off (about 4 s: white focusing, green in focus, red no focus) | yes (tested 2026-11-14) | yes (tried 2026-11-14 in the redesign build) |
 | AF Area (All Targets, Single Target, Small Target, Group Target) | – (no command over Wi-Fi) | yes |
@@ -80,7 +80,8 @@ Please report what works on your body in [Discussions](https://github.com/HolmHa
 | Turn off camera (click twice to confirm) | yes | – (Wi-Fi only) |
 | Live view aids: Histogram, Highlight&Shadow, Peaking | yes | yes |
 | HSL color profiles for ORF/JPG on the computer (`omcap.hsl`) | independent | independent |
-| Webcam (OBS) button next to Second monitor | yes | yes (webcam view tested, button untested) |
+| Webcam (OBS) button next to Second monitor (computer only, hidden on a phone, REQ-F49) | yes | yes (webcam view tested, button untested) |
+| Phone view without computer-only controls (REQ-F49): no size choice, Second monitor, Webcam (OBS), Picture on second monitor; "phone" means the window size | yes (adaptive size also with the phone turned; tried on an iPhone 2026-11-15) | yes (always 1024×768; not tried on USB) |
 | Save folder and file naming | yes | yes (untested) |
 | HSL colour profiles in the app (HSL button, auto-apply, before/after) | yes | yes (untested) |
 | Start by double-click, browser opens by itself | yes | yes |
