@@ -1651,8 +1651,9 @@ function prefetchNeighbors(){
   }
 }
 /* Picture information: Image only -> Simplified display -> Overall display (INFO button, manual p.62) */
-const INFO_MODES=['image','simple','overall'];
-function infoButton(){$('#vInfoBtn').textContent=tr('info.'+gv.info);$('#vInfoBtn').classList.toggle('on',gv.info!=='image')}
+// INFO button order: details first (users expect them on the first click; the camera shows Simplified first)
+const INFO_MODES=['image','overall','simple'];
+function infoButton(){$('#vInfoBtn').textContent=tr('info.'+gv.info);$('#vInfoBtn').classList.toggle('on',gv.info==='overall')} // highlighted only while the details panel is open
 function drawVHist(){
   const im=$('#vImg'),c=$('#vHist'),g=c.getContext('2d');
   g.clearRect(0,0,c.width,c.height);
