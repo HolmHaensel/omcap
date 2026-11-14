@@ -1855,13 +1855,26 @@ vp.onpointerup=e=>{
 };
 /* Level Gauge (USB): spirit level, also watch the mode dial */
 let lvl=null,lvlBusy=false,lvPicked=false;
+// The camera is asked every 0.15 s; in between the drawing glides towards the last value (about 0.1 s),
+// so the line moves smoothly instead of jumping with every reading (user 2026-11-14)
+let lvlShown=null,lvlAnim=0,lvlT=0;
+const LVL_TAU=.1;
 async function pollLevel(){
   if(!connected||lvlBusy||!isUsb) return;
   lvlBusy=true;
   try{
     lvl=await api('/api/level');
   }catch{lvl=null}finally{lvlBusy=false}
+  if(!lvlAnim){lvlT=performance.now();lvlAnim=requestAnimationFrame(lvlStep)}
+}
+function lvlStep(t){
+  lvlAnim=0;
+  if(!lvl||!$('#lvlOn').checked){lvlShown=null;drawLevel();return}
+  const k=1-Math.exp(-Math.max(0,t-lvlT)/1000/LVL_TAU); lvlT=t;
+  if(!lvlShown) lvlShown={a:lvl.a,b:lvl.b};
+  else{lvlShown.a+=(lvl.a-lvlShown.a)*k;lvlShown.b+=(lvl.b-lvlShown.b)*k}
   drawLevel();
+  if(Math.abs(lvl.a-lvlShown.a)>.02||Math.abs(lvl.b-lvlShown.b)>.02) lvlAnim=requestAnimationFrame(lvlStep);
 }
 function drawLevel(){
   const c=$('#levelGauge'),b=vp.getBoundingClientRect(),d=devicePixelRatio||1;
@@ -1870,7 +1883,7 @@ function drawLevel(){
   const on=features.has('level')&&lvl&&st.live&&$('#lvlOn').checked;
   $('#lvlInfo').textContent=on?tr('lv.roll',{a:lvl.a.toFixed(1),b:lvl.b.toFixed(1)}):'';
   if(!on) return;
-  const W=c.width,H=c.height,cx=W/2,cy=H/2,len=W*.2,roll=lvl.a,pitch=lvl.b,ok=Math.abs(roll)<.5;
+  const v=lvlShown||lvl, W=c.width,H=c.height,cx=W/2,cy=H/2,len=W*.2,roll=v.a,pitch=v.b,ok=Math.abs(lvl.a)<.5;
   g.lineCap='round';
   // reference marks left and right, the movable line tilts with the camera
   g.strokeStyle='rgba(255,255,255,.75)'; g.lineWidth=2*d;
@@ -1882,10 +1895,10 @@ function drawLevel(){
   const sx=W-24*d,sh=H*.3,clamp=Math.max(-20,Math.min(20,pitch));
   g.strokeStyle='rgba(255,255,255,.75)'; g.lineWidth=2*d;
   g.beginPath(); g.moveTo(sx,cy-sh); g.lineTo(sx,cy+sh); g.moveTo(sx-10*d,cy); g.lineTo(sx+10*d,cy); g.stroke();
-  g.fillStyle=Math.abs(pitch)<.5?'#3DDC84':'#F5B841';
+  g.fillStyle=Math.abs(lvl.b)<.5?'#3DDC84':'#F5B841';
   g.beginPath(); g.arc(sx,cy-clamp/20*sh,6*d,0,7); g.fill();
 }
-$('#lvlOn').onchange=()=>{aidSave();if(!$('#lvlOn').checked)lvl=null;drawLevel()};
+$('#lvlOn').onchange=()=>{aidSave();if(!$('#lvlOn').checked){lvl=null;lvlShown=null}drawLevel()};
 /* AF Area (USB): 9x9 field grid as on the camera display */
 const AF_NAMES={33024:tr('af.33024'),33025:tr('af.33025'),33026:tr('af.33026'),33027:tr('af.33027')};
 async function loadAf(){try{af=await api('/api/afarea');showAf()}catch(e){msg(tr('msg.afArea',{e:e.message}),true)}}
@@ -2112,7 +2125,7 @@ function aidTick(){
 AID_IDS.filter(i=>i!=='lvlOn').concat('aidPeakCol').forEach(i=>$('#'+i).onchange=()=>{aidSave();aidTick()});  // lvlOn has its own handler
 setInterval(aidTick,250); // 4 frames/s are enough and keep the CPU low
 // Level gauge (USB, PTP backend): own poll, faster than tick(), only while it is shown (REQ-F23)
-setInterval(()=>{if(features.has('level')&&st&&st.live&&$('#lvlOn').checked)pollLevel()},300);
+setInterval(()=>{if(features.has('level')&&st&&st.live&&$('#lvlOn').checked)pollLevel()},150);
 new ResizeObserver(()=>{drawGrid();applyZoom();drawAf()}).observe(vp);
 
 /* Overlay */
