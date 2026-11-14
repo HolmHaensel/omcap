@@ -2,6 +2,7 @@
 
 ## Unreleased (0.7.2)
 
+- AF frame on tap without the grid: with "Show AF targets" off, a tap still shows the chosen AF frame for about 4 s – white while focusing, green in focus, red without focus (REQ-F41).
 - ISO AUTO over Wi-Fi: the ISO the camera picks right now shows small and grey under AUTO in the ISO tile ("now 800") and next to ISO AUTO in the value strip; from the live view data (REQ-F29). Not over USB (no live value). Built, not yet tested on the camera.
 
 ## 0.7.1 – 2026-11-14
