@@ -430,10 +430,11 @@ section h2{margin-bottom:10px;color:#b9bec4;font-size:var(--fs-label);font-weigh
   #viewport{width:min(100%,calc((100vh - 216px) * 4 / 3))}
 }
 @media(max-width:1100px){
-  main{grid-template-columns:minmax(0,1fr);max-width:820px;padding-bottom:218px}
+  main{grid-template-columns:minmax(0,1fr);max-width:820px;padding-bottom:calc(var(--bottomUi,218px) + 12px)}
   #liveCol{position:relative;top:auto}
   #viewport{width:min(100%,calc(52vh * 4 / 3))}
-  #panels>[data-id=shutter]{bottom:62px;border:1px solid var(--line);border-radius:16px 16px 0 0}
+  /* sits on the tab bar, which grows by the iPhone home indicator area (safe area): before, it covered the tab icons */
+  #panels>[data-id=shutter]{bottom:var(--navH,calc(62px + env(safe-area-inset-bottom,0px)));padding-bottom:var(--s2);border:1px solid var(--line);border-radius:16px 16px 0 0}
   #panelNav{position:fixed;left:0;right:0;bottom:0;top:auto;border-width:1px 0 0;border-radius:0;padding:4px 8px calc(4px + env(safe-area-inset-bottom,0px));background:rgba(20,22,25,.98)}
 }
 @media(max-width:700px){
@@ -446,7 +447,7 @@ section h2{margin-bottom:10px;color:#b9bec4;font-size:var(--fs-label);font-weigh
   .header-actions .hbtn:not(#hdrPlay):not(#poweroff){display:none}
   #hdrPlay{width:40px;padding:0;font-size:0}
   #hdrPlay::after{content:"▦";font-size:20px}
-  main{padding:10px 10px 218px;gap:12px}
+  main{padding:10px 10px calc(var(--bottomUi,218px) + 12px);gap:12px}
   #viewport{width:100%;border-radius:12px}
   #valStrip{height:44px;padding:6px 12px;gap:12px;font-size:13px}
   #valStrip span:nth-child(n+5){display:none}
@@ -2725,6 +2726,19 @@ function commit(){saveLayout(layout);applyLayout();renderLayout()}
 $('#layoutBtn').onclick=()=>{renderLayout();$('#layoutDlg').showModal()};
 $('#layoutReset').onclick=()=>{layout={};commit()};
 
+/* Phone and narrow window: the shutter block sits on the fixed tab bar and the page keeps room for both.
+   Their heights are measured (font size, safe area of the iPhone home indicator), not guessed. Layout only. */
+(()=>{
+  const dock=document.querySelector('#panels>[data-id=shutter]'), nav=$('#panelNav'), root=document.documentElement.style;
+  if(!dock||!nav||!window.ResizeObserver) return;
+  const fit=()=>{
+    const fixed=el=>getComputedStyle(el).position==='fixed';
+    const n=fixed(nav)?nav.getBoundingClientRect().height:0, d=fixed(dock)?dock.getBoundingClientRect().height:0;
+    if(n) root.setProperty('--navH',n+'px'); else root.removeProperty('--navH');
+    if(n||d) root.setProperty('--bottomUi',(n+d)+'px'); else root.removeProperty('--bottomUi');
+  };
+  new ResizeObserver(fit).observe(dock); new ResizeObserver(fit).observe(nav); addEventListener('resize',fit); fit();
+})();
 /* Buttons */
 $('#lvStart').onclick=async()=>{
   try{await api('/api/liveview',{action:'start',lvqty:isUsb&&!lvPicked?null:$('#lvqty').value});startLiveLoop();msg(tr('msg.lvRunning'));await tick();if(features.has('af_area'))loadAf();setTimeout(props,1500)}catch(e){msg(e.message,true)}};
