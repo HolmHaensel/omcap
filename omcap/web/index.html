@@ -2458,7 +2458,7 @@ async function connectTo(kind){
   $('#startMsg').className='mut'; $('#startMsg').textContent=tr('start.connecting');
   try{
     await api('/api/connect',{type:kind});
-    try{localStorage.setItem(LAST_KEY,kind)}catch{}
+    try{localStorage.setItem(LAST_KEY,kind);sessionStorage.removeItem(AUTO_OFF)}catch{} // connected again: auto-connect allowed again
     enterApp();
   }catch(e){$('#startMsg').className='warn';$('#startMsg').textContent=e.message}
   finally{connecting=false;markSelected()}
