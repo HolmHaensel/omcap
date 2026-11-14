@@ -191,7 +191,8 @@ body.autoLv label[data-feat=lvsize]{display:none!important}
 #hslBox{position:relative;max-width:calc(100vw - 80px);line-height:0}
 #hslBox img{max-width:calc(100vw - 80px);max-height:70vh;display:block}
 #hslBox{cursor:ew-resize;touch-action:none;user-select:none}
-#live,#ovl,#hslBox img{-webkit-user-drag:none;user-select:none} /* drag moves the picture / the before-after line, not a copy of the image */
+#live,#ovl,#hslBox img,#vImg{-webkit-user-drag:none;user-select:none}
+.sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap} /* drag moves the picture / the before-after line, not a copy of the image */
 #hslHandle{position:absolute;top:0;bottom:0;left:50%;width:2px;margin-left:-1px;background:#fff;box-shadow:0 0 4px #0009;pointer-events:none}
 #hslHandle::after{content:'‹ ›';position:absolute;top:50%;left:50%;width:36px;height:36px;margin:-18px 0 0 -18px;border-radius:50%;background:#fff;color:#111;font:600 15px/34px var(--font-ui,system-ui);text-align:center;box-shadow:0 1px 6px #0009}
 #hslBox .lbl{position:absolute;top:8px;padding:2px 8px;border-radius:var(--r-pill);background:var(--overlay);color:var(--text);font-size:12px;line-height:1.5;pointer-events:none}
@@ -576,7 +577,7 @@ body.webcam{cursor:none;display:flex;align-items:center;justify-content:center}
     <button id="vGet" data-i18n="card.saveToMac">Save to computer</button><button id="vHsl" data-i18n="hsl.btn">HSL</button><button id="vWs" hidden data-i18n="view.ws">Open in OM Workspace</button><button id="vOvl" hidden data-i18n="card.overlay">Overlay</button><button id="vClose" data-i18n="card.close">Close</button>
   </div>
   <div id="vBody">
-    <div id="vImgBox"><img id="vImg" alt=""><div id="vStrip" hidden></div></div>
+    <div id="vImgBox"><img id="vImg" alt="" draggable="false"><div id="vStrip" hidden></div></div>
     <aside id="vPanel" hidden><canvas id="vHist" width="288" height="80"></canvas><dl id="vExif"></dl></aside>
   </div>
 </div>
@@ -1669,7 +1670,9 @@ function renderCal(body){
     const t=makeTile(shots[0].preview);
     const n=document.createElement('div');n.className='dn';n.textContent=d;
     const c=document.createElement('div'),full=shots.length===1?tr('card.shot'):tr('card.shots',{n:shots.length});
-    c.className='ct';c.title=full;c.setAttribute('aria-label',full);c.textContent=MOBILE_LIVE.matches?String(shots.length):full; // phone: only the number
+    c.className='ct';c.title=full;
+    if(MOBILE_LIVE.matches){c.textContent=String(shots.length);const sr=document.createElement('span');sr.className='sr-only';sr.textContent=' '+full;c.append(sr)} // phone: only the number shows
+    else c.textContent=full;
     t.append(n,c);
     t.onclick=()=>{gv.day=key;gv.mode='index';saveGal();renderGal()};
     grid.append(t);
@@ -1706,7 +1709,7 @@ document.querySelectorAll('[data-sz]').forEach(b=>b.onclick=()=>{gv.n=+b.dataset
   body.addEventListener('pointermove',e=>{
     if(!pts.has(e.pointerId))return; pts.set(e.pointerId,{x:e.clientX,y:e.clientY});
     if(pts.size!==2||!d0||gv.mode==='cal')return;
-    const r=dist()/d0, i=sizes.indexOf(gv.n);
+    const r=dist()/d0, i=Math.max(0,sizes.indexOf(gv.n));
     const next=r>1.35?sizes[Math.min(i+1,2)]:r<0.74?sizes[Math.max(i-1,0)]:gv.n;
     if(next!==gv.n){gv.n=next;d0=dist();saveGal();renderGal()}
   });
@@ -1835,7 +1838,7 @@ function vZoomTo(s,cx,cy){ // keep the point (cx,cy) relative to the box centre 
 function vCentre(e){const b=$('#vImgBox').getBoundingClientRect();return {x:e.clientX-b.left-b.width/2,y:e.clientY-b.top-b.height/2}}
 (()=>{
   const box=$('#vImgBox');
-  const active=e=>!box.classList.contains('full')&&!e.target.closest('#vStrip');
+  const active=e=>!box.classList.contains('full')&&!(e.pointerType==='mouse'&&e.button!==0);
   box.addEventListener('pointerdown',e=>{
     if(!active(e)) return;
     box.setPointerCapture(e.pointerId); vPtrs.set(e.pointerId,vCentre(e));
@@ -2318,9 +2321,9 @@ setInterval(()=>{if(features.has('level')&&st&&st.live&&$('#lvlOn').checked)poll
 new ResizeObserver(()=>{drawGrid();applyZoom();drawAf();drawLevel()}).observe(vp);
 /* Turning the phone: iOS Safari can keep a page zoom from before, so the page looks as if it did not turn.
    Briefly limiting the scale resets it; the layout itself follows the CSS for portrait/landscape. */
+const VP_META=document.querySelector('meta[name=viewport]'), VP0=VP_META.content; // read once: two quick turns must not keep the limit
 addEventListener('orientationchange',()=>{
-  const m=document.querySelector('meta[name=viewport]'), c=m.content;
-  m.content=c+',maximum-scale=1'; setTimeout(()=>{m.content=c},400);
+  VP_META.content=VP0+',maximum-scale=1'; setTimeout(()=>{VP_META.content=VP0},400);
   vZoomReset();
 });
 
@@ -2379,7 +2382,7 @@ $('#layoutReset').onclick=()=>{layout={};commit()};
 $('#lvStart').onclick=async()=>{
   try{await api('/api/liveview',{action:'start',lvqty:isUsb&&!lvPicked?null:$('#lvqty').value});startLiveLoop();msg(tr('msg.lvRunning'));await tick();if(features.has('af_area'))loadAf();setTimeout(props,1500)}catch(e){msg(e.message,true)}};
 $('#lvqty').onchange=()=>{lvPicked=true;if(st.live)$('#lvStart').click()};
-MOBILE_LIVE.addEventListener('change',()=>{if(autoLvEnabled())prepareAutoLiveSize();else autoLvLabel()});
+MOBILE_LIVE.addEventListener('change',()=>{if(autoLvEnabled())prepareAutoLiveSize();else autoLvLabel();if(!$('#galOv').hidden&&gv.mode==='cal')renderGal()});
 $('#lvStop').onclick=()=>act(tr('msg.lvStopped'),'/api/liveview',{action:'stop'});
 /* Shooting: the whole sequence. If Halfway is just holding focus, press through from there and release,
       as on the real shutter button. All the way and release are merged into it. */

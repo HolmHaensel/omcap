@@ -144,6 +144,8 @@ same home network: on the computer click **Phone** in the header and scan the QR
 The phone gets a key that is new at every start and keeps it for 12 hours; other devices in the network see only
 a note to scan the code. The computer itself needs no key. The computer stays connected to the camera (Wi-Fi or
 USB); the phone stays in the home Wi-Fi. Without `--lan` the app answers only on the computer.
+On the phone, pinch zooms a picture in the single-frame view (double tap: 1× / 2.5×) and changes the size of
+Index display; turning the phone switches between the portrait and landscape layout.
 
 ### Stop
 

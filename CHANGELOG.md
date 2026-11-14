@@ -2,10 +2,10 @@
 
 ## Unreleased
 
-- Single-frame view on a phone: pinch with two fingers zooms the picture (up to 6×), one finger moves the zoomed picture, a double tap switches between 1× and 2.5×; the mouse wheel zooms on the computer. Before, a pinch zoomed the whole page.
-- Index display on a phone: pinch changes the grid – fingers apart for bigger pictures (S 5×5 → M 3×3 → L 2×2), together for more; scrolling still works.
-- Calendar display on a phone: the badge shows only the number of shots ("12", the full "12 shots" stays as a tooltip and for screen readers) and the day and badge are smaller, so the day stays visible.
-- Turning the phone: a page zoom left from before is reset, the font is no longer enlarged by the phone, and the level gauge is redrawn; the layout switches between portrait and landscape as before.
+- Single-frame view on a phone (in the fitted view; "Fit" 1:1 keeps scrolling): pinch with two fingers zooms the picture (up to 6×), one finger moves the zoomed picture, a double tap switches between 1× and 2.5×; the mouse wheel zooms on the computer. Before, a pinch zoomed the whole page.
+- Index display on a phone (touch only): pinch changes the grid – fingers apart for bigger pictures (S 5×5 → M 3×3 → L 2×2), together for more; scrolling still works.
+- Calendar display on a phone (width up to 700 px, redrawn when the phone turns): the badge shows only the number of shots ("12"; the full "12 shots" stays as a tooltip and is read by screen readers) and the day and badge are smaller, so the day stays visible.
+- Turning the phone: a page zoom left from before is reset, the font is no longer enlarged by the phone, and the level gauge is redrawn; the layout switches between portrait and landscape as before. Phone gestures tried on a phone 2026-11-14 (REQ-F48).
 
 ## 0.7.5 – 2026-11-14
 
