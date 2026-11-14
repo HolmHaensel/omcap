@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased (0.7.2)
+
+- ISO AUTO over Wi-Fi: the ISO the camera picks right now shows small and grey under AUTO in the ISO tile ("now 800") and next to ISO AUTO in the value strip; from the live view data (REQ-F29). Not over USB (no live value). Built, not yet tested on the camera.
+
 ## 0.7.1 – 2026-11-14
 
 Fixes in the browser page found while using 0.7.0.
