@@ -2436,7 +2436,8 @@ function aidTick(){
     if(oc.width) oc.getContext('2d').clearRect(0,0,oc.width,oc.height);
     return;
   }
-  const w=Math.min(320,nw),h=Math.max(1,Math.round(w*nh/nw));
+  // 640 px: at 320 px the peaking could not tell sharp from slightly out of focus (2026-11-15, REQ-F52)
+  const w=Math.min(640,nw),h=Math.max(1,Math.round(w*nh/nw));
   if(aidOff.width!==w||aidOff.height!==h){aidOff.width=w;aidOff.height=h}
   let data;
   try{aidCtx.drawImage(img,0,0,w,h);data=aidCtx.getImageData(0,0,w,h).data}catch{return}
@@ -2450,7 +2451,9 @@ function aidTick(){
     for(let j=0;j<m.length;j++) if(m[j]){const k=j*4;o[k]=m[j]===1?255:30;o[k+1]=m[j]===1?30:80;o[k+2]=m[j]===1?30:255;o[k+3]=200}
   }
   if(wantP){
-    const mag=edgeMagnitude(grayOf(data),w,h),t=edgeThreshold(mag,.03,24),c=PEAK_RGB[$('#aidPeakCol').value]||PEAK_RGB.white;
+    // fixed floor 150: only really sharp edges light up, so turning the focus ring away makes them go out (a relative
+    // threshold marked the strongest 3 % in any picture, sharp or not); at most 6 % of the picture in very detailed scenes
+    const mag=edgeMagnitude(grayOf(data),w,h),t=edgeThreshold(mag,.06,150),c=PEAK_RGB[$('#aidPeakCol').value]||PEAK_RGB.white;
     for(let j=0;j<mag.length;j++) if(mag[j]>=t){const k=j*4;o[k]=c[0];o[k+1]=c[1];o[k+2]=c[2];o[k+3]=255}
   }
   og.putImageData(out,0,0);

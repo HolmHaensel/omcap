@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Peaking now reacts to the focus ring: it is computed at 640 px instead of 320 px and only edges above a fixed strength light up (before, the strongest 3 % of the edges were marked in any picture, sharp or not) (REQ-F52).
 - Wi-Fi: no battery level any more. The value taken for it is not the battery (it said 100 % while the camera showed half full); the server log now notes each change of that value so its meaning can be found. Over USB the battery level stays (REQ-F19).
 - Wi-Fi dropped and back: the camera answered again but had ended the live view, and the app waited forever. Now the app notices the stalled live view, shows *Camera not found. Is the computer in the camera's Wi-Fi?* while the camera does not answer, and restarts the live view by itself once it does (next try after 5, 10 … 60 s, reset only by real new frames); not during a shot, movie, job, half press or Playback. Camera-tested: the message during a 10 s drop; the restart itself not yet seen on the camera (REQ-Q14).
 - Phone over Wi-Fi: the automatic live view size starts at 800×600 at most (about 21 fps). A phone with a sharp screen started at 1280×960 (about 8 fps) and needed half a minute to step down (REQ-F45).
