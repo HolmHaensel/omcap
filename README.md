@@ -47,6 +47,7 @@ Please report what works on your body in [Discussions](https://github.com/HolmHa
 | Open the app on a phone in the home network (`--lan`, QR code behind **Phone**) | yes (tried 2026-11-14) | yes (not tried yet with the computer on USB) |
 | Phone gestures in Playback: pinch zoom and swipe in the single-frame view (also Magic Mouse / trackpad / Shift + wheel on the computer), pinch for the Index display size, compact calendar badge | yes (tried on a phone 2026-11-14) | yes (same page code, UI only; not tried separately on USB) |
 | Camera lost and back (cable pulled, camera off): waits quietly, shows *Camera not found. Is the cable plugged in?*, reconnects by itself (REQ-Q11) | – (not built: over Wi-Fi the camera just stops answering, there is no "waiting" state; a returning camera is untested) | yes (camera-tested 2026-11-15: no rebuild while away, live view back about 9 s after plugging in) |
+| Two connect requests at once (auto-connect and a click, two tabs, a phone) make one connection (REQ-Q12) | yes (same server code, not tried over Wi-Fi) | yes (camera-tested 2026-11-15) |
 | Start screen connects by itself to the camera used last time (2 s, **Stay here** stops it) | yes (tested 2026-11-14) | yes (USB reconnect not tested yet) |
 | Live view size follows the screen and the signal on a phone (up to 700 px wide, or turned with up to 520 px height; "Auto · 800×600") | yes (tested 2026-11-14) | – (on a phone always 1024×768, on the computer the manual size: the PTP live view needs no step-down, 26 fps at 1024×768) |
 | Tap the 9×9 AF grid to focus, AF target shown in green | yes | yes |
@@ -216,8 +217,9 @@ USB backend: `--usb-backend auto` (default on macOS: PTP layer, libgphoto2 if it
 `ptp` (PTP layer only) or `gphoto2` (libgphoto2 only; default on Linux). `GET /api/status` reports the backend in use.
 
 Notes: the first connect reads the camera's card index once (about 40 s with the PTP backend, the
-card list saved on the computer is shown meanwhile); later connects take 7–9 s, because the index is
-saved on the computer. Measured on macOS with about 2950 files and the PTP backend:
+card list saved on the computer is shown meanwhile); later connects take 6–9 s, because the index is
+saved on the computer; about 5 s of it is the camera's own answer when it switches to computer control (measured
+2026-11-15), the app only waits for it. Measured on macOS with about 2950 files and the PTP backend:
 
 | | PTP backend (macOS default) | libgphoto2 (fallback) |
 |---|---|---|

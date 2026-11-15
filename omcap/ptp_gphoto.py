@@ -297,10 +297,13 @@ class Camera:
 
     @_wrap
     def init(self):
-        t0 = time.monotonic()
+        last = [time.monotonic()]
         steps = []  # (name, seconds) for one log line: where connecting spends its time
+
         def lap(name):
-            steps.append((name, time.monotonic() - t0 - sum(d for _, d in steps)))
+            now = time.monotonic()
+            steps.append((name, now - last[0]))
+            last[0] = now
         transport = ptp.UsbTransport(tries=4)
         lap("USB open")
         cam = ptp.PtpCamera(transport)
@@ -320,7 +323,7 @@ class Camera:
                 raise ptp.PtpError("camera did not switch to computer control")
             lap("PC control")
             print("USB connect: " + ", ".join("%s %.1f s" % st for st in steps)
-                  + " (camera answer %.1f s)" % getattr(cam, "pc_answer_s", -1), flush=True)
+                  + " (camera answer %.1f s)" % cam.pc_answer_s, flush=True)
         except Exception:
             transport.close()
             raise

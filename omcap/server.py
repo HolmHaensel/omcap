@@ -1207,7 +1207,8 @@ class Handler(BaseHTTPRequestHandler):
                     connect(b["type"])
             return {"type": conn_type}
         if path == "/api/disconnect":
-            disconnect()
+            with connecting:  # a Disconnect during a slow connect waits for it, then really disconnects
+                disconnect()
             return None
         if path == "/api/quit":
             try:
