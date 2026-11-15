@@ -2546,12 +2546,13 @@ $('#lastShot').onclick=()=>{
    A browser can stop showing an MJPEG stream after one bad part and stay black until it reconnects (seen
    2026-11-13 in Chrome and Safari); here a bad or missing frame is simply skipped. MJPEG stays for ?view= windows.
    The next frame is requested as soon as the headers of the current one arrive, so its transfer overlaps the
-   decoding of this one: one request at a time gave 24 of the camera's 30 fps (USB 1024×768, 2026-11-15, REQ-Q13). */
-let lvGen=0;
+   decoding of this one: one request at a time gave 26.5 of the camera's 30 fps (24 with clicks) (USB 1024×768, 2026-11-15, REQ-Q13). */
+let lvGen=0, lvAbort=null; // lvAbort: cancels the request a stopped loop still has open
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 function startLiveLoop(){
   const g=++lvGen; let seq=0;
-  const ask=s=>fetch('/live.jpg?seq='+s,{cache:'no-store'}).catch(()=>null); // null: server restarting or gone
+  lvAbort?.abort(); const ctrl=lvAbort=new AbortController();
+  const ask=s=>fetch('/live.jpg?seq='+s,{cache:'no-store',signal:ctrl.signal}).catch(()=>null); // null: server restarting or gone
   let pending=ask(seq);
   (async()=>{
     while(g===lvGen){
@@ -2569,7 +2570,7 @@ function startLiveLoop(){
     }
   })();
 }
-function stopLiveLoop(){lvGen++}
+function stopLiveLoop(){lvGen++;lvAbort?.abort();lvAbort=null}
 /* Last-shot picture: shown after a shot, fades out after 6 s (the card strip keeps the picture) */
 let lastFadeT=null;
 function lastShotFade(){const i=$('#lastShot');i.classList.remove('faded');clearTimeout(lastFadeT);lastFadeT=setTimeout(()=>i.classList.add('faded'),6000)}
