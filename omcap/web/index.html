@@ -1001,8 +1001,8 @@ if(view){
     const w=parseInt(params.get('w'),10),h=parseInt(params.get('h'),10);
     document.body.classList.add('webcam');
     if(w>0&&h>0){im.style.width=w+'px';im.style.height=h+'px'}
-    setTimeout(()=>startLiveLoop(im)); // after the script has run (the loop's variables are defined further down)
-  }else if(view==='live') setTimeout(()=>startLiveLoop(im));
+  }
+  if(view==='webcam'||view==='live') setTimeout(()=>startLiveLoop(im)); // after the script has run (the loop's variables are defined further down)
   else{
     let last=null;
     setInterval(async()=>{try{

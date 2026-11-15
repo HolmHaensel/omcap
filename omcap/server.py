@@ -1126,8 +1126,8 @@ class Handler(BaseHTTPRequestHandler):
             self._send({"error": str(e)}, code=502)
 
     def _live_frame(self, seq):
-        """Next live frame after `seq` (waits up to 3 s); 204 if none. The main page shows the live view this
-        way: a browser can stop showing an MJPEG stream after one bad part (seen 2026-11-13)."""
+        """Next live frame after `seq` (waits up to 3 s); 204 if none. The main page and the ?view= windows
+        show the live view this way: a browser can stop showing an MJPEG stream after one bad part (seen 2026-11-13)."""
         new_seq, frame = live.wait_frame(seq)  # not connected: do_GET already answered 409
         if frame is None or new_seq == seq:
             self.send_response(204)
