@@ -27,6 +27,8 @@ class FakeCamera:
 
     def reopen(self, reason="?"):
         self.reopens += 1
+        if self.reopen_ok:
+            self.gone = False  # as UsbCamera._reopen_locked
         return self.reopen_ok
 
     releases = 0
@@ -103,6 +105,23 @@ class Gone(unittest.TestCase):
         self.assertEqual(waits, [5.0, 10.0, 20.0, 40.0, 60.0, 60.0])
 
 
+
+
+class NoTouchWhileGone(unittest.TestCase):
+    """libgphoto2 opens an unopened camera on any call; while gone nothing but the rebuild may touch it."""
+    def test_calls_do_not_touch_the_camera(self):
+        import threading
+        cam = usb_camera.UsbCamera.__new__(usb_camera.UsbCamera)
+        cam._lock, cam._hold, cam._hold_lock, cam.stage, cam.gone = threading.Lock(), 0, threading.Lock(), 0, True
+
+        class Untouchable:
+            def __getattr__(self, name):
+                raise AssertionError("camera touched while gone: %s" % name)
+        cam._c = Untouchable()
+        self.assertIsNone(cam.preview_frame())
+        self.assertFalse(cam.dial_turned())
+        with self.assertRaises(usb_camera.CameraError):
+            cam._value("d00c")
 
 class FakeLib:
     """libusb stand-in: records calls; the interrupt transfer never comes back after a cancel (camera unplugged)."""

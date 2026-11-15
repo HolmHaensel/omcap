@@ -307,7 +307,7 @@ class UsbLive:
         rebuild once it is back. Camera there but the rebuild fails: wait 5, 10, 20 ... 60 s before the next try.
         Returns True when a rebuild was tried (the failure count starts again)."""
         if detect_name() is None:
-            if not getattr(self.camera, "gone", False):
+            if not self.camera.gone:
                 print("USB: camera gone, waiting for it (cable, power, USB menu)", flush=True)
                 # give up the dead session now, while the camera is away: a handle still open on the vanished
                 # device made libusb crash when the camera came back (segmentation fault, camera test 2026-11-15)
@@ -315,7 +315,7 @@ class UsbLive:
             self.camera.gone, self._back_since = True, None
             time.sleep(1.7)  # with the 0.3 s of the loop: one check every 2 s
             return False
-        if getattr(self.camera, "gone", False):
+        if self.camera.gone:
             # back on USB: the camera shows its USB menu first and appears and vanishes while the entry is chosen
             # (camera test 2026-11-15), so it has to stay for 3 s before the rebuild
             if self._back_since is None:
@@ -327,7 +327,7 @@ class UsbLive:
             return False
         # session broken: rebuild; name the camera's last answer for the diagnosis
         ok = self.camera.reopen("live view failed 10x: %s" % getattr(self.camera, "lv_reason", None))
-        self.camera.gone, self._back_since = not ok and getattr(self.camera, "gone", False), None
+        self._back_since = None  # reopen() clears camera.gone when the camera answers
         self._backoff = 0.0 if ok else min(60.0, max(5.0, self._backoff * 2))
         self._retry_at = time.monotonic() + self._backoff
         return True
@@ -468,6 +468,7 @@ class UsbCamera:
             self._open()
             self._apply_lv_size_locked()  # keep the chosen size after a rebuilt session
             self._resync_files_locked()
+            self.gone = False  # also after reload (refresh) or a rebuild without live view
             return True
         except (CameraError, self.gp.GPhoto2Error):
             return False
@@ -496,7 +497,7 @@ class UsbCamera:
         """Read pending events without waiting; True if the mode dial was turned.
 
         Files shot on the camera body go to the card list only, not to the app's next shot."""
-        if self.hold or self.stage or self.shooting:  # a long exposure also sends 0xC003
+        if self.hold or self.stage or self.shooting or self.gone:  # a long exposure also sends 0xC003
             return False
         turned = False
         with self._lock:
@@ -532,6 +533,10 @@ class UsbCamera:
                 pass
 
     def _call(self, fn, *args):
+        # while the camera is gone from USB, libgphoto2 would open the fresh camera object by itself on any call
+        # (without the 3 s wait or stopping ptpcamerad), so nothing touches it until the live view loop reopens it
+        if self.gone:
+            raise CameraError("USB: camera not found")
         with self._lock:
             try:
                 return fn(*args)
@@ -686,6 +691,8 @@ class UsbCamera:
                 "last_af": focus_in_raster(self.last_af, area), "focus_ok": getattr(self, "focus_ok", None)}
 
     def preview_frame(self):
+        if self.gone:  # camera gone from USB: only the live view loop may open it again (REQ-Q11)
+            return None
         with self._lock:
             try:
                 f = self._c.capture_preview()

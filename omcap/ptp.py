@@ -192,7 +192,7 @@ def _libusb():
 # Transports whose interrupt transfer libusb still owns after close() (camera unplugged: the cancel never
 # completes). They stay referenced for the whole run: freeing their buffer and callback while libusb can still
 # write into them crashed the server with a segmentation fault (camera test 2026-11-15, cable pulled and plugged in).
-_LEAKED = []
+_LEAKED = []  # grows by one small transport per such unplug; acceptable for a desktop session
 
 
 class UsbTransport:
