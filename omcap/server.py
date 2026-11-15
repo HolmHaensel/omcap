@@ -1348,6 +1348,17 @@ class Handler(BaseHTTPRequestHandler):
             state["transfer"] = b["target"]
         elif path == "/api/shareorder/clear":
             reset_share_order()
+        elif path == "/api/erase":
+            if conn_type != "usb":
+                raise CameraError("Erase is not available over Wi-Fi (the camera has no command for it)")
+            ensure_idle()
+            res = cam.erase([str(p) for p in b["paths"]])
+            gone = set(res["erased"])
+            if gone:  # keep the saved card list in step, no re-index needed
+                saved = card_cache("usb")
+                if saved is not None:
+                    card_cache("usb", [e for e in saved if e["path"] not in gone])
+            return res
         elif path == "/api/download":
             dest = save_capture(b["path"], b.get("size"))
             return {"saved": dest, "name": os.path.basename(dest)}
