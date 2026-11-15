@@ -139,7 +139,7 @@ class LiveView:
                     ext = parse_extension(pkt[hdr + 4:hdr + 4 + 4 * n])
                     self.ext = ext
                     b = ext.get(7, [None])[0]
-                    if b != self.last_id7:  # meaning unknown (not the battery %): log changes to learn it
+                    if b is not None and b != self.last_id7:  # meaning unknown (not the battery %): log changes to learn it
                         print("Wi-Fi live view ID 7: %s -> %s" % (self.last_id7, b), flush=True)
                         self.last_id7 = b
                     for fid in ext:
