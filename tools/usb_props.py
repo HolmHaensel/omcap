@@ -10,6 +10,8 @@ USB session is established, so `watch` rebuilds the session before every measure
       # --replug: the camera closes its menu under PC control, so each round is: name the change,
       #   unplug the cable, change the setting in peace, plug in and choose PC + camera – the tool
       #   notices the cable and reads by itself
+      # --omcapture: change ONE value in OM Capture and quit OM Capture – the tool waits for OM Capture to
+      #   close, then reads by itself (we never write; OM Capture does). Never run both on the camera at once.
       # baseline, then per round: change ONE setting on the camera, enter a name,
       # Enter -> reconnect, compare, append the result to mapping.md
 
@@ -127,7 +129,25 @@ def wait_replug(kill):
     time.sleep(2.0)  # let the camera finish its USB mode switch
 
 
-def watch(kill, replug=False):
+def omcapture_running():
+    """True while the OM Capture app runs (it holds the camera then)."""
+    return subprocess.run(["pgrep", "-f", "OM Capture.app/Contents/MacOS/OM Capture"],
+                          capture_output=True).returncode == 0
+
+
+def wait_omcapture():
+    """Wait until OM Capture was opened and quit again."""
+    if not omcapture_running():
+        print("  1) OM Capture öffnen und verbinden …", flush=True)
+        while not omcapture_running():
+            time.sleep(1.0)
+    print("  2) In OM Capture EINEN Wert ändern, dann OM Capture beenden (⌘Q) …", flush=True)
+    while omcapture_running():
+        time.sleep(1.0)
+    time.sleep(3.0)  # OM Capture closes its session; give the camera a moment
+
+
+def watch(kill, replug=False, omcapture=False):
     base = parse_summary(read_summary(kill))
     print("Grundstand: %d Eigenschaften gelesen." % len(base))
     save("base", base)
@@ -138,7 +158,7 @@ def watch(kill, replug=False):
                     "| Menüpunkt geändert | Eigenschaft | rw | alt -> neu | Wertebereich |\n|---|---|---|---|---|\n")
     while True:
         try:
-            prompt = ("\nWelche Einstellung änderst du als Nächstes? Name eingeben (leer = Ende): " if replug else
+            prompt = ("\nWelche Einstellung änderst du als Nächstes? Name eingeben (leer = Ende): " if replug or omcapture else
                       "\nAn der Kamera EINE Einstellung ändern, dann hier benennen (leer = Ende): ")
             label = input(prompt).strip()
         except EOFError:
@@ -147,6 +167,8 @@ def watch(kill, replug=False):
             break
         if replug:
             wait_replug(kill)
+        if omcapture:
+            wait_omcapture()
         now = parse_summary(read_summary(kill))
         rows = diff(base, now)
         print_diff(rows)
@@ -168,6 +190,7 @@ def main():
     d = sub.add_parser("diff"); d.add_argument("a"); d.add_argument("b")
     w = sub.add_parser("watch"); w.add_argument("--kill-ptpcamerad", action="store_true")
     w.add_argument("--replug", action="store_true", help="unplug, change, plug in for every round")
+    w.add_argument("--omcapture", action="store_true", help="change one value in OM Capture and quit it; the tool then reads")
     a = p.parse_args()
     if a.cmd == "snapshot":
         props = parse_summary(read_summary(a.kill_ptpcamerad))
@@ -175,7 +198,7 @@ def main():
     elif a.cmd == "diff":
         print_diff(diff(load(a.a), load(a.b)))
     else:
-        watch(a.kill_ptpcamerad, a.replug)
+        watch(a.kill_ptpcamerad, a.replug, a.omcapture)
 
 
 if __name__ == "__main__":
