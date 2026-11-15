@@ -119,7 +119,7 @@ More in [Start and stop](#start-and-stop).
 | Open in OM Workspace (macOS, if installed) | 🟡 | ✅ | |
 | HSL color profiles (HSL button, before/after) | ✅ | 🟡 | |
 | Share Order: show, save all, reset | ✅ | – | no USB counterpart known |
-| Erase selected pictures from the card (Select → Erase, JPG and ORF together, asks first) | – | 🟡 | no Wi-Fi command; built, not camera-tested |
+| Erase selected pictures from the card (Select → Erase, JPG and ORF together, asks first) | – | ✅ | no Wi-Fi command; protected pictures are refused by the camera and kept |
 | Movie length in the single-frame view | ✅ | – | not built for USB |
 
 ### Phone, second monitor and webcam
