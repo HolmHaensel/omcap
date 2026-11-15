@@ -734,6 +734,7 @@ class UsbCamera:
                     failed.append(p)
                     continue
                 erased.append(p)
+                print("USB erased: %s" % p, flush=True)  # every delete is in the log, so it can be traced later
                 if getattr(self, "_files", None) is not None:
                     self._files.pop(p, None)
                 if p in self._pending:
