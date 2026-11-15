@@ -17,7 +17,7 @@ All names follow the camera's instruction manual.
 - **Wi-Fi tethering on the computer** – something Olympus never offered (only the phone app OI.Share used Wi-Fi). No special Olympus USB cable needed.
 - **USB tethering** with its own fast USB layer: live view at **30 fps**, focus by tap in about half a second.
 - **Use the camera as a webcam** (OBS) over Wi-Fi or USB.
-- **Everything from the LV super control panel** – shooting mode, shutter speed, aperture, ISO, WB, Picture Mode, Art filter and more.
+- **The LV super control panel** – shooting mode, shutter speed, aperture, ISO, WB, Picture Mode, Art filter and more.
 - **Focus Stacking, focus ring and level gauge** from the computer (USB).
 - **Playback** with Index and Calendar display, shooting data and saving to the computer.
 - **Works on a phone, too** – open the app on your phone in the home network.
@@ -76,8 +76,9 @@ More in [Start and stop](#start-and-stop).
 | Feature | Wi-Fi | USB | Note |
 |---|---|---|---|
 | Tap the 9×9 AF grid to focus, AF target in green | ✅ | ✅ | |
-| AF frame on tap (white focusing, green in focus, red no focus) and "In focus" / "No focus" chip | ✅ | ✅ | with S-AF the camera only releases in focus |
-| AF Area (All, Single, Small, Group Target) | – | ✅ | no Wi-Fi command |
+| AF frame on tap (white focusing, green in focus, red no focus) | ✅ | ✅ | |
+| "In focus" / "No focus" chip | ✅ | ✅ | Wi-Fi after a tap; USB also after Press halfway and Take picture. With S-AF the camera only releases in focus |
+| AF Area (All Targets, Single Target, Small Target, Group Target) | – | ✅ | no Wi-Fi command |
 | Focus ring (MF): Near/Far in three step sizes | – | ✅ | AF mode MF or S-AF+MF; no Wi-Fi command |
 | Focus Stacking On/Off (8 frames, merged in the camera, P/A/S/M) | – | ✅ | no Wi-Fi command |
 
@@ -85,21 +86,22 @@ More in [Start and stop](#start-and-stop).
 
 | Feature | Wi-Fi | USB | Note |
 |---|---|---|---|
-| Take picture, Press halfway (hold focus, then take picture) | ✅ | ✅ | focuses on the tapped AF point |
-| Short black frame on Take picture (like a viewfinder) | ✅ | ✅ | |
+| Take picture, Press halfway (hold focus, then take picture) | ✅ | ✅ | focuses on the tapped AF point; Wi-Fi: long exposures and Movie use the shutter button route; USB: the Press halfway button not re-tested since its redesign |
+| Shutter blackout: short black frame over the live view on Take picture | ✅ | ✅ | |
 | Self-timer (Off, 2 s, 12 s, cancel while it runs) | ✅ | ✅ | |
-| New picture in the corner and in the Index display right after the shot | ✅ | ✅ | Wi-Fi about 8 s, USB 5–6 s after the click |
+| New picture in the corner and in the Index display right after the shot | ✅ | ✅ | Wi-Fi about 8 s (7 s of it is the camera's shot), USB 5–6 s after the click |
+| The corner picture fades out after 6 s | 🟡 | 🟡 | |
 | M mode quick select: BULB, LIVE TIME, LIVECOMP | ✅ | ✅ | |
-| Movie: Start/Stop recording | ✅ | ✅ | Wi-Fi switches to Movie mode; USB works like the REC button (not in PHOTO STORY and some SCN modes); movie settings over USB not built |
+| Movie: Start/Stop recording, movie shooting mode P/A/S/M | ✅ | ✅ | Wi-Fi switches to Movie mode (movie record mode cannot be changed over Wi-Fi); USB works like the REC button (not in PHOTO STORY and some SCN modes); movie settings over USB not built |
 | Time lapse, AE BKT | 🟡 | ✅ | |
-| Save to card only, or to card and computer; save folder and file names | ✅ | ✅ / 🟡 | folder and names over USB not tested |
+| Save to card only, or to card and computer; save folder and file names | ✅ | 🟡 | not tested over USB |
 
 ### Camera settings
 
 | Feature | Wi-Fi | USB | Note |
 |---|---|---|---|
 | LV super control panel: shutter speed, aperture, exposure compensation, ISO, WB, drive, Picture Mode, Art filter | ✅ | ✅ | |
-| Shooting mode | ✅ | – | USB: set by the mode dial; the app follows the dial and reloads the values (iAUTO, ART, SCN, PHOTO STORY show as P) |
+| Shooting mode | ✅ | – | USB: set by the mode dial; the app follows the dial and reloads the values (tested; iAUTO, ART, SCN, PHOTO STORY show as P) |
 | AF mode, Metering, Flash mode, Record mode, Aspect ratio, Image stabilizer, Face priority | – | ✅ | no Wi-Fi command |
 | Aperture list limited to the attached lens | ✅ | ✅ | USB after the first picture of the session |
 | Read-only values: Anti-Shock, Silent, Noise Reduct., BULB/TIME Timer, Digital Tele-converter | ✅ | – | no USB property known |
@@ -112,7 +114,7 @@ More in [Start and stop](#start-and-stop).
 | Index display, Calendar display, single-frame view, save to computer | ✅ | ✅ | |
 | Card list saved on the computer, shown at once when you connect | ✅ | ✅ | |
 | Shooting data (Overall display), line on thumbnails | ✅ | ✅ | |
-| Pinch zoom and swipe between pictures (phone, trackpad, Magic Mouse, Shift + wheel) | ✅ | ✅ | |
+| Pinch zoom and swipe between pictures (phone, trackpad, Magic Mouse, Shift + wheel) | ✅ | 🟡 | same page code; not tried separately over USB |
 | Open in OM Workspace (macOS, if installed) | 🟡 | ✅ | |
 | HSL colour profiles (HSL button, before/after) | ✅ | 🟡 | |
 | Share Order: show, save all, reset | ✅ | – | no USB counterpart known |
@@ -124,8 +126,8 @@ More in [Start and stop](#start-and-stop).
 |---|---|---|---|
 | Open the app on a phone in the home network (QR code behind **Phone**) | ✅ | 🟡 | start with `--lan`, see [On a phone](#on-a-phone) |
 | Phone view: live view size picked by itself, no computer-only windows | ✅ | 🟡 | Wi-Fi follows the screen and the signal; USB always 1024×768 at 30 fps |
-| Second monitor (live view or last picture in its own window) | ✅ | ✅ | |
-| Webcam (OBS) | ✅ | ✅ | see [Use as webcam](#use-as-webcam-obs) |
+| Second monitor (live view or last picture in its own window) | ✅ | ✅ | live view window tested 2026-11-15 |
+| Webcam (OBS) | ✅ | ✅ | webcam view tested; the **Webcam (OBS)** button itself not tested; see [Use as webcam](#use-as-webcam-obs) |
 
 ### Connection
 
@@ -133,11 +135,11 @@ More in [Start and stop](#start-and-stop).
 |---|---|---|---|
 | Start by double-click, browser opens by itself | ✅ | ✅ | |
 | Start screen connects by itself to the camera used last time (**Stay here** stops it) | ✅ | 🟡 | |
-| Camera lost and back (cable pulled, camera off): waits quietly and reconnects by itself | – | ✅ | not built for Wi-Fi |
+| Camera lost and back (cable pulled, camera off): waits quietly and reconnects by itself | – | ✅ | Wi-Fi: the camera just stops answering; a returning camera is not tested |
 | Two connect requests at once make one connection (two tabs, a phone) | 🟡 | ✅ | |
-| Quit E-M1 Capture button | ✅ | ✅ | USB tested from the start screen |
+| Quit E-M1 Capture button | ✅ | 🟡 | USB tested from the start screen, not while connected |
 
-**Not possible with the E-M1 Mark I:** the level gauge over Wi-Fi (no tilt data), changing AF Area over Wi-Fi
+**Not possible with the E-M1 Mark I:** the level gauge over Wi-Fi (no tilt data), changing AF Area and the movie record mode over Wi-Fi,
 and setting the shooting mode over USB – the camera offers no command for it.
 
 **Planned:** Mac app with a menu bar icon, Windows over Wi-Fi, movie settings and Focus BKT over USB,
@@ -149,17 +151,17 @@ so more languages can be added.
 
 ## Speed
 
-Measured with the E-M1 Mark I (firmware 4.6) and a Mac, 2026-11-15.
+Measured with the E-M1 Mark I (firmware 4.6), a Mac and about 2950 pictures on the card, 2026-11-12 to 2026-11-15.
 
 | | Wi-Fi | USB (own USB layer, macOS) |
 |---|---|---|
-| Connect | about 2 s | about 5 s (later connects); about 45 s the very first time, because the card index is read once |
+| Connect | about 1 s (card list follows in the background) | about 5 s (later connects); about 45 s the very first time, because the card index is read once |
 | Live view 640×480 | 30 fps | 30 fps |
 | Live view 800×600 (Wi-Fi default) | about 21 fps | 30 fps |
 | Live view 1024×768 (USB default) | about 12 fps | 30 fps |
 | Live view 1280×960 | about 8 fps | 15 fps |
 | Focus by tap | about 0.4 s | 0.4–0.6 s |
-| Take picture | 1.2–1.5 s | about 4.5 s |
+| Take picture | 1.2–1.5 s | about 4.5 s, new files in the list at once |
 
 - 30 fps is the camera's own live view rate; at 1280×960 it sends half of that.
 - Of the 5 s for a USB connect, about 4.7 s is the camera itself switching to computer control.
@@ -190,7 +192,7 @@ Or in the Terminal (Linux too):
 
 ```sh
 cd omcap
-.venv/bin/em1-capture --allow-write
+.venv/bin/em1-capture --allow-write     # without --allow-write: read only
 ```
 
 - Keep the window open while you use the app.
@@ -198,8 +200,9 @@ cd omcap
   read only and `--allow-write`, stop the running app first.
 - As long as the app runs, <http://127.0.0.1:8765/> keeps working, also after closing the browser tab.
 
-**Stop:** click **Quit E-M1 Capture** (top right) twice, or press **Ctrl+C** in the app's window, or close it.
-Without a window (started in the background):
+**Stop:** click **Quit E-M1 Capture** (top right, also on the start screen) twice – the camera connection is closed and the page
+says you can close the tab. Or press **Ctrl+C** in the app's window, or close it (Windows: close the window of
+`E-M1 Capture.bat`). Without a window (started in the background):
 
 ```sh
 pkill -f 'omcap\.server|bin/em1-capture'
@@ -220,30 +223,31 @@ pkill -f 'omcap\.server|bin/em1-capture'
 
 1. Camera: **Setup Menu → Wi-Fi Settings → Wi-Fi Connect Settings → Private** (once).
    Remote control only works with Private, not One-Time.
-2. Camera: **Playback Menu → Connection to Smartphone**. The monitor shows network name and password.
+2. Camera: **Playback Menu → Connection to Smartphone**. The monitor shows SSID and password.
 3. Computer: join that Wi-Fi network (it connects by itself next time).
 4. Start the app and choose **Wi-Fi connection**.
 
 **Tips**
 
-- **Live view size:** 640×480 is the smoothest, 800×600 (default) the best balance, 1024×768 and 1280×960 for checking details and focus (see [Speed](#speed)).
+- **Live view size:** 640×480 is the smoothest, 800×600 (default) the best balance, 1024×768 and 1280×960 for checking details and focus (see [Speed](#speed)). On a phone the app picks the size itself and steps down when frames come slowly ("Auto · 800×600").
 - Keep the camera within a few metres and do not cover the grip – the Wi-Fi antenna is inside it (manual p. 124).
   Microwaves and cordless phones nearby slow the connection down.
 - Wi-Fi drains the battery faster; start with a full battery or use the AC adapter.
 - On the Mac, in the details of the camera's network (System Settings → Wi-Fi): **Private Wi-Fi address: Off** and
-  **Limit IP address tracking: Off**.
+  **Limit IP address tracking: Off**. Keep other background network features to a minimum.
 - The camera network has no internet. Turn off **Auto-Join** for other known networks so the computer does not switch
   away while you shoot. A cable network can stay connected for internet at the same time.
 - Live view arrives as UDP on port 5555. If the macOS firewall is on, allow incoming connections for Python when
   asked; otherwise the live view shows "no signal".
-- Opening Playback switches the camera to playback mode (live view pauses) for fast previews; previews are cached.
+- Opening Playback switches the camera to playback mode (live view pauses) for fast medium-size previews; previews are cached.
+- Over Wi-Fi the AF Area mode and the movie record mode cannot be changed (no command for it).
 
 ## Using USB
 
 **macOS**
 
 1. Quit the **Photos** app (it grabs the camera).
-2. Camera: **Custom Menu → USB Mode → Auto**.
+2. Camera: **Custom Menu → USB Mode → Auto** (or the computer + camera setting).
 3. Connect the cable; in the camera's USB menu choose the **third entry (computer + camera icon)**.
 4. Start the app and choose **USB connection**. The app stops the macOS service `ptpcamerad`, which would otherwise hold the camera.
 
@@ -253,9 +257,10 @@ pkill -f 'omcap\.server|bin/em1-capture'
   meanwhile). Later connects take about 5 s.
 - The shooting mode follows the mode dial during live view; each turn reconnects the camera (8–10 s), so quick
   turns in a row show only the last position. Other settings changed on the camera itself come in with **reload**
-  in the LV super control panel.
+  in the LV super control panel (about 9 s with libgphoto2).
 - Cable pulled while connected? The live view shows *Camera not found. Is the cable plugged in?* Plug it in and choose
-  the computer + camera entry again – the app reconnects by itself after a few seconds.
+  the computer + camera entry again – the app reconnects by itself after a few seconds. Only if that fails, stop the
+  app and start it again.
 
 **Linux (possible, not tested yet)**
 
