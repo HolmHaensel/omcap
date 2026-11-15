@@ -143,11 +143,11 @@ class Camera:
         except (urllib.error.URLError, OSError) as e:
             raise CameraError("%s: %s" % (cgi, e), getattr(e, "code", None))
 
-    def get(self, cgi, **query):
+    def get(self, cgi, timeout=None, **query):
         name = cgi[:-4] if cgi.endswith(".cgi") else cgi
         if name not in READ_CGIS:
             raise WriteBlocked("%s is not a read-only command" % name)
-        with self._lock, self._open(name + ".cgi", query) as r:
+        with self._lock, self._open(name + ".cgi", query, timeout=timeout) as r:
             return r.read()
 
     def write(self, cgi, data=None, **query):

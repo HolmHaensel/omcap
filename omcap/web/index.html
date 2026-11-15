@@ -768,6 +768,7 @@ const I18N={en:{
   "lv.overlayRemove": "Remove",
   "lv.noSignal": "No signal for {s} s",
   "lv.cameraGone": "Camera not found. Is the cable plugged in?",
+  "lv.wifiGone": "Camera not found. Is the computer in the camera's Wi-Fi?",
   "lv.receiving": "receiving {w}×{h}",
   "lv.fps": " · {fps} fps",
   "lv.gphoto2": " · libgphoto2",
@@ -1105,7 +1106,7 @@ async function tick(){
   const w=$('#live').naturalWidth, stale=st.live&&st.lv_age>3;
   if(st.live) reduceAutoLiveSize();
   const off=st.live&&w&&st.lvqty&&w!==parseInt(st.lvqty,10);
-  const gone=st.gone?tr('lv.cameraGone'):''; // the app waits for the camera and reconnects by itself
+  const gone=st.gone?tr(isUsb?'lv.cameraGone':'lv.wifiGone'):''; // the app waits for the camera and goes on by itself
   // frames shown per second over the last 3 s (REQ-F51), and the USB fallback layer, which keeps 1024×768 and is slower
   const now=performance.now(), recent=lvShown.filter(t=>t>now-3000), fps=recent.length>1?(recent.length-1)/((recent.at(-1)-recent[0])/1000):0;
   const extra=(fps?tr('lv.fps',{fps:fps.toFixed(1)}):'')+(isUsb&&usbBackend==='gphoto2'?tr('lv.gphoto2'):'');

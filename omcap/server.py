@@ -104,6 +104,10 @@ def read_jpg(path):
     return data
 
 busy = threading.Lock()  # only one shooting sequence at a time
+# Wi-Fi: when the Wi-Fi drops and comes back the camera answers again but has ended the live view; the app restarts
+# it once the camera answers (REQ-Q14, seen 2026-11-15). lost: the camera does not answer; backoff after a failed restart
+WIFI_STALL, WIFI_CHECK = 5.0, 2.0
+wifi_watch = {"gen": 0, "lost": False, "backoff": 5.0, "retry_at": 0.0, "seq": -1}  # seq: live.seq at the last restart
 connecting = threading.Lock()  # one connect at a time (auto-connect and a click came together, 2026-11-15)
 stop_job = threading.Event()
 job = {"name": None, "running": False, "done": 0, "total": 0, "error": None}
@@ -166,6 +170,8 @@ def connect(kind):
         c.features = WIFI_FEATURES
         c.caminfo()  # reports at once if the camera does not answer
         cam, live = c, LiveView(LV_PORT)
+        wifi_watch.update(gen=wifi_watch["gen"] + 1, lost=False, backoff=5.0, retry_at=0.0, seq=-1)
+        threading.Thread(target=wifi_watchdog, args=(c, wifi_watch["gen"]), daemon=True).start()
     elif kind == "usb":
         c = usb_camera.UsbCamera(allow_write=options["allow_write"], backend=options["usb_backend"])
         cam, live = c, c.live
@@ -180,6 +186,7 @@ http_server = None  # set by main(), used by /api/quit
 
 def disconnect():
     global cam, live, conn_type
+    wifi_watch["gen"] += 1  # ends the Wi-Fi watchdog
     if cam is None:
         return
     if conn_type == "usb" and state.get("take"):
@@ -293,6 +300,61 @@ def power_off():
     except CameraError:
         pass  # the camera cuts the Wi-Fi, often without an answer
     disconnect()
+
+
+def wifi_watchdog(c, gen):
+    while cam is c and wifi_watch["gen"] == gen:
+        time.sleep(WIFI_CHECK)
+        try:
+            wifi_check(c, gen)
+        except Exception as e:  # unexpected errors only; the watchdog must not die
+            print("Wi-Fi watchdog:", e, flush=True)
+
+
+def _wifi_paused(c, gen, held=False):
+    """True when the watchdog must not act: another connection, live view off or flowing, or paused on purpose."""
+    return (cam is not c or wifi_watch["gen"] != gen or conn_type != "wifi" or not live.running
+            or live.age is None or live.age < WIFI_STALL or (busy.locked() and not held) or state["pressing"] or state["take"]
+            or state["movie"] or job["running"] or state["play"] is not None or c.stage)
+
+
+def wifi_check(c, gen):
+    """One look: live view stalled while nothing else holds the camera -> does the camera answer -> restart."""
+    if cam is not c or wifi_watch["gen"] != gen:
+        return
+    if live.running and live.seq != wifi_watch["seq"] and live.age is not None and live.age < WIFI_STALL:
+        wifi_watch.update(lost=False, backoff=5.0, seq=-1)  # real new frames: the wait starts over
+    if _wifi_paused(c, gen):
+        if not live.running or (live.age is not None and live.age < WIFI_STALL):
+            wifi_watch["lost"] = False
+        return
+    now = time.monotonic()
+    if now < wifi_watch["retry_at"]:
+        return
+    try:
+        c.get("get_connectmode", timeout=2)  # short: the camera lock is held meanwhile
+    except CameraError as e:
+        if e.code != 520:  # 520: the camera is there, only busy (shutter mode answers every get_* so)
+            wifi_watch["lost"] = True
+            return
+    wifi_watch["lost"] = False
+    if not c.allow_write or not busy.acquire(blocking=False):
+        return
+    try:
+        if _wifi_paused(c, gen, held=True):  # the probe took a while: Playback, a stop or a new connection may have come
+            return
+        # the next try waits 5, 10 … 60 s, also after a restart that brings no frames (e.g. a firewall)
+        wifi_watch.update(retry_at=now + WIFI_STALL + wifi_watch["backoff"],
+                          backoff=min(wifi_watch["backoff"] * 2, 60.0), seq=live.seq)
+        stalled = live.age
+        try:
+            c.set_mode("rec", c.lvqty)  # play -> rec, as after a connect: the camera takes lvqty only then
+            start_live()
+            print("Wi-Fi: live view restarted after %.0f s without frames" % stalled, flush=True)
+        except CameraError as e:
+            print("Wi-Fi: live view restart failed (%s)" % e, flush=True)
+    finally:
+        busy.release()
 
 
 def start_live():
@@ -903,7 +965,7 @@ def public_state():
     now = time.time()
     return {
         # busy: shooting sequence or shutter command running (camera may not be in mode "rec")
-        "stage": cam.stage, "busy": busy.locked() or state["pressing"], "indexing": state["indexing"], "live": live.running, "lv_age": live.age, "lvqty": cam.lvqty, "gone": bool(getattr(cam, "gone", False)),
+        "stage": cam.stage, "busy": busy.locked() or state["pressing"], "indexing": state["indexing"], "live": live.running, "lv_age": live.age, "lvqty": cam.lvqty, "gone": bool(getattr(cam, "gone", False)) or (conn_type == "wifi" and wifi_watch["lost"]),
         "lvperf": getattr(live, "performance", lambda: None)(), "job": job,
         "transfer": state["transfer"], "latest": state["latest"], "play": state["play"] is not None,
         "transfer_error": state["transfer_error"], "hsl_error": hsl_auto["error"],
