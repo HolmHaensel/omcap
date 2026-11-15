@@ -69,7 +69,8 @@ More in [Start and stop](#start-and-stop).
 | Histogram, Highlight&Shadow, Peaking | ✅ | ✅ | |
 | Frames per second shown next to the live view size (and "libgphoto2" when USB uses the slower fallback) | ✅ | 🟡 | same page code; not yet looked at over USB |
 | Level gauge (horizon line and tilt dot, "Level ✓", optional sound, "Hold angle") | – | ✅ | the camera sends no tilt over Wi-Fi; USB: own USB layer only, not with libgphoto2 |
-| Battery and free card space in the header | ✅ | ✅ | |
+| Free card space in the header | ✅ | ✅ | |
+| Battery level in the header | – | ✅ | Wi-Fi: the value the camera sends is not the battery level (100 while the camera showed half), so it is not shown |
 | Current focal length; ISO with ISO Auto ("now 800"); shutter speed and aperture the camera uses in auto modes | ✅ | – | sent with the Wi-Fi live view; no live USB value found |
 
 ### Focus

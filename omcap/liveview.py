@@ -40,7 +40,7 @@ def decode_entry(fid, w):
         return {"mount_state": m & 3, "not_full": bool(m & 4), "protected": bool(m & 8),
                 "error": bool(m & 16), "writing": bool(m & 32)}
     if fid in (1, 4, 5, 7, 16, 17, 19):
-        # JPEG frame size, orientation, free shots, 7 battery level in % (matches USB), warning,
+        # JPEG frame size, orientation, free shots, 7 unknown (0-100; not the battery level), warning,
         # focus mode, 19 unknown counter (E-M1: -5 per shot)
         return w[0]
     if fid == 8:  # shutter speed: longest / shortest / now as ratios
@@ -81,6 +81,7 @@ class LiveView:
         self.last_frame = None  # time of the last complete frame
         self.ext = {}           # latest RTP extension entries {function id: words}
         self.ext_seen = {}      # function id -> number of frames that carried it
+        self.last_id7 = None    # ID 7 was taken for the battery %; it is not (camera half full, ID 7 = 100, 2026-11-15)
         self.frame_marks = deque(maxlen=600)  # (time, complete): rolling quality telemetry
         self.cond = threading.Condition()
         self._sock = None
@@ -137,6 +138,10 @@ class LiveView:
                 try:
                     ext = parse_extension(pkt[hdr + 4:hdr + 4 + 4 * n])
                     self.ext = ext
+                    b = ext.get(7, [None])[0]
+                    if b is not None and b != self.last_id7:  # meaning unknown (not the battery %): log changes to learn it
+                        print("Wi-Fi live view ID 7: %s -> %s" % (self.last_id7, b), flush=True)
+                        self.last_id7 = b
                     for fid in ext:
                         self.ext_seen[fid] = self.ext_seen.get(fid, 0) + 1
                 except struct.error:
@@ -175,7 +180,7 @@ class LiveView:
     def live_values(self):
         """Camera values for the page while frames arrive (E-M1 layouts), else None.
 
-        shots: free shots on the card; iso: ISO in use (also with ISO Auto); battery: level in %;
+        shots: free shots on the card; iso: ISO in use (also with ISO Auto);
         shutter: [numerator, denominator] in use; aperture: f-number in use;
         focal: [wide, tele, now] in mm; af: 1 in focus, 0 no result."""
         age = self.age
@@ -186,8 +191,6 @@ class LiveView:
             out["shots"] = e[5][0]
         if e.get(12):
             out["iso"] = e[12][0]
-        if e.get(7) and e[7][0] <= 100:  # battery level in %, same value as USB (100 vs 100, 2026-11-12)
-            out["battery"] = e[7][0]
         if len(e.get(8, ())) >= 3 and e[8][2] & 0xFFFF:
             out["shutter"] = [e[8][2] >> 16, e[8][2] & 0xFFFF]
         if len(e.get(9, ())) >= 3:
