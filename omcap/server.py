@@ -1153,16 +1153,13 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("Content-Type", "multipart/x-mixed-replace; boundary=f")
         self.end_headers()
         seq = 0
-        stream = live  # stays valid even if the connection is switched
-        try:
-            while live is stream:
-                seq, frame = stream.wait_frame(seq)
-                if frame is None:
-                    continue
-                self.wfile.write(b"--f\r\nContent-Type: image/jpeg\r\nContent-Length: %d\r\n\r\n" % len(frame))
-                self.wfile.write(frame + b"\r\n")
-        except (BrokenPipeError, ConnectionResetError):
-            pass
+        stream = live  # stays valid even if the connection is switched; a closed window ends it (handle_one_request)
+        while live is stream:
+            seq, frame = stream.wait_frame(seq)
+            if frame is None:
+                continue
+            self.wfile.write(b"--f\r\nContent-Type: image/jpeg\r\nContent-Length: %d\r\n\r\n" % len(frame))
+            self.wfile.write(frame + b"\r\n")
 
     def do_POST(self):
         self._t0 = time.monotonic()

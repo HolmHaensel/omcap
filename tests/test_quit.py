@@ -44,10 +44,11 @@ class QuitTest(unittest.TestCase):
 
     def test_gone_client_is_no_error(self):
         # a cancelled live frame request or a reload closes the socket before the answer (REQ-Q13)
-        h = server.Handler.__new__(server.Handler)
-        with mock.patch.object(server.BaseHTTPRequestHandler, "handle_one_request", side_effect=BrokenPipeError):
-            h.handle_one_request()
-        self.assertTrue(h.close_connection)
+        for err in (BrokenPipeError, ConnectionResetError):
+            h = server.Handler.__new__(server.Handler)
+            with mock.patch.object(server.BaseHTTPRequestHandler, "handle_one_request", side_effect=err):
+                h.handle_one_request()
+            self.assertTrue(h.close_connection)
 
     def test_foreign_origin_is_refused(self):
         h = server.Handler.__new__(server.Handler)
