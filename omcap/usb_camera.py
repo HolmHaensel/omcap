@@ -432,7 +432,7 @@ class UsbCamera:
                     pass
                 self._c = self.gp.Camera()
         raise CameraError("USB camera not reachable (%s). Quit the Photos app and choose the computer + camera entry "
-                          "in the camera's USB menu; after plugging the cable in again, restart E-M1 Capture." % error)
+                          "in the camera's USB menu; after plugging the cable in again, wait a few seconds or restart E-M1 Capture." % error)
 
     def release(self):
         """Close the session of a camera that is gone from USB; reopen() starts a fresh one later."""
