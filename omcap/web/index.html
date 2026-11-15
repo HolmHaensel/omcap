@@ -769,6 +769,8 @@ const I18N={en:{
   "lv.noSignal": "No signal for {s} s",
   "lv.cameraGone": "Camera not found. Is the cable plugged in?",
   "lv.receiving": "receiving {w}×{h}",
+  "lv.fps": " · {fps} fps",
+  "lv.gphoto2": " · libgphoto2",
   "lv.hist": "Histogram",
   "lv.histRgb": "RGB",
   "lv.clip": "Highlight&Shadow",
@@ -1104,9 +1106,9 @@ async function tick(){
   if(st.live) reduceAutoLiveSize();
   const off=st.live&&w&&st.lvqty&&w!==parseInt(st.lvqty,10);
   const gone=st.gone?tr('lv.cameraGone'):''; // the app waits for the camera and reconnects by itself
-  // provisional (user 2026-11-15): frames shown per second over the last 3 s, and the USB layer when it is libgphoto2
+  // frames shown per second over the last 3 s (REQ-F51), and the USB fallback layer, which keeps 1024×768 and is slower
   const now=performance.now(), recent=lvShown.filter(t=>t>now-3000), fps=recent.length>1?(recent.length-1)/((recent.at(-1)-recent[0])/1000):0;
-  const extra=(fps?' · '+fps.toFixed(1)+' fps':'')+(isUsb&&usbBackend==='gphoto2'?' · libgphoto2':'');
+  const extra=(fps?tr('lv.fps',{fps:fps.toFixed(1)}):'')+(isUsb&&usbBackend==='gphoto2'?tr('lv.gphoto2'):'');
   $('#lvSize').textContent=gone||(stale?tr('lv.noSignal',{s:Math.round(st.lv_age)}):st.live&&w?tr('lv.receiving',{w,h:$('#live').naturalHeight})+extra:'');
   $('#lvSize').className=off||stale?'warn':'mut';
   const j=st.job;
