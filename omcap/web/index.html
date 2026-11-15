@@ -1571,8 +1571,8 @@ function renderGal(){
   document.querySelectorAll('[data-v]').forEach(b=>b.classList.toggle('on',b.dataset.v===gv.mode));
   if(gv.mode==='cal'&&selMode){selMode=false;selSet.clear()}
   $('#galOv').classList.toggle('cal',gv.mode==='cal'); // Calendar display: no size, shooting data, select or Share Order buttons
-  document.querySelectorAll('[data-sz]').forEach(b=>{b.classList.toggle('on',+b.dataset.sz===gv.n);b.disabled=gv.mode==='cal'});
-  $('#galExif').checked=gv.exif; $('#galExif').disabled=gv.mode==='cal';
+  document.querySelectorAll('[data-sz]').forEach(b=>b.classList.toggle('on',+b.dataset.sz===gv.n));
+  $('#galExif').checked=gv.exif;
   $('#galSelect').classList.toggle('on',selMode); $('#galSelect').textContent=tr(selMode?'card.selectDone':'card.select');
   $('#galSaveSel').hidden=!selMode; $('#galSaveSel').textContent=tr('card.saveSel',{n:selSet.size}); $('#galSaveSel').disabled=!selSet.size;
   const chip=$('#galChip'); chip.hidden=!(gv.day&&gv.mode==='index');
@@ -1740,7 +1740,7 @@ const calm=matchMedia('(prefers-reduced-motion:reduce)'); // shared by the Playb
     if(!g||(e.touches&&e.touches.length>=2)) return;
     const sc=g.sc; g=null;
     if(gv.mode==='cal'){ // Calendar display: spreading the fingers goes back to Index display 5x5
-      if(sc>1.25){setT(1,0);gv.mode='index';gv.n=25;saveGal();renderGal();body.animate([{opacity:.4},{opacity:1}],{duration:160,easing:'ease-out'})}
+      if(sc>1.25){setT(1,0);gv.mode='index';gv.n=25;saveGal();renderGal();if(!calm.matches)body.animate([{opacity:.4},{opacity:1}],{duration:160,easing:'ease-out'})}
       else setT(1,calm.matches?0:180);
       return;
     }
