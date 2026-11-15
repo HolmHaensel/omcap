@@ -452,7 +452,9 @@ class PtpCamera:
         Like libgphoto2: write, then poll the property until it reads the new value."""
         want = 1 if on else 2
         # libgphoto2 waits up to 20 s (its port timeout) for this answer; the E-M1 needs longer than 5 s
+        t0 = time.monotonic()
         self.set_prop(DPC_CONTROL_MODE, want, 4, timeout=20000)
+        self.pc_answer_s = time.monotonic() - t0  # how long the camera took to answer (connect log)
         end = time.monotonic() + wait
         while time.monotonic() < end:
             try:

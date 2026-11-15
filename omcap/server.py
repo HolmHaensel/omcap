@@ -104,6 +104,7 @@ def read_jpg(path):
     return data
 
 busy = threading.Lock()  # only one shooting sequence at a time
+connecting = threading.Lock()  # one connect at a time (auto-connect and a click came together, 2026-11-15)
 stop_job = threading.Event()
 job = {"name": None, "running": False, "done": 0, "total": 0, "error": None}
 state = {"transfer": "sd", "latest": None, "transfer_error": None,
@@ -1052,7 +1053,7 @@ class Handler(BaseHTTPRequestHandler):
             if u.path == "/api/level":
                 if conn_type != "usb":
                     raise CameraError("Level gauge: the camera reports no live tilt over Wi-Fi")
-                return self._send(cam.level())
+                return self._send(cam.level() or {"a": None, "b": None})  # no reading yet right after connecting
             if u.path == "/api/afarea":
                 return self._send(af_area())
             if u.path == "/api/usbprops":  # research: read USB properties, e.g. ?codes=d003,d004
@@ -1201,10 +1202,13 @@ class Handler(BaseHTTPRequestHandler):
 
     def _action(self, path, b):
         if path == "/api/connect":
-            connect(b["type"])
+            with connecting:  # a second request waits and keeps the connection the first one made
+                if not (cam is not None and conn_type == b["type"]):
+                    connect(b["type"])
             return {"type": conn_type}
         if path == "/api/disconnect":
-            disconnect()
+            with connecting:  # a Disconnect during a slow connect waits for it, then really disconnects
+                disconnect()
             return None
         if path == "/api/quit":
             try:
