@@ -82,7 +82,7 @@ Please report what works on your body in [Discussions](https://github.com/HolmHa
 | Turn off camera (click twice to confirm) | yes | – (Wi-Fi only) |
 | Live view aids: Histogram, Highlight&Shadow, Peaking | yes | yes |
 | HSL color profiles for ORF/JPG on the computer (`omcap.hsl`) | independent | independent |
-| Webcam (OBS) button next to Second monitor (computer only, hidden on a phone, REQ-F49) | yes | yes (webcam view tested, button untested) |
+| Webcam (OBS) button next to Second monitor (computer only, hidden on a phone, REQ-F49) | yes (webcam view tested 2026-11-15, button untested) | yes (webcam view tested 2026-11-15, button untested) |
 | Phone view without computer-only controls (REQ-F49): no size choice, Second monitor, Webcam (OBS), Picture on second monitor; "phone" means the window size | yes (adaptive size also with the phone turned; tried on an iPhone 2026-11-15) | yes (always 1024×768; not tried on USB) |
 | Save folder and file naming | yes | yes (untested) |
 | HSL colour profiles in the app (HSL button, auto-apply, before/after) | yes | yes (untested) |
@@ -185,10 +185,10 @@ Measured with the E-M1 Mark I:
 
 | Live view size | Frame rate | Use |
 |---|---|---|
-| 640×480 | 27–30 fps (2026-11-14) | smoothest picture; the phone view steps down to it when frames come slowly |
-| **800×600** (default) | about 20 fps (2026-11-14) | best balance |
-| 1024×768 | about 9 fps (2026-11-12, not re-measured) | checking details |
-| 1280×960 | about 7 fps, about 11 % frames dropped (2026-11-12, not re-measured) | checking focus only |
+| 640×480 | 30 fps (2026-11-15) | smoothest picture; the phone view steps down to it when frames come slowly |
+| **800×600** (default) | about 21 fps (2026-11-15) | best balance |
+| 1024×768 | about 12 fps (2026-11-15) | checking details |
+| 1280×960 | about 8 fps (2026-11-15) | checking focus only |
 
 - Keep the camera within a few metres and do not cover the grip: the Wi-Fi antenna is inside
   it (manual p. 124). Microwaves and cordless phones nearby slow the connection down.

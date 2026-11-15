@@ -191,13 +191,13 @@ class PowerOffGuards(unittest.TestCase):
             server.cam, server.live, server.conn_type = old
 
 class WebcamView(unittest.TestCase):
-    """The client routes ?view=webcam to the bare live stream (no UI, optional w/h)."""
+    """The client routes ?view=webcam to the bare live view (no UI, optional w/h), frame by frame."""
     def test_index_has_webcam_view(self):
         with open(os.path.join(server.ROOT, "web", "index.html"), encoding="utf-8") as f:
             html = f.read()
         self.assertIn("view==='webcam'", html)
         self.assertIn("params.get('w')", html)
-        self.assertIn("/live.mjpg", html)
+        self.assertIn("startLiveLoop(im)", html)  # frame by frame like the main view, not MJPEG (REQ-Q13)
 
 
 if __name__ == "__main__":
