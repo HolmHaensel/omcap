@@ -185,10 +185,10 @@ Measured with the E-M1 Mark I:
 
 | Live view size | Frame rate | Use |
 |---|---|---|
-| 640×480 | 27–30 fps (2026-11-14) | smoothest picture; the phone view steps down to it when frames come slowly |
-| **800×600** (default) | about 20 fps (2026-11-14) | best balance |
-| 1024×768 | about 9 fps (2026-11-12, not re-measured) | checking details |
-| 1280×960 | about 7 fps, about 11 % frames dropped (2026-11-12, not re-measured) | checking focus only |
+| 640×480 | 30 fps (2026-11-15) | smoothest picture; the phone view steps down to it when frames come slowly |
+| **800×600** (default) | about 21 fps (2026-11-15) | best balance |
+| 1024×768 | about 12 fps (2026-11-15) | checking details |
+| 1280×960 | about 8 fps (2026-11-15) | checking focus only |
 
 - Keep the camera within a few metres and do not cover the grip: the Wi-Fi antenna is inside
   it (manual p. 124). Microwaves and cordless phones nearby slow the connection down.
