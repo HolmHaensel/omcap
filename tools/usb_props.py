@@ -6,7 +6,10 @@ USB session is established, so `watch` rebuilds the session before every measure
 
   python tools/usb_props.py snapshot NAME        # save values
   python tools/usb_props.py diff A B             # compare two snapshots
-  python tools/usb_props.py watch [--kill-ptpcamerad]
+  python tools/usb_props.py watch [--kill-ptpcamerad] [--replug]
+      # --replug: the camera closes its menu under PC control, so each round is: name the change,
+      #   unplug the cable, change the setting in peace, plug in and choose PC + camera – the tool
+      #   notices the cable and reads by itself
       # baseline, then per round: change ONE setting on the camera, enter a name,
       # Enter -> reconnect, compare, append the result to mapping.md
 
@@ -102,7 +105,29 @@ def print_diff(rows):
         print("  %s %-3s %-22s %s -> %s   %s" % (code, access, label[:22], old, new, form))
 
 
-def watch(kill):
+def camera_present():
+    """True while a camera is on USB (autodetect, no session)."""
+    import gphoto2 as gp
+    try:
+        return gp.Camera.autodetect().count() > 0
+    except gp.GPhoto2Error:
+        return False
+
+
+def wait_replug(kill):
+    """Wait until the cable is pulled, then until the camera is back on USB."""
+    print("  1) USB-Kabel abziehen …", flush=True)
+    while camera_present():
+        time.sleep(0.5)
+    print("  2) Jetzt an der Kamera in Ruhe ändern, dann Kabel einstecken und PC + Kamera wählen …", flush=True)
+    while not camera_present():
+        if kill:
+            subprocess.run(["killall", "-9", "ptpcamerad"], capture_output=True)
+        time.sleep(0.5)
+    time.sleep(2.0)  # let the camera finish its USB mode switch
+
+
+def watch(kill, replug=False):
     base = parse_summary(read_summary(kill))
     print("Grundstand: %d Eigenschaften gelesen." % len(base))
     save("base", base)
@@ -113,11 +138,15 @@ def watch(kill):
                     "| Menüpunkt geändert | Eigenschaft | rw | alt -> neu | Wertebereich |\n|---|---|---|---|---|\n")
     while True:
         try:
-            label = input("\nAn der Kamera EINE Einstellung ändern, dann hier benennen (leer = Ende): ").strip()
+            prompt = ("\nWelche Einstellung änderst du als Nächstes? Name eingeben (leer = Ende): " if replug else
+                      "\nAn der Kamera EINE Einstellung ändern, dann hier benennen (leer = Ende): ")
+            label = input(prompt).strip()
         except EOFError:
             break
         if not label:
             break
+        if replug:
+            wait_replug(kill)
         now = parse_summary(read_summary(kill))
         rows = diff(base, now)
         print_diff(rows)
@@ -138,6 +167,7 @@ def main():
     s = sub.add_parser("snapshot"); s.add_argument("name"); s.add_argument("--kill-ptpcamerad", action="store_true")
     d = sub.add_parser("diff"); d.add_argument("a"); d.add_argument("b")
     w = sub.add_parser("watch"); w.add_argument("--kill-ptpcamerad", action="store_true")
+    w.add_argument("--replug", action="store_true", help="unplug, change, plug in for every round")
     a = p.parse_args()
     if a.cmd == "snapshot":
         props = parse_summary(read_summary(a.kill_ptpcamerad))
@@ -145,7 +175,7 @@ def main():
     elif a.cmd == "diff":
         print_diff(diff(load(a.a), load(a.b)))
     else:
-        watch(a.kill_ptpcamerad)
+        watch(a.kill_ptpcamerad, a.replug)
 
 
 if __name__ == "__main__":
