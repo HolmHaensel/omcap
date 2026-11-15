@@ -923,6 +923,13 @@ class Handler(BaseHTTPRequestHandler):
     def log_message(self, *a):
         pass
 
+    def handle_one_request(self):
+        """A page that went away (reload, closed window, a cancelled live frame request) is no error: no traceback."""
+        try:
+            super().handle_one_request()
+        except (BrokenPipeError, ConnectionResetError):
+            self.close_connection = True
+
     def log_request(self, code="-", size="-"):
         t0 = getattr(self, "_t0", None)
         if self.timing and t0 is not None and not self.path.startswith(("/api/state", "/api/connections")):
@@ -1126,8 +1133,8 @@ class Handler(BaseHTTPRequestHandler):
             self._send({"error": str(e)}, code=502)
 
     def _live_frame(self, seq):
-        """Next live frame after `seq` (waits up to 3 s); 204 if none. The main page shows the live view this
-        way: a browser can stop showing an MJPEG stream after one bad part (seen 2026-11-13)."""
+        """Next live frame after `seq` (waits up to 3 s); 204 if none. The main page and the ?view= windows
+        show the live view this way: a browser can stop showing an MJPEG stream after one bad part (seen 2026-11-13)."""
         new_seq, frame = live.wait_frame(seq)  # not connected: do_GET already answered 409
         if frame is None or new_seq == seq:
             self.send_response(204)
@@ -1146,16 +1153,13 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("Content-Type", "multipart/x-mixed-replace; boundary=f")
         self.end_headers()
         seq = 0
-        stream = live  # stays valid even if the connection is switched
-        try:
-            while live is stream:
-                seq, frame = stream.wait_frame(seq)
-                if frame is None:
-                    continue
-                self.wfile.write(b"--f\r\nContent-Type: image/jpeg\r\nContent-Length: %d\r\n\r\n" % len(frame))
-                self.wfile.write(frame + b"\r\n")
-        except (BrokenPipeError, ConnectionResetError):
-            pass
+        stream = live  # stays valid even if the connection is switched; a closed window ends it (handle_one_request)
+        while live is stream:
+            seq, frame = stream.wait_frame(seq)
+            if frame is None:
+                continue
+            self.wfile.write(b"--f\r\nContent-Type: image/jpeg\r\nContent-Length: %d\r\n\r\n" % len(frame))
+            self.wfile.write(frame + b"\r\n")
 
     def do_POST(self):
         self._t0 = time.monotonic()

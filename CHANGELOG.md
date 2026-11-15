@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased
+
+- Main live view: the next frame is requested while the current one decodes, so the view keeps up with the camera – USB 1024×768 now 29.9 fps instead of 26.5 fps in the browser, Wi-Fi 640×480 29.8 instead of 28.8 fps (measured 2026-11-15, REQ-Q13).
+- Webcam (OBS) and second-monitor windows: same frame-by-frame live view as the main window instead of MJPEG. With MJPEG the picture went black for good after one bad frame (seen over Wi-Fi at 1280×960 and after a size change); now a bad frame is skipped, and the window picks the live view up again by itself after a reconnect (REQ-Q13).
+- Server log: a page that went away (reload, closed window, cancelled live frame request) no longer prints a Broken pipe traceback (REQ-Q13).
+- README Wi-Fi table re-measured 2026-11-15 with single-frame live view: 640×480 30 fps, 800×600 about 21 fps, 1024×768 about 12 fps, 1280×960 about 8 fps, no frames lost.
+- README: speed tables brought up to the latest measurements (Wi-Fi 640×480 27–30 fps and 800×600 about 20 fps since single-frame live view; USB connect 5–9 s, 5.2 s with 0.7.7); values not re-measured are marked.
+- USB live view measured 2026-11-15 with the own PTP layer: 30 fps at 640×480, 800×600 and 1024×768 (the camera's own rate, so the webcam view gets 30 fps), 15 fps at 1280×960.
+
 ## 0.7.7 – 2026-11-15
 
 A steadier USB connection and a cleaner phone view.
