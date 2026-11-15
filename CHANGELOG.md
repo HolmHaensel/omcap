@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Live view status line: next to the size it shows how many frames per second the browser really displays (last 3 s), and "libgphoto2" when USB fell back to the slower libgphoto2 layer; seen over Wi-Fi, USB not yet looked at (REQ-F51).
 - Playback, Index display, Select: new Erase button deletes the selected pictures from the card over USB (PTP DeleteObject; JPG and ORF together, confirm first, needs `--allow-write`, protected pictures are reported); not available over Wi-Fi (no command). Camera-tested 2026-11-15 with the own USB layer (libgphoto2 not tested): JPG and JPG+ORF erased, a protected picture refused by the camera and kept. Before each delete the app checks on the camera that the file is still the one in the list and never a folder (REQ-F50).
 - README rewritten for easier reading: highlights, quick start, features grouped by topic with ✅ / 🟡 / – for Wi-Fi and USB, one speed table, an options table.
 - Main live view: the next frame is requested while the current one decodes, so the view keeps up with the camera – USB 1024×768 now 29.9 fps instead of 26.5 fps in the browser, Wi-Fi 640×480 29.8 instead of 28.8 fps (measured 2026-11-15, REQ-Q13).
