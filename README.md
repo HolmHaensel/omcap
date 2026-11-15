@@ -49,7 +49,7 @@ Please report what works on your body in [Discussions](https://github.com/HolmHa
 | Camera lost and back (cable pulled, camera off): waits quietly, shows *Camera not found. Is the cable plugged in?*, reconnects by itself (REQ-Q11) | – (not built: over Wi-Fi the camera just stops answering, there is no "waiting" state; a returning camera is untested) | yes (camera-tested 2026-11-15: no rebuild while away, live view back about 9 s after plugging in) |
 | Two connect requests at once (auto-connect and a click, two tabs, a phone) make one connection (REQ-Q12) | yes (same server code, not tried over Wi-Fi) | yes (camera-tested 2026-11-15) |
 | Start screen connects by itself to the camera used last time (2 s, **Stay here** stops it) | yes (tested 2026-11-14) | yes (USB reconnect not tested yet) |
-| Live view size follows the screen and the signal on a phone (up to 700 px wide, or turned with up to 520 px height; "Auto · 800×600") | yes (tested 2026-11-14) | – (on a phone always 1024×768, on the computer the manual size: the PTP live view needs no step-down, 26 fps at 1024×768) |
+| Live view size follows the screen and the signal on a phone (up to 700 px wide, or turned with up to 520 px height; "Auto · 800×600") | yes (tested 2026-11-14) | – (on a phone always 1024×768, on the computer the manual size: the PTP live view needs no step-down, 30 fps at 1024×768) |
 | Tap the 9×9 AF grid to focus, AF target shown in green | yes | yes |
 | AF frame on tap with "Show AF targets" off (about 4 s: white focusing, green in focus, red no focus) | yes (tested 2026-11-14) | yes (tried 2026-11-14 in the redesign build) |
 | AF Area (All Targets, Single Target, Small Target, Group Target) | – (no command over Wi-Fi) | yes |
@@ -185,10 +185,10 @@ Measured with the E-M1 Mark I:
 
 | Live view size | Frame rate | Use |
 |---|---|---|
-| 640×480 | about 22 fps | smoothest picture |
-| **800×600** (default) | about 18 fps | best balance |
-| 1024×768 | about 9 fps | checking details |
-| 1280×960 | about 7 fps, about 11 % frames dropped | checking focus only |
+| 640×480 | 27–30 fps (2026-11-14) | smoothest picture; the phone view steps down to it when frames come slowly |
+| **800×600** (default) | about 20 fps (2026-11-14) | best balance |
+| 1024×768 | about 9 fps (2026-11-12, not re-measured) | checking details |
+| 1280×960 | about 7 fps, about 11 % frames dropped (2026-11-12, not re-measured) | checking focus only |
 
 - Keep the camera within a few metres and do not cover the grip: the Wi-Fi antenna is inside
   it (manual p. 124). Microwaves and cordless phones nearby slow the connection down.
@@ -217,14 +217,14 @@ USB backend: `--usb-backend auto` (default on macOS: PTP layer, libgphoto2 if it
 `ptp` (PTP layer only) or `gphoto2` (libgphoto2 only; default on Linux). `GET /api/status` reports the backend in use.
 
 Notes: the first connect reads the camera's card index once (about 40 s with the PTP backend, the
-card list saved on the computer is shown meanwhile); later connects take 6–9 s, because the index is
+card list saved on the computer is shown meanwhile); later connects take 5–9 s, because the index is
 saved on the computer; about 5 s of it is the camera's own answer when it switches to computer control (measured
 2026-11-15), the app only waits for it. Measured on macOS with about 2950 files and the PTP backend:
 
 | | PTP backend (macOS default) | libgphoto2 (fallback) |
 |---|---|---|
-| Connect | 7–9 s (44.8 s without saved index) | about 9 s, card index 51–72 s in the background |
-| Live view 1024×768 | 19.5–26.4 fps | 14–20.6 fps |
+| Connect | 5–9 s (5.2 s with 0.7.7; 44.8 s without saved index) | about 9 s, card index 51–72 s in the background |
+| Live view 640×480 – 1024×768 | 30 fps (the camera's own rate, 2026-11-15) | 14–20.6 fps at 1024×768 |
 | Live view 1280×960 | 15.0 fps | 13.8–15 fps (needs the newer libgphoto2, see below) |
 | Focus by tap | 0.4–0.6 s | 1.3–1.5 s |
 | Take picture | 4.5–4.8 s; files in the list at once | 4.7–5.3 s |
