@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Partial Color as a colour ring: in ART with Partial Color (and Picture Mode Partial Color in P/A/S/M) the LV super control panel shows the 18 colours as a ring like the camera's – yellow at the top, clockwise; a click sets the colour. Wi-Fi only (`colorphase`); over USB the colour is not available (probe: only selecting Partial Color is, `d010` = 34318). Camera-checked over Wi-Fi (REQ-F42).
 - Wi-Fi: no battery level any more. The value taken for it is not the battery (it said 100 % while the camera showed half full); the server log now notes each change of that value so its meaning can be found. Over USB the battery level stays (REQ-F19).
 - Wi-Fi dropped and back: the camera answered again but had ended the live view, and the app waited forever. Now the app notices the stalled live view, shows *Camera not found. Is the computer in the camera's Wi-Fi?* while the camera does not answer, and restarts the live view by itself once it does (next try after 5, 10 … 60 s, reset only by real new frames); not during a shot, movie, job, half press or Playback. Camera-tested: the message during a 10 s drop; the restart itself not yet seen on the camera (REQ-Q14).
 - Phone over Wi-Fi: the automatic live view size starts at 800×600 at most (about 21 fps). A phone with a sharp screen started at 1280×960 (about 8 fps) and needed half a minute to step down (REQ-F45).

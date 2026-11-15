@@ -144,6 +144,11 @@ button:disabled{color:var(--disabled);opacity:.6;cursor:not-allowed}
 #props label.ro strong{font-family:var(--font-value);font-size:18px;font-weight:500;color:var(--text)}
 #props label.ro{grid-column:1/-1;border-style:dashed;border-color:var(--line-strong)}
 #props label.wide{grid-column:1/-1}
+.cring{display:block;width:min(200px,100%);margin:6px auto 2px} /* Partial Color: colour ring like on the camera (REQ-F42) */
+.cring .seg{stroke:var(--ground);stroke-width:1;cursor:pointer}
+.cring .seg:hover{opacity:.8}
+.cring .seg.on{stroke:#fff;stroke-width:3}
+.cring text{fill:var(--text);font:600 9px var(--font-value);text-anchor:middle;dominant-baseline:middle}
 #modeBox{margin-bottom:var(--s2)}
 #modeBox .seg{flex-wrap:wrap}
 #modeBox .seg button{flex:1;width:auto;min-width:0;padding:0 2px;height:38px;font-family:var(--font-value);font-size:13px}
@@ -1301,6 +1306,31 @@ function renderModeBox(p){
   }
   box.append(seg);
 }
+/* Partial Color: the 18 colour steps as a ring to click, laid out like the camera's colour ring (manual p.45,
+   REQ-F42): yellow at the top, red right, blue at the bottom, green left (photos of the camera ring 2026-11-15).
+   Wi-Fi only (colorphase; not over USB, probe 2026-11-15). Camera-checked over Wi-Fi 2026-11-15: step0 at the top
+   (yellow), steps clockwise by 20°, step15 green at 10 o'clock. */
+function colorRing(value,opts,sel){
+  const NS='http://www.w3.org/2000/svg',N=opts.length,svg=document.createElementNS(NS,'svg');
+  svg.setAttribute('viewBox','-50 -50 100 100'); svg.setAttribute('class','cring');
+  svg.setAttribute('role','radiogroup'); svg.setAttribute('aria-label',tr('prop.colorphase'));
+  const pt=(r,a)=>(r*Math.cos(a)).toFixed(2)+' '+(r*Math.sin(a)).toFixed(2), R=47, r=31;
+  let on=null;
+  opts.forEach((o,i)=>{
+    const a0=i/N*2*Math.PI-Math.PI/2, a1=(i+1)/N*2*Math.PI-Math.PI/2, n=parseInt(String(o).replace(/\D/g,''),10);
+    const step=isNaN(n)?i:n, seg=document.createElementNS(NS,'path');
+    seg.setAttribute('d',`M${pt(R,a0)}A${R} ${R} 0 0 1 ${pt(R,a1)}L${pt(r,a1)}A${r} ${r} 0 0 0 ${pt(r,a0)}Z`);
+    seg.setAttribute('fill',`hsl(${(60-step*360/N+720)%360} 85% 55%)`); // clockwise from yellow, like the camera
+    seg.setAttribute('class','seg'+(o===value?' on':'')); seg.setAttribute('role','radio');
+    seg.setAttribute('aria-checked',String(o===value)); seg.setAttribute('aria-label',sel.options[i]?sel.options[i].text:String(step));
+    if(canWrite) seg.onclick=()=>{sel.value=o;sel.onchange()};
+    if(o===value) on=seg;
+    svg.append(seg);
+  });
+  if(on) svg.append(on); // selected segment on top so its outline is not covered
+  const t=document.createElementNS(NS,'text'); t.textContent=sel.options[sel.selectedIndex]?sel.options[sel.selectedIndex].text:''; svg.append(t);
+  return svg;
+}
 function renderProps(){
   const p=lastProps,box=$('#props');
   if(!p) return;
@@ -1327,6 +1357,7 @@ function renderProps(){
     }).catch(e=>{msg(tr('prop.'+k)+': '+e.message,true);sel.value=v.value});
     if(['drivemode','colortone','artfilter','exposemovie'].includes(k)) l.classList.add('wide');
     l.append(sel); box.append(l);
+    if(k==='colorphase'){l.classList.add('wide');l.insertBefore(colorRing(v.value,opts,sel),sel)}
     if(k==='isospeedvalue'){const a=document.createElement('span');a.id='isoAuto';a.className='isoAuto';l.append(a);updateIsoAuto()}
   }
   applyLayout();
