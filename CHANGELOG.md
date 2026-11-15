@@ -1,10 +1,12 @@
 # Changelog
 
-## Unreleased
+## 0.7.7 – 2026-11-15
+
+A steadier USB connection and a cleaner phone view.
 
 - USB (own PTP layer): connecting writes one log line with the time of each step. Measured 2026-11-15: USB open 0.0 s, session 0.3–0.7 s, card index 0.1 s, PC control about 5 s – the camera itself takes that long to confirm computer control (REQ-Q12).
 - Two connect requests at once (start screen auto-connect and a click, or two tabs) make one connection; before, the second disconnected the first and one of them failed. A Disconnect during a slow connect waits for it (REQ-Q12). Camera-tested over USB 2026-11-15; Wi-Fi uses the same server code, not tried.
-- Level gauge right after connecting: no failed request and no false "Level ✓" before the first reading (REQ-F23).
+- Level gauge right after connecting: no failed request and no false "Level ✓" before the first reading (REQ-F23). Tried on the camera 2026-11-15.
 - USB: when the camera disappears (cable pulled, camera switched off) the app no longer rebuilds the session in a loop – that stopped the macOS camera service each time and blocked other apps. It waits quietly, shows "Camera not found. Is the cable plugged in?" and reconnects by itself once the camera is back; a failed rebuild waits 5, 10 … 60 s. The dead session is released at once – a handle left on the vanished device made libusb crash (segmentation fault) when the camera came back – and a returning camera must stay 3 s, because it appears and vanishes while its USB menu is open (REQ-Q11). Camera-tested 2026-11-15: no rebuild while the cable was out, one rebuild and live view back about 9 s after plugging in.
 - Phone view, upright or turned (REQ-F49): no live view size choice – the app picks the size itself (Wi-Fi: adaptive, now also with the phone turned; USB: always 1024×768) – and no second-monitor or webcam (OBS) windows, which make no sense on a phone. Tried on an iPhone 2026-11-15.
 
