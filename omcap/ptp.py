@@ -31,6 +31,7 @@ DT_STRING = 0xFFFF
 OP_GET_DEVICE_INFO, OP_OPEN, OP_CLOSE = 0x1001, 0x1002, 0x1003
 OP_STORAGE_IDS, OP_STORAGE_INFO, OP_HANDLES, OP_OBJECT_INFO = 0x1004, 0x1005, 0x1007, 0x1008
 OP_GET_OBJECT, OP_GET_THUMB, OP_GET_PARTIAL = 0x1009, 0x100A, 0x101B
+OP_DELETE_OBJECT = 0x100B
 OP_PROP_DESC, OP_GET_PROP, OP_SET_PROP = 0x1014, 0x1015, 0x1016
 DPC_LV_SIZE, LV_SIZE_DEFAULT = 0xD06D, 0x04000300  # live view size (w << 16 | h); 0 = live view off
 OP_SHUTTER, OP_LIVEVIEW = 0x9481, 0x9484
@@ -431,6 +432,10 @@ class PtpCamera:
 
     def get_partial(self, handle, offset, size):
         return self.transact(OP_GET_PARTIAL, (handle, offset, size), want_data=True)[0]
+
+    def delete_object(self, handle):
+        """DeleteObject 0x100B (the camera refuses protected pictures with an error response)."""
+        self.transact(OP_DELETE_OBJECT, (handle,))
 
     def get_thumb(self, handle):
         return self.transact(OP_GET_THUMB, (handle,), want_data=True)[0]

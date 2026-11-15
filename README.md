@@ -1,8 +1,8 @@
 # E-M1 Capture
 
-A local web app to control an **Olympus OM-D E-M1 (Mark I)** from a computer, over the camera's own
-**Wi-Fi** or over **USB**. It runs on your computer and opens in the browser at
-`http://127.0.0.1:8765`. Terms follow the camera's instruction manual.
+**Remote control and tethering for the Olympus OM-D E-M1 (Mark I) – over the camera's own Wi-Fi or over USB.**
+A small web app that runs on your computer and opens in the browser at `http://127.0.0.1:8765`.
+All names follow the camera's instruction manual.
 
 > Unofficial project. Not affiliated with, endorsed by or supported by OM Digital Solutions or
 > Olympus. "Olympus", "OM-D" and "OI.Share" are trademarks of their respective owners.
@@ -12,15 +12,23 @@ A local web app to control an **Olympus OM-D E-M1 (Mark I)** from a computer, ov
 
 *E-M1 Capture 0.7 with the E-M1 Mark I over USB: live view with AF grid (focused field in green), LV super control panel and Take picture.*
 
+## Highlights
+
+- **Wi-Fi tethering on the computer** – something Olympus never offered (only the phone app OI.Share used Wi-Fi). No special Olympus USB cable needed.
+- **USB tethering** with its own fast USB layer: live view at **30 fps**, focus by tap in about half a second.
+- **Use the camera as a webcam** (OBS) over Wi-Fi or USB.
+- **The LV super control panel** – shooting mode, shutter speed, aperture, ISO, WB, Picture Mode, Art filter and more.
+- **Focus Stacking, focus ring and level gauge** from the computer (USB).
+- **Playback** with Index and Calendar display, shooting data and saving to the computer.
+- **Works on a phone, too** – open the app on your phone in the home network.
+- **Safe by default:** never touches the firmware, starts read only, stays on your computer unless you start it with `--lan`.
+
 ## Why this project
 
 I love Olympus cameras. The OM-D E-M1 Mark I is a fantastic camera to learn photography with:
 you can get one for about 129 € and it has a huge feature set. Sadly its software is no longer
-maintained — OI.Share, OM Workspace and OM Capture feel slow, and there was never Wi-Fi tethering
-on the computer, although the phone app (OI.Share) has always used it.
-
-Over Wi-Fi you also no longer need the camera's special Olympus USB cable, which is hard to find
-and expensive today, and you still get full remote control from the computer.
+maintained – OI.Share, OM Workspace and OM Capture feel slow, and there was never Wi-Fi tethering
+on the computer, although the phone app has always used it.
 
 So I simply tried to build it, with hardly any programming experience. E-M1 Capture is my
 contribution to the community, so these great cameras can keep taking pictures for many years.
@@ -28,233 +36,252 @@ Maybe OM System finds an idea or two here for their future cameras.
 
 Contributions, tests with other bodies and ideas are very welcome.
 
-### Other cameras: PEN-F
+**Other cameras (PEN-F):** the app is built and tested on the E-M1 Mark I. A user reports running it
+successfully with an **Olympus PEN-F**, also with PEN-F style COLOR profiles (the app has its own
+[HSL color profiles](#hsl-color-profiles)). This is tested by users, not by the maintainer; some controls may
+differ on the PEN-F. Please tell us what works on your body in [Discussions](https://github.com/HolmHaensel/omcap/discussions).
 
-E-M1 Capture is built and tested on the E-M1 Mark I, but it can bring other Olympus bodies of the
-same generation back to life too. A user reports running it successfully with an **Olympus PEN-F**,
-and with a PEN-F colour emulation (PEN-F style COLOR profiles; see also the app's own
-[HSL color profiles](#hsl-color-profiles-software)). These setups are tested by users, not by the
-maintainer: functions and terms follow the E-M1 manual, and some controls may differ on the PEN-F.
-Please report what works on your body in [Discussions](https://github.com/HolmHaensel/omcap/discussions).
+## Quick start
+
+```sh
+git clone https://github.com/HolmHaensel/omcap.git
+cd omcap
+python3 -m venv .venv
+.venv/bin/pip install ".[usb]"     # Wi-Fi and USB (Wi-Fi only: .venv/bin/pip install .)
+```
+
+1. Connect the camera: [over Wi-Fi](#using-wi-fi) or [over USB](#using-usb).
+2. **Double-click** `E-M1 Capture.command` (macOS). The browser opens and the start screen shows which connection found the camera.
+3. Click **Connect** – or just wait: the app connects by itself to the camera used last time.
+
+More in [Start and stop](#start-and-stop).
 
 ## Features
 
-| Feature | Wi-Fi | USB |
+✅ works (tested on the camera) · 🟡 built, not tested on the camera yet · – not possible or not built (reason in the note)
+
+### Live view
+
+| Feature | Wi-Fi | USB | Note |
+|---|---|---|---|
+| Live view with zoom, Displayed Grid and overlay | ✅ | ✅ | |
+| Live view size (up to 1280×960) | ✅ | ✅ | USB: with the app's own USB layer (macOS default); with libgphoto2 see [Larger USB live view](#larger-usb-live-view-libgphoto2) |
+| Histogram, Highlight&Shadow, Peaking | ✅ | ✅ | |
+| Frames per second shown next to the live view size (and "libgphoto2" when USB uses the slower fallback) | ✅ | 🟡 | same page code; not yet looked at over USB |
+| Level gauge (horizon line and tilt dot, "Level ✓", optional sound, "Hold angle") | – | ✅ | the camera sends no tilt over Wi-Fi; USB: own USB layer only, not with libgphoto2 |
+| Free card space in the header | ✅ | ✅ | |
+| Battery level in the header | – | ✅ | Wi-Fi: the value the camera sends is not the battery level (100 while the camera showed half), so it is not shown |
+| Current focal length; ISO with ISO Auto ("now 800"); shutter speed and aperture the camera uses in auto modes | ✅ | – | sent with the Wi-Fi live view; no live USB value found |
+
+### Focus
+
+| Feature | Wi-Fi | USB | Note |
+|---|---|---|---|
+| Tap the 9×9 AF grid to focus, AF target in green | ✅ | ✅ | |
+| AF frame on tap (white focusing, green in focus, red no focus) | ✅ | ✅ | |
+| "In focus" / "No focus" chip | ✅ | ✅ | Wi-Fi after a tap; USB also after Press halfway and Take picture. With S-AF the camera only releases in focus |
+| AF Area (All Targets, Single Target, Small Target, Group Target) | – | ✅ | no Wi-Fi command |
+| Focus ring (MF): Near/Far in three step sizes | – | ✅ | AF mode MF or S-AF+MF; no Wi-Fi command |
+| Focus Stacking On/Off (8 frames, merged in the camera, P/A/S/M) | – | ✅ | no Wi-Fi command |
+
+### Shooting
+
+| Feature | Wi-Fi | USB | Note |
+|---|---|---|---|
+| Take picture, Press halfway (hold focus, then take picture) | ✅ | ✅ | focuses on the tapped AF point; Wi-Fi: long exposures and Movie use the shutter button route; USB: the Press halfway button not re-tested since its redesign |
+| Shutter blackout: short black frame over the live view on Take picture | ✅ | ✅ | |
+| Self-timer (Off, 2 s, 12 s, cancel while it runs) | ✅ | ✅ | |
+| New picture in the corner and in the Index display right after the shot | ✅ | ✅ | Wi-Fi about 8 s (7 s of it is the camera's shot), USB 5–6 s after the click |
+| The corner picture fades out after 6 s | 🟡 | 🟡 | |
+| M mode quick select: BULB, LIVE TIME, LIVECOMP | ✅ | ✅ | |
+| Movie: Start/Stop recording, movie shooting mode P/A/S/M | ✅ | ✅ | Wi-Fi switches to Movie mode (movie record mode cannot be changed over Wi-Fi); USB works like the REC button (not in PHOTO STORY and some SCN modes); movie settings over USB not built |
+| Time lapse, AE BKT | 🟡 | ✅ | |
+| Save to card only, or to card and computer; save folder and file names | ✅ | 🟡 | not tested over USB |
+
+### Camera settings
+
+| Feature | Wi-Fi | USB | Note |
+|---|---|---|---|
+| LV super control panel: shutter speed, aperture, exposure compensation, ISO, WB, drive, Picture Mode | ✅ | ✅ | |
+| Art filter | ✅ | 🟡 | USB: not tested in ART mode |
+| Shooting mode | ✅ | – | USB: set by the mode dial; the app follows the dial and reloads the values (tested; iAUTO, ART, SCN, PHOTO STORY show as P) |
+| AF mode, Metering, Flash mode, Record mode, Aspect ratio, Image stabilizer, Face priority | – | ✅ | no Wi-Fi command |
+| Aperture list limited to the attached lens | ✅ | ✅ | USB after the first picture of the session |
+| Read-only values: Anti-Shock, Silent, Noise Reduct., BULB/TIME Timer, Digital Tele-converter | ✅ | – | no USB property known |
+| Turn off camera (click twice) | ✅ | – | Wi-Fi only |
+
+### Playback
+
+| Feature | Wi-Fi | USB | Note |
+|---|---|---|---|
+| Index display, Calendar display, single-frame view, save to computer | ✅ | ✅ | |
+| Card list saved on the computer, shown at once when you connect | ✅ | ✅ | |
+| Shooting data (Overall display), line on thumbnails | ✅ | ✅ | |
+| Pinch zoom and swipe between pictures (phone, trackpad, Magic Mouse, Shift + wheel) | ✅ | 🟡 | same page code; not tried separately over USB |
+| Open in OM Workspace (macOS, if installed) | 🟡 | ✅ | |
+| HSL color profiles (HSL button, before/after) | ✅ | 🟡 | |
+| Share Order: show, save all, reset | ✅ | – | no USB counterpart known |
+| Erase selected pictures from the card (Select → Erase, JPG and ORF together, asks first) | – | ✅ | no Wi-Fi command; protected pictures are refused by the camera and kept; tested with the own USB layer, libgphoto2 not tested |
+| Movie length in the single-frame view | ✅ | – | not built for USB |
+
+### Phone, second monitor and webcam
+
+| Feature | Wi-Fi | USB | Note |
+|---|---|---|---|
+| Open the app on a phone in the home network (QR code behind **Phone**) | ✅ | 🟡 | start with `--lan`, see [On a phone](#on-a-phone) |
+| Phone view: live view size picked by itself, no computer-only windows | ✅ | 🟡 | Wi-Fi follows the screen and the signal; USB always 1024×768 at 30 fps |
+| Second monitor (live view or last picture in its own window) | ✅ | ✅ | live view window tested 2026-11-15 |
+| Webcam (OBS) | ✅ | ✅ | webcam view tested; the **Webcam (OBS)** button itself not tested; see [Use as webcam](#use-as-webcam-obs) |
+
+### Connection
+
+| Feature | Wi-Fi | USB | Note |
+|---|---|---|---|
+| Start by double-click, browser opens by itself | ✅ | ✅ | |
+| Start screen connects by itself to the camera used last time (**Stay here** stops it) | ✅ | 🟡 | |
+| Camera lost and back (cable pulled, camera off, Wi-Fi dropped): waits quietly and goes on by itself | 🟡 | ✅ | Wi-Fi: the live view restarts once the camera answers again (restart not yet seen on the camera) |
+| Two connect requests at once make one connection (two tabs, a phone) | 🟡 | ✅ | |
+| Quit E-M1 Capture button | ✅ | 🟡 | USB tested from the start screen, not while connected |
+
+**Not possible with the E-M1 Mark I:** the level gauge over Wi-Fi (no tilt data); AF Area, the movie record mode, Focus Stacking and the
+focus ring over Wi-Fi; setting the shooting mode over USB – the camera offers no command for it.
+
+**Planned:** Mac app with a menu bar icon, Windows over Wi-Fi, movie settings and Focus BKT over USB,
+subject detection in the live view on the computer (face/eye, later animals and birds) with "Focus on subject",
+film looks, and later a Star AF focus aid. Ideas and wishes are welcome in [Discussions](https://github.com/HolmHaensel/omcap/discussions).
+
+The interface is in English; all texts are in one translation table (`I18N` in `omcap/web/index.html`),
+so more languages can be added.
+
+## Speed
+
+Measured with the E-M1 Mark I (firmware 4.6), a Mac and about 2950 pictures on the card, 2026-11-12 to 2026-11-15.
+
+| | Wi-Fi | USB (own USB layer, macOS) |
 |---|---|---|
-| Live view with selectable size, zoom, Displayed Grid, overlay, second monitor (size choice and second monitor on the computer only, hidden on a phone, REQ-F49) | yes | yes (size choice up to 1280×960 with the PTP backend on macOS; with libgphoto2 it needs 2.5.34.1 or later, see below) |
-| USB backend (`--usb-backend`) | – | yes: `auto` (default on macOS) uses the app's own PTP layer and falls back to libgphoto2 (tested on macOS); Linux: libgphoto2, not tested |
-| Level gauge in the live view (horizon line and tilt dot) | – (the camera sends no tilt over Wi-Fi) | yes, with the own PTP layer, not with libgphoto2 (switch "Level gauge" in the live view tools, off by default and remembered; "Level ✓" feedback, optional sound, "Hold angle" for repeat shots from the same angle; tested 2026-11-14) |
-| Open the app on a phone in the home network (`--lan`, QR code behind **Phone**) | yes (tried 2026-11-14) | yes (not tried yet with the computer on USB) |
-| Phone gestures in Playback: pinch zoom and swipe in the single-frame view (also Magic Mouse / trackpad / Shift + wheel on the computer), pinch for the Index display size, compact calendar badge | yes (tried on a phone 2026-11-14) | yes (same page code, UI only; not tried separately on USB) |
-| Camera lost and back (cable pulled, camera off): waits quietly, shows *Camera not found. Is the cable plugged in?*, reconnects by itself (REQ-Q11) | – (not built: over Wi-Fi the camera just stops answering, there is no "waiting" state; a returning camera is untested) | yes (camera-tested 2026-11-15: no rebuild while away, live view back about 9 s after plugging in) |
-| Two connect requests at once (auto-connect and a click, two tabs, a phone) make one connection (REQ-Q12) | yes (same server code, not tried over Wi-Fi) | yes (camera-tested 2026-11-15) |
-| Start screen connects by itself to the camera used last time (2 s, **Stay here** stops it) | yes (tested 2026-11-14) | yes (USB reconnect not tested yet) |
-| Live view size follows the screen and the signal on a phone (up to 700 px wide, or turned with up to 520 px height; "Auto · 800×600") | yes (tested 2026-11-14) | – (on a phone always 1024×768, on the computer the manual size: the PTP live view needs no step-down, 30 fps at 1024×768) |
-| Tap the 9×9 AF grid to focus, AF target shown in green | yes | yes |
-| AF frame on tap with "Show AF targets" off (about 4 s: white focusing, green in focus, red no focus) | yes (tested 2026-11-14) | yes (tried 2026-11-14 in the redesign build) |
-| AF Area (All Targets, Single Target, Small Target, Group Target) | – (no command over Wi-Fi) | yes |
-| Focus Stacking On/Off (8 frames, 16 files with JPG+ORF, merged in the camera; P/A/S/M) | – (no command over Wi-Fi) | yes (tested 2026-11-13) |
-| Focus ring (MF): Near/Far in three step sizes, AF mode MF or S-AF+MF | – (no command over Wi-Fi) | yes (tested 2026-11-13) |
-| Shutter button: Take picture, Press halfway (hold focus, then take picture) | yes (Take picture focuses on the tapped AF point and takes 1.2–1.5 s; long exposures and Movie use the shutter button route) | yes (Take picture focuses on the tapped AF field) |
-| Shutter blackout: short black frame over the live view on Take picture | yes | yes |
-| "In focus" / "No focus" chip after AF (with S-AF the camera only releases in focus) | yes (after a tap) | yes (after a tap, Halfway and Take picture) |
-| Self-timer (Off, 2 s, 12 s; the button becomes Cancel self-timer while it runs) | yes | yes |
-| New picture in the last-shot corner (fades out after 6 s) and Index display right after Take picture | yes (8.4 s after the click, of which 7.2 s is the camera's shot) | yes (5–6 s after the click; the camera reports new files) |
-| LV super control panel: Shooting mode, shutter speed, aperture, exposure compensation, ISO, WB, drive, Picture Mode, Art filter | yes | most (mode dial only) |
-| Shooting mode follows the mode dial, values reload by themselves (during live view) | not needed (the app sets the mode) | yes, tested: P, A, S, M, Movie read correctly; iAUTO, ART, SCN, PHOTO STORY show as P; after a shot iAUTO is shown from the picture's EXIF |
-| M mode quick select: BULB, LIVE TIME, LIVECOMP, Off | yes (tested 2026-11-13) | yes (tested 2026-11-13) |
-| AF mode, Metering mode, Flash mode, Record mode, Aspect ratio, Image stabilizer, Face priority in the LV super control panel | – (no command) | yes (tested) |
-| Aperture list limited to the attached lens (read from EXIF) | yes | yes (after the first picture of the session; before that only the focal length) |
-| Movie: Start/Stop recording, movie shooting mode P/A/S/M | yes (switches to Movie mode while recording) | Start/Stop recording: yes, in every shooting mode like the REC button (tested 2026-11-13; not in PHOTO STORY / some SCN, which read as P); movie settings not built |
-| Time lapse shooting, AE BKT | built, untested | yes, tested with the PTP backend (3 frames, 2026-11-13) |
-| Quit E-M1 Capture button | yes (tested while connected and from the start screen) | yes (tested from the start screen; while connected not yet) |
-| Playback: Index display, Calendar display, single-frame view, save to computer | yes | yes |
-| Card list saved on the computer, shown at once when you connect (the camera's list follows) | yes | yes |
-| Playback: shooting data (Overall display), line on thumbnails | yes | yes |
-| Open in OM Workspace from the single-frame view (macOS, only when OM Workspace is installed) | yes (not tested yet) | yes (tested 2026-11-13) |
-| Save to card only or card and computer | yes | yes |
-| Free card space in the header | yes (free shots, live from the live view) | yes |
-| Current focal length in the header, ISO with ISO Auto ("now 800" in the ISO tile and the value strip, not in Movie mode), shutter speed and aperture the camera uses in auto modes | yes (sent with the live view) | – (no live USB property found) |
-| Battery level | yes (during live view, sent with the picture) | yes |
-| Read-only settings (Anti-Shock, Silent, Noise Reduct., BULB/TIME Timer, Digital Tele-converter) | yes | – (no PTP property known) |
-| Share Order: show, save all, reset | yes (in playback) | – (no PTP counterpart known) |
-| Movie length in single-frame view | yes (in playback) | – (not built) |
-| Turn off camera (click twice to confirm) | yes | – (Wi-Fi only) |
-| Live view aids: Histogram, Highlight&Shadow, Peaking | yes | yes |
-| HSL color profiles for ORF/JPG on the computer (`omcap.hsl`) | independent | independent |
-| Webcam (OBS) button next to Second monitor (computer only, hidden on a phone, REQ-F49) | yes (webcam view tested 2026-11-15, button untested) | yes (webcam view tested 2026-11-15, button untested) |
-| Phone view without computer-only controls (REQ-F49): no size choice, Second monitor, Webcam (OBS), Picture on second monitor; "phone" means the window size | yes (adaptive size also with the phone turned; tried on an iPhone 2026-11-15) | yes (always 1024×768; not tried on USB) |
-| Save folder and file naming | yes | yes (untested) |
-| HSL colour profiles in the app (HSL button, auto-apply, before/after) | yes | yes (untested) |
-| Start by double-click, browser opens by itself | yes | yes |
+| Connect | about 1 s (card list follows in the background) | about 5 s (later connects); about 45 s the very first time, because the card index is read once |
+| Live view 640×480 | 30 fps | 30 fps |
+| Live view 800×600 (Wi-Fi default) | about 21 fps | 30 fps |
+| Live view 1024×768 (USB default) | about 12 fps | 30 fps |
+| Live view 1280×960 | about 8 fps | 15 fps |
+| Focus by tap | about 0.4 s | 0.4–0.6 s |
+| Take picture | 1.2–1.5 s | about 4.5 s, new files in the list at once |
 
-**Not possible with the E-M1 Mark I:** the level gauge over Wi-Fi (no tilt data), changing AF Area over Wi-Fi and the
-shooting mode over USB (the camera offers no command for it).
-
-**Planned (next releases):** Mac app with a menu bar icon, Windows over Wi-Fi, movie settings and Focus BKT over USB (0.7.x), subject detection in live view on the computer (face/eye,
-later animals and birds; the E-M1 itself sends no face frames) with "Focus on subject", film looks and
-a look lab on the computer, later a Star AF focus aid (star sharpness while you turn the focus ring). Ideas and wishes are welcome in [Discussions](https://github.com/HolmHaensel/omcap/discussions).
-
-The interface is in English; all texts are in one translation table (`I18N` in
-`omcap/web/index.html`), so more languages can be added.
+- 30 fps is the camera's own live view rate; at 1280×960 it sends half of that.
+- Of the 5 s for a USB connect, about 4.7 s is the camera itself switching to computer control.
+- With the libgphoto2 fallback USB is slower: 14–21 fps at 1024×768, focus 1.3–1.5 s, connect about 9 s
+  (card index 51–72 s in the background).
 
 ## Safety
 
 - The app **never writes firmware**.
-- It starts **read only**. Taking pictures and changing settings needs `--allow-write`.
-- It only listens on `127.0.0.1` and refuses requests from other web pages.
+- It starts **read only**. Taking pictures and changing settings needs `--allow-write`
+  (the double-click launchers start with it; remove it there for a read-only start).
+- It only listens on `127.0.0.1` (with `--lan` also in the home network, with a key) and refuses requests from other web pages.
+- It works **offline** and loads nothing from the internet (internet is needed once for the installation).
 
 ## Requirements
 
 | | Wi-Fi | USB |
 |---|---|---|
 | Camera | OM-D E-M1 Mark I (tested: firmware 4.6) | same |
-| Computer | macOS (tested), Python 3.9 or newer; Linux and Windows should work (not tested) | macOS (tested); Linux possible over libgphoto2 (not tested); not Windows (no libgphoto2) |
-| Extra software | none (standard library only) | `gphoto2` Python package via `".[usb]"` (includes libgphoto2 for the fallback and Linux, and the libusb the own PTP backend uses on macOS, else Homebrew libusb) |
-| Cable / network | the camera's own Wi-Fi | USB cable |
+| Computer | macOS (tested), Python 3.9 or newer; Linux and Windows should work (not tested) | macOS (tested); Linux over libgphoto2 (not tested); not Windows |
+| Extra software | none (Python standard library only) | `pip install ".[usb]"` (gphoto2 package with libgphoto2 and libusb) |
+| Connection | the camera's own Wi-Fi | USB cable |
 
-## Installation
+## Start and stop
 
-```sh
-git clone https://github.com/HolmHaensel/omcap.git
-cd omcap
-python3 -m venv .venv
-.venv/bin/pip install .          # Wi-Fi
-.venv/bin/pip install ".[usb]"   # Wi-Fi and USB
-```
-
-### Start
-
-**Double-click** `E-M1 Capture.command` (macOS) in the project folder. The app starts and opens
-the browser at <http://127.0.0.1:8765/>; the start screen shows which connection found the camera.
-On Windows use `E-M1 Capture.bat` (Wi-Fi only, not tested yet). On Linux start it in the terminal (below).
-
-Or in the Terminal (read only without `--allow-write`):
+**Start:** double-click `E-M1 Capture.command` (macOS) or `E-M1 Capture.bat` (Windows, Wi-Fi only, not tested).
+Or in the Terminal (Linux too):
 
 ```sh
 cd omcap
-.venv/bin/em1-capture --allow-write
+.venv/bin/em1-capture --allow-write     # without --allow-write: read only
 ```
 
-- Keep the window open while you use the app (see **Stop** below).
-- Starting a second time just opens the browser again: the new window says *E-M1 Capture is already
-  running* and ends (Terminal shows *Process completed*). That is normal, the app keeps running in the
-  first window. To change between read only and `--allow-write`, stop the running app first.
+- Keep the window open while you use the app.
+- Starting a second time just opens the browser again (*E-M1 Capture is already running*). To switch between
+  read only and `--allow-write`, stop the running app first.
+- As long as the app runs, <http://127.0.0.1:8765/> keeps working, also after closing the browser tab.
 
-### On a phone (`--lan`)
+**Stop:** click **Quit E-M1 Capture** (top right, also on the start screen) twice – the camera connection is closed and the page
+says you can close the tab. Or press **Ctrl+C** in the app's window, or close it (Windows: close the window of
+`E-M1 Capture.bat`). Without a window (started in the background):
 
-Start with `--lan` (for example `.venv/bin/em1-capture --allow-write --lan`) to use the app on a phone in the
-same home network: on the computer click **Phone** (start screen or header) and scan the QR code with the phone's camera.
-The phone gets a key that is new at every start and keeps it for 12 hours; other devices in the network see only
-a note to scan the code. The computer itself needs no key. The computer stays connected to the camera (Wi-Fi or
-USB); the phone stays in the home Wi-Fi. Without `--lan` the app answers only on the computer.
-On the phone, pinch zooms a picture in the single-frame view (double tap: 1× / 2.5×), a sideways swipe at 1× shows
-the next or previous picture, and pinch changes the size of Index display; turning the phone switches between the portrait and landscape layout.
+```sh
+pkill -f 'omcap\.server|bin/em1-capture'
+```
 
-### Stop
+**Options**
 
-- Click **Quit E-M1 Capture** (top right, also on the start screen) and click it again to confirm. The camera connection is closed and the app ends; the page says you can close the tab.
-- Or press **Ctrl+C** in the window where the app runs, or close that window.
-- No such window (for example the app was started in the background)? Stop it in the Terminal:
-
-  ```sh
-  pkill -f 'omcap\.server|bin/em1-capture'
-  ```
-
-  On Windows close the window of `E-M1 Capture.bat`.
-- As long as the app runs, <http://127.0.0.1:8765/> keeps working in the browser, also after
-  closing the browser tab.
-- `--no-browser` starts without opening the browser; `--timing` prints how long each request takes.
-- The launcher files start with `--allow-write`; remove it there for a read-only start.
-- The app works **offline**. It runs only on your computer and loads nothing from the internet;
-  internet is needed once for the installation.
-
-Pictures saved to the computer go to `captures/` in the current folder (change with `--data-dir`).
+| Option | What it does |
+|---|---|
+| `--allow-write` | allow taking pictures and changing settings |
+| `--lan` | let a phone in the home network open the app ([On a phone](#on-a-phone)) |
+| `--usb-backend auto\|ptp\|gphoto2` | USB layer: `auto` (macOS default: own layer, libgphoto2 if it cannot connect), `ptp` (own layer only), `gphoto2` (libgphoto2 only, Linux default); `GET /api/status` shows the one in use |
+| `--data-dir DIR` | where pictures saved to the computer go (default `captures/` in the current folder) |
+| `--no-browser` | start without opening the browser |
+| `--timing` | print how long each request takes |
 
 ## Using Wi-Fi
 
 1. Camera: **Setup Menu → Wi-Fi Settings → Wi-Fi Connect Settings → Private** (once).
    Remote control only works with Private, not One-Time.
 2. Camera: **Playback Menu → Connection to Smartphone**. The monitor shows SSID and password.
-3. Computer: join that Wi-Fi network (the password is saved; next time it connects by itself).
+3. Computer: join that Wi-Fi network (it connects by itself next time).
 4. Start the app and choose **Wi-Fi connection**.
 
-### Best Wi-Fi settings
+**Tips**
 
-Measured with the E-M1 Mark I:
-
-| Live view size | Frame rate | Use |
-|---|---|---|
-| 640×480 | 30 fps (2026-11-15) | smoothest picture; the phone view steps down to it when frames come slowly |
-| **800×600** (default) | about 21 fps (2026-11-15) | best balance |
-| 1024×768 | about 12 fps (2026-11-15) | checking details |
-| 1280×960 | about 8 fps (2026-11-15) | checking focus only |
-
-- Keep the camera within a few metres and do not cover the grip: the Wi-Fi antenna is inside
-  it (manual p. 124). Microwaves and cordless phones nearby slow the connection down.
+- **Live view size:** 640×480 is the smoothest, 800×600 (default) the best balance, 1024×768 and 1280×960 for checking details and focus (see [Speed](#speed)). On a phone the app picks the size itself and steps down when frames come slowly ("Auto · 800×600").
+- Keep the camera within a few metres and do not cover the grip – the Wi-Fi antenna is inside it (manual p. 124).
+  Microwaves and cordless phones nearby slow the connection down.
 - Wi-Fi drains the battery faster; start with a full battery or use the AC adapter.
-- Mac settings for the camera network (System Settings → Wi-Fi → Details of the camera's network):
-  **Private Wi-Fi address: Off** (no rotating address) and **Limit IP address tracking: Off**.
-  Keep other background network features to a minimum; then the connection is fast and steady.
-- The camera network has no internet. Turn off **Auto-Join** for other known networks
-  (System Settings → Wi-Fi) so the computer does not switch away while you shoot. A cable
-  network can stay connected for internet at the same time.
-- Live view arrives as UDP on port 5555. If the macOS firewall is on, allow incoming
-  connections for Python when asked; otherwise live view shows "no signal".
-- Opening Playback switches the camera to playback mode (live view pauses) for fast
-  medium-size previews; previews are cached, so a second look is instant.
-- Over Wi-Fi the AF Area mode and the movie record mode cannot be changed (no command for it).
+- On the Mac, in the details of the camera's network (System Settings → Wi-Fi): **Private Wi-Fi address: Off** and
+  **Limit IP address tracking: Off**. Keep other background network features to a minimum.
+- The camera network has no internet. Turn off **Auto-Join** for other known networks so the computer does not switch
+  away while you shoot. A cable network can stay connected for internet at the same time.
+- Live view arrives as UDP on port 5555. If the macOS firewall is on, allow incoming connections for Python when
+  asked; otherwise the live view shows "no signal".
+- Opening Playback switches the camera to playback mode (live view pauses) for fast medium-size previews; previews are cached.
 
-## Using USB (macOS)
+## Using USB
+
+**macOS**
 
 1. Quit the **Photos** app (it grabs the camera).
 2. Camera: **Custom Menu → USB Mode → Auto** (or the computer + camera setting).
 3. Connect the cable; in the camera's USB menu choose the **third entry (computer + camera icon)**.
-4. Start the app and choose **USB connection**. The app stops the macOS service
-   `ptpcamerad`, which would otherwise hold the camera.
+4. Start the app and choose **USB connection**. The app stops the macOS service `ptpcamerad`, which would otherwise hold the camera.
 
-USB backend: `--usb-backend auto` (default on macOS: PTP layer, libgphoto2 if it cannot connect),
-`ptp` (PTP layer only) or `gphoto2` (libgphoto2 only; default on Linux). `GET /api/status` reports the backend in use.
+**Good to know**
 
-Notes: the first connect reads the camera's card index once (about 40 s with the PTP backend, the
-card list saved on the computer is shown meanwhile); later connects take 5–9 s, because the index is
-saved on the computer; about 5 s of it is the camera's own answer when it switches to computer control (measured
-2026-11-15), the app only waits for it. Measured on macOS with about 2950 files and the PTP backend:
+- The first connect reads the camera's card index once (about 45 s; the card list saved on the computer is shown
+  meanwhile). Later connects take about 5 s.
+- The shooting mode follows the mode dial during live view; each turn reconnects the camera (8–10 s), so quick
+  turns in a row show only the last position. Other settings changed on the camera itself come in with **reload**
+  in the LV super control panel (about 9 s with libgphoto2).
+- Cable pulled while connected? The live view shows *Camera not found. Is the cable plugged in?* Plug it in and choose
+  the computer + camera entry again – the app reconnects by itself after a few seconds. Only if that fails, stop the
+  app and start it again.
 
-| | PTP backend (macOS default) | libgphoto2 (fallback) |
-|---|---|---|
-| Connect | 5–9 s (5.2 s with 0.7.7; 44.8 s without saved index) | about 9 s, card index 51–72 s in the background |
-| Live view 640×480 – 1024×768 | 30 fps (the camera's own rate, 2026-11-15) | 14–20.6 fps at 1024×768 |
-| Live view 1280×960 | 15.0 fps | 13.8–15 fps (needs the newer libgphoto2, see below) |
-| Focus by tap | 0.4–0.6 s | 1.3–1.5 s |
-| Take picture | 4.5–4.8 s; files in the list at once | 4.7–5.3 s |
+**Linux (possible, not tested yet)**
 
-The shooting mode follows the mode dial during live view (both backends, tested); each turn rebuilds the
-USB session (8–10 s), so quick turns in a row show only the last position. Other settings changed on the camera itself are picked up with **reload** in
-the LV super control panel (rebuilds the USB session, about 9 s with libgphoto2). If the cable is pulled while
-connected, the live view shows *Camera not found. Is the cable plugged in?*; plug it in and choose the computer + camera
-entry in the camera's USB menu – the app reconnects by itself after a few seconds (REQ-Q11). Only if that fails, stop the
-app and start it again.
+USB runs over libgphoto2; the `gphoto2` Python package ships it for Linux (x86_64, aarch64). Install with `".[usb]"`, then:
 
-### Using USB on Linux (possible, not tested yet)
-
-The USB connection runs over libgphoto2, which is native on Linux; the `gphoto2` Python package ships
-wheels with libgphoto2 for Linux (x86_64, aarch64). Install as above with `".[usb]"`, then:
-
-- Desktop file managers (GVFS/KDE) may mount the camera first: unmount it, or stop the mounting service
-  (e.g. `gvfs-gphoto2-volume-monitor`) before you start the app.
-- Your user needs access to the USB device: libgphoto2's udev rules (package `libgphoto2` / `libgphoto2-6`) do
-  this; otherwise run the app with the right group or a udev rule for vendor `07b4`, product `0130`.
-- Steps 2 and 3 above apply as on macOS; step 1 and `ptpcamerad` are macOS only.
+- File managers (GVFS/KDE) may mount the camera first: unmount it or stop the mounting service
+  (e.g. `gvfs-gphoto2-volume-monitor`).
+- Your user needs access to the USB device: libgphoto2's udev rules (package `libgphoto2` / `libgphoto2-6`) do this,
+  or a udev rule for vendor `07b4`, product `0130`.
+- Steps 2 and 3 above apply; step 1 and `ptpcamerad` are macOS only.
 
 Reports from Linux users are welcome (open an issue with distribution, camera firmware and what worked).
 
-### Larger USB live view (optional)
+### Larger USB live view (libgphoto2)
 
-On macOS the default PTP backend already offers **Size** over USB up to 1280×960; no extra build is needed.
-Only the libgphoto2 fallback needs the steps below: libgphoto2 2.5.34 (bundled with the `gphoto2` Python
-package) fixes the USB live view at 1024×768. The development version of libgphoto2 (2.5.34.1 or later)
-keeps a chosen size (13.8 fps measured at 1280×960). Until a release contains it, build it yourself (macOS, Homebrew):
+Only needed for the libgphoto2 fallback – on macOS the app's own USB layer already offers sizes up to 1280×960.
+libgphoto2 2.5.34 (bundled with the `gphoto2` package) fixes the USB live view at 1024×768; the development
+version (2.5.34.1 or later) keeps a chosen size. Until a release contains it, build it yourself (macOS, Homebrew):
 
 ```sh
 brew install autoconf automake libtool gettext pkgconf libusb libexif
@@ -262,39 +289,50 @@ git clone https://github.com/gphoto/libgphoto2.git ~/src/libgphoto2 && cd ~/src/
 autoreconf -is && ./configure --prefix="$HOME/.local/libgphoto2-dev" && make -j4 && make install
 ```
 
-Then, in your `omcap` folder (the one from the installation above):
+Then, in your `omcap` folder:
 
 ```sh
 PKG_CONFIG_PATH="$HOME/.local/libgphoto2-dev/lib/pkgconfig" .venv/bin/pip install --force-reinstall --no-cache-dir --no-binary gphoto2 gphoto2
 .venv/bin/python -c "import gphoto2 as gp; print(gp.gp_library_version(gp.GP_VERSION_SHORT)[0])"   # 2.5.34.1 or later
 ```
 
-## HSL color profiles (software)
+## On a phone
 
-Modelled on the PEN-F front-dial COLOR mode (12 sectors, hue/saturation/lightness −7…+7,
-three profile slots), applied on the computer to ORF or JPG files. Needs `pip install ".[film]"`.
+Start the app with `--lan` (for example `.venv/bin/em1-capture --allow-write --lan`). On the computer click **Phone**
+(start screen or header) and scan the QR code with the phone's camera.
+
+- The computer stays connected to the camera (Wi-Fi or USB); the phone stays in the home Wi-Fi.
+- The phone gets a key that is new at every start and lasts 12 hours; other devices only see a note to scan the code.
+  Without `--lan` the app answers only on the computer.
+- In Playback: pinch zooms a picture (double tap: 1× / 2.5×), a sideways swipe shows the next or previous picture,
+  pinch changes the Index display size. Turning the phone switches between portrait and landscape layout.
+
+## Use as webcam (OBS)
+
+Works over Wi-Fi and USB. Start the app, connect and press **Start live view** (the live view must keep running). Then:
+
+1. Press **Webcam (OBS)** next to **Second monitor**. It opens the webcam view and copies its link. In OBS add a
+   **Browser Source** with `http://127.0.0.1:8765/?view=webcam` (optional letterbox size:
+   `?view=webcam&w=1280&h=720`, with the same width and height in the source).
+2. In OBS press **Start Virtual Camera**; Zoom, Teams and browsers then list "OBS Virtual Camera".
+3. Sound is not part of the camera picture: add a microphone as an audio source in OBS.
+
+Over USB at 1024×768 the webcam gets the full 30 fps.
+
+## HSL color profiles
+
+Modelled on the PEN-F front-dial COLOR mode (12 sectors, hue/saturation/lightness −7…+7, three profile slots),
+applied on the computer to ORF or JPG files. In the app: **HSL** button in the single-frame view of Playback. On the command line
+(needs `pip install ".[film]"`):
 
 ```sh
 python -m omcap.hsl IMG.ORF --profile "Teal & orange" --out out/hsl --sheet
 python -m omcap.hsl IMG.JPG --profile my_profile.json
 ```
 
-ORF gives a 16-bit TIFF, JPG a JPEG, always in `--out` (default `out/hsl/`). `--sheet` adds a
-before/after sheet and a colour wheel chart. Presets: `omcap/data/hsl_presets.json`. Sector
-angles and per-step gains are approximations, not the camera's values.
-
-## Use as webcam (OBS)
-
-Works with Wi-Fi and USB. Start the app, connect, and press **Start live view**; the
-live view must keep running. Then:
-
-1. Press **Webcam (OBS)** next to **Second monitor**: it opens the webcam view in a new window and
-   copies the full link to the clipboard. In OBS add a **Browser Source** with the URL `http://127.0.0.1:8765/?view=webcam`
-   (optional letterbox size: `http://127.0.0.1:8765/?view=webcam&w=1280&h=720`; set the same
-   width and height in the source). The page shows only the live image on black, scaled to fit.
-2. In OBS press **Start Virtual Camera**; video apps (Zoom, Teams, browsers) then list
-   "OBS Virtual Camera".
-3. Audio is not part of the camera stream: add a microphone as a separate audio source in OBS.
+ORF gives a 16-bit TIFF, JPG a JPEG, always in `--out` (default `out/hsl/`). `--sheet` adds a before/after sheet and
+a colour wheel chart. Presets: `omcap/data/hsl_presets.json`. Sector angles and gains are approximations, not the
+camera's values.
 
 ## Tests
 
@@ -307,8 +345,7 @@ The tests use simulated camera answers and need no camera.
 ## Contributing
 
 Camera test reports, bug reports, ideas, translations and code are welcome. See
-[CONTRIBUTING.md](CONTRIBUTING.md); questions go to
-[Discussions](https://github.com/HolmHaensel/omcap/discussions).
+[CONTRIBUTING.md](CONTRIBUTING.md); questions go to [Discussions](https://github.com/HolmHaensel/omcap/discussions).
 
 ## License
 

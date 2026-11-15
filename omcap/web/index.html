@@ -238,6 +238,7 @@ dialog h2{margin-top:12px}
 .tile{position:relative;aspect-ratio:4/3;background:var(--panel);cursor:pointer;overflow:hidden;border-radius:3px}
 .tile img{position:absolute;inset:0;width:100%;height:100%;object-fit:contain}
 .tile .cap{position:absolute;left:0;right:0;bottom:0;padding:2px 5px;font-size:11px;color:#fff;background:#0009;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#galOv.cal .seg[data-i18n-aria="card.sizes"],#galOv.cal #galExifTog,#galOv.cal #galSelect,#galOv.cal #galSaveSel,#galOv.cal #galErase,#galOv.cal [data-feat=share_order]{display:none!important}
 .calhead,.calgrid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:4px}
 .calhead{color:var(--mut);font-size:12px;text-align:center;padding-bottom:4px}
 .calgrid{max-width:1100px;margin:0 auto}
@@ -772,6 +773,7 @@ section h2{margin-bottom:10px;color:#b9bec4;font-size:var(--fs-label);font-weigh
     <label class="tog" id="galExifTog"><input type="checkbox" id="galExif"><span class="icon-info" aria-hidden="true"></span><span class="sr-only" data-i18n="card.exifLine">Shooting data</span></label>
     <button id="galSelect" class="gallery-icon icon-select" data-i18n-title="card.select">Select</button>
     <button id="galSaveSel" hidden data-i18n="card.saveSel">Save selected</button>
+    <button id="galErase" class="w" data-feat="erase" data-i18n="card.erase" hidden>Erase</button>
     <button id="galShare" class="gallery-icon icon-share" data-feat="share_order" data-i18n-title="card.share">Share Order</button>
     <button id="galShareSave" data-feat="share_order" data-i18n="card.shareSave" hidden>Save all to computer</button>
     <button id="galShareReset" data-feat="share_order" data-i18n="card.shareReset" hidden>Reset Share Order</button>
@@ -872,6 +874,16 @@ const I18N={en:{
   "card.select": "Select",
   "card.selectDone": "Done",
   "card.saveSel": "Save selected ({n})",
+  "card.erase": "Erase ({n})",
+  "card.eraseAsk": "Erase {n} pictures ({f} files) from the card? This cannot be undone.",
+  "card.eraseAsk1": "Erase 1 picture ({f} files) from the card? This cannot be undone.",
+  "card.eraseYes": "Erase",
+  "card.eraseCancel": "Cancel",
+  "card.erasing": "Erasing…",
+  "card.eraseDone": "{n} pictures erased",
+  "card.eraseDone1": "1 picture erased",
+  "card.eraseFail": "{n} pictures could not be erased (protected?)",
+  "card.eraseFail1": "1 picture could not be erased (protected?)",
   "card.saveSelDone": "{n} shots saved on the computer",
   "info.image": "Image only",
   "info.simple": "Simplified display",
@@ -967,7 +979,10 @@ const I18N={en:{
   "lv.overlayRemove": "Remove",
   "lv.noSignal": "No signal for {s} s",
   "lv.cameraGone": "Camera not found. Is the cable plugged in?",
+  "lv.wifiGone": "Camera not found. Is the computer in the camera's Wi-Fi?",
   "lv.receiving": "receiving {w}×{h}",
+  "lv.fps": " · {fps} fps",
+  "lv.gphoto2": " · libgphoto2",
   "lv.hist": "Histogram",
   "lv.histRgb": "RGB",
   "lv.clip": "Highlight&Shadow",
@@ -1266,7 +1281,7 @@ function shotMode(path){
   api('/api/exif?path='+encodeURIComponent(path)).then(j=>{const m=j.exif&&j.exif.mode;
     usbShotMode=m===5?'iAuto':null; renderProps()}).catch(()=>{});
 }
-let isUsb=false; // connection type from /api/status
+let isUsb=false, usbBackend=null; // connection type and USB layer (ptp or gphoto2) from /api/status
 let st={stage:0,job:{}},canWrite=false,wasBusy=false,connected=false,features=new Set(),af=null;
 let quitting=false;
 /* Adaptive live view size over Wi-Fi on phone width (REQ-F45, from the redesign, user 2026-11-14): start with the
@@ -1284,7 +1299,9 @@ function autoLvLabel(size){
   if(size) el.textContent=tr('lv.auto',{size:lvSizeText(size)});
 }
 function idealMobileLvSize(){
-  const px=Math.min(1280,Math.max(640,Math.ceil($('#viewport').clientWidth*(devicePixelRatio||1))));
+  // at most 800×600: a phone screen with 3× pixels asked for 1280×960, which the camera sends over Wi-Fi at only
+  // about 8 fps, and stepping down took half a minute (user 2026-11-15); 800×600 gives about 21 fps, 640×480 30 fps
+  const px=Math.min(800,Math.max(640,Math.ceil($('#viewport').clientWidth*(devicePixelRatio||1))));
   return AUTO_LV_SIZES.find(s=>parseInt(s,10)>=px)||AUTO_LV_SIZES.at(-1);
 }
 function prepareAutoLiveSize(){
@@ -1327,8 +1344,11 @@ async function tick(){
   const w=$('#live').naturalWidth, stale=st.live&&st.lv_age>3;
   if(st.live) reduceAutoLiveSize();
   const off=st.live&&w&&st.lvqty&&w!==parseInt(st.lvqty,10);
-  const gone=st.gone?tr('lv.cameraGone'):''; // the app waits for the camera and reconnects by itself
-  $('#lvSize').textContent=gone||(stale?tr('lv.noSignal',{s:Math.round(st.lv_age)}):st.live&&w?tr('lv.receiving',{w,h:$('#live').naturalHeight}):'');
+  const gone=st.gone?tr(isUsb?'lv.cameraGone':'lv.wifiGone'):''; // the app waits for the camera and goes on by itself
+  // frames shown per second over the last 3 s (REQ-F51), and the USB fallback layer, which keeps 1024×768 and is slower
+  const now=performance.now(), recent=lvShown.filter(t=>t>now-3000), fps=recent.length>1?(recent.length-1)/((recent.at(-1)-recent[0])/1000):0;
+  const extra=(fps?tr('lv.fps',{fps:fps.toFixed(1)}):'')+(isUsb&&usbBackend==='gphoto2'?tr('lv.gphoto2'):'');
+  $('#lvSize').textContent=gone||(stale?tr('lv.noSignal',{s:Math.round(st.lv_age)}):st.live&&w?tr('lv.receiving',{w,h:$('#live').naturalHeight})+extra:'');
   $('#lvSize').className=off||stale?'warn':'mut';
   const j=st.job;
   $('#jobInfo').textContent=j.name?tr('prog.job',{name:j.name,done:j.done,total:j.total})+(j.running?tr('prog.running'):'')+(j.error?tr('prog.error',{e:j.error}):''):'';
@@ -1413,7 +1433,7 @@ function showStatus(){
   const c=device.card;
   const li=st&&st.lvinfo; // Wi-Fi live view: values sent with every frame (REQ-F29)
   const card=li&&li.shots!=null?tr('status.shots',{v:li.shots}):c==null?null:c===4294967295?tr('status.cardMore'):c>=1e9?tr('status.card',{v:(c/1e9).toFixed(1)}):tr('status.cardMb',{v:Math.round(c/1e6)});
-  const b=device.battery!=null?device.battery:li&&li.battery; // Wi-Fi: only during live view
+  const b=device.battery; // USB only: what the camera sends over Wi-Fi is not the battery level (2026-11-15)
   const bat=b!=null?tr('status.battery',{v:b}):null;
   // without a lens name (USB without JPG) at least the focal length range
   let lensName=lens&&(lens.model||(lens.focal_min?(lens.focal_min===lens.focal_max?lens.focal_min:lens.focal_min+'–'+lens.focal_max)+' mm':null));
@@ -1842,10 +1862,13 @@ function renderGal(){
   resetTiles();
   const body=$('#galBody'); body.innerHTML=''; body.scrollTop=0;
   document.querySelectorAll('[data-v]').forEach(b=>b.classList.toggle('on',b.dataset.v===gv.mode));
-  document.querySelectorAll('[data-sz]').forEach(b=>{b.classList.toggle('on',+b.dataset.sz===gv.n);b.disabled=gv.mode==='cal'});
-  $('#galExif').checked=gv.exif; $('#galExif').disabled=gv.mode==='cal';
+  if(gv.mode==='cal'&&selMode){selMode=false;selSet.clear()}
+  $('#galOv').classList.toggle('cal',gv.mode==='cal'); // Calendar display: no size, shooting data, select or Share Order buttons
+  document.querySelectorAll('[data-sz]').forEach(b=>b.classList.toggle('on',+b.dataset.sz===gv.n));
+  $('#galExif').checked=gv.exif;
   $('#galSelect').classList.toggle('on',selMode); $('#galSelect').textContent=tr(selMode?'card.selectDone':'card.select');
   $('#galSaveSel').hidden=!selMode; $('#galSaveSel').textContent=tr('card.saveSel',{n:selSet.size}); $('#galSaveSel').disabled=!selSet.size;
+  setErase();
   const chip=$('#galChip'); chip.hidden=!(gv.day&&gv.mode==='index');
   if(gv.mode==='cal') shareSet=null;
   const sh=features.has('share_order');
@@ -1877,7 +1900,7 @@ function renderGal(){
     if(gv.n<=9){const c=document.createElement('div');c.className='cap';c.textContent=s.name;t.append(c)}
     t.onclick=()=>{
       if(selMode){const k=s.preview.path;selSet.has(k)?selSet.delete(k):selSet.add(k);t.classList.toggle('sel',selSet.has(k));
-        $('#galSaveSel').textContent=tr('card.saveSel',{n:selSet.size});$('#galSaveSel').disabled=!selSet.size;return}
+        $('#galSaveSel').textContent=tr('card.saveSel',{n:selSet.size});$('#galSaveSel').disabled=!selSet.size;setErase();return}
       openViewer(list,i);
     };
     grid.append(t);
@@ -1924,6 +1947,32 @@ $('#galSaveSel').onclick=async()=>{
     selSet.clear(); selMode=false; renderGal();
     $('#galCount').textContent=tr('card.saveSelDone',{n:l.length});
   }catch(e){$('#galCount').textContent=e.message}
+};
+// Erase (USB only, E-M1 manual p.33; both RAW and JPEG go for selected pictures, p.72): confirm with the count, then delete JPG and ORF of each selected picture
+function setErase(){
+  const b=$('#galErase'); b.hidden=!(selMode&&features.has('erase')&&gv.mode!=='cal'); b.textContent=tr('card.erase',{n:selSet.size});
+  const ask=$('#galEraseAsk'); if(ask) ask.remove(); // the selection changed: ask again
+  b.disabled=!selSet.size||!canWrite;
+}
+$('#galErase').onclick=()=>{
+  const l=cardShots.filter(s=>selSet.has(s.preview.path)), files=l.reduce((a,s)=>a+s.files.length,0);
+  const bar=document.createElement('div'); bar.id='galEraseAsk'; bar.className='chip amber';
+  const t=document.createElement('span'); t.textContent=tr(l.length===1?'card.eraseAsk1':'card.eraseAsk',{n:l.length,f:files})+' ';
+  const no=document.createElement('button'); no.textContent=tr('card.eraseCancel'); no.onclick=()=>bar.remove();
+  const yes=document.createElement('button'); yes.textContent=tr('card.eraseYes');
+  yes.onclick=async()=>{
+    bar.remove(); $('#galCount').textContent=tr('card.erasing');
+    try{
+      const r=await api('/api/erase',{paths:l.flatMap(s=>s.files.map(f=>f.path))}), gone=new Set(r.erased);
+      // a picture leaves the list when all its files are gone
+      cardShots=cardShots.filter(s=>!s.files.every(f=>gone.has(f.path)));
+      const bad=l.filter(s=>s.files.some(f=>r.failed.includes(f.path))).length;
+      selSet.clear(); selMode=false; renderGal(); renderStrip12();
+      $('#count').textContent=tr('card.shots',{n:cardShots.length});
+      $('#galCount').textContent=bad?tr(bad===1?'card.eraseFail1':'card.eraseFail',{n:bad}):tr(l.length===1?'card.eraseDone1':'card.eraseDone',{n:l.length});
+    }catch(e){$('#galCount').textContent=e.message}
+  };
+  bar.append(t,no,yes); const old=$('#galEraseAsk'); if(old) old.remove(); $('#galCount').after(bar);
 };
 $('#galExif').onchange=()=>{gv.exif=$('#galExif').checked;saveGal();renderGal()};
 $('#galShareSave').onclick=saveShare;
@@ -2023,7 +2072,7 @@ const calm=matchMedia('(prefers-reduced-motion:reduce)'); // shared by the Playb
     if(!g||(e.touches&&e.touches.length>=2)) return;
     const sc=g.sc; g=null;
     if(gv.mode==='cal'){ // Calendar display: spreading the fingers goes back to Index display 5x5
-      if(sc>1.25){setT(1,0);gv.mode='index';gv.n=25;saveGal();renderGal();body.animate([{opacity:.4},{opacity:1}],{duration:160,easing:'ease-out'})}
+      if(sc>1.25){setT(1,0);gv.mode='index';gv.n=25;saveGal();renderGal();if(!calm.matches)body.animate([{opacity:.4},{opacity:1}],{duration:160,easing:'ease-out'})}
       else setT(1,calm.matches?0:180);
       return;
     }
@@ -2730,6 +2779,7 @@ function ordered(g){
 /* Functions the current connection cannot do are hidden (USB-only on Wi-Fi and vice versa) */
 function applyFeatures(){
   document.querySelectorAll('[data-feat]').forEach(e=>{e.hidden=!features.has(e.dataset.feat)});
+  setErase(); // Erase shows only in Select mode
 }
 function applyLayout(){
   for(const g in GROUPS){
@@ -2857,10 +2907,10 @@ $('#lastShot').onclick=()=>{
    with MJPEG the webcam view went black for good at Wi-Fi 1280×960 and after a size change (2026-11-15, REQ-Q13).
    The next frame is requested as soon as the headers of the current one arrive, so its transfer overlaps the
    decoding of this one: one request at a time gave 26.5 of the camera's 30 fps (24 with clicks) (USB 1024×768, 2026-11-15, REQ-Q13). */
-let lvGen=0, lvAbort=null; // lvAbort: cancels the request a stopped loop still has open
+let lvGen=0, lvAbort=null, lvShown=[]; // lvAbort: cancels the request a stopped loop still has open
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 function startLiveLoop(img=$('#live')){
-  const g=++lvGen; let seq=0;
+  const g=++lvGen; let seq=0; lvShown=[]; // a new loop counts its own frames
   lvAbort?.abort(); const ctrl=lvAbort=new AbortController();
   const ask=s=>fetch('/live.jpg?seq='+s,{cache:'no-store',signal:ctrl.signal}).catch(()=>null); // null: server restarting or gone
   let pending=ask(seq);
@@ -2876,6 +2926,7 @@ function startLiveLoop(img=$('#live')){
         try{await next.decode()}catch{URL.revokeObjectURL(url);continue} // bad frame: skip it
         if(g!==lvGen){URL.revokeObjectURL(url);break}
         const old=img.src; img.src=url; if(old.startsWith('blob:')) URL.revokeObjectURL(old); // also the last one of an earlier loop
+        lvShown.push(performance.now()); if(lvShown.length>90) lvShown.shift(); // frames shown, for the fps in the status line
       }catch{await sleep(1000)} // body lost (server restarting or gone); the next request is already on its way
     }
   })();
@@ -3048,7 +3099,7 @@ async function enterApp(){
     // Phone link (--lan, REQ-F47): only offered on the computer itself, the phone already has it
     $('#phoneBtn').hidden=!(s.lan&&isLocalPage());
     $('#vWs').hidden=!s.om_workspace; // only when OM Workspace is installed on this computer
-    features=new Set(s.features); isUsb=s.type==='usb';
+    features=new Set(s.features); isUsb=s.type==='usb'; usbBackend=s.usb_backend;
     applyFeatures();
     statusBase={model:s.model,conn:s.type==='usb'?'USB':'Wi-Fi',rights:canWrite?tr('app.write'):tr('app.readOnly')};
     showStatus();
