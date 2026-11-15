@@ -1,6 +1,8 @@
 # Changelog
 
-## Unreleased
+## 0.7.7 – 2026-11-15
+
+A steadier USB connection and a cleaner phone view.
 
 - USB (own PTP layer): connecting writes one log line with the time of each step. Measured 2026-11-15: USB open 0.0 s, session 0.3–0.7 s, card index 0.1 s, PC control about 5 s – the camera itself takes that long to confirm computer control (REQ-Q12).
 - Two connect requests at once (start screen auto-connect and a click, or two tabs) make one connection; before, the second disconnected the first and one of them failed. A Disconnect during a slow connect waits for it (REQ-Q12). Camera-tested over USB 2026-11-15; Wi-Fi uses the same server code, not tried.
