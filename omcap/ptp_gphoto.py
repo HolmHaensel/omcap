@@ -297,20 +297,33 @@ class Camera:
 
     @_wrap
     def init(self):
+        last = [time.monotonic()]
+        steps = []  # (name, seconds) for one log line: where connecting spends its time
+
+        def lap(name):
+            now = time.monotonic()
+            steps.append((name, now - last[0]))
+            last[0] = now
         transport = ptp.UsbTransport(tries=4)
+        lap("USB open")
         cam = ptp.PtpCamera(transport)
         try:
             cam.open()
             self._model = cam.device_info()["model"]
+            lap("session")
             # Card index first: GetObjectInfo takes 10-12 ms in camera mode but ~26 ms under PC control
             # (measured 2026-11-13, 2948 files: ~30 s instead of 88 s; with the disk cache well under 1 s)
             try:
                 self._index.load(cam)
             except ptp.PtpError:
                 pass  # loaded later on first use
+            lap("card index")
             # PC control: needed for live view and shooting (libgphoto2 does the same at init)
             if not cam.pc_mode(True):
                 raise ptp.PtpError("camera did not switch to computer control")
+            lap("PC control")
+            print("USB connect: " + ", ".join("%s %.1f s" % st for st in steps)
+                  + " (camera answer %.1f s)" % cam.pc_answer_s, flush=True)
         except Exception:
             transport.close()
             raise
