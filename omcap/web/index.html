@@ -1031,7 +1031,7 @@ function shotMode(path){
   api('/api/exif?path='+encodeURIComponent(path)).then(j=>{const m=j.exif&&j.exif.mode;
     usbShotMode=m===5?'iAuto':null; renderProps()}).catch(()=>{});
 }
-let isUsb=false; // connection type from /api/status
+let isUsb=false, usbBackend=null; // connection type and USB layer (ptp or gphoto2) from /api/status
 let st={stage:0,job:{}},canWrite=false,wasBusy=false,connected=false,features=new Set(),af=null;
 let quitting=false;
 /* Adaptive live view size over Wi-Fi on phone width (REQ-F45, from the redesign, user 2026-11-14): start with the
@@ -1093,7 +1093,10 @@ async function tick(){
   if(st.live) reduceAutoLiveSize();
   const off=st.live&&w&&st.lvqty&&w!==parseInt(st.lvqty,10);
   const gone=st.gone?tr('lv.cameraGone'):''; // the app waits for the camera and reconnects by itself
-  $('#lvSize').textContent=gone||(stale?tr('lv.noSignal',{s:Math.round(st.lv_age)}):st.live&&w?tr('lv.receiving',{w,h:$('#live').naturalHeight}):'');
+  // provisional (user 2026-11-15): frames shown per second over the last 3 s, and the USB layer when it is libgphoto2
+  const now=performance.now(), recent=lvShown.filter(t=>t>now-3000), fps=recent.length>1?(recent.length-1)/((recent.at(-1)-recent[0])/1000):0;
+  const extra=(fps?' · '+fps.toFixed(1)+' fps':'')+(isUsb&&usbBackend==='gphoto2'?' · libgphoto2':'');
+  $('#lvSize').textContent=gone||(stale?tr('lv.noSignal',{s:Math.round(st.lv_age)}):st.live&&w?tr('lv.receiving',{w,h:$('#live').naturalHeight})+extra:'');
   $('#lvSize').className=off||stale?'warn':'mut';
   const j=st.job;
   $('#jobInfo').textContent=j.name?tr('prog.job',{name:j.name,done:j.done,total:j.total})+(j.running?tr('prog.running'):'')+(j.error?tr('prog.error',{e:j.error}):''):'';
@@ -2548,7 +2551,7 @@ $('#lastShot').onclick=()=>{
    with MJPEG the webcam view went black for good at Wi-Fi 1280×960 and after a size change (2026-11-15, REQ-Q13).
    The next frame is requested as soon as the headers of the current one arrive, so its transfer overlaps the
    decoding of this one: one request at a time gave 26.5 of the camera's 30 fps (24 with clicks) (USB 1024×768, 2026-11-15, REQ-Q13). */
-let lvGen=0, lvAbort=null; // lvAbort: cancels the request a stopped loop still has open
+let lvGen=0, lvAbort=null, lvShown=[]; // lvAbort: cancels the request a stopped loop still has open
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 function startLiveLoop(img=$('#live')){
   const g=++lvGen; let seq=0;
@@ -2567,6 +2570,7 @@ function startLiveLoop(img=$('#live')){
         try{await next.decode()}catch{URL.revokeObjectURL(url);continue} // bad frame: skip it
         if(g!==lvGen){URL.revokeObjectURL(url);break}
         const old=img.src; img.src=url; if(old.startsWith('blob:')) URL.revokeObjectURL(old); // also the last one of an earlier loop
+        lvShown.push(performance.now()); if(lvShown.length>90) lvShown.shift(); // frames shown, for the fps in the status line
       }catch{await sleep(1000)} // body lost (server restarting or gone); the next request is already on its way
     }
   })();
@@ -2737,7 +2741,7 @@ async function enterApp(){
     // Phone link (--lan, REQ-F47): only offered on the computer itself, the phone already has it
     $('#phoneBtn').hidden=!(s.lan&&isLocalPage());
     $('#vWs').hidden=!s.om_workspace; // only when OM Workspace is installed on this computer
-    features=new Set(s.features); isUsb=s.type==='usb';
+    features=new Set(s.features); isUsb=s.type==='usb'; usbBackend=s.usb_backend;
     applyFeatures();
     statusBase={model:s.model,conn:s.type==='usb'?'USB':'Wi-Fi',rights:canWrite?tr('app.write'):tr('app.readOnly')};
     showStatus();
