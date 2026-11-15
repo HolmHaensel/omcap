@@ -1317,8 +1317,9 @@ function colorRing(value,opts,sel){
   const pt=(r,a)=>(r*Math.cos(a)).toFixed(2)+' '+(r*Math.sin(a)).toFixed(2), R=47, r=31;
   let on=null;
   opts.forEach((o,i)=>{
-    const a0=i/N*2*Math.PI-Math.PI/2, a1=(i+1)/N*2*Math.PI-Math.PI/2, n=parseInt(String(o).replace(/\D/g,''),10);
-    const step=isNaN(n)?i:n, seg=document.createElementNS(NS,'path');
+    const n=parseInt(String(o).replace(/\D/g,''),10), k=isNaN(n)?i:n; // segment centred on its step angle: step0 yellow at 0° (top), step9 blue at 180°
+    const a0=(k-.5)/N*2*Math.PI-Math.PI/2, a1=(k+.5)/N*2*Math.PI-Math.PI/2;
+    const step=k, seg=document.createElementNS(NS,'path');
     seg.setAttribute('d',`M${pt(R,a0)}A${R} ${R} 0 0 1 ${pt(R,a1)}L${pt(r,a1)}A${r} ${r} 0 0 0 ${pt(r,a0)}Z`);
     seg.setAttribute('fill',`hsl(${(60-step*360/N+720)%360} 85% 55%)`); // clockwise from yellow, like the camera
     seg.setAttribute('class','seg'+(o===value?' on':'')); seg.setAttribute('role','radio');
