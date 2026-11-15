@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Playback on a phone: pinching in beyond the 5×5 Index display opens Calendar display, spreading the fingers there goes back to 5×5 (as in the redesign); Calendar display hides the buttons that do nothing there (size, shooting data, Select, Share Order) (REQ-F48).
 - README rewritten for easier reading: highlights, quick start, features grouped by topic with ✅ / 🟡 / – for Wi-Fi and USB, one speed table, an options table.
 - Main live view: the next frame is requested while the current one decodes, so the view keeps up with the camera – USB 1024×768 now 29.9 fps instead of 26.5 fps in the browser, Wi-Fi 640×480 29.8 instead of 28.8 fps (measured 2026-11-15, REQ-Q13).
 - Webcam (OBS) and second-monitor windows: same frame-by-frame live view as the main window instead of MJPEG. With MJPEG the picture went black for good after one bad frame (seen over Wi-Fi at 1280×960 and after a size change); now a bad frame is skipped, and the window picks the live view up again by itself after a reconnect (REQ-Q13).
