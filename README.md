@@ -67,7 +67,7 @@ More in [Start and stop](#start-and-stop).
 | Live view with zoom, Displayed Grid and overlay | ✅ | ✅ | |
 | Live view size (up to 1280×960) | ✅ | ✅ | USB: with the app's own USB layer (macOS default); with libgphoto2 see [Larger USB live view](#larger-usb-live-view-libgphoto2) |
 | Histogram, Highlight&Shadow, Peaking | ✅ | ✅ | |
-| Frames per second shown next to the live view size (and "libgphoto2" when USB uses the slower fallback) | ✅ | ✅ | |
+| Frames per second shown next to the live view size (and "libgphoto2" when USB uses the slower fallback) | ✅ | 🟡 | same page code; not yet looked at over USB |
 | Level gauge (horizon line and tilt dot, "Level ✓", optional sound, "Hold angle") | – | ✅ | the camera sends no tilt over Wi-Fi; USB: own USB layer only, not with libgphoto2 |
 | Battery and free card space in the header | ✅ | ✅ | |
 | Current focal length; ISO with ISO Auto ("now 800"); shutter speed and aperture the camera uses in auto modes | ✅ | – | sent with the Wi-Fi live view; no live USB value found |

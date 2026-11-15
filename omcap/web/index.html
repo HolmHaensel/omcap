@@ -2595,7 +2595,7 @@ $('#lastShot').onclick=()=>{
 let lvGen=0, lvAbort=null, lvShown=[]; // lvAbort: cancels the request a stopped loop still has open
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 function startLiveLoop(img=$('#live')){
-  const g=++lvGen; let seq=0;
+  const g=++lvGen; let seq=0; lvShown=[]; // a new loop counts its own frames
   lvAbort?.abort(); const ctrl=lvAbort=new AbortController();
   const ask=s=>fetch('/live.jpg?seq='+s,{cache:'no-store',signal:ctrl.signal}).catch(()=>null); // null: server restarting or gone
   let pending=ask(seq);
