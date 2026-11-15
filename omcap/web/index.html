@@ -1063,7 +1063,9 @@ function autoLvLabel(size){
   if(size) el.textContent=tr('lv.auto',{size:lvSizeText(size)});
 }
 function idealMobileLvSize(){
-  const px=Math.min(1280,Math.max(640,Math.ceil($('#viewport').clientWidth*(devicePixelRatio||1))));
+  // at most 800×600: a phone screen with 3× pixels asked for 1280×960, which the camera sends over Wi-Fi at only
+  // about 8 fps, and stepping down took half a minute (user 2026-11-15); 800×600 gives about 21 fps, 640×480 30 fps
+  const px=Math.min(800,Math.max(640,Math.ceil($('#viewport').clientWidth*(devicePixelRatio||1))));
   return AUTO_LV_SIZES.find(s=>parseInt(s,10)>=px)||AUTO_LV_SIZES.at(-1);
 }
 function prepareAutoLiveSize(){
