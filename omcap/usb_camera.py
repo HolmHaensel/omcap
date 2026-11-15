@@ -27,7 +27,7 @@ EXPOSURE_PROGRAM = {"1": "M", "2": "P", "3": "A", "4": "S", "8": "movie", "11": 
 WB_NAMES = ["AUTO", "5300K", "7500K", "6000K", "3000K", "4000K", "Underwater", "5500K Flash",
             "One-touch 1", "One-touch 2", "One-touch 3", "One-touch 4", "CWB"]
 FEATURES = ["liveview", "af_area", "af_modes", "stages", "scp", "time_lapse", "ae_bkt",
-            "playback", "transfer", "long", "mf_drive", "movie"]
+            "playback", "transfer", "long", "mf_drive", "movie", "erase"]
 
 # Movie button, PTP 0x948C (Olympus OM-D MovieRecButton): 1 press, 0 release; each press toggles recording.
 # The camera records in all shooting modes except PHOTO STORY, not during BULB / LIVE TIME / LIVECOMP,
@@ -712,6 +712,34 @@ class UsbCamera:
         def get():
             self._c.file_get(folder, name, self.gp.GP_FILE_TYPE_NORMAL).save(dest)
         self._call(get)
+
+    def erase(self, paths):
+        """Delete files from the card (PTP DeleteObject). One failing file (e.g. protected picture) does not stop
+        the others. Returns {"erased": [...], "failed": [...]}."""
+        self._need_write()
+        for p in paths:
+            _check_usb_path(p)
+        erased, failed = [], []
+        self._hold_add(1)  # live view paused, as for every card access
+        try:
+            for p in paths:
+                folder, name = p.rsplit("/", 1)
+                try:
+                    self._call(self._c.file_delete, folder, name)
+                except CameraError as e:
+                    print("USB erase failed: %s (%s)" % (p, e), flush=True)
+                    failed.append(p)
+                    continue
+                erased.append(p)
+                if getattr(self, "_files", None) is not None:
+                    self._files.pop(p, None)
+                if p in self._pending:
+                    self._pending.remove(p)
+                if self.last_jpg == p:
+                    self.last_jpg = None
+        finally:
+            self._hold_add(-1)
+        return {"erased": erased, "failed": failed}
 
     def _file_bytes(self, path, kind):
         _check_usb_path(path)

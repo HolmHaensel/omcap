@@ -496,6 +496,15 @@ class Camera:
         return _Info(file=_Info(size=v[3], mtime=v[4]))
 
     @_wrap
+    def file_delete(self, folder, name):
+        h = self._handle(folder, name)
+        self._cam().delete_object(h)
+        v = self._index.objects.pop(h, None)
+        if v:
+            self._index._by_name.pop((v[0], v[1], v[2]), None)
+        self._index.save()  # the camera really dropped it: keep the saved index in step
+
+    @_wrap
     def file_get(self, folder, name, kind):
         h = self._handle(folder, name)
         cam = self._cam()

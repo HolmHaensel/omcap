@@ -565,6 +565,7 @@ body.webcam{cursor:none;display:flex;align-items:center;justify-content:center}
     <label class="tog" id="galExifTog"><input type="checkbox" id="galExif"> <span data-i18n="card.exifLine">Shooting data</span></label>
     <button id="galSelect" data-i18n="card.select">Select</button>
     <button id="galSaveSel" hidden data-i18n="card.saveSel">Save selected</button>
+    <button id="galErase" class="w" data-feat="erase" data-i18n="card.erase" hidden>Erase</button>
     <button id="galShare" data-feat="share_order" data-i18n="card.share">Share Order</button>
     <button id="galShareSave" data-feat="share_order" data-i18n="card.shareSave" hidden>Save all to computer</button>
     <button id="galShareReset" data-feat="share_order" data-i18n="card.shareReset" hidden>Reset Share Order</button>
@@ -662,6 +663,13 @@ const I18N={en:{
   "card.select": "Select",
   "card.selectDone": "Done",
   "card.saveSel": "Save selected ({n})",
+  "card.erase": "Erase ({n})",
+  "card.eraseAsk": "Erase {n} pictures ({f} files) from the card? This cannot be undone.",
+  "card.eraseYes": "Erase",
+  "card.eraseCancel": "Cancel",
+  "card.erasing": "Erasing…",
+  "card.eraseDone": "{n} pictures erased",
+  "card.eraseFail": "{n} pictures could not be erased (protected?)",
   "card.saveSelDone": "{n} shots saved on the computer",
   "info.image": "Image only",
   "info.simple": "Simplified display",
@@ -1572,6 +1580,7 @@ function renderGal(){
   $('#galExif').checked=gv.exif; $('#galExif').disabled=gv.mode==='cal';
   $('#galSelect').classList.toggle('on',selMode); $('#galSelect').textContent=tr(selMode?'card.selectDone':'card.select');
   $('#galSaveSel').hidden=!selMode; $('#galSaveSel').textContent=tr('card.saveSel',{n:selSet.size}); $('#galSaveSel').disabled=!selSet.size;
+  setErase();
   const chip=$('#galChip'); chip.hidden=!(gv.day&&gv.mode==='index');
   if(gv.mode==='cal') shareSet=null;
   const sh=features.has('share_order');
@@ -1603,7 +1612,7 @@ function renderGal(){
     if(gv.n<=25){const c=document.createElement('div');c.className='cap';c.textContent=`${s.name} · ${tr('date.short',{mon:MONTHS[s.dt.m-1].slice(0,3),d:s.dt.d,time:pad(s.dt.h)+':'+pad(s.dt.mi)})}`;t.append(c)}
     t.onclick=()=>{
       if(selMode){const k=s.preview.path;selSet.has(k)?selSet.delete(k):selSet.add(k);t.classList.toggle('sel',selSet.has(k));
-        $('#galSaveSel').textContent=tr('card.saveSel',{n:selSet.size});$('#galSaveSel').disabled=!selSet.size;return}
+        $('#galSaveSel').textContent=tr('card.saveSel',{n:selSet.size});$('#galSaveSel').disabled=!selSet.size;setErase();return}
       openViewer(list,i);
     };
     grid.append(t);
@@ -1650,6 +1659,31 @@ $('#galSaveSel').onclick=async()=>{
     selSet.clear(); selMode=false; renderGal();
     $('#galCount').textContent=tr('card.saveSelDone',{n:l.length});
   }catch(e){$('#galCount').textContent=e.message}
+};
+// Erase (USB only, E-M1 manual p.33): confirm with the count, then delete JPG and ORF of each selected picture
+function setErase(){
+  const b=$('#galErase'); b.hidden=!(selMode&&features.has('erase')); b.textContent=tr('card.erase',{n:selSet.size});
+  b.disabled=!selSet.size||!canWrite;
+}
+$('#galErase').onclick=()=>{
+  const l=cardShots.filter(s=>selSet.has(s.preview.path)), files=l.reduce((a,s)=>a+s.files.length,0);
+  const bar=document.createElement('div'); bar.id='galEraseAsk'; bar.className='chip amber';
+  const t=document.createElement('span'); t.textContent=tr('card.eraseAsk',{n:l.length,f:files})+' ';
+  const no=document.createElement('button'); no.textContent=tr('card.eraseCancel'); no.onclick=()=>bar.remove();
+  const yes=document.createElement('button'); yes.textContent=tr('card.eraseYes');
+  yes.onclick=async()=>{
+    bar.remove(); $('#galCount').textContent=tr('card.erasing');
+    try{
+      const r=await api('/api/erase',{paths:l.flatMap(s=>s.files.map(f=>f.path))}), gone=new Set(r.erased);
+      // a picture leaves the list when all its files are gone
+      cardShots=cardShots.filter(s=>!s.files.every(f=>gone.has(f.path)));
+      const bad=l.filter(s=>s.files.some(f=>r.failed.includes(f.path))).length;
+      selSet.clear(); selMode=false; renderGal(); renderStrip12();
+      $('#count').textContent=tr('card.shots',{n:cardShots.length});
+      $('#galCount').textContent=bad?tr('card.eraseFail',{n:bad}):tr('card.eraseDone',{n:l.length});
+    }catch(e){$('#galCount').textContent=e.message}
+  };
+  bar.append(t,no,yes); const old=$('#galEraseAsk'); if(old) old.remove(); $('#galCount').after(bar);
 };
 $('#galExif').onchange=()=>{gv.exif=$('#galExif').checked;saveGal();renderGal()};
 $('#galShareSave').onclick=saveShare;
