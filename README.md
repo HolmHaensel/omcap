@@ -138,7 +138,7 @@ More in [Start and stop](#start-and-stop).
 |---|---|---|---|
 | Start by double-click, browser opens by itself | ✅ | ✅ | |
 | Start screen connects by itself to the camera used last time (**Stay here** stops it) | ✅ | 🟡 | |
-| Camera lost and back (cable pulled, Wi-Fi dropped): waits quietly and goes on by itself | 🟡 | ✅ | Wi-Fi: the live view restarts once the camera answers again |
+| Camera lost and back (cable pulled, camera off, Wi-Fi dropped): waits quietly and goes on by itself | 🟡 | ✅ | Wi-Fi: the live view restarts once the camera answers again (restart not yet seen on the camera) |
 | Two connect requests at once make one connection (two tabs, a phone) | 🟡 | ✅ | |
 | Quit E-M1 Capture button | ✅ | 🟡 | USB tested from the start screen, not while connected |
 

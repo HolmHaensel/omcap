@@ -10,6 +10,7 @@ from omcap.camera import CameraError
 class FakeLive:
     running = True
     age = 30.0
+    seq = 100
 
 
 class FakeCam:
@@ -20,7 +21,7 @@ class FakeCam:
         self.answers, self.allow_write, self.restart_ok = answers, allow_write, restart_ok
         self.calls = []
 
-    def get(self, cgi, **q):
+    def get(self, cgi, timeout=None, **q):
         self.calls.append(cgi)
         if self.answers is not True:
             raise CameraError("get_connectmode: timed out", self.answers)
@@ -36,11 +37,15 @@ class Watch(unittest.TestCase):
     def setUp(self):
         self.old = server.cam, server.live, server.conn_type
         server.live, server.conn_type = FakeLive(), "wifi"
-        server.wifi_watch.update(lost=False, backoff=5.0, retry_at=0.0)
+        server.wifi_watch.update(lost=False, backoff=5.0, retry_at=0.0, seq=-1)
         server.state.update(pressing=False, take=None, movie=None, play=None)
         server.job["running"] = False
         self.starts = []
-        self.p = mock.patch.object(server, "start_live", lambda: self.starts.append(1))
+
+        def fake_start():  # as LiveView.start: the age starts over, frames may or may not follow
+            self.starts.append(1)
+            server.live.age = 0.0
+        self.p = mock.patch.object(server, "start_live", fake_start)
         self.p.start()
 
     def tearDown(self):
@@ -50,7 +55,7 @@ class Watch(unittest.TestCase):
 
     def check(self, c):
         server.cam = c
-        server.wifi_check(c)
+        server.wifi_check(c, server.wifi_watch["gen"])
 
     def test_restarts_when_camera_answers(self):
         c = FakeCam()
@@ -100,11 +105,32 @@ class Watch(unittest.TestCase):
     def test_restart_without_frames_backs_off_too(self):
         c = FakeCam()
         self.check(c)
-        self.check(c)  # frames still missing (e.g. firewall): no second restart right away
+        self.check(c)  # age 0 right after the restart, but no new frame: the wait must not start over
+        self.assertEqual(server.wifi_watch["backoff"], 10.0)
+        server.live.age = 30.0
+        self.check(c)  # still no frames, inside the wait: no second restart
         self.assertEqual(self.starts, [1])
-        server.live.age = 0.1
-        self.check(c)  # frames again: the wait starts over
+        server.live.age, server.live.seq = 0.1, 101
+        self.check(c)  # real new frames: the wait starts over
         self.assertEqual(server.wifi_watch["backoff"], 5.0)
+
+    def test_playback_during_the_probe_wins(self):
+        c = FakeCam()
+
+        def slow_get(cgi, timeout=None, **q):
+            server.state["play"] = "play"  # the user opened Playback while the probe waited
+            return ""
+        c.get = slow_get
+        self.check(c)
+        self.assertEqual(self.starts, [])
+        self.assertFalse(server.busy.locked())
+        server.state["play"] = None
+
+    def test_other_connection_is_left_alone(self):
+        c = FakeCam()
+        server.cam = object()
+        server.wifi_check(c, server.wifi_watch["gen"])
+        self.assertEqual(c.calls, [])
 
 
 if __name__ == "__main__":
