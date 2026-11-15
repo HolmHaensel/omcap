@@ -2106,7 +2106,7 @@ async function pollLevel(){
 }
 function lvlStep(t){
   lvlAnim=0;
-  if(!lvl||!$('#lvlOn').checked){lvlShown=null;drawLevel();return}
+  if(!lvl||lvl.a==null||!$('#lvlOn').checked){lvlShown=null;drawLevel();return}
   const k=1-Math.exp(-Math.max(0,t-lvlT)/1000/LVL_TAU); lvlT=t;
   if(!lvlShown) lvlShown={a:lvl.a,b:lvl.b};
   else{lvlShown.a+=(lvl.a-lvlShown.a)*k;lvlShown.b+=(lvl.b-lvlShown.b)*k}
