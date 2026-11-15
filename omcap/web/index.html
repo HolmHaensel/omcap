@@ -1001,8 +1001,8 @@ if(view){
     const w=parseInt(params.get('w'),10),h=parseInt(params.get('h'),10);
     document.body.classList.add('webcam');
     if(w>0&&h>0){im.style.width=w+'px';im.style.height=h+'px'}
-    im.src='/live.mjpg';
-  }else if(view==='live') im.src='/live.mjpg';
+    setTimeout(()=>startLiveLoop(im)); // after the script has run (the loop's variables are defined further down)
+  }else if(view==='live') setTimeout(()=>startLiveLoop(im));
   else{
     let last=null;
     setInterval(async()=>{try{
@@ -2544,12 +2544,13 @@ $('#lastShot').onclick=()=>{
 };
 /* Live image of the main view: one frame per request, decoded off screen and swapped in only when it decodes.
    A browser can stop showing an MJPEG stream after one bad part and stay black until it reconnects (seen
-   2026-11-13 in Chrome and Safari); here a bad or missing frame is simply skipped. MJPEG stays for ?view= windows.
+   2026-11-13 in Chrome and Safari); here a bad or missing frame is simply skipped. The ?view= windows (webcam, second monitor) use the same loop:
+   with MJPEG the webcam view went black for good at Wi-Fi 1280×960 and after a size change (2026-11-15, REQ-Q13).
    The next frame is requested as soon as the headers of the current one arrive, so its transfer overlaps the
    decoding of this one: one request at a time gave 26.5 of the camera's 30 fps (24 with clicks) (USB 1024×768, 2026-11-15, REQ-Q13). */
 let lvGen=0, lvAbort=null; // lvAbort: cancels the request a stopped loop still has open
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
-function startLiveLoop(){
+function startLiveLoop(img=$('#live')){
   const g=++lvGen; let seq=0;
   lvAbort?.abort(); const ctrl=lvAbort=new AbortController();
   const ask=s=>fetch('/live.jpg?seq='+s,{cache:'no-store',signal:ctrl.signal}).catch(()=>null); // null: server restarting or gone
@@ -2565,7 +2566,7 @@ function startLiveLoop(){
         const url=URL.createObjectURL(await r.blob()), next=new Image(); next.src=url;
         try{await next.decode()}catch{URL.revokeObjectURL(url);continue} // bad frame: skip it
         if(g!==lvGen){URL.revokeObjectURL(url);break}
-        const old=$('#live').src; $('#live').src=url; if(old.startsWith('blob:')) URL.revokeObjectURL(old); // also the last one of an earlier loop
+        const old=img.src; img.src=url; if(old.startsWith('blob:')) URL.revokeObjectURL(old); // also the last one of an earlier loop
       }catch{await sleep(1000)} // body lost (server restarting or gone); the next request is already on its way
     }
   })();
