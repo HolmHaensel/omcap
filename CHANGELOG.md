@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- USB: when the camera disappears (cable pulled, camera switched off) the app no longer rebuilds the session in a loop – that stopped the macOS camera service each time and blocked other apps. It waits quietly, shows "Camera not found on USB …" and reconnects by itself once the camera is back; a failed rebuild waits 5, 10 … 60 s (REQ-Q11). Offline-tested; camera test open.
 - Phone view, upright or turned (REQ-F49): no live view size choice – the app picks the size itself (Wi-Fi: adaptive, now also with the phone turned; USB: always 1024×768) – and no second-monitor or webcam (OBS) windows, which make no sense on a phone. Tried on an iPhone 2026-11-15.
 
 ## 0.7.6 – 2026-11-14

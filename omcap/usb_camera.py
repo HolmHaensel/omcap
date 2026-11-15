@@ -242,6 +242,8 @@ class UsbLive:
         self.cond = threading.Condition()
         self._run = False
         self._thread = None
+        self._backoff = 0.0      # seconds to wait after a failed rebuild (5, 10, ... 60)
+        self._retry_at = 0.0     # monotonic time of the next rebuild attempt
 
     @property
     def running(self):
@@ -284,18 +286,39 @@ class UsbLive:
                 # not during an exposure or its noise reduction (last_press lies in the future then)
                 if failures >= 10 and not self.camera.shooting and not self.camera.stage \
                         and time.monotonic() >= self.camera.last_press:
-                    # session broken: rebuild; name the camera's last answer for the diagnosis
-                    self.camera.reopen("live view failed 10x: %s" % getattr(self.camera, "lv_reason", None))
-                    failures = 0
+                    if self._rebuild():
+                        failures = 0
                 time.sleep(0.3)
                 continue
-            failures = 0
+            failures, self._backoff, self.camera.gone = 0, 0.0, False
             with self.cond:
                 self.frame = data
                 self.seq += 1
                 self.last_frame = time.monotonic()
                 self.cond.notify_all()
             time.sleep(0.005)  # leave other commands to the camera
+
+    def _rebuild(self):
+        """Live view keeps failing: rebuild the session, but not in a loop (seen 2026-11-15).
+
+        Camera gone from USB (cable pulled, switched off): no rebuild - each one stops the macOS camera service and
+        claims the bus, which blocked other apps - but a quiet check every 2 s without claiming the camera, and a
+        rebuild once it is back. Camera there but the rebuild fails: wait 5, 10, 20 ... 60 s before the next try.
+        Returns True when a rebuild was tried (the failure count starts again)."""
+        if detect_name() is None:
+            if not getattr(self.camera, "gone", False):
+                print("USB: camera gone, waiting for it (cable, power, USB menu)", flush=True)
+            self.camera.gone = True
+            time.sleep(1.7)  # with the 0.3 s of the loop: one check every 2 s
+            return False
+        if time.monotonic() < self._retry_at:
+            return False
+        # session broken: rebuild; name the camera's last answer for the diagnosis
+        ok = self.camera.reopen("live view failed 10x: %s" % getattr(self.camera, "lv_reason", None))
+        self.camera.gone = False
+        self._backoff = 0.0 if ok else min(60.0, max(5.0, self._backoff * 2))
+        self._retry_at = time.monotonic() + self._backoff
+        return True
 
     def wait_frame(self, last_seq, timeout=3.0):
         with self.cond:
@@ -307,6 +330,7 @@ class UsbCamera:
     usb = True
     host = "USB"
     stage = 0
+    gone = False  # set by the live view loop while the camera is missing from USB
     lvqty = None
     features = FEATURES
     shooting = False
@@ -399,8 +423,9 @@ class UsbCamera:
                           "in the camera's USB menu; after plugging the cable in again, restart E-M1 Capture." % error)
 
     def reopen(self, reason="?"):
+        """Rebuild the session; True if the camera answered again."""
         with self._lock:
-            self._reopen_locked(reason)
+            return self._reopen_locked(reason)
 
     def reopen_if_idle(self, reason):
         """Rebuild the session unless a shot or card read started meanwhile (checked under the lock)."""
@@ -422,8 +447,9 @@ class UsbCamera:
             self._open()
             self._apply_lv_size_locked()  # keep the chosen size after a rebuilt session
             self._resync_files_locked()
+            return True
         except (CameraError, self.gp.GPhoto2Error):
-            pass
+            return False
 
     def _resync_files_locked(self):
         """After a rebuilt session: files whose "added" event was lost go to the card list (PTP backend)."""
