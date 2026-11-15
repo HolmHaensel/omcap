@@ -18,7 +18,7 @@ class ErasePtp(FakePtp):
     def delete_object(self, h):
         self.calls.append(("delete", h))
         if h in self.protected:
-            raise ptp.PtpError("protected", code=0x200F)
+            raise ptp.PtpError("protected", code=0x200D)
         del self.objects[h]
 
 
@@ -32,6 +32,22 @@ class Layer(unittest.TestCase):
             self.assertEqual(c.file_paths(), [ORF])
             with self.assertRaises(pg.GPhoto2Error):
                 c.file_delete("/store_00010001/DCIM/100OLYMP", "P1010001.JPG")  # already gone
+
+    def test_folder_and_stale_handle_refused(self):
+        fake = ErasePtp()
+        with tempfile.TemporaryDirectory() as d:
+            c = camera(fake, os.path.join(d, "idx.json"))
+            h = c._handle("/store_00010001/DCIM/100OLYMP", "P1010001.JPG")
+            c._index.objects[h] = c._index.objects[h][:2] + ("P1019999.JPG",) + c._index.objects[h][3:]
+            c._index._by_name[c._index.objects[h][:3]] = h  # the saved index says another name for this handle
+            with self.assertRaises(pg.GPhoto2Error):
+                c.file_delete("/store_00010001/DCIM/100OLYMP", "P1019999.JPG")
+            self.assertFalse([x for x in fake.calls if x[0] == "delete"])
+
+    def test_erase_refuses_folder_path(self):
+        cam = make(ErasePtp())
+        with self.assertRaises(CameraError):
+            cam.erase(["/store_00010001/DCIM/100OLYMP"])
 
     def test_ptp_operation_code(self):
         sent = []

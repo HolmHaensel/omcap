@@ -498,7 +498,11 @@ class Camera:
     @_wrap
     def file_delete(self, folder, name):
         h = self._handle(folder, name)
-        self._cam().delete_object(h)
+        cam = self._cam()
+        if self._index.objects[h][5] or CardIndex.entry(cam.object_info(h))[:3] != self._index.objects[h][:3]:
+            # never a folder, and the handle must still be this file on the camera (the saved index may be stale)
+            raise GPhoto2Error("Erase refused: %s/%s is a folder or no longer matches the card" % (folder, name))
+        cam.delete_object(h)
         v = self._index.objects.pop(h, None)
         if v:
             self._index._by_name.pop((v[0], v[1], v[2]), None)

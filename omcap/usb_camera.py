@@ -717,8 +717,11 @@ class UsbCamera:
         """Delete files from the card (PTP DeleteObject). One failing file (e.g. protected picture) does not stop
         the others. Returns {"erased": [...], "failed": [...]}."""
         self._need_write()
+        paths = list(dict.fromkeys(paths))  # each file once
         for p in paths:
             _check_usb_path(p)
+            if not re.search(r"/[^/]+\.[A-Za-z0-9]{3,4}$", p):  # a file, never a folder
+                raise CameraError("Invalid path: %r" % p)
         erased, failed = [], []
         self._hold_add(1)  # live view paused, as for every card access
         try:

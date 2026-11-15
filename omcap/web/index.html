@@ -665,11 +665,14 @@ const I18N={en:{
   "card.saveSel": "Save selected ({n})",
   "card.erase": "Erase ({n})",
   "card.eraseAsk": "Erase {n} pictures ({f} files) from the card? This cannot be undone.",
+  "card.eraseAsk1": "Erase 1 picture ({f} files) from the card? This cannot be undone.",
   "card.eraseYes": "Erase",
   "card.eraseCancel": "Cancel",
   "card.erasing": "Erasing…",
   "card.eraseDone": "{n} pictures erased",
+  "card.eraseDone1": "1 picture erased",
   "card.eraseFail": "{n} pictures could not be erased (protected?)",
+  "card.eraseFail1": "1 picture could not be erased (protected?)",
   "card.saveSelDone": "{n} shots saved on the computer",
   "info.image": "Image only",
   "info.simple": "Simplified display",
@@ -1660,15 +1663,16 @@ $('#galSaveSel').onclick=async()=>{
     $('#galCount').textContent=tr('card.saveSelDone',{n:l.length});
   }catch(e){$('#galCount').textContent=e.message}
 };
-// Erase (USB only, E-M1 manual p.33): confirm with the count, then delete JPG and ORF of each selected picture
+// Erase (USB only, E-M1 manual p.33; both RAW and JPEG go for selected pictures, p.72): confirm with the count, then delete JPG and ORF of each selected picture
 function setErase(){
-  const b=$('#galErase'); b.hidden=!(selMode&&features.has('erase')); b.textContent=tr('card.erase',{n:selSet.size});
+  const b=$('#galErase'); b.hidden=!(selMode&&features.has('erase')&&gv.mode!=='cal'); b.textContent=tr('card.erase',{n:selSet.size});
+  const ask=$('#galEraseAsk'); if(ask) ask.remove(); // the selection changed: ask again
   b.disabled=!selSet.size||!canWrite;
 }
 $('#galErase').onclick=()=>{
   const l=cardShots.filter(s=>selSet.has(s.preview.path)), files=l.reduce((a,s)=>a+s.files.length,0);
   const bar=document.createElement('div'); bar.id='galEraseAsk'; bar.className='chip amber';
-  const t=document.createElement('span'); t.textContent=tr('card.eraseAsk',{n:l.length,f:files})+' ';
+  const t=document.createElement('span'); t.textContent=tr(l.length===1?'card.eraseAsk1':'card.eraseAsk',{n:l.length,f:files})+' ';
   const no=document.createElement('button'); no.textContent=tr('card.eraseCancel'); no.onclick=()=>bar.remove();
   const yes=document.createElement('button'); yes.textContent=tr('card.eraseYes');
   yes.onclick=async()=>{
@@ -1680,7 +1684,7 @@ $('#galErase').onclick=()=>{
       const bad=l.filter(s=>s.files.some(f=>r.failed.includes(f.path))).length;
       selSet.clear(); selMode=false; renderGal(); renderStrip12();
       $('#count').textContent=tr('card.shots',{n:cardShots.length});
-      $('#galCount').textContent=bad?tr('card.eraseFail',{n:bad}):tr('card.eraseDone',{n:l.length});
+      $('#galCount').textContent=bad?tr(bad===1?'card.eraseFail1':'card.eraseFail',{n:bad}):tr(l.length===1?'card.eraseDone1':'card.eraseDone',{n:l.length});
     }catch(e){$('#galCount').textContent=e.message}
   };
   bar.append(t,no,yes); const old=$('#galEraseAsk'); if(old) old.remove(); $('#galCount').after(bar);
@@ -2468,6 +2472,7 @@ function ordered(g){
 /* Functions the current connection cannot do are hidden (USB-only on Wi-Fi and vice versa) */
 function applyFeatures(){
   document.querySelectorAll('[data-feat]').forEach(e=>{e.hidden=!features.has(e.dataset.feat)});
+  setErase(); // Erase shows only in Select mode
 }
 function applyLayout(){
   for(const g in GROUPS){
