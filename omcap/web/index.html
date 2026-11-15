@@ -148,7 +148,7 @@ button:disabled{color:var(--disabled);opacity:.6;cursor:not-allowed}
 .cring .seg{stroke:var(--ground);stroke-width:1;cursor:pointer}
 .cring .seg:hover{opacity:.8}
 .cring .seg.on{stroke:#fff;stroke-width:3}
-.cring text{fill:var(--text);font:600 9px var(--font-value);text-anchor:middle;dominant-baseline:middle}
+.cring text{fill:var(--muted);font:500 7px var(--font-ui,system-ui);text-anchor:middle} /* colour name in the centre, small and grey, one word per line */
 #modeBox{margin-bottom:var(--s2)}
 #modeBox .seg{flex-wrap:wrap}
 #modeBox .seg button{flex:1;width:auto;min-width:0;padding:0 2px;height:38px;font-family:var(--font-value);font-size:13px}
@@ -881,6 +881,25 @@ const I18N={en:{
   "prop.colortone": "Picture Mode",
   "prop.artfilter": "Art filter",
   "prop.colorphase": "Partial Color",
+  // Partial Color steps by the colour on the camera ring (step0 yellow at the top, clockwise 20° each; checked 2026-11-15)
+  "val.colorphase.step0": "Yellow",
+  "val.colorphase.step1": "Amber",
+  "val.colorphase.step2": "Orange",
+  "val.colorphase.step3": "Red",
+  "val.colorphase.step4": "Crimson",
+  "val.colorphase.step5": "Pink",
+  "val.colorphase.step6": "Magenta",
+  "val.colorphase.step7": "Purple",
+  "val.colorphase.step8": "Violet",
+  "val.colorphase.step9": "Blue",
+  "val.colorphase.step10": "Azure",
+  "val.colorphase.step11": "Sky blue",
+  "val.colorphase.step12": "Cyan",
+  "val.colorphase.step13": "Turquoise",
+  "val.colorphase.step14": "Spring green",
+  "val.colorphase.step15": "Green",
+  "val.colorphase.step16": "Lime",
+  "val.colorphase.step17": "Yellow-green",
   "panel.prog": "Shooting options",
   "panel.movie": "Movie",
   "movie.start": "Start recording",
@@ -1324,12 +1343,15 @@ function colorRing(value,opts,sel){
     seg.setAttribute('fill',`hsl(${(60-step*360/N+720)%360} 85% 55%)`); // clockwise from yellow, like the camera
     seg.setAttribute('class','seg'+(o===value?' on':'')); seg.setAttribute('role','radio');
     seg.setAttribute('aria-checked',String(o===value)); seg.setAttribute('aria-label',sel.options[i]?sel.options[i].text:String(step));
-    if(canWrite) seg.onclick=()=>{sel.value=o;sel.onchange()};
+    if(canWrite) seg.onclick=e=>{e.preventDefault();e.stopPropagation();sel.value=o;sel.onchange()}; // not the label's own click (it would focus the list)
     if(o===value) on=seg;
     svg.append(seg);
   });
   if(on) svg.append(on); // selected segment on top so its outline is not covered
-  const t=document.createElementNS(NS,'text'); t.textContent=sel.options[sel.selectedIndex]?sel.options[sel.selectedIndex].text:''; svg.append(t);
+  svg.addEventListener('click',e=>e.preventDefault()); // a click between segments must not activate the label either
+  const t=document.createElementNS(NS,'text'), words=(sel.options[sel.selectedIndex]?sel.options[sel.selectedIndex].text:'').split(/[\s-]+/);
+  words.forEach((w,j)=>{const l=document.createElementNS(NS,'tspan');l.setAttribute('x','0');l.setAttribute('y',String((j-(words.length-1)/2)*8.5+2.5));l.textContent=w;t.append(l)});
+  svg.append(t);
   return svg;
 }
 function renderProps(){
