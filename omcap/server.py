@@ -923,6 +923,13 @@ class Handler(BaseHTTPRequestHandler):
     def log_message(self, *a):
         pass
 
+    def handle_one_request(self):
+        """A page that went away (reload, closed window, a cancelled live frame request) is no error: no traceback."""
+        try:
+            super().handle_one_request()
+        except (BrokenPipeError, ConnectionResetError):
+            self.close_connection = True
+
     def log_request(self, code="-", size="-"):
         t0 = getattr(self, "_t0", None)
         if self.timing and t0 is not None and not self.path.startswith(("/api/state", "/api/connections")):

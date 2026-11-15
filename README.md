@@ -82,7 +82,7 @@ Please report what works on your body in [Discussions](https://github.com/HolmHa
 | Turn off camera (click twice to confirm) | yes | – (Wi-Fi only) |
 | Live view aids: Histogram, Highlight&Shadow, Peaking | yes | yes |
 | HSL color profiles for ORF/JPG on the computer (`omcap.hsl`) | independent | independent |
-| Webcam (OBS) button next to Second monitor (computer only, hidden on a phone, REQ-F49) | yes (frame-by-frame view not yet camera-tested over USB) | yes (webcam view tested 2026-11-15, button untested) |
+| Webcam (OBS) button next to Second monitor (computer only, hidden on a phone, REQ-F49) | yes (webcam view tested 2026-11-15, button untested) | yes (webcam view tested 2026-11-15, button untested) |
 | Phone view without computer-only controls (REQ-F49): no size choice, Second monitor, Webcam (OBS), Picture on second monitor; "phone" means the window size | yes (adaptive size also with the phone turned; tried on an iPhone 2026-11-15) | yes (always 1024×768; not tried on USB) |
 | Save folder and file naming | yes | yes (untested) |
 | HSL colour profiles in the app (HSL button, auto-apply, before/after) | yes | yes (untested) |

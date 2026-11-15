@@ -42,6 +42,13 @@ class QuitTest(unittest.TestCase):
     def test_quit_stops_even_if_disconnect_fails(self):
         self._quit(server.CameraError("USB: gone"))
 
+    def test_gone_client_is_no_error(self):
+        # a cancelled live frame request or a reload closes the socket before the answer (REQ-Q13)
+        h = server.Handler.__new__(server.Handler)
+        with mock.patch.object(server.BaseHTTPRequestHandler, "handle_one_request", side_effect=BrokenPipeError):
+            h.handle_one_request()
+        self.assertTrue(h.close_connection)
+
     def test_foreign_origin_is_refused(self):
         h = server.Handler.__new__(server.Handler)
         h.headers = {"Host": "127.0.0.1:1", "Origin": "http://evil.example"}
