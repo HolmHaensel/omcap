@@ -29,6 +29,11 @@ class FakeCamera:
         self.reopens += 1
         return self.reopen_ok
 
+    releases = 0
+
+    def release(self):
+        self.releases += 1
+
 
 class Gone(unittest.TestCase):
     def run_loop(self, cam, seconds, present):
@@ -54,6 +59,7 @@ class Gone(unittest.TestCase):
         self.run_loop(cam, 0.2, present=lambda: False)
         self.assertEqual(cam.reopens, 0)
         self.assertTrue(cam.gone)
+        self.assertEqual(cam.releases, 1)  # the dead session is given up once, right away
 
     def test_camera_back_rebuilds(self):
         cam = FakeCamera()

@@ -309,6 +309,9 @@ class UsbLive:
         if detect_name() is None:
             if not getattr(self.camera, "gone", False):
                 print("USB: camera gone, waiting for it (cable, power, USB menu)", flush=True)
+                # give up the dead session now, while the camera is away: a handle still open on the vanished
+                # device made libusb crash when the camera came back (segmentation fault, camera test 2026-11-15)
+                self.camera.release()
             self.camera.gone, self._back_since = True, None
             time.sleep(1.7)  # with the 0.3 s of the loop: one check every 2 s
             return False
@@ -430,6 +433,15 @@ class UsbCamera:
                 self._c = self.gp.Camera()
         raise CameraError("USB camera not reachable (%s). Quit the Photos app and choose the computer + camera entry "
                           "in the camera's USB menu; after plugging the cable in again, restart E-M1 Capture." % error)
+
+    def release(self):
+        """Close the session of a camera that is gone from USB; reopen() starts a fresh one later."""
+        with self._lock:
+            try:
+                self._c.exit()
+            except Exception:  # noqa: BLE001 - the device is gone, every call may fail
+                pass
+            self._c = self.gp.Camera()
 
     def reopen(self, reason="?"):
         """Rebuild the session; True if the camera answered again."""
