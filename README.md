@@ -21,7 +21,7 @@ All names follow the camera's instruction manual.
 - **Focus Stacking, focus ring and level gauge** from the computer (USB).
 - **Playback** with Index and Calendar display, shooting data and saving to the computer.
 - **Works on a phone, too** – open the app on your phone in the home network.
-- **Safe by default:** never touches the firmware, starts read only, runs only on your computer.
+- **Safe by default:** never touches the firmware, starts read only, stays on your computer unless you start it with `--lan`.
 
 ## Why this project
 
@@ -37,7 +37,7 @@ Maybe OM System finds an idea or two here for their future cameras.
 Contributions, tests with other bodies and ideas are very welcome.
 
 **Other cameras (PEN-F):** the app is built and tested on the E-M1 Mark I. A user reports running it
-successfully with an **Olympus PEN-F**, also with a PEN-F colour emulation (see the app's own
+successfully with an **Olympus PEN-F**, also with PEN-F style COLOR profiles (the app has its own
 [HSL color profiles](#hsl-color-profiles)). This is tested by users, not by the maintainer; some controls may
 differ on the PEN-F. Please tell us what works on your body in [Discussions](https://github.com/HolmHaensel/omcap/discussions).
 
@@ -67,7 +67,7 @@ More in [Start and stop](#start-and-stop).
 | Live view with zoom, Displayed Grid and overlay | ✅ | ✅ | |
 | Live view size (up to 1280×960) | ✅ | ✅ | USB: with the app's own USB layer (macOS default); with libgphoto2 see [Larger USB live view](#larger-usb-live-view-libgphoto2) |
 | Histogram, Highlight&Shadow, Peaking | ✅ | ✅ | |
-| Level gauge (horizon line and tilt dot, "Level ✓", optional sound, "Hold angle") | – | ✅ | the camera sends no tilt over Wi-Fi; USB with the own USB layer only |
+| Level gauge (horizon line and tilt dot, "Level ✓", optional sound, "Hold angle") | – | ✅ | the camera sends no tilt over Wi-Fi; USB: own USB layer only, not with libgphoto2 |
 | Battery and free card space in the header | ✅ | ✅ | |
 | Current focal length; ISO with ISO Auto ("now 800"); shutter speed and aperture the camera uses in auto modes | ✅ | – | sent with the Wi-Fi live view; no live USB value found |
 
@@ -100,7 +100,8 @@ More in [Start and stop](#start-and-stop).
 
 | Feature | Wi-Fi | USB | Note |
 |---|---|---|---|
-| LV super control panel: shutter speed, aperture, exposure compensation, ISO, WB, drive, Picture Mode, Art filter | ✅ | ✅ | |
+| LV super control panel: shutter speed, aperture, exposure compensation, ISO, WB, drive, Picture Mode | ✅ | ✅ | |
+| Art filter | ✅ | 🟡 | USB: not tested in ART mode |
 | Shooting mode | ✅ | – | USB: set by the mode dial; the app follows the dial and reloads the values (tested; iAUTO, ART, SCN, PHOTO STORY show as P) |
 | AF mode, Metering, Flash mode, Record mode, Aspect ratio, Image stabilizer, Face priority | – | ✅ | no Wi-Fi command |
 | Aperture list limited to the attached lens | ✅ | ✅ | USB after the first picture of the session |
@@ -116,7 +117,7 @@ More in [Start and stop](#start-and-stop).
 | Shooting data (Overall display), line on thumbnails | ✅ | ✅ | |
 | Pinch zoom and swipe between pictures (phone, trackpad, Magic Mouse, Shift + wheel) | ✅ | 🟡 | same page code; not tried separately over USB |
 | Open in OM Workspace (macOS, if installed) | 🟡 | ✅ | |
-| HSL colour profiles (HSL button, before/after) | ✅ | 🟡 | |
+| HSL color profiles (HSL button, before/after) | ✅ | 🟡 | |
 | Share Order: show, save all, reset | ✅ | – | no USB counterpart known |
 | Movie length in the single-frame view | ✅ | – | not built for USB |
 
@@ -139,8 +140,8 @@ More in [Start and stop](#start-and-stop).
 | Two connect requests at once make one connection (two tabs, a phone) | 🟡 | ✅ | |
 | Quit E-M1 Capture button | ✅ | 🟡 | USB tested from the start screen, not while connected |
 
-**Not possible with the E-M1 Mark I:** the level gauge over Wi-Fi (no tilt data), changing AF Area and the movie record mode over Wi-Fi,
-and setting the shooting mode over USB – the camera offers no command for it.
+**Not possible with the E-M1 Mark I:** the level gauge over Wi-Fi (no tilt data); AF Area, the movie record mode, Focus Stacking and the
+focus ring over Wi-Fi; setting the shooting mode over USB – the camera offers no command for it.
 
 **Planned:** Mac app with a menu bar icon, Windows over Wi-Fi, movie settings and Focus BKT over USB,
 subject detection in the live view on the computer (face/eye, later animals and birds) with "Focus on subject",
@@ -173,7 +174,7 @@ Measured with the E-M1 Mark I (firmware 4.6), a Mac and about 2950 pictures on t
 - The app **never writes firmware**.
 - It starts **read only**. Taking pictures and changing settings needs `--allow-write`
   (the double-click launchers start with it; remove it there for a read-only start).
-- It only listens on `127.0.0.1` and refuses requests from other web pages.
+- It only listens on `127.0.0.1` (with `--lan` also in the home network, with a key) and refuses requests from other web pages.
 - It works **offline** and loads nothing from the internet (internet is needed once for the installation).
 
 ## Requirements
@@ -240,7 +241,6 @@ pkill -f 'omcap\.server|bin/em1-capture'
 - Live view arrives as UDP on port 5555. If the macOS firewall is on, allow incoming connections for Python when
   asked; otherwise the live view shows "no signal".
 - Opening Playback switches the camera to playback mode (live view pauses) for fast medium-size previews; previews are cached.
-- Over Wi-Fi the AF Area mode and the movie record mode cannot be changed (no command for it).
 
 ## Using USB
 
@@ -253,7 +253,7 @@ pkill -f 'omcap\.server|bin/em1-capture'
 
 **Good to know**
 
-- The first connect reads the camera's card index once (about 40 s; the card list saved on the computer is shown
+- The first connect reads the camera's card index once (about 45 s; the card list saved on the computer is shown
   meanwhile). Later connects take about 5 s.
 - The shooting mode follows the mode dial during live view; each turn reconnects the camera (8–10 s), so quick
   turns in a row show only the last position. Other settings changed on the camera itself come in with **reload**
