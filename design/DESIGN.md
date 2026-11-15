@@ -122,7 +122,8 @@ recording a movie, read only, Wi-Fi drop-out (last good frame kept, "No signal f
   length, lens, Picture Mode, color space, record mode, pixel count, date/time, file number) and,
   if the maker note records it, the AF target used. Buttons: Overlay on live view, HSL…, Save to
   computer. The same info opens from the last shot after Take picture.
-- Protect, Erase and Share Order editing stay on the camera; the app only reads the card.
+- Protect and Share Order editing stay on the camera. Erase works over USB only, in Select mode, with a confirm bar (Wi-Fi has no erase CGI).
+- Watch-sized view: the status line (live view size, fps, "Camera not found") is hidden on purpose; the picture alone shows whether the live view runs.
 
 ## Terms (checked against the E-M1 manual)
 
