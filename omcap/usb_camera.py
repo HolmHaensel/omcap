@@ -244,6 +244,7 @@ class UsbLive:
         self._thread = None
         self._backoff = 0.0      # seconds to wait after a failed rebuild (5, 10, ... 60)
         self._retry_at = 0.0     # monotonic time of the next rebuild attempt
+        self._back_since = None  # when the missing camera showed up on USB again
 
     @property
     def running(self):
@@ -308,14 +309,22 @@ class UsbLive:
         if detect_name() is None:
             if not getattr(self.camera, "gone", False):
                 print("USB: camera gone, waiting for it (cable, power, USB menu)", flush=True)
-            self.camera.gone = True
+            self.camera.gone, self._back_since = True, None
             time.sleep(1.7)  # with the 0.3 s of the loop: one check every 2 s
             return False
+        if getattr(self.camera, "gone", False):
+            # back on USB: the camera shows its USB menu first and appears and vanishes while the entry is chosen
+            # (camera test 2026-11-15), so it has to stay for 3 s before the rebuild
+            if self._back_since is None:
+                self._back_since = time.monotonic()
+            if time.monotonic() - self._back_since < 3.0:
+                time.sleep(0.7)
+                return False
         if time.monotonic() < self._retry_at:
             return False
         # session broken: rebuild; name the camera's last answer for the diagnosis
         ok = self.camera.reopen("live view failed 10x: %s" % getattr(self.camera, "lv_reason", None))
-        self.camera.gone = False
+        self.camera.gone, self._back_since = not ok and getattr(self.camera, "gone", False), None
         self._backoff = 0.0 if ok else min(60.0, max(5.0, self._backoff * 2))
         self._retry_at = time.monotonic() + self._backoff
         return True

@@ -189,6 +189,12 @@ def _libusb():
     return lib
 
 
+# Transports whose interrupt transfer libusb still owns after close() (camera unplugged: the cancel never
+# completes). They stay referenced for the whole run: freeing their buffer and callback while libusb can still
+# write into them crashed the server with a segmentation fault (camera test 2026-11-15, cable pulled and plugged in).
+_LEAKED = []
+
+
 class UsbTransport:
     """Bulk in/out and interrupt endpoint of the camera's still image interface."""
 
@@ -322,11 +328,12 @@ class UsbTransport:
                 self.lib.libusb_free_transfer(self._irq)
             if self._irq_live:
                 self._leaked = True  # libusb still owns the transfer: do not tear libusb down under it
+                _LEAKED.append(self)  # and keep its buffer and callback alive
             self._irq, self.h = None, h
-        if self.h:
+        if self.h and not getattr(self, "_leaked", False):  # never close a handle with a transfer still pending
             self.lib.libusb_release_interface(self.h, 0)
             self.lib.libusb_close(self.h)
-            self.h = None
+        self.h = None
         if self.ctx.value and not getattr(self, "_leaked", False):
             self.lib.libusb_exit(self.ctx)
             self.ctx = ctypes.c_void_p()

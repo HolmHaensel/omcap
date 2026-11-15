@@ -67,6 +67,24 @@ class Gone(unittest.TestCase):
         self.assertEqual(cam.reopens, 1)  # the next try waits at least 5 s
         self.assertGreaterEqual(live._backoff, 5.0)
 
+    def test_back_camera_must_stay_3_s(self):
+        # the camera appears and vanishes while its USB menu is open (camera test 2026-11-15)
+        cam = FakeCamera()
+        cam.gone = True
+        live = usb_camera.UsbLive(cam)
+        now = [100.0]
+        with mock.patch.object(usb_camera, "detect_name", lambda: "Olympus E-M1"), \
+                mock.patch.object(usb_camera.time, "monotonic", lambda: now[0]), \
+                mock.patch.object(usb_camera.time, "sleep", lambda s: None):
+            self.assertFalse(live._rebuild())
+            now[0] += 2.0
+            self.assertFalse(live._rebuild())
+            self.assertEqual(cam.reopens, 0)
+            now[0] += 1.5
+            self.assertTrue(live._rebuild())
+        self.assertEqual(cam.reopens, 1)
+        self.assertFalse(cam.gone)
+
     def test_backoff_doubles_up_to_a_minute(self):
         cam = FakeCamera(reopen_ok=False)
         live = usb_camera.UsbLive(cam)
@@ -78,6 +96,47 @@ class Gone(unittest.TestCase):
                 waits.append(live._backoff)
         self.assertEqual(waits, [5.0, 10.0, 20.0, 40.0, 60.0, 60.0])
 
+
+
+class FakeLib:
+    """libusb stand-in: records calls; the interrupt transfer never comes back after a cancel (camera unplugged)."""
+    def __init__(self):
+        self.calls = []
+
+    def __getattr__(self, name):
+        def f(*args):
+            self.calls.append(name)
+            return 0
+        return f
+
+
+class CloseUnplugged(unittest.TestCase):
+    """Closing the transport of an unplugged camera crashed the server (segmentation fault, 2026-11-15)."""
+    def make(self, irq_live):
+        import ctypes
+        from omcap import ptp
+        t = ptp.UsbTransport.__new__(ptp.UsbTransport)
+        t.lib, t.ctx, t.h = FakeLib(), ctypes.c_void_p(1), 1
+        t._irq, t._irq_live = object(), irq_live
+        return t
+
+    def test_pending_transfer_keeps_everything(self):
+        from omcap import ptp
+        t = self.make(irq_live=True)
+        with mock.patch.object(ptp.time, "monotonic", side_effect=[0.0, 2.0, 2.0]):
+            t.close()
+        self.assertIn(t, ptp._LEAKED)  # buffer and callback stay alive
+        for name in ("libusb_free_transfer", "libusb_close", "libusb_release_interface", "libusb_exit"):
+            self.assertNotIn(name, t.lib.calls)
+        ptp._LEAKED.remove(t)
+
+    def test_normal_close_frees_all(self):
+        from omcap import ptp
+        t = self.make(irq_live=False)
+        t.close()
+        self.assertNotIn(t, ptp._LEAKED)
+        for name in ("libusb_free_transfer", "libusb_release_interface", "libusb_close", "libusb_exit"):
+            self.assertIn(name, t.lib.calls)
 
 if __name__ == "__main__":
     unittest.main()
