@@ -756,6 +756,7 @@ const I18N={en:{
   "lv.overlay": "Overlay",
   "lv.overlayRemove": "Remove",
   "lv.noSignal": "No signal for {s} s",
+  "lv.cameraGone": "Camera not found. Is the cable plugged in?",
   "lv.receiving": "receiving {w}×{h}",
   "lv.hist": "Histogram",
   "lv.histRgb": "RGB",
@@ -1091,7 +1092,8 @@ async function tick(){
   const w=$('#live').naturalWidth, stale=st.live&&st.lv_age>3;
   if(st.live) reduceAutoLiveSize();
   const off=st.live&&w&&st.lvqty&&w!==parseInt(st.lvqty,10);
-  $('#lvSize').textContent=stale?tr('lv.noSignal',{s:Math.round(st.lv_age)}):st.live&&w?tr('lv.receiving',{w,h:$('#live').naturalHeight}):'';
+  const gone=st.gone?tr('lv.cameraGone'):''; // the app waits for the camera and reconnects by itself
+  $('#lvSize').textContent=gone||(stale?tr('lv.noSignal',{s:Math.round(st.lv_age)}):st.live&&w?tr('lv.receiving',{w,h:$('#live').naturalHeight}):'');
   $('#lvSize').className=off||stale?'warn':'mut';
   const j=st.job;
   $('#jobInfo').textContent=j.name?tr('prog.job',{name:j.name,done:j.done,total:j.total})+(j.running?tr('prog.running'):'')+(j.error?tr('prog.error',{e:j.error}):''):'';
@@ -1103,7 +1105,7 @@ async function tick(){
   $('#trErr').textContent=st.transfer_error||st.hsl_error||'';
   $('#recChip').hidden=!rec; $('#viewport').classList.toggle('rec',rec);
   if(rec) $('#recText').textContent=tr('movie.rec',{t:clock(st.movie)});
-  const dc=$('#dropChip'); dc.hidden=!stale; if(stale) dc.textContent=tr('lv.noSignal',{s:Math.round(st.lv_age)});
+  const dc=$('#dropChip'); dc.hidden=!stale&&!gone; if(stale||gone) dc.textContent=gone||tr('lv.noSignal',{s:Math.round(st.lv_age)});
   $('#lvTools').hidden=!st.live;
   $('#reset').hidden=!(features.has('stages')&&(st.stage>0||propsFailed));
   applyContext();

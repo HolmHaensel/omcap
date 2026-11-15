@@ -46,6 +46,7 @@ Please report what works on your body in [Discussions](https://github.com/HolmHa
 | Level gauge in the live view (horizon line and tilt dot) | – (the camera sends no tilt over Wi-Fi) | yes, with the own PTP layer, not with libgphoto2 (switch "Level gauge" in the live view tools, off by default and remembered; "Level ✓" feedback, optional sound, "Hold angle" for repeat shots from the same angle; tested 2026-11-14) |
 | Open the app on a phone in the home network (`--lan`, QR code behind **Phone**) | yes (tried 2026-11-14) | yes (not tried yet with the computer on USB) |
 | Phone gestures in Playback: pinch zoom and swipe in the single-frame view (also Magic Mouse / trackpad / Shift + wheel on the computer), pinch for the Index display size, compact calendar badge | yes (tried on a phone 2026-11-14) | yes (same page code, UI only; not tried separately on USB) |
+| Camera lost and back (cable pulled, camera off): waits quietly, shows *Camera not found. Is the cable plugged in?*, reconnects by itself (REQ-Q11) | – (not built: over Wi-Fi the camera just stops answering, there is no "waiting" state; a returning camera is untested) | yes (camera-tested 2026-11-15: no rebuild while away, live view back about 9 s after plugging in) |
 | Start screen connects by itself to the camera used last time (2 s, **Stay here** stops it) | yes (tested 2026-11-14) | yes (USB reconnect not tested yet) |
 | Live view size follows the screen and the signal on a phone (up to 700 px wide, or turned with up to 520 px height; "Auto · 800×600") | yes (tested 2026-11-14) | – (on a phone always 1024×768, on the computer the manual size: the PTP live view needs no step-down, 26 fps at 1024×768) |
 | Tap the 9×9 AF grid to focus, AF target shown in green | yes | yes |
@@ -228,9 +229,10 @@ saved on the computer. Measured on macOS with about 2950 files and the PTP backe
 
 The shooting mode follows the mode dial during live view (both backends, tested); each turn rebuilds the
 USB session (8–10 s), so quick turns in a row show only the last position. Other settings changed on the camera itself are picked up with **reload** in
-the LV super control panel (rebuilds the USB session, about 9 s with libgphoto2). After unplugging and plugging the
-cable in again while the app runs, connecting may fail with *Could not claim the USB device*:
-stop the app and start it again.
+the LV super control panel (rebuilds the USB session, about 9 s with libgphoto2). If the cable is pulled while
+connected, the live view shows *Camera not found. Is the cable plugged in?*; plug it in and choose the computer + camera
+entry in the camera's USB menu – the app reconnects by itself after a few seconds (REQ-Q11). Only if that fails, stop the
+app and start it again.
 
 ### Using USB on Linux (possible, not tested yet)
 
