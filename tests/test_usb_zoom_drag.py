@@ -48,6 +48,28 @@ class Revision(unittest.TestCase):
         self.assertEqual(cam._c.writes[3], ("d04b", "1"))
 
 
+class CropPosition(unittest.TestCase):
+    """The camera moves the crop 1.135x as far from the centre as sent (measured 2026-11-16): send less x."""
+
+    def sent_point(self, x, y):
+        cam = make()
+        cam.loupe(True, 5, x, y)
+        value = int(cam._c.writes[1][1].split(",")[1], 16)
+        return value & 0xFFFF, value >> 16
+
+    def test_centre_is_exact_and_y_unchanged(self):
+        self.assertEqual(self.sent_point(0.5, 0.5), (512, 384))
+        self.assertEqual(self.sent_point(0.5, 0.25)[1], 192)
+
+    def test_x_is_pulled_towards_the_centre(self):
+        sent = self.sent_point(0.30, 0.5)[0] / 1024
+        self.assertAlmostEqual(0.5 + (sent - 0.5) * ptp.LOUPE_X_GAIN, 0.30, places=2)  # what the camera makes of it
+        self.assertAlmostEqual(self.sent_point(0.70, 0.5)[0] / 1024, 1 - sent, places=2)
+
+    def test_gain_constant(self):
+        self.assertEqual(ptp.LOUPE_X_GAIN, 1.135)
+
+
 class CycleStamp(unittest.TestCase):
     def test_frames_between_the_cycle_are_stamped_normal(self):
         cam = make()
@@ -188,10 +210,10 @@ class Page(unittest.TestCase):
             self.assertIn('data-lz="%d"' % z, h)
         self.assertIn("const LOUPE_STEPS=[1,3,5,7,10,14]", h)
         self.assertIn('id="liveBack"', h)  # backdrop behind the moved camera crop
-        self.assertIn("const LOUPE_LAG_FRAMES=2", h)
+        self.assertIn("LOUPE_LAG_FRAMES=6", h)
         for name in ("loupeReconcile", "loupeCommit", "loupeHold", "loupeOnFrame", "zRender"):
             self.assertIn("function %s(" % name, h)
-        for name in ("zSnap", "zClamp", "zCrop"):
+        for name in ("zSnap", "zClamp", "zClampCam", "zCrop", "zSigDiff", "zSwapDue"):
             self.assertIn("const %s=" % name, h)
         self.assertIn("X-Loupe-Rev", h)
         self.assertNotIn("loupeBtn", h)
@@ -234,6 +256,20 @@ class ZoomMaths(unittest.TestCase):
 
     def test_clamp_keeps_the_view_in_the_picture(self):
         self.assertEqual(self.run_js("[zClamp(0.1,5),zClamp(0.95,5),zClamp(0.4,1),zClamp(0.5,14)]"), [0.1, 0.9, 0.5, 0.5])
+
+    def test_camera_limits_are_the_middle_80_percent(self):
+        r = self.run_js("[zClampCam(0,5),zClampCam(1,5),zClampCam(.3,5),zClampCam(0,10),zClampCam(1,10),zClampCam(.9,1),zClampCam(0,3)]")
+        self.assertEqual([round(v, 4) for v in r], [0.2, 0.8, 0.3, 0.15, 0.85, 0.5, 0.2667])
+
+    def test_signature_comparison(self):
+        grey = self.run_js("zGrey([255,255,255,255, 0,0,0,255])")
+        self.assertEqual([round(v) for v in grey], [255, 0])
+        r = self.run_js("[zSigDiff([10,20,30],[12,18,30]),zSigDiff([0,0],[100,100]),zSigDiff(null,[1]),zSigDiff([1],[1,2])]")
+        self.assertEqual(r, [4 / 3, 100, 0, 0])
+
+    def test_swap_on_a_clear_difference_or_after_the_lag(self):
+        r = self.run_js("[zSwapDue(2,1),zSwapDue(9.9,3),zSwapDue(10,1),zSwapDue(55,1),zSwapDue(0,6),zSwapDue(0,7)]")
+        self.assertEqual(r, [False, False, True, True, False, True])
 
     def test_snap_on_a_log_scale(self):
         # 6 is nearer to 7 than to 5 on a log scale (1.17 vs 1.2), though 1 away from both

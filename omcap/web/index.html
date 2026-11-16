@@ -2246,17 +2246,24 @@ vp.onpointercancel=e=>{if(!loupePtrEnd(e,true)) drag=null};
 let loupeOn=false,usbZoom=false,zBlock=false,loupeAns=0,zLastRev=0; // loupeOn: the zoom view is magnified (V.s > 1), sharp or soft
 const LOUPE_STEPS=[1,3,5,7,10,14]; // camera ratios (d0cf), 1 = off
 const LOUPE_TAP_PX=6,LOUPE_REST_MS=150,LOUPE_WHEEL_MS=250;
-// Frames that still show the old camera state after the first frame stamped with the answered revision.
-// To be measured on the camera (REQ-F54): the live view runs about 3 frames behind the camera's own state.
-const LOUPE_LAG_FRAMES=2;
 const LOUPE_ARROW_PX=17.4; // px of the 1024x768 grid one 0x9488 step moves the frame (ptp.LOUPE_STEP_NORMAL_PX)
 // zoom maths (pure; view v = {s: scale 1-14, cx, cy: centre as fractions of the picture})
+// Camera measurement 2026-11-16: the crop centre stays inside the middle 80 % of the picture (x5: 0.20-0.80, x10: 0.15-0.85)
+const LOUPE_CAM_MARGIN=.1;
+// The switch between normal and crop shows 1-5 frames after the first frame stamped with the answered revision (measured,
+// varies): the first frame whose picture differs clearly from the one before the command (mean grey difference: same
+// state 1-3, other state 50-65 of 255) is the new state; a flat scene gives no signal, then LOUPE_LAG_FRAMES frames decide.
+const LOUPE_SIG_DIFF=10,LOUPE_LAG_FRAMES=6;
 const zClamp=(c,s)=>Math.min(1-.5/s,Math.max(.5/s,c)); // the view never leaves the picture
+const zClampCam=(c,s)=>{const lo=LOUPE_CAM_MARGIN+.5/s,hi=1-LOUPE_CAM_MARGIN-.5/s;return s<=1||lo>hi?.5:Math.min(hi,Math.max(lo,c))}; // where the camera can put its crop
 const zSnap=s=>LOUPE_STEPS.reduce((b,n)=>Math.abs(Math.log(n/s))<Math.abs(Math.log(b/s))?n:b,1); // nearest ratio, log scale
 const zPic=(v,fx,fy)=>({x:v.cx+(fx-.5)/v.s,y:v.cy+(fy-.5)/v.s}); // picture point shown at the view fraction fx, fy
 const zCentre=(p,s,fx,fy)=>({cx:zClamp(p.x-(fx-.5)/s,s),cy:zClamp(p.y-(fy-.5)/s,s)}); // centre that puts p at fx, fy
 const zShift=(v,W,H)=>({x:W/2-v.cx*W*v.s,y:H/2-v.cy*H*v.s}); // translate of the full picture scaled by v.s
 const zCrop=(v,c,W,H)=>{const k=v.s/c.s;return{k,x:W/2+(c.cx-v.cx)*W*v.s-.5*W*k,y:H/2+(c.cy-v.cy)*H*v.s-.5*H*k}}; // camera crop c drawn into view v
+const zGrey=d=>{const g=[];for(let i=0;i+2<d.length;i+=4)g.push(.299*d[i]+.587*d[i+1]+.114*d[i+2]);return g}; // RGBA bytes to grey values
+const zSigDiff=(a,b)=>{if(!a||!b||a.length!==b.length||!a.length)return 0;let t=0;for(let i=0;i<a.length;i++)t+=Math.abs(a[i]-b[i]);return t/a.length}; // mean absolute difference
+const zSwapDue=(diff,n)=>diff>=LOUPE_SIG_DIFF||n>LOUPE_LAG_FRAMES; // n: frames seen since the answered revision
 // zoom maths end
 const V={s:1,cx:.5,cy:.5};  // the view the user sees (tracked here, the camera cannot report it)
 let zCam={s:1,cx:.5,cy:.5};  // the crop the camera shows while zCamShows
@@ -2295,34 +2302,44 @@ function zRender(anim){
 function loupeSync(on,ratio){
   clearTimeout(restT); restT=0; zPend=null; zCamShows=!!on;
   zSent={on:!!on,ratio:ratio||5,x:V.cx,y:V.cy}; zWant={...zSent};
-  if(on){V.s=ratio||5; V.cx=zClamp(V.cx,V.s); V.cy=zClamp(V.cy,V.s); zCam={s:V.s,cx:V.cx,cy:V.cy}} else Object.assign(V,{s:1,cx:.5,cy:.5});
+  if(on){V.s=ratio||5; V.cx=zClampCam(V.cx,V.s); V.cy=zClampCam(V.cy,V.s); zCam={s:V.s,cx:V.cx,cy:V.cy}} else Object.assign(V,{s:1,cx:.5,cy:.5});
   zRender();
 }
 const wantEq=(a,b)=>a.on===b.on&&(!a.on||(a.ratio===b.ratio&&Math.abs(a.x-b.x)<.002&&Math.abs(a.y-b.y)<.002));
+// Tiny grey picture (16x12) of a decoded image, for telling the camera's states apart; null when it cannot be read
+let zCv=null;
+function zSig(img){
+  try{
+    zCv=zCv||Object.assign(document.createElement('canvas'),{width:16,height:12});
+    const g=zCv.getContext('2d',{willReadFrequently:true}); g.drawImage(img,0,0,16,12);
+    return zGrey(g.getImageData(0,0,16,12).data);
+  }catch{return null}
+}
 // One command path, latest wins: no command per event; one request carries the newest wanted state until both agree
 async function loupeReconcile(){
   if(recBusy) return;
   recBusy=true;
   try{
     while(!wantEq(zWant,zSent)){
-      const w={...zWant};
+      const w={...zWant}, before=zSig($('#live')); // the picture on screen when the command goes out
       const j=await api('/api/loupe',w.on?{on:true,ratio:w.ratio,x:w.x,y:w.y}:{on:false});
-      loupeAns++; zSent=w; zPend={rev:j.rev,on:w.on,n:0,ratio:w.ratio,x:w.x,y:w.y};
+      loupeAns++; zSent=w; zPend={rev:j.rev,on:w.on,n:0,before,ratio:w.ratio,x:w.x,y:w.y};
     }
   }catch(e){
     msg(e.message||String(e),true);
     try{const s=await api('/api/state'); loupeSync(s.loupe&&s.live,s.loupe_ratio)}catch{loupeSync(false)} // show what the camera really does
   }finally{recBusy=false}
 }
-// Called for every live frame with the zoom stamp of the server: rev >= the answered revision and LOUPE_LAG_FRAMES
-// further frames mean the picture now shows the new camera state; only then the rendering switches.
-function loupeOnFrame(info,blob){ // returns false: do not draw this frame (hold the last crop)
+// Called for every live frame with the zoom stamp of the server. Once a frame's rev has reached the answered one, the
+// first frame whose picture differs clearly from the one before the command shows the new camera state (zSwapDue);
+// only then the rendering switches, with that very frame. img: the decoded frame.
+function loupeOnFrame(info,blob,img){ // returns false: do not draw this frame (hold the last crop)
   if(!usbZoom) return true;
   if(info.rev<zLastRev) loupeSync(false); // a new session counts from 0 again: the camera zoom is off
   zLastRev=info.rev;
-  if(zPend&&info.rev>=zPend.rev&&++zPend.n>LOUPE_LAG_FRAMES){
+  if(zPend&&info.rev>=zPend.rev&&zSwapDue(zSigDiff(zPend.before&&img?zSig(img):null,zPend.before),++zPend.n)){
     const sharp=zPend.on&&!zCamShows;
-    zCamShows=zPend.on; if(zCamShows) zCam={s:zPend.ratio,cx:zClamp(zPend.x,zPend.ratio),cy:zClamp(zPend.y,zPend.ratio)};
+    zCamShows=zPend.on; if(zCamShows) zCam={s:zPend.ratio,cx:zClampCam(zPend.x,zPend.ratio),cy:zClampCam(zPend.y,zPend.ratio)};
     zPend=null;
     if(sharp&&!calm.matches){ // short crossfade soft to sharp: the old picture stays behind for a moment
       const lv=$('#live'); lv.classList.remove('xf'); void lv.offsetWidth; lv.classList.add('xf');
@@ -2344,7 +2361,7 @@ function loupeHold(){
 const loupeRest=ms=>{clearTimeout(restT); restT=setTimeout(loupeCommit,ms)};
 // At rest: snap to the nearest ratio and ask the camera for the sharp crop at the tracked view
 function loupeCommit(){
-  restT=0; V.s=zSnap(V.s); V.cx=zClamp(V.cx,V.s); V.cy=zClamp(V.cy,V.s);
+  restT=0; V.s=zSnap(V.s); V.cx=zClampCam(V.cx,V.s); V.cy=zClampCam(V.cy,V.s); // the view glides to where the crop can be
   zWant=V.s>1?{on:true,ratio:V.s,x:V.cx,y:V.cy}:{...zWant,on:false};
   zRender(true); loupeReconcile();
 }
@@ -2419,8 +2436,8 @@ document.querySelectorAll('[data-lm]').forEach(b=>b.onclick=async()=>{
   const dir=b.dataset.lm,dx=(dir==='left'?-1:dir==='right'?1:0)*LOUPE_ARROW_PX/1024,dy=(dir==='up'?-1:dir==='down'?1:0)*LOUPE_ARROW_PX/768;
   const live=zSent.on&&zWant.on; // camera not zoomed (or about to change): only the view moves, the next commit sends it
   if(live&&!await act(tr('msg.loupeMove'),'/api/loupe',{move:dir})) return;
-  V.cx=zClamp(V.cx+dx,V.s); V.cy=zClamp(V.cy+dy,V.s);
-  if(live) for(const o of [zCam,zSent,zWant]){o.cx!==undefined?(o.cx=zClamp(o.cx+dx,o.s)):(o.x=zClamp(o.x+dx,o.ratio)); o.cy!==undefined?(o.cy=zClamp(o.cy+dy,o.s)):(o.y=zClamp(o.y+dy,o.ratio))}
+  V.cx=zClampCam(V.cx+dx,V.s); V.cy=zClampCam(V.cy+dy,V.s);
+  if(live) for(const o of [zCam,zSent,zWant]){o.cx!==undefined?(o.cx=zClampCam(o.cx+dx,o.s)):(o.x=zClampCam(o.x+dx,o.ratio)); o.cy!==undefined?(o.cy=zClampCam(o.cy+dy,o.s)):(o.y=zClampCam(o.y+dy,o.ratio))}
   zRender(); if(!live) loupeRest(LOUPE_REST_MS);
 });
 /* Level Gauge (USB): spirit level, also watch the mode dial */
@@ -2903,7 +2920,7 @@ function startLiveLoop(img=$('#live')){
         const blob=await r.blob(), url=URL.createObjectURL(blob), next=new Image(); next.src=url;
         try{await next.decode()}catch{URL.revokeObjectURL(url);continue} // bad frame: skip it
         if(g!==lvGen){URL.revokeObjectURL(url);break}
-        if(img.id==='live'&&!loupeOnFrame(info,blob)){URL.revokeObjectURL(url);continue} // Zoom AF: which camera state this frame shows (REQ-F54)
+        if(img.id==='live'&&!loupeOnFrame(info,blob,next)){URL.revokeObjectURL(url);continue} // Zoom AF: which camera state this frame shows (REQ-F54)
         const old=img.src; img.src=url; if(old.startsWith('blob:')) URL.revokeObjectURL(old); // also the last one of an earlier loop
         lvShown.push(performance.now()); if(lvShown.length>90) lvShown.shift(); // frames shown, for the fps in the status line
       }catch{await sleep(1000)} // body lost (server restarting or gone); the next request is already on its way

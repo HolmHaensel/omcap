@@ -48,6 +48,10 @@ LOUPE_RATIOS = {1: 3, 2: 5, 3: 7, 4: 10, 5: 14}  # d0cf value -> magnification
 OP_LOUPE_POINT, OP_LOUPE_MOVE = 0x9483, 0x9488
 LOUPE_MOVES = {"up": 1, "down": 2, "left": 3, "right": 4}
 LOUPE_GRID = (1024, 768)
+# Measured on the E-M1 2026-11-16 (live view 1024x768, crop matched against the normal frame, x3/x5/x10/x14): the crop
+# is 1/ratio of the picture, y lands where it was sent, but x lands 1.135x as far from the centre as sent (sent 0.30
+# -> 0.2705, 0.70 -> 0.725; centre exact). The camera also keeps the crop inside the middle 80 % of the picture.
+LOUPE_X_GAIN = 1.135
 # One 0x9488 step moved the frame ~87 px of the 1024-wide zoomed picture at x5 (tested 2026-11-16), i.e. ~17.4 px
 # of the normal view. Other ratios are unmeasured: assume the same share of the normal view (REQ-F54).
 LOUPE_STEP_NORMAL_PX = 17.4  # the page uses it for the arrow buttons' centre estimate (index.html LOUPE_ARROW_PX)
