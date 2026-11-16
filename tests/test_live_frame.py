@@ -14,7 +14,7 @@ class FakeLive:
         self.seq, self.frame = seq, frame
 
     def wait_frame(self, last_seq, timeout=3.0):
-        return self.seq, self.frame
+        return self.seq, self.frame, (0, 0)
 
 
 class LiveFrame(unittest.TestCase):

@@ -1199,10 +1199,7 @@ class Handler(BaseHTTPRequestHandler):
     def _live_frame(self, seq):
         """Next live frame after `seq` (waits up to 3 s); 204 if none. The main page and the ?view= windows
         show the live view this way: a browser can stop showing an MJPEG stream after one bad part (seen 2026-11-13)."""
-        if hasattr(live, "wait_frame_stamp"):  # USB: the zoom state valid when this frame was fetched (REQ-F54)
-            new_seq, frame, stamp = live.wait_frame_stamp(seq)
-        else:
-            (new_seq, frame), stamp = live.wait_frame(seq), (0, 0)  # Wi-Fi: no camera zoom
+        new_seq, frame, stamp = live.wait_frame(seq)  # stamp: the zoom state valid when the frame was fetched (REQ-F54)
         if frame is None or new_seq == seq:
             self.send_response(204)
             self.end_headers()
@@ -1224,7 +1221,7 @@ class Handler(BaseHTTPRequestHandler):
         seq = 0
         stream = live  # stays valid even if the connection is switched; a closed window ends it (handle_one_request)
         while live is stream:
-            seq, frame = stream.wait_frame(seq)
+            seq, frame, _ = stream.wait_frame(seq)
             if frame is None:
                 continue
             self.wfile.write(b"--f\r\nContent-Type: image/jpeg\r\nContent-Length: %d\r\n\r\n" % len(frame))
@@ -1370,8 +1367,10 @@ class Handler(BaseHTTPRequestHandler):
             ensure_idle()
             if b.get("move"):
                 cam.loupe_move(b["move"])
-            else:
+            elif "on" in b or "ratio" in b:
                 cam.loupe(bool(b.get("on")), b.get("ratio"), b.get("x"), b.get("y"))
+            else:
+                raise CameraError("Zoom AF: on, ratio or move")
             return {"loupe": cam.loupe_on, "rev": cam.loupe_rev}  # rev: the page waits for frames stamped with it
         elif path == "/api/take":
             if b.get("action") == "prepare":

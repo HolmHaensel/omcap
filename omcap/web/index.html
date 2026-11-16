@@ -422,7 +422,7 @@ body.webcam{cursor:none;display:flex;align-items:center;justify-content:center}
     <span class="vsep"></span>
     <span id="lvTools" hidden>
       <span data-feat="loupe"><span id="loupeTools">
-        <span id="loupeLabel" class="chip" style="display:none"></span>
+        <span id="loupeLabel" class="chip" role="status" style="display:none"></span>
         <span id="loupeMove" class="seg" role="group" hidden data-i18n-aria="lv.loupeMove" aria-label="Move the zoom frame"><button class="w" data-lm="left" data-i18n-aria="lv.left" aria-label="Left">◀</button><button class="w" data-lm="up" data-i18n-aria="lv.up" aria-label="Up">▲</button><button class="w" data-lm="down" data-i18n-aria="lv.down" aria-label="Down">▼</button><button class="w" data-lm="right" data-i18n-aria="lv.right" aria-label="Right">▶</button></span>
       </span></span>
       <label class="tog" data-feat="level"><input type="checkbox" id="lvlOn"> <span data-i18n="lv.level">Level gauge</span></label>
@@ -1139,6 +1139,7 @@ async function reduceAutoLiveSize(){
 async function tick(){
   if(view||!connected||quitting) return;
   const liOld=JSON.stringify(st&&st.lvinfo);
+  const ans0=loupeAns; // a poll requested before the latest /api/loupe answer must not reset the zoom view
   try{st=await api('/api/state')}catch(e){if(e.message===tr('srv.offline'))msg(e.message,true);return}
   if(JSON.stringify(st.lvinfo)!==liOld) showStatus();
   if(!st.live&&lvl){lvl=null;lvlShown=null;drawLevel()} // live view stopped: clear the level gauge
@@ -1170,8 +1171,14 @@ async function tick(){
   if(rec) $('#recText').textContent=tr('movie.rec',{t:clock(st.movie)});
   const dc=$('#dropChip'); dc.hidden=!stale&&!gone; if(stale||gone) dc.textContent=gone||tr('lv.noSignal',{s:Math.round(st.lv_age)});
   $('#lvTools').hidden=!st.live;
-  // the server ends Zoom AF with the live view or a new session: show what the camera does now (never stay soft)
-  if(usbZoom&&!recBusy&&(!!st.loupe!==zSent.on||(!st.live&&V.s>1.001))) loupeSync(st.loupe&&st.live,st.loupe_ratio);
+  // Zoom AF is not offered while the camera is busy (the server refuses it then, like other commands)
+  zBlock=st.stage>0||st.indexing||st.movie!=null||st.take!=null||!!(st.job&&st.job.running)||st.play!=null;
+  if(usbZoom){
+    $('#zoomUsb').hidden=zBlock; $('#loupeTools').style.display=zBlock?'none':'';
+    // the server ends Zoom AF with the live view or a new session: show what the camera does now (never stay soft)
+    const idle=!recBusy&&!restT&&!lPtr.size&&ans0===loupeAns;
+    if(idle&&(!!st.loupe!==zSent.on||(!st.live&&V.s>1.001)||(!st.loupe&&V.s>1.001&&!zWant.on)||(zBlock&&V.s>1.001&&!zCamShows))) loupeSync(st.loupe&&st.live,st.loupe_ratio);
+  }
   $('#reset').hidden=!(features.has('stages')&&(st.stage>0||propsFailed));
   applyContext();
   if(st.stage===0&&focusHit&&focusHit.held) focusHit=null;
@@ -2217,17 +2224,18 @@ vp.addEventListener('wheel',e=>{e.preventDefault();
 vp.onpointerdown=e=>{
   if(e.target.closest('#lastShot')) return; // own click (single-frame view); pointer capture would turn it into an AF tap
   e.preventDefault(); // no native image drag
-  if(usbZoom){loupeDown(e);return}
+  if(usbZoom&&!zBlock){loupeDown(e);return}
   drag={x:e.clientX,y:e.clientY,px,py,moved:false};vp.setPointerCapture(e.pointerId)};
-vp.onpointermove=e=>{if(usbZoom){loupeMoveEv(e);return}if(!drag)return;const dx=e.clientX-drag.x,dy=e.clientY-drag.y;
+vp.onpointermove=e=>{if(usbZoom&&!zBlock){loupeMoveEv(e);return}if(!drag)return;const dx=e.clientX-drag.x,dy=e.clientY-drag.y;
   if(Math.hypot(dx,dy)>4)drag.moved=true;
   if(drag.moved&&z>1){px=drag.px+dx;py=drag.py+dy;applyZoom()}};
 vp.onpointerup=e=>{
-  if(usbZoom){loupeUp(e);return}
+  if(usbZoom&&!zBlock){loupeUp(e);return}
   const d=drag;drag=null;
-  if(!d||d.moved||!st.live) return;
+  if(!d||d.moved||!st.live||loupeOn) return; // magnified view (busy camera): no AF target click
   pickField(e);
 };
+vp.onpointercancel=e=>{if(usbZoom&&!zBlock){loupeUp(e,true);return}drag=null};
 /* Zoom AF over USB (REQ-F53, REQ-F54): the camera's own magnified live view replaces the app's screen zoom.
    1x = off, x3-x14 = Zoom AF (E-M1 manual p.56); no Wi-Fi command, there the 1x/2x/4x screen zoom stays.
    Smooth zoom, "soft while moving, sharp at rest": while the user drags, wheels or pinches, the camera is switched
@@ -2235,7 +2243,7 @@ vp.onpointerup=e=>{
    at rest the camera's own crop is switched on at the tracked view and shown (sharp). The camera cannot report
    its frame, so the page tracks the view V itself. Click = focus, drag = move, wheel/pinch = zoom, snapping to
    the camera's ratios at rest. The frame starts at the chosen AF target (centre with All Targets). */
-let loupeOn=false,usbZoom=false; // loupeOn: the zoom view is magnified (V.s > 1), sharp or soft
+let loupeOn=false,usbZoom=false,zBlock=false,loupeAns=0,zLastRev=0; // loupeOn: the zoom view is magnified (V.s > 1), sharp or soft
 const LOUPE_STEPS=[1,3,5,7,10,14]; // camera ratios (d0cf), 1 = off
 const LOUPE_TAP_PX=6,LOUPE_REST_MS=150,LOUPE_WHEEL_MS=250;
 // Frames that still show the old camera state after the first frame stamped with the answered revision.
@@ -2264,8 +2272,8 @@ function zRender(anim){
   const r=vp.getBoundingClientRect(),W=r.width,H=r.height,live=$('#live'),back=$('#liveBack');
   loupeOn=V.s>1.001; vp.classList.toggle('loupe',loupeOn);
   $('#loupeMove').hidden=!loupeOn;
-  const l=$('#loupeLabel'); l.style.display=loupeOn?'':'none'; l.textContent=tr('lv.loupeLabel',{n:+V.s.toFixed(1)});
-  document.querySelectorAll('[data-lz]').forEach(b=>b.classList.toggle('on',Math.abs(+b.dataset.lz-V.s)<.05));
+  const l=$('#loupeLabel'); l.style.display=loupeOn?'':'none'; l.textContent=tr('lv.loupeLabel',{n:zSnap(V.s)}); // camera ratios only, the snapped one while a gesture runs
+  document.querySelectorAll('[data-lz]').forEach(b=>{const on=+b.dataset.lz===zSnap(V.s);b.classList.toggle('on',on);b.setAttribute('aria-pressed',on)});
   if(!zCamShows){ // soft: full picture, the page magnifies (same transform as the screen zoom)
     live.style.transform=''; back.hidden=true;
     const t=zShift(V,W,H); z=V.s; px=t.x; py=t.y;
@@ -2286,7 +2294,7 @@ function zRender(anim){
 // when the server ended Zoom AF itself (live view stopped, new session)
 function loupeSync(on,ratio){
   clearTimeout(restT); restT=0; zPend=null; zCamShows=!!on;
-  zSent={on:!!on,ratio:ratio||5,x:V.cx,y:V.cy}; zWant={...sent};
+  zSent={on:!!on,ratio:ratio||5,x:V.cx,y:V.cy}; zWant={...zSent};
   if(on){V.s=ratio||5; V.cx=zClamp(V.cx,V.s); V.cy=zClamp(V.cy,V.s); zCam={s:V.s,cx:V.cx,cy:V.cy}} else Object.assign(V,{s:1,cx:.5,cy:.5});
   zRender();
 }
@@ -2297,9 +2305,9 @@ async function loupeReconcile(){
   recBusy=true;
   try{
     while(!wantEq(zWant,zSent)){
-      const w={...want};
+      const w={...zWant};
       const j=await api('/api/loupe',w.on?{on:true,ratio:w.ratio,x:w.x,y:w.y}:{on:false});
-      zSent=w; zPend={rev:j.rev,on:w.on,n:0,ratio:w.ratio,x:w.x,y:w.y};
+      loupeAns++; zSent=w; zPend={rev:j.rev,on:w.on,n:0,ratio:w.ratio,x:w.x,y:w.y};
     }
   }catch(e){
     msg(e.message||String(e),true);
@@ -2308,8 +2316,10 @@ async function loupeReconcile(){
 }
 // Called for every live frame with the zoom stamp of the server: rev >= the answered revision and LOUPE_LAG_FRAMES
 // further frames mean the picture now shows the new camera state; only then the rendering switches.
-function loupeOnFrame(info,blob){
-  if(!usbZoom) return;
+function loupeOnFrame(info,blob){ // returns false: do not draw this frame (hold the last crop)
+  if(!usbZoom) return true;
+  if(info.rev<zLastRev) loupeSync(false); // a new session counts from 0 again: the camera zoom is off
+  zLastRev=info.rev;
   if(zPend&&info.rev>=zPend.rev&&++zPend.n>LOUPE_LAG_FRAMES){
     const sharp=zPend.on&&!zCamShows;
     zCamShows=zPend.on; if(zCamShows) zCam={s:zPend.ratio,cx:zClamp(zPend.x,zPend.ratio),cy:zClamp(zPend.y,zPend.ratio)};
@@ -2320,29 +2330,33 @@ function loupeOnFrame(info,blob){
     }
     zRender();
   }
+  // a frame stamped normal while the page still shows the crop and a change is under way (ratio button, arrows,
+  // the off/on cycle for a new centre) must not be drawn as the crop: it would flash the full picture
+  if(zCamShows&&(recBusy||zPend)&&!info.on) return false;
   if(!zCamShows&&!zPend&&!recBusy) lastNormal=blob; // a frame known to be normal: the backdrop of the next drag
+  return true;
 }
 // A gesture starts: the camera shows the normal view while it runs
 function loupeHold(){
   clearTimeout(restT); restT=0;
-  if(zWant.on){zWant={...want,on:false}; loupeReconcile()}
+  if(zWant.on){zWant={...zWant,on:false}; loupeReconcile()}
 }
 const loupeRest=ms=>{clearTimeout(restT); restT=setTimeout(loupeCommit,ms)};
 // At rest: snap to the nearest ratio and ask the camera for the sharp crop at the tracked view
 function loupeCommit(){
   restT=0; V.s=zSnap(V.s); V.cx=zClamp(V.cx,V.s); V.cy=zClamp(V.cy,V.s);
-  zWant=V.s>1?{on:true,ratio:V.s,x:V.cx,y:V.cy}:{...want,on:false};
+  zWant=V.s>1?{on:true,ratio:V.s,x:V.cx,y:V.cy}:{...zWant,on:false};
   zRender(true); loupeReconcile();
 }
 function loupeZoom(n){ // ratio buttons: the tracked centre stays, re-clamped
-  if(!canWrite||!st.live) return;
+  if(!canWrite||!st.live||zBlock) return;
   clearTimeout(restT);
   if(n===1) Object.assign(V,{s:1,cx:.5,cy:.5});
   else{ if(V.s<=1.001){const p=loupePoint(); V.cx=p.x; V.cy=p.y} V.s=n }
   loupeCommit();
 }
 function loupeWheel(e){
-  if(!canWrite||!st.live) return;
+  if(!canWrite||!st.live||zBlock) return;
   const r=vp.getBoundingClientRect(),fx=(e.clientX-r.left)/r.width,fy=(e.clientY-r.top)/r.height;
   const s2=Math.min(14,Math.max(1,V.s*Math.exp(-e.deltaY*(e.deltaMode===1?.05:.0025))));
   if(s2===V.s) return;
@@ -2376,7 +2390,7 @@ function loupeMoveEv(e){
   // grab the picture: dragging right shows what is left, so the view centre moves left
   V.cx=zClamp(lDrag.cx-(e.clientX-lDrag.x)/(r.width*V.s),V.s); V.cy=zClamp(lDrag.cy-(e.clientY-lDrag.y)/(r.height*V.s),V.s); zRender();
 }
-function loupeUp(e){
+function loupeUp(e,cancel){
   lPtr.delete(e.pointerId);
   const d=lDrag,pinched=lPinch&&lPtr.size<2;
   if(lPtr.size<2) lPinch=null;
@@ -2384,6 +2398,7 @@ function loupeUp(e){
   vp.classList.remove('grabbing');
   if(pinched){loupeRest(LOUPE_REST_MS); return}
   if(!d||lPtr.size||!st.live) return;
+  if(cancel){if(loupeOn&&(d.moved||d.resume)) loupeRest(LOUPE_REST_MS); return} // no tap action
   if(d.moved){if(loupeOn) loupeRest(LOUPE_REST_MS); return}
   if(d.resume) loupeRest(LOUPE_REST_MS);
   if(loupeOn){if(canWrite) setAf({focus:true})} // a click in the zoomed view only focuses (half press, release without a shot)
@@ -2874,14 +2889,14 @@ function startLiveLoop(img=$('#live')){
         const r=await pending;
         if(!r){await sleep(1000);pending=ask(seq);continue}
         if(r.status!==200){await sleep(r.status===204?20:1000);pending=ask(seq);continue} // 204: no new frame within 3 s
-        seq=+r.headers.get('X-Seq')||0; const info={rev:+r.headers.get('X-Loupe-Rev')||0}; // USB zoom stamp of this frame
+        seq=+r.headers.get('X-Seq')||0; const info={rev:+r.headers.get('X-Loupe-Rev')||0,on:r.headers.get('X-Loupe')==='1'}; // USB zoom stamp of this frame
         pending=ask(seq); // next frame on its way while this one decodes
         const blob=await r.blob(), url=URL.createObjectURL(blob), next=new Image(); next.src=url;
         try{await next.decode()}catch{URL.revokeObjectURL(url);continue} // bad frame: skip it
         if(g!==lvGen){URL.revokeObjectURL(url);break}
+        if(img.id==='live'&&!loupeOnFrame(info,blob)){URL.revokeObjectURL(url);continue} // Zoom AF: which camera state this frame shows (REQ-F54)
         const old=img.src; img.src=url; if(old.startsWith('blob:')) URL.revokeObjectURL(old); // also the last one of an earlier loop
         lvShown.push(performance.now()); if(lvShown.length>90) lvShown.shift(); // frames shown, for the fps in the status line
-        if(img.id==='live') loupeOnFrame(info,blob); // Zoom AF: which camera state this frame shows (REQ-F54)
       }catch{await sleep(1000)} // body lost (server restarting or gone); the next request is already on its way
     }
   })();

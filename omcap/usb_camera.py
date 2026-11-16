@@ -340,12 +340,7 @@ class UsbLive:
         return True
 
     def wait_frame(self, last_seq, timeout=3.0):
-        with self.cond:
-            self.cond.wait_for(lambda: self.seq != last_seq, timeout)
-            return self.seq, self.frame
-
-    def wait_frame_stamp(self, last_seq, timeout=3.0):
-        """Like wait_frame, plus the zoom stamp of that very frame."""
+        """(seq, frame, stamp): stamp = (zoom revision, zoom on) of the camera when that frame was fetched."""
         with self.cond:
             self.cond.wait_for(lambda: self.seq != last_seq, timeout)
             return self.seq, self.frame, self.stamp
@@ -936,6 +931,8 @@ class UsbCamera:
                 raise CameraError("Zoom frame: x and y between 0 and 1")
             if self.loupe_on:  # 0x9483 only takes effect while d04b goes to 1 (camera test 2026-11-16)
                 self._set("d04b", LOUPE_OFF)
+                self.loupe_on = False  # frames in between are normal, and a failing 0x9483 leaves a true state
+                self.loupe_rev += 1
             self._opcode(OP_LOUPE_POINT, loupe_point(fx * LOUPE_GRID[0], fy * LOUPE_GRID[1]))
         self._set("d04b", LOUPE_ON if on else LOUPE_OFF)
         self.loupe_on = bool(on)

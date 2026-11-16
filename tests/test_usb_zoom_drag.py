@@ -47,10 +47,28 @@ class Revision(unittest.TestCase):
         self.assertEqual(cam._c.writes[1], ("d04b", "2"))
         self.assertEqual(cam._c.writes[3], ("d04b", "1"))
 
-    def test_no_drag_path_left(self):
-        self.assertFalse(hasattr(usb_camera.UsbCamera, "loupe_drag"))
-        self.assertFalse(hasattr(ptp, "loupe_drag_moves"))
-        self.assertFalse(hasattr(ptp, "LOUPE_MAX_STEPS"))
+
+class CycleStamp(unittest.TestCase):
+    def test_frames_between_the_cycle_are_stamped_normal(self):
+        cam = make()
+        cam.loupe(True, 5, 0.5, 0.5)
+        seen = []
+        orig = cam._opcode
+        cam._opcode = lambda *a: (seen.append((cam.loupe_on, cam.loupe_rev)), orig(*a))[1]
+        cam.loupe(True, 5, 0.25, 0.5)
+        self.assertEqual(seen, [(False, 2)])  # off and one revision later when 0x9483 goes out
+        self.assertEqual((cam.loupe_on, cam.loupe_rev), (True, 3))
+
+    def test_failing_point_leaves_a_true_state(self):
+        cam = make()
+        cam.loupe(True, 5, 0.5, 0.5)
+
+        def boom(*a):
+            raise CameraError("0x9483 failed")
+        cam._opcode = boom
+        with self.assertRaises(CameraError):
+            cam.loupe(True, 5, 0.25, 0.5)
+        self.assertEqual((cam.loupe_on, cam.loupe_rev), (False, 2))
 
 
 class FocusInZoom(unittest.TestCase):
@@ -92,12 +110,15 @@ class Endpoint(unittest.TestCase):
         self.assertEqual(self.act({"on": True, "ratio": 3, "x": 0.5, "y": 0.5}), {"loupe": True, "rev": 1})
         self.assertEqual(self.act({"on": False}), {"loupe": False, "rev": 2})
 
-    def test_drag_request_no_longer_moves_anything(self):
+    def test_unknown_body_is_refused_not_switched_off(self):
         server.cam, server.conn_type = make(), "usb"
         self.act({"on": True, "ratio": 3})
         server.cam._c.writes.clear()
-        self.act({"drag": {"dx": 0, "dy": 110}})  # not a command any more: treated as "off"
-        self.assertEqual(server.cam._c.writes, [("d04b", "2")])
+        for body in ({"drag": {"dx": 0, "dy": 110}}, {}):  # e.g. a stale page from before the smooth zoom
+            with self.assertRaises(CameraError):
+                self.act(body)
+        self.assertEqual(server.cam._c.writes, [])
+        self.assertTrue(server.cam.loupe_on)
 
     def test_wifi_unchanged(self):
         server.cam, server.conn_type = object(), "wifi"
@@ -132,7 +153,7 @@ class FrameHeaders(unittest.TestCase):
         self.assertEqual((hdr["X-Seq"], hdr["X-Loupe"], hdr["X-Loupe-Rev"]), ("4", "1", "7"))
 
     def test_wifi_frame_is_zero(self):
-        live = type("L", (), {"wait_frame": lambda self, s: (2, b"\xff\xd8x\xff\xd9")})()
+        live = type("L", (), {"wait_frame": lambda self, s: (2, b"\xff\xd8x\xff\xd9", (0, 0))})()
         hdr = self.frame(live)
         self.assertEqual((hdr["X-Loupe"], hdr["X-Loupe-Rev"]), ("0", "0"))
 
@@ -156,7 +177,8 @@ class FrameHeaders(unittest.TestCase):
 
 class Page(unittest.TestCase):
     def setUp(self):
-        self.html = open(HTML, encoding="utf-8").read()
+        with open(HTML, encoding="utf-8") as f:
+            self.html = f.read()
 
     def test_markup(self):
         h = self.html
@@ -167,14 +189,12 @@ class Page(unittest.TestCase):
         self.assertIn("const LOUPE_STEPS=[1,3,5,7,10,14]", h)
         self.assertIn('id="liveBack"', h)  # backdrop behind the moved camera crop
         self.assertIn("const LOUPE_LAG_FRAMES=2", h)
-        for name in ("loupeReconcile", "loupeCommit", "loupeHold", "loupeOnFrame", "zRender", "zSnap", "zClamp", "zCrop"):
-            self.assertIn("function %s(" % name if name[0] != "z" or name == "zRender" else "const %s=" % name, h)
+        for name in ("loupeReconcile", "loupeCommit", "loupeHold", "loupeOnFrame", "zRender"):
+            self.assertIn("function %s(" % name, h)
+        for name in ("zSnap", "zClamp", "zCrop"):
+            self.assertIn("const %s=" % name, h)
         self.assertIn("X-Loupe-Rev", h)
         self.assertNotIn("loupeBtn", h)
-
-    def test_step_drag_is_gone(self):
-        for old in ("loupeSend", "lConfirm", "LOUPE_SEND_MS", "{drag:{dx", "loupeStepScreen", "loupeShow(", "loupeStep("):
-            self.assertNotIn(old, self.html)
 
     def test_title_describes_the_new_gestures(self):
         m = re.search(r'"lv.loupeTitle": "([^"]*)"', self.html)
@@ -187,7 +207,8 @@ class ZoomMaths(unittest.TestCase):
     """Runs the page's pure zoom functions (between the 'zoom maths' markers) in JavaScriptCore."""
 
     def run_js(self, expr):
-        h = open(HTML, encoding="utf-8").read()
+        with open(HTML, encoding="utf-8") as f:
+            h = f.read()
         steps = re.search(r"const LOUPE_STEPS=\[[^\]]*\];", h).group(0)
         maths = h[h.index("// zoom maths (pure"):h.index("// zoom maths end")]
         code = "%s\n%s\nJSON.stringify(%s)" % (steps, maths, expr)
@@ -227,6 +248,68 @@ class ZoomMaths(unittest.TestCase):
     def test_crop_scales_with_the_view(self):
         c = self.run_js("zCrop({s:10,cx:.5,cy:.5},{s:5,cx:.5,cy:.5},1000,750)")
         self.assertEqual((c["k"], c["x"], c["y"]), (2, -500, -375))
+
+
+@unittest.skipUnless(shutil.which("osascript"), "needs the JavaScript engine of macOS (osascript)")
+class CommandPath(unittest.TestCase):
+    """Runs the page's real zoom state code (loupeCommit, loupeHold, loupeReconcile, loupeSync) with a stubbed api."""
+
+    STUBS = """
+    var calls=[],msgs=[],mode='ok',rev=0,z,px,py,usbZoom=true,loupeOn,tr=function(){return ''},performance={now:function(){return 0}};
+    var el=function(){return {style:{},hidden:false,textContent:'',classList:{toggle:function(){},add:function(){},remove:function(){}},setAttribute:function(){}}};
+    var vp=el(),layer=el(),Q=function(){return el()},document={querySelectorAll:function(){return []}},calm={matches:true};
+    vp.getBoundingClientRect=function(){return {width:800,height:600}};
+    function applyZoom(){} function msg(t,e){msgs.push([t,!!e])}
+    function setTimeout(){return 1} function clearTimeout(){}
+    function api(p,b){calls.push([p,b]);
+      if((mode==='err'||mode==='dead')&&p==='/api/loupe') return {__err:'boom'};
+      if(p==='/api/state') return mode==='dead'?{__err:'gone'}:{loupe:false,live:true,loupe_ratio:5};
+      return {loupe:!!b.on,rev:++rev}}
+    function __drive(g){var r=g.next();while(!r.done){var v=r.value;r=(v&&v.__err)?g.throw(new Error(v.__err)):g.next(v)}return r.value}
+    """
+
+    def run_js(self, scenario):
+        with open(HTML, encoding="utf-8") as f:
+            h = f.read()
+        a, b = h.index("let loupeOn=false,usbZoom=false"), h.index("function loupeZoom(")
+        region = h[a:b].replace("let loupeOn=false,usbZoom=false,", "var ")  # the stubs declare loupeOn and usbZoom
+        region = region.replace("async function loupeReconcile(", "function* __rec(").replace("await ", "yield ")
+        region = region.replace("$(", "Q(")  # $ is the ObjC bridge in this engine
+        region += "\nfunction loupeReconcile(){return __drive(__rec())}\n"
+        code = "%s\n%s\n%s" % (self.STUBS, region, scenario)
+        out = subprocess.run(["osascript", "-l", "JavaScript", "-e", code], capture_output=True, text=True, timeout=30)
+        self.assertEqual(out.returncode, 0, out.stderr)
+        return json.loads(out.stdout.strip())
+
+    def test_commit_sends_one_on_request_and_stops(self):
+        r = self.run_js("Object.assign(V,{s:4.4,cx:.3,cy:.6});loupeCommit();"
+                        "JSON.stringify({calls:calls,sent:zSent,pend:zPend,busy:recBusy})")
+        self.assertEqual(r["calls"], [["/api/loupe", {"on": True, "ratio": 5, "x": 0.3, "y": 0.6}]])
+        self.assertTrue(r["sent"]["on"])
+        self.assertEqual((r["pend"]["rev"], r["pend"]["on"]), (1, True))
+        self.assertFalse(r["busy"])
+
+    def test_hold_sends_one_off_request(self):
+        r = self.run_js("Object.assign(V,{s:5,cx:.5,cy:.5});loupeCommit();calls.length=0;loupeHold();loupeHold();"
+                        "JSON.stringify({calls:calls,sent:zSent})")
+        self.assertEqual(r["calls"], [["/api/loupe", {"on": False}]])  # the second hold has nothing left to turn off
+        self.assertFalse(r["sent"]["on"])
+
+    def test_nothing_sent_when_nothing_changed(self):
+        r = self.run_js("loupeCommit();JSON.stringify(calls)")  # 1x and off already
+        self.assertEqual(r, [])
+
+    def test_error_ends_in_sync_without_throwing(self):
+        r = self.run_js("mode='err';Object.assign(V,{s:5,cx:.4,cy:.4});loupeCommit();"
+                        "JSON.stringify({calls:calls,msgs:msgs,V:V,want:zWant,busy:recBusy,shows:zCamShows})")
+        self.assertEqual([c[0] for c in r["calls"]], ["/api/loupe", "/api/state"])  # no flood: one try, one state read
+        self.assertEqual(r["msgs"], [["boom", True]])
+        self.assertEqual((r["V"]["s"], r["want"]["on"], r["busy"], r["shows"]), (1, False, False, False))
+
+    def test_error_and_dead_server_still_ends_soft_free(self):
+        r = self.run_js("mode='dead';Object.assign(V,{s:5,cx:.4,cy:.4});zWant={on:true,ratio:5,x:.4,y:.4};loupeReconcile();"
+                        "JSON.stringify({V:V,busy:recBusy})")
+        self.assertEqual((r["V"]["s"], r["busy"]), (1, False))
 
 
 if __name__ == "__main__":
