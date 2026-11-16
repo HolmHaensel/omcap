@@ -36,6 +36,9 @@ hardened runtime; the installed program is never touched. `run` starts the copy 
 `DYLD_INSERT_LIBRARIES` and writes `out/research/usbsniff/NAME.jsonl`. Child processes started
 with NSTask inherit the hook. Data phases are cut to 4096 bytes (`--max`), the full length is kept.
 
+The tool only listens, but the recorded program itself may change device settings or (for a camera)
+take pictures – each recording session needs the device owner's OK.
+
 Only one program may hold the device: quit the original program and anything else using it.
 If the program hangs while connecting (seen 2026-11-16: the camera's answers stopped after a few
 queries, with the original OM Capture too), macOS's camera service `ptpcamerad` is stuck from an

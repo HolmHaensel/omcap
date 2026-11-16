@@ -8,7 +8,7 @@ import struct
 
 from .model import IN, OUT, Transfer
 
-PTP_CMD, PTP_DATA, PTP_RESP, PTP_EVENT = 1, 2, 3, 4
+PTP_DATA = 2
 
 
 def _hex(s):
@@ -96,27 +96,36 @@ def _iter_pcap(raw):
             ifaces = []
         btype, blen = struct.unpack_from(e + "II", raw, pos)
         body = raw[pos + 8:pos + blen - 4]
-        if btype == 1:      # interface description
-            ifaces.append(struct.unpack_from(e + "H", body)[0])
+        if btype == 1:      # interface description: link type and time resolution (option 9)
+            lt, scale, opos = struct.unpack_from(e + "H", body)[0], 1e6, 8
+            while opos + 4 <= len(body):
+                code, olen = struct.unpack_from(e + "HH", body, opos)
+                if code == 0:
+                    break
+                if code == 9 and olen >= 1:
+                    v = body[opos + 4]
+                    scale = float(2 ** (v & 0x7F)) if v & 0x80 else 10.0 ** v
+                opos += 4 + olen + (-olen % 4)
+            ifaces.append((lt, scale))
         elif btype == 6:    # enhanced packet
             iface, hi, lo, cap, _ = struct.unpack_from(e + "IIIII", body)
-            ts = ((hi << 32) | lo) / 1e6  # default if_tsresol (microseconds)
-            yield ifaces[iface], ts, body[20:20 + cap]
+            lt, scale = ifaces[iface]
+            yield lt, ((hi << 32) | lo) / scale, body[20:20 + cap]
         elif btype == 3:    # simple packet
-            yield ifaces[0], 0.0, body[4:]
+            yield ifaces[0][0], 0.0, body[4:]
         pos += blen
 
 
 def _usbpcap(ts, pkt):
     hlen, _irp, status, _fn, info, bus, dev, ep, xfer, dlen = struct.unpack_from("<HQIHBHHBBI", pkt)
-    data = pkt[hlen:hlen + dlen]
+    data = pkt[hlen:hlen + dlen]  # may be shorter than dlen (snap length or a truncated recording)
     if not data or xfer not in (1, 3):
         return None
     d_in = bool(ep & 0x80)
     if bool(info & 1) != d_in:  # OUT data rides on the request, IN data on the completion
         return None
     return Transfer(ts, IN if d_in else OUT, "0x%02x" % ep, data, "ok" if status == 0 else "0x%x" % status,
-                    kind=XFER[xfer], device="%d:%d" % (bus, dev))
+                    length=max(dlen, len(data)), kind=XFER[xfer], device="%d:%d" % (bus, dev))
 
 
 def _usbmon(ts, pkt, hlen):

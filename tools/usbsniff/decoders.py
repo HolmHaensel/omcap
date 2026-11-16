@@ -34,6 +34,13 @@ def _name(names, section, code, fallback):
 
 
 # ---- PTP -------------------------------------------------------------------------------------
+def _is_response(data):
+    if len(data) < 12:
+        return False
+    ln, ctype = struct.unpack_from("<IH", data)
+    return ctype == 3 and ln == len(data) and ln <= 32
+
+
 def _containers(transfers):
     """Reassemble the PTP container stream of both bulk directions in time order (a container may
     span several transfers; data may be truncated, so lengths come from Transfer.length).
@@ -43,6 +50,9 @@ def _containers(transfers):
         if tr.kind == "interrupt":
             continue
         s = state[tr.direction]
+        if s[1] and _is_response(tr.data):
+            # out of step (a data phase was cut short): give up the open container, keep going
+            s[1] = 0
         if s[1] == 0:
             if len(tr.data) < 12:
                 continue

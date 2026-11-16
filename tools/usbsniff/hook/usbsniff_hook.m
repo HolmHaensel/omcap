@@ -114,17 +114,16 @@ static void hook_delegate(id self, SEL _cmd, NSData *cmd, NSData *outData, id de
 }
 
 // ---- events ----------------------------------------------------------------------------------
-static NSMutableDictionary *g_eventImps;  // class name -> original IMP
+// Only the first delegate class that implements the callback is hooked. Hooking a subclass and its
+// superclass both would loop when the subclass calls super (both would find the subclass's original).
+static IMP g_eventOrig;
+static Class g_eventOwner;
 
 static void hook_event(id self, SEL _cmd, id camera, NSData *event) {
     NSMutableDictionary *r = [@{@"kind": @"event"} mutableCopy];
     putData(r, @"event", event);
     emit(r);
-    IMP orig = NULL;
-    for (Class c = object_getClass(self); c && !orig; c = class_getSuperclass(c)) {
-        @synchronized (g_eventImps) { orig = [g_eventImps[NSStringFromClass(c)] pointerValue]; }
-    }
-    if (orig) ((void (*)(id, SEL, id, NSData *))orig)(self, _cmd, camera, event);
+    if (g_eventOrig) ((void (*)(id, SEL, id, NSData *))g_eventOrig)(self, _cmd, camera, event);
 }
 
 static void hookEventsOf(id delegate) {
@@ -133,23 +132,29 @@ static void hookEventsOf(id delegate) {
     Class c = object_getClass(delegate);
     Method m = class_getInstanceMethod(c, sel);
     if (!m) return;
-    // find the class that actually implements it, hook it there once
-    Class owner = c;
+    Class owner = c;  // the class that actually implements it
     while (class_getSuperclass(owner) && class_getInstanceMethod(class_getSuperclass(owner), sel) == m)
         owner = class_getSuperclass(owner);
-    NSString *key = NSStringFromClass(owner);
-    @synchronized (g_eventImps) {
-        if (g_eventImps[key]) return;
-        IMP old = method_setImplementation(m, (IMP)hook_event);
-        g_eventImps[key] = [NSValue valueWithPointer:old];
+    @synchronized ([NSProcessInfo processInfo]) {
+        if (g_eventOwner) {
+            if (owner != g_eventOwner)
+                emit(@{@"kind": @"note", @"msg": [@"events of a second delegate class not logged: " stringByAppendingString:NSStringFromClass(owner)]});
+            return;
+        }
+        g_eventOwner = owner;
+        g_eventOrig = method_setImplementation(m, (IMP)hook_event);
     }
-    emit(@{@"kind": @"note", @"msg": [@"event hook on " stringByAppendingString:key]});
+    emit(@{@"kind": @"note", @"msg": [@"event hook on " stringByAppendingString:NSStringFromClass(owner)]});
 }
 
 static void (*orig_setDelegate)(id, SEL, id);
 static void hook_setDelegate(id self, SEL _cmd, id delegate) {
     hookEventsOf(delegate);
     orig_setDelegate(self, _cmd, delegate);
+}
+
+static void flushAtExit(void) {
+    if (g_queue) dispatch_sync(g_queue, ^{ if (g_log) fflush(g_log); });  // drains pending lines
 }
 
 // ---- install ---------------------------------------------------------------------------------
@@ -167,8 +172,8 @@ __attribute__((constructor)) static void usbsniff_init(void) {
     if (mx && atol(mx) > 0) g_max = (NSUInteger)atol(mx);
     g_log = fopen(path, "a");
     g_queue = dispatch_queue_create("usbsniff.log", DISPATCH_QUEUE_SERIAL);
+    atexit(flushAtExit);
     g_proxies = [NSMutableSet set];
-    g_eventImps = [NSMutableDictionary dictionary];
 
     Class cam = objc_getClass("ICCameraDevice");
     Class dev = objc_getClass("ICDevice");

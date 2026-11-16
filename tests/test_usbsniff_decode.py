@@ -154,6 +154,65 @@ class Pcap(unittest.TestCase):
         self.assertAlmostEqual(back[1].time, 1.001, places=5)
 
 
+    def test_truncated_pcapng_roundtrip_keeps_pairing(self):
+        big = cont(2, 0x1009, 1, bytes(5000))
+        tr = [Transfer(1.0, OUT, "0x01", cmd(0x1009, 1, 7)), Transfer(1.1, IN, "0x81", big[:4096], length=len(big)),
+              Transfer(1.2, IN, "0x81", cont(3, 0x2001, 1)),
+              Transfer(2.0, OUT, "0x01", cmd(0x1001, 2)), Transfer(2.1, IN, "0x81", cont(3, 0x2001, 2))]
+        with tempfile.TemporaryDirectory() as d:
+            p = os.path.join(d, "t.pcapng")
+            output.write_pcapng(tr, p)
+            _, back = backends.load(p)
+        ops = decoders.DECODERS["ptp"](back, NAMES)
+        self.assertEqual([(o.name, o.resp_name, o.data_in_len) for o in ops],
+                         [("GetObject", "OK", 5000), ("GetDeviceInfo", "OK", 0)])
+
+    def test_resync_after_short_data_phase(self):
+        # data phase announces 5000 bytes but only 100 arrive (aborted): the next response must still pair
+        tr = [Transfer(1.0, OUT, "0x01", cmd(0x1009, 1, 7)),
+              Transfer(1.1, IN, "0x81", cont(2, 0x1009, 1, bytes(5000))[:112]),
+              Transfer(1.2, IN, "0x81", cont(3, 0x2007, 1)),
+              Transfer(2.0, OUT, "0x01", cmd(0x1001, 2)), Transfer(2.1, IN, "0x81", cont(3, 0x2001, 2))]
+        ops = decoders.DECODERS["ptp"](tr, NAMES)
+        self.assertEqual([o.resp_name for o in ops], ["IncompleteTransfer", "OK"])
+
+    def test_usbmon_mmapped(self):
+        def mon(etype, ep, data, length=None):
+            head = struct.pack("<QcBBBHcc", 1, etype, 3, ep, 5, 2, b"\0", b"\0")
+            head += struct.pack("<qiiII", 100, 0, 0, len(data) if length is None else length, len(data))
+            head += bytes(8) + bytes(16)  # setup + mmapped extra
+            self.assertEqual(len(head), 64)
+            return head + data
+        pkts = [mon(b"S", 0x01, cmd(0x1001, 1)), mon(b"C", 0x01, b""),
+                mon(b"S", 0x81, b"", 512), mon(b"C", 0x81, cont(3, 0x2001, 1))]
+        with tempfile.NamedTemporaryFile(suffix=".pcap", delete=False) as f:
+            f.write(pcap_file(pkts, linktype=220))
+        try:
+            _, tr = backends.load(f.name)
+        finally:
+            os.unlink(f.name)
+        self.assertEqual([(t.direction, t.device) for t in tr], [(OUT, "2:5"), (IN, "2:5")])
+        op = decoders.DECODERS["ptp"](tr, NAMES)[0]
+        self.assertEqual((op.name, op.resp_name), ("GetDeviceInfo", "OK"))
+
+    def test_pcapng_nanosecond_resolution(self):
+        def block(btype, body):
+            body += b"\0" * (-len(body) % 4)
+            return struct.pack("<II", btype, len(body) + 12) + body + struct.pack("<I", len(body) + 12)
+        pkt = usbpcap_packet(0x01, 0, cmd(0x1001, 1))
+        ns = 1_500_000_000  # 1.5 s
+        raw = (block(0x0A0D0D0A, struct.pack("<IHHq", 0x1A2B3C4D, 1, 0, -1))
+               + block(1, struct.pack("<HHI", 249, 0, 0) + struct.pack("<HHB", 9, 1, 9) + b"\0" * 3 + struct.pack("<HH", 0, 0))
+               + block(6, struct.pack("<IIIII", 0, ns >> 32, ns & 0xFFFFFFFF, len(pkt), len(pkt)) + pkt))
+        with tempfile.NamedTemporaryFile(suffix=".pcapng", delete=False) as f:
+            f.write(raw)
+        try:
+            _, tr = backends.load(f.name)
+        finally:
+            os.unlink(f.name)
+        self.assertAlmostEqual(tr[0].time, 1.5, places=6)
+
+
 class OtherDecoders(unittest.TestCase):
     def test_mass_storage(self):
         cbw = b"USBC" + struct.pack("<IIBBB", 9, 36, 0x80, 0, 6) + bytes([0x12, 0, 0, 0, 36, 0]) + bytes(10)

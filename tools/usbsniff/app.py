@@ -50,9 +50,8 @@ def _executable(bundle):
 
 def _busy_warnings(app):
     """The camera can only be held by one program; say what might be holding it."""
-    name = os.path.basename(app).replace(".app", "")
-    if subprocess.run(["pgrep", "-f", "/Applications/%s.app/" % name], capture_output=True).returncode == 0:
-        print("warning: the installed %s is running – quit it first" % name)
+    if subprocess.run(["pgrep", "-f", app.rstrip("/") + "/"], capture_output=True).returncode == 0:
+        print("warning: %s is running – quit it first" % app)
     if subprocess.run(["lsof", "-nPi", ":8765", "-sTCP:LISTEN"], capture_output=True).stdout:
         print("warning: E-M1 Capture (port 8765) is running – stop it, only one program may hold the camera")
     if subprocess.run(["pgrep", "-f", "usb_props.py"], capture_output=True).returncode == 0:
@@ -70,13 +69,15 @@ def run(name, app=DEFAULT_APP, max_bytes=4096, restart_ptpcamerad=False):
     bundle = copy_path(app)
     if not os.path.exists(bundle):
         sys.exit("no copy yet – run: usbsniff hook prepare")
-    _busy_warnings(app)
-    if restart_ptpcamerad:
-        subprocess.run(["killall", "-9", "ptpcamerad"], capture_output=True)
+    if not name or os.sep in name or name.startswith("."):
+        sys.exit("NAME must be a plain file name")
     os.makedirs(RECORDINGS, exist_ok=True)
     log = os.path.join(RECORDINGS, name + ".jsonl")
     if os.path.exists(log):
         sys.exit("recording exists: %s (pick another name)" % log)
+    _busy_warnings(app)
+    if restart_ptpcamerad:
+        subprocess.run(["killall", "-9", "ptpcamerad"], capture_output=True)
     env = dict(os.environ, DYLD_INSERT_LIBRARIES=DYLIB, USBSNIFF_LOG=log, USBSNIFF_MAX=str(max_bytes))
     print("recording to", log, "– do ONE action in the program, then quit it")
     subprocess.run([_executable(bundle)], env=env)

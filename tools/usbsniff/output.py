@@ -66,7 +66,7 @@ def write_pcapng(transfers, path):
             except ValueError:
                 ep = (0x82 if tr.kind == "interrupt" else 0x81) if tr.direction == IN else 0x01
             xfer = 1 if tr.kind == "interrupt" else 3
-            hdr = struct.pack("<HQIHBHHBBI", 27, i, 0, 0x09, 1 if tr.direction == IN else 0, 1, 1, ep, xfer, len(tr.data))
-            pkt = hdr + tr.data
+            hdr = struct.pack("<HQIHBHHBBI", 27, i, 0, 0x09, 1 if tr.direction == IN else 0, 1, 1, ep, xfer, tr.length)
+            pkt = hdr + tr.data  # dataLength keeps the full length; the packet holds what was recorded
             us = int(tr.time * 1e6)
-            f.write(block(6, struct.pack("<IIIII", 0, us >> 32, us & 0xFFFFFFFF, len(pkt), len(pkt)) + pkt))
+            f.write(block(6, struct.pack("<IIIII", 0, us >> 32, us & 0xFFFFFFFF, len(pkt), 27 + tr.length) + pkt))

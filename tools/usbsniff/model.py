@@ -24,10 +24,6 @@ class Transfer:
         if self.length is None:
             self.length = len(self.data)
 
-    @property
-    def truncated(self):
-        return self.length > len(self.data)
-
 
 @dataclass
 class Operation:
