@@ -848,7 +848,8 @@ const I18N={en:{
   "msg.modeDial": "Mode dial turned: settings reloaded.",
   "long.label": "Long exposure (M)",
   "long.off": "Off",
-  "status.battery": "Battery: {v} %",
+  "status.batteryHigh": "Battery: high (rough)",
+  "status.batteryLow": "Battery: half or less (rough)",
   "ro.title": "Camera settings (read only)",
   "ro.lowvibtime": "Anti-Shock",
   "ro.SilentTime": "Silent[♥]",
@@ -1223,7 +1224,8 @@ function showStatus(){
   const li=st&&st.lvinfo; // Wi-Fi live view: values sent with every frame (REQ-F29)
   const card=li&&li.shots!=null?tr('status.shots',{v:li.shots}):c==null?null:c===4294967295?tr('status.cardMore'):c>=1e9?tr('status.card',{v:(c/1e9).toFixed(1)}):tr('status.cardMb',{v:Math.round(c/1e6)});
   const b=device.battery; // USB only: what the camera sends over Wi-Fi is not the battery level (2026-11-15)
-  const bat=b!=null?tr('status.battery',{v:b}):null;
+  // the camera reports 100 / 50 in coarse steps, not a percentage (50 from half to almost empty, 2026-11-16): show a level
+  const bat=b!=null?tr(b>=75?'status.batteryHigh':'status.batteryLow'):null;
   // without a lens name (USB without JPG) at least the focal length range
   let lensName=lens&&(lens.model||(lens.focal_min?(lens.focal_min===lens.focal_max?lens.focal_min:lens.focal_min+'–'+lens.focal_max)+' mm':null));
   const f=li&&li.focal;
