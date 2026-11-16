@@ -204,6 +204,7 @@ body.autoLv label[data-feat=lvsize]{display:none!important}
 #hslBox img{max-width:calc(100vw - 80px);max-height:70vh;display:block}
 #hslBox{cursor:ew-resize;touch-action:none;user-select:none}
 #live,#ovl,#hslBox img,#vImg{-webkit-user-drag:none;user-select:none}
+#viewport.loupe{cursor:grab;touch-action:none}#viewport.loupe.grabbing{cursor:grabbing} /* Zoom AF: grab the picture (REQ-F54) */
 .sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap} /* drag moves the picture / the before-after line, not a copy of the image */
 #hslHandle{position:absolute;top:0;bottom:0;left:50%;width:2px;margin-left:-1px;background:#fff;box-shadow:0 0 4px #0009;pointer-events:none}
 #hslHandle::after{content:'‹ ›';position:absolute;top:50%;left:50%;width:36px;height:36px;margin:-18px 0 0 -18px;border-radius:50%;background:#fff;color:#111;font:600 15px/34px var(--font-ui,system-ui);text-align:center;box-shadow:0 1px 6px #0009}
@@ -2227,7 +2228,7 @@ vp.onpointerup=e=>{
    Click = focus, drag = move the frame (grab the picture: drag right shows what is left), wheel or pinch =
    next or previous ratio. The frame starts at the chosen AF target (centre with All Targets). */
 let loupeOn=false,usbZoom=false,loupeRatio=1;
-const LOUPE_STEPS=[1,3,5,7,10,14],LOUPE_SEND_MS=100,LOUPE_TAP_PX=6;
+const LOUPE_STEPS=[1,3,5,7,10,14],LOUPE_TAP_PX=6;
 function loupePoint(){
   if(!af||af.mode===33024) return {x:.5,y:.5};
   const a=af.area,row=Math.floor((af.field-1)/9),col=(af.field-1)%9;
@@ -2260,15 +2261,37 @@ function loupeWheel(e){
   if(!canWrite||!st.live||Date.now()-wheelAt<250) return; // one notch = one ratio, a trackpad sends many events
   wheelAt=Date.now(); loupeStep(e.deltaY<0?1:-1);
 }
-// drag: pixels of the zoomed 1024-wide picture, sent at most every LOUPE_SEND_MS; the server turns them into steps
-let lDrag=null,lPend={dx:0,dy:0},lTimer=0,lPtr=new Map(),lPinch=0;
-function loupeFlush(){
-  lTimer=0; const {dx,dy}=lPend; if(!dx&&!dy) return; lPend={dx:0,dy:0};
-  api('/api/loupe',{drag:{dx,dy}}).catch(e=>msg(e.message||String(e),true));
+// drag (REQ-F54): the picture follows the pointer at once (CSS shift of the shown frame). During the drag whole
+// 0x9488 steps go to the camera every LOUPE_SEND_MS; once the camera's moved frame is on screen (LOUPE_LAG_FRAMES
+// frames after the answer) the shift shrinks by those steps, so new picture content fills in while dragging.
+// Sending raw drag pixels and waiting for the camera looked jerky and slow (camera test 2026-11-16).
+const LOUPE_STEP_PX=17.4,LOUPE_SEND_MS=120,LOUPE_LAG_FRAMES=2; // step: px of the normal 1024-wide view (ptp.LOUPE_STEP_NORMAL_PX)
+let lDrag=null,lPtr=new Map(),lPinch=0,lTick=0,lConfirm=[];
+function loupeShift(x,y,smooth){ // smooth: a short ease when the camera's frame catches up, none under the finger
+  layer.style.transition=smooth?'transform 90ms ease-out':'none'; layer.style.transform=x||y?`translate(${x}px,${y}px)`:'';
+}
+function loupeStepScreen(){return LOUPE_STEP_PX*loupeRatio*(vp.getBoundingClientRect().width||1024)/1024} // one step in screen px
+function loupeRedraw(smooth){
+  if(!lDrag){ if(!lConfirm.length) loupeShift(0,0,true); return }
+  const s=loupeStepScreen(); loupeShift(lDrag.tx-lDrag.cx*s,lDrag.ty-lDrag.cy*s,smooth);
+}
+function loupeSend(){
+  const d=lDrag; if(!d) return;
+  const s=loupeStepScreen(),nx=Math.trunc(d.tx/s)-d.sx,ny=Math.trunc(d.ty/s)-d.sy;
+  if(!nx&&!ny) return;
+  d.sx+=nx; d.sy+=ny; const k=LOUPE_STEP_PX*loupeRatio; // zoomed-frame px per step (the server's unit)
+  api('/api/loupe',{drag:{dx:nx*k,dy:ny*k}})
+    .then(()=>lConfirm.push({d,nx,ny,frames:LOUPE_LAG_FRAMES}))
+    .catch(e=>{d.sx-=nx;d.sy-=ny;msg(e.message||String(e),true)});
+}
+function loupeOnFrame(){ // called by the live loop for every frame shown
+  if(!lConfirm.length) return;
+  lConfirm=lConfirm.filter(c=>{ if(--c.frames>0) return true; c.d.cx+=c.nx; c.d.cy+=c.ny; return false });
+  loupeRedraw(true);
 }
 function loupeDown(e){
   lPtr.set(e.pointerId,{x:e.clientX,y:e.clientY}); vp.setPointerCapture(e.pointerId);
-  if(lPtr.size===1) lDrag={x:e.clientX,y:e.clientY,moved:false};
+  if(lPtr.size===1) lDrag={x:e.clientX,y:e.clientY,moved:false,tx:0,ty:0,sx:0,sy:0,cx:0,cy:0};
   else{lDrag=null;const [a,b]=[...lPtr.values()];lPinch=Math.hypot(a.x-b.x,a.y-b.y)}
 }
 function loupeMoveEv(e){
@@ -2280,18 +2303,17 @@ function loupeMoveEv(e){
     return;
   }
   if(!lDrag) return;
-  const mx=e.clientX-p.x,my=e.clientY-p.y; p.x=e.clientX;p.y=e.clientY;
+  p.x=e.clientX;p.y=e.clientY;
   if(!lDrag.moved&&Math.hypot(e.clientX-lDrag.x,e.clientY-lDrag.y)<=LOUPE_TAP_PX) return;
-  lDrag.moved=true;
-  const k=1024/(layer.getBoundingClientRect().width||1024);
-  lPend.dx+=mx*k; lPend.dy+=my*k;
-  if(!lTimer) lTimer=setTimeout(loupeFlush,LOUPE_SEND_MS);
+  if(!lDrag.moved){lDrag.moved=true; vp.classList.add('grabbing'); lTick=setInterval(loupeSend,LOUPE_SEND_MS)}
+  // grab the picture: dragging right shows what is left (the server turns positive dx into "left" steps)
+  lDrag.tx=e.clientX-lDrag.x; lDrag.ty=e.clientY-lDrag.y; loupeRedraw();
 }
 function loupeUp(e){
   lPtr.delete(e.pointerId);
   const d=lDrag; if(lPtr.size===0) lDrag=null;
   if(!d||lPtr.size||!st.live) return;
-  if(d.moved){clearTimeout(lTimer);loupeFlush();return}
+  if(d.moved){clearInterval(lTick); vp.classList.remove('grabbing'); lDrag=d; loupeSend(); lDrag=null; setTimeout(()=>loupeRedraw(true),1500); return} // last steps; the shift clears once they show
   if(canWrite) setAf({focus:true}); // a click in the zoomed view only focuses (half press, release without a shot)
 }
 document.querySelectorAll('[data-lz]').forEach(b=>b.onclick=()=>loupeZoom(+b.dataset.lz));
@@ -2778,6 +2800,7 @@ function startLiveLoop(img=$('#live')){
         if(g!==lvGen){URL.revokeObjectURL(url);break}
         const old=img.src; img.src=url; if(old.startsWith('blob:')) URL.revokeObjectURL(old); // also the last one of an earlier loop
         lvShown.push(performance.now()); if(lvShown.length>90) lvShown.shift(); // frames shown, for the fps in the status line
+        if(img.id==='live') loupeOnFrame(); // Zoom AF drag: the camera's moved frame is now on screen
       }catch{await sleep(1000)} // body lost (server restarting or gone); the next request is already on its way
     }
   })();
