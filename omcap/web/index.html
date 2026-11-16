@@ -404,9 +404,12 @@ body.webcam{cursor:none;display:flex;align-items:center;justify-content:center}
     <div id="empty"><span data-i18n="lv.off">Live view off</span><small data-i18n="lv.offHint">Start live view to see the picture and the AF targets.</small></div>
   </div>
   <div class="tb">
-    <div class="seg" role="group" data-i18n-aria="lv.zoomGroup" aria-label="View zoom (in the app, not the camera)">
+    <div class="seg" id="zoomApp" role="group" data-i18n-aria="lv.zoomGroup" aria-label="View zoom (in the app, not the camera)">
       <button data-z="1">1×</button><button data-z="2">2×</button><button data-z="4">4×</button>
     </div>
+    <span data-feat="loupe"><span id="zoomUsb" class="seg" role="group" hidden data-i18n-aria="lv.zoomUsbGroup" aria-label="Zoom (camera Zoom AF)" data-i18n-title="lv.loupeTitle">
+      <button class="w" data-lz="1">1×</button><button class="w" data-lz="3">×3</button><button class="w" data-lz="5">×5</button><button class="w" data-lz="7">×7</button><button class="w" data-lz="10">×10</button><button class="w" data-lz="14">×14</button>
+    </span></span>
     <label class="lab" data-feat="lvsize"><span data-i18n="lv.size">Size</span> <select id="lvqty">
       <option>0320x0240</option><option>0640x0480</option><option selected>0800x0600</option><option>1024x0768</option><option>1280x0960</option>
     </select></label>
@@ -414,8 +417,7 @@ body.webcam{cursor:none;display:flex;align-items:center;justify-content:center}
     <span class="vsep"></span>
     <span id="lvTools" hidden>
       <span data-feat="loupe"><span id="loupeTools">
-        <button class="w" id="loupeBtn" aria-pressed="false" data-i18n="lv.loupe" data-i18n-title="lv.loupeTitle">Zoom AF</button>
-        <select id="loupeRatio" data-i18n-aria="lv.loupeRatio" aria-label="Zoom ratio"><option value="3">×3</option><option value="5" selected>×5</option><option value="7">×7</option><option value="10">×10</option><option value="14">×14</option></select>
+        <span id="loupeLabel" class="chip" style="display:none"></span>
         <span id="loupeMove" class="seg" role="group" hidden data-i18n-aria="lv.loupeMove" aria-label="Move the zoom frame"><button class="w" data-lm="left" data-i18n-aria="lv.left" aria-label="Left">◀</button><button class="w" data-lm="up" data-i18n-aria="lv.up" aria-label="Up">▲</button><button class="w" data-lm="down" data-i18n-aria="lv.down" aria-label="Down">▼</button><button class="w" data-lm="right" data-i18n-aria="lv.right" aria-label="Right">▶</button></span>
       </span></span>
       <label class="tog" data-feat="level"><input type="checkbox" id="lvlOn"> <span data-i18n="lv.level">Level gauge</span></label>
@@ -796,11 +798,10 @@ const I18N={en:{
   "lv.peakYellow": "Yellow",
   "lv.roll": "Horizon {a}° · Tilt {b}°",
   "lv.delta": "Δ Horizon {a}° · Δ Tilt {b}° to the held angle",
-  "lv.loupe": "Zoom AF", "lv.loupeTitle": "The camera's own magnified live view (USB only; Zoom frame AF/zoom AF in the manual). Starts at the AF target. No AF with Four Thirds lenses while zoomed (manual p.56).",
-  "lv.loupeRatio": "Zoom ratio", "lv.loupeMove": "Move the zoom frame",
+  "lv.loupeTitle": "The camera's own magnified live view (USB only; Zoom frame AF/zoom AF in the manual). Click = focus, drag = move the frame, wheel or pinch = next ratio. Starts at the AF target. No AF with Four Thirds lenses while zoomed (manual p.56).",
+  "lv.zoomUsbGroup": "Zoom (camera Zoom AF)", "lv.loupeLabel": "Zoom AF ×{n}", "lv.loupeMove": "Move the zoom frame",
   "lv.left": "Left", "lv.up": "Up", "lv.down": "Down", "lv.right": "Right",
   "msg.loupeOn": "Zoom AF on", "msg.loupeOff": "Zoom AF off", "msg.loupeMove": "Zoom frame moved",
-  "msg.loupeTap": "Zoom AF is on: move the frame with the arrows, or switch Zoom AF off to pick an AF target",
   "lv.hold": "Hold angle", "lv.clear": "Clear angle", "lv.sound": "Sound",
   "lv.levelOk": "Level", "lv.angleOk": "Angle matched",
   "msg.angleHeld": "Angle held: Horizon {a}° · Tilt {b}°",
@@ -1164,7 +1165,7 @@ async function tick(){
   if(rec) $('#recText').textContent=tr('movie.rec',{t:clock(st.movie)});
   const dc=$('#dropChip'); dc.hidden=!stale&&!gone; if(stale||gone) dc.textContent=gone||tr('lv.noSignal',{s:Math.round(st.lv_age)});
   $('#lvTools').hidden=!st.live;
-  if(!!st.loupe!==loupeOn) loupeShow(st.loupe); // the server ends Zoom AF with the live view or a new session
+  if(!!st.loupe!==loupeOn) loupeShow(st.loupe,st.loupe_ratio); // the server ends Zoom AF with the live view or a new session
   $('#reset').hidden=!(features.has('stages')&&(st.stage>0||propsFailed));
   applyContext();
   if(st.stage===0&&focusHit&&focusHit.held) focusHit=null;
@@ -2197,51 +2198,103 @@ function applyZoom(){
   document.querySelectorAll('[data-z]').forEach(b=>b.classList.toggle('on',+b.dataset.z===z));
 }
 function setZoom(n,cx,cy){
-  if(loupeOn) n=1; // the camera magnifies: the app's own zoom stays at 1x
+  if(loupeOn||usbZoom) n=1; // over USB the camera magnifies: the app's own zoom stays at 1x
   const r=vp.getBoundingClientRect();
   cx=cx??r.width/2; cy=cy??r.height/2;
   px=cx-(cx-px)*n/z; py=cy-(cy-py)*n/z; z=n; applyZoom();
 }
 document.querySelectorAll('[data-z]').forEach(b=>b.onclick=()=>setZoom(+b.dataset.z));
-vp.addEventListener('wheel',e=>{e.preventDefault();const r=vp.getBoundingClientRect();
+vp.addEventListener('wheel',e=>{e.preventDefault();
+  if(usbZoom){loupeWheel(e);return}
+  const r=vp.getBoundingClientRect();
   setZoom(Math.min(8,Math.max(1,z*(e.deltaY<0?1.2:1/1.2))),e.clientX-r.left,e.clientY-r.top)},{passive:false});
 vp.onpointerdown=e=>{
   if(e.target.closest('#lastShot')) return; // own click (single-frame view); pointer capture would turn it into an AF tap
   e.preventDefault(); // no native image drag
+  if(loupeOn){loupeDown(e);return}
   drag={x:e.clientX,y:e.clientY,px,py,moved:false};vp.setPointerCapture(e.pointerId)};
-vp.onpointermove=e=>{if(!drag)return;const dx=e.clientX-drag.x,dy=e.clientY-drag.y;
+vp.onpointermove=e=>{if(loupeOn){loupeMoveEv(e);return}if(!drag)return;const dx=e.clientX-drag.x,dy=e.clientY-drag.y;
   if(Math.hypot(dx,dy)>4)drag.moved=true;
   if(drag.moved&&z>1){px=drag.px+dx;py=drag.py+dy;applyZoom()}};
 vp.onpointerup=e=>{
+  if(loupeOn){loupeUp(e);return}
   const d=drag;drag=null;
   if(!d||d.moved||!st.live) return;
-  if(loupeOn){msg(tr('msg.loupeTap'));return}
   pickField(e);
 };
-/* Zoom AF over USB (REQ-F53): the camera's own magnified live view, x3-x14 (E-M1 manual p.56); no Wi-Fi command.
-   The frame starts at the chosen AF target (centre with All Targets), the arrows move it one step. While it is
-   on, the app's own zoom stays at 1x and a tap does not pick an AF target (the picture is magnified). */
-let loupeOn=false;
+/* Zoom AF over USB (REQ-F53, REQ-F54): the camera's own magnified live view replaces the app's screen zoom.
+   1x = off, x3-x14 = Zoom AF (E-M1 manual p.56); no Wi-Fi command, there the 1x/2x/4x screen zoom stays.
+   Click = focus, drag = move the frame (grab the picture: drag right shows what is left), wheel or pinch =
+   next or previous ratio. The frame starts at the chosen AF target (centre with All Targets). */
+let loupeOn=false,usbZoom=false,loupeRatio=1;
+const LOUPE_STEPS=[1,3,5,7,10,14],LOUPE_SEND_MS=100,LOUPE_TAP_PX=6;
 function loupePoint(){
   if(!af||af.mode===33024) return {x:.5,y:.5};
   const a=af.area,row=Math.floor((af.field-1)/9),col=(af.field-1)%9;
   return {x:(a.x0+(col+.5)*(a.x1-a.x0)/9)/a.w,y:(a.y0+(row+.5)*(a.y1-a.y0)/9)/a.h};
 }
-function loupeShow(on){
-  loupeOn=!!on; const b=$('#loupeBtn');
-  b.setAttribute('aria-pressed',String(loupeOn)); b.classList.toggle('on',loupeOn);
+function loupeShow(on,ratio){
+  loupeOn=!!on; if(ratio) loupeRatio=ratio; if(!loupeOn) loupeRatio=1;
   $('#loupeMove').hidden=!loupeOn; vp.classList.toggle('loupe',loupeOn);
+  const l=$('#loupeLabel'); l.style.display=loupeOn?'':'none'; l.textContent=tr('lv.loupeLabel',{n:loupeRatio});
+  document.querySelectorAll('[data-lz]').forEach(b=>b.classList.toggle('on',+b.dataset.lz===loupeRatio));
   if(loupeOn) setZoom(1);
 }
-async function loupeSet(on){
-  const body={on};
-  if(on) body.ratio=+$('#loupeRatio').value;
-  if(on&&!loupeOn) Object.assign(body,loupePoint()); // a new ratio keeps the moved frame
-  const j=await act(tr(on?'msg.loupeOn':'msg.loupeOff'),'/api/loupe',body);
-  if(j) loupeShow(j.loupe);
+let loupeBusy=false;
+async function loupeZoom(n){
+  if(loupeBusy||!canWrite||n===loupeRatio) return;
+  loupeBusy=true;
+  try{
+    const body=n===1?{on:false}:{on:true,ratio:n};
+    if(n!==1&&!loupeOn) Object.assign(body,loupePoint()); // a new ratio keeps the moved frame
+    const j=await act(tr(n===1?'msg.loupeOff':'msg.loupeOn'),'/api/loupe',body);
+    if(j) loupeShow(j.loupe,n);
+  }finally{loupeBusy=false}
 }
-$('#loupeBtn').onclick=()=>loupeSet(!loupeOn);
-$('#loupeRatio').onchange=()=>{if(loupeOn) loupeSet(true)};
+function loupeStep(dir){
+  const i=LOUPE_STEPS.indexOf(loupeRatio),n=LOUPE_STEPS[Math.min(LOUPE_STEPS.length-1,Math.max(0,i+dir))];
+  if(n!==loupeRatio) loupeZoom(n);
+}
+let wheelAt=0;
+function loupeWheel(e){
+  if(!canWrite||!st.live||Date.now()-wheelAt<250) return; // one notch = one ratio, a trackpad sends many events
+  wheelAt=Date.now(); loupeStep(e.deltaY<0?1:-1);
+}
+// drag: pixels of the zoomed 1024-wide picture, sent at most every LOUPE_SEND_MS; the server turns them into steps
+let lDrag=null,lPend={dx:0,dy:0},lTimer=0,lPtr=new Map(),lPinch=0;
+function loupeFlush(){
+  lTimer=0; const {dx,dy}=lPend; if(!dx&&!dy) return; lPend={dx:0,dy:0};
+  api('/api/loupe',{drag:{dx,dy}}).catch(e=>msg(e.message||String(e),true));
+}
+function loupeDown(e){
+  lPtr.set(e.pointerId,{x:e.clientX,y:e.clientY}); vp.setPointerCapture(e.pointerId);
+  if(lPtr.size===1) lDrag={x:e.clientX,y:e.clientY,moved:false};
+  else{lDrag=null;const [a,b]=[...lPtr.values()];lPinch=Math.hypot(a.x-b.x,a.y-b.y)}
+}
+function loupeMoveEv(e){
+  const p=lPtr.get(e.pointerId); if(!p) return;
+  if(lPtr.size>=2){
+    p.x=e.clientX;p.y=e.clientY;
+    const [a,b]=[...lPtr.values()],d=Math.hypot(a.x-b.x,a.y-b.y);
+    if(lPinch&&d>lPinch*1.35){lPinch=d;loupeStep(1)} else if(lPinch&&d<lPinch/1.35){lPinch=d;loupeStep(-1)}
+    return;
+  }
+  if(!lDrag) return;
+  const mx=e.clientX-p.x,my=e.clientY-p.y; p.x=e.clientX;p.y=e.clientY;
+  if(!lDrag.moved&&Math.hypot(e.clientX-lDrag.x,e.clientY-lDrag.y)<=LOUPE_TAP_PX) return;
+  lDrag.moved=true;
+  const k=1024/(layer.getBoundingClientRect().width||1024);
+  lPend.dx+=mx*k; lPend.dy+=my*k;
+  if(!lTimer) lTimer=setTimeout(loupeFlush,LOUPE_SEND_MS);
+}
+function loupeUp(e){
+  lPtr.delete(e.pointerId);
+  const d=lDrag; if(lPtr.size===0) lDrag=null;
+  if(!d||lPtr.size||!st.live) return;
+  if(d.moved){clearTimeout(lTimer);loupeFlush();return}
+  if(canWrite) setAf({focus:true}); // a click in the zoomed view only focuses (half press, release without a shot)
+}
+document.querySelectorAll('[data-lz]').forEach(b=>b.onclick=()=>loupeZoom(+b.dataset.lz));
 document.querySelectorAll('[data-lm]').forEach(b=>b.onclick=()=>act(tr('msg.loupeMove'),'/api/loupe',{move:b.dataset.lm}));
 /* Level Gauge (USB): spirit level, also watch the mode dial */
 let lvl=null,lvlBusy=false,lvPicked=false;
@@ -2900,7 +2953,8 @@ async function enterApp(){
     statusBase={model:s.model,conn:s.type==='usb'?'USB':'Wi-Fi',rights:canWrite?tr('app.write'):tr('app.readOnly')};
     showStatus();
     if(!canWrite) document.querySelectorAll('button.w').forEach(b=>{b.disabled=true;b.classList.add('na');b.title=tr('na.readOnly')});
-    $('#loupeRatio').disabled=!canWrite;
+    usbZoom=features.has('loupe')&&canWrite; // read-only: no camera zoom, the screen zoom stays
+    $('#zoomApp').hidden=usbZoom; $('#zoomUsb').hidden=!usbZoom;
     showSaved(); // before props: over USB props waits for the card index (~1 min)
     await tick(); await props(); loadDevice(true); if(isUsb) loadLens();
     if(isUsb||(features.has('af_area')&&st.live)) loadAf();

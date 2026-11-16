@@ -48,6 +48,10 @@ LOUPE_RATIOS = {1: 3, 2: 5, 3: 7, 4: 10, 5: 14}  # d0cf value -> magnification
 OP_LOUPE_POINT, OP_LOUPE_MOVE = 0x9483, 0x9488
 LOUPE_MOVES = {"up": 1, "down": 2, "left": 3, "right": 4}
 LOUPE_GRID = (1024, 768)
+# One 0x9488 step moved the frame ~87 px of the 1024-wide zoomed picture at x5 (tested 2026-11-16), i.e. ~17.4 px
+# of the normal view. Other ratios are unmeasured: assume the same share of the normal view (REQ-F54).
+LOUPE_STEP_NORMAL_PX = 17.4
+LOUPE_MAX_STEPS = 12  # per axis and call: a long fast drag must not queue seconds of camera commands
 
 
 def loupe_point(x, y):
@@ -55,6 +59,21 @@ def loupe_point(x, y):
     w, h = LOUPE_GRID
     x, y = min(max(int(round(x)), 0), w - 1), min(max(int(round(y)), 0), h - 1)
     return (y << 16) | x
+
+
+def loupe_drag_moves(dx, dy, ratio, rem=(0.0, 0.0)):
+    """Turn a drag of dx, dy pixels (of the zoomed 1024-wide picture) into frame moves.
+    Grab-the-picture: dragging the picture right shows what is left, so the frame moves left.
+    Returns (list of direction names, new remainder); the sub-step remainder carries over to the next call."""
+    step = LOUPE_STEP_NORMAL_PX * ratio
+    moves, new = [], []
+    for total, neg, pos in ((dx + rem[0], "right", "left"), (dy + rem[1], "down", "up")):
+        n = int(abs(total) // step)
+        keep = abs(total) - n * step
+        n = min(n, LOUPE_MAX_STEPS)
+        moves += [pos if total > 0 else neg] * n
+        new.append(keep if total > 0 else -keep)
+    return moves, tuple(new)
 
 
 class PtpError(Exception):

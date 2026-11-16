@@ -15,7 +15,7 @@ import time
 
 from .camera import CameraError, WriteBlocked
 from .ptp import (LOUPE_GRID, LOUPE_MOVES, LOUPE_OFF, LOUPE_ON, LOUPE_RATIOS, OP_LOUPE_MOVE, OP_LOUPE_POINT,
-                  loupe_point)
+                  loupe_drag_moves, loupe_point)
 
 
 def _check_usb_path(path):
@@ -62,6 +62,8 @@ DRIVE_STYLE = {0: "", 1: "Anti-Shock ", 2: "Silent "}
 # Shutter stages of PTP 0x9481, matching exec_shutter over Wi-Fi.
 # 1 and 6 are tested on the camera, 3 and 6 are what libgphoto2 uses to release.
 OP_FIRST, OP_SECOND, OP_FULL, OP_SECOND_BACK, OP_RELEASE = 1, 2, 3, 4, 6
+# 5 releases the half press without a shot (OM Capture trace, Zoom AF); used when only focusing while zoomed
+OP_RELEASE_NOSHOT = 5
 # Turning the mode dial sends event 0xC003 with param1 = 3 (E-M1 Mark I, tested 2026-11-12);
 # the new value only arrives with a new session. d006 knows only M, P, A, S, Movie: iAUTO, ART, SCN
 # and PHOTO STORY read as P
@@ -353,6 +355,8 @@ class UsbCamera:
     last_press = 0.0  # time of the last shutter command or written setting (see __init__)
     saf_shot = False  # S-AF during the running shot: no focus means no release
     loupe_on = False  # Zoom AF (camera magnification) switched on by the app
+    loupe_ratio = 5  # magnification last sent (x), for the drag step size
+    _loupe_rem = (0.0, 0.0)  # drag pixels not yet worth a step
 
     # setting named as over Wi-Fi -> gphoto name, display names from the choice values
     PROPS = {
@@ -916,6 +920,7 @@ class UsbCamera:
             if value is None:
                 raise CameraError("Zoom ratio: one of %s" % ", ".join("%dx" % v for v in LOUPE_RATIOS.values()))
             self._set("d0cf", value)
+            self.loupe_ratio = int(ratio)
         if on and x is not None and y is not None:
             fx, fy = float(x), float(y)
             if not (0 <= fx <= 1 and 0 <= fy <= 1):
@@ -923,6 +928,7 @@ class UsbCamera:
             self._opcode(OP_LOUPE_POINT, loupe_point(fx * LOUPE_GRID[0], fy * LOUPE_GRID[1]))
         self._set("d04b", LOUPE_ON if on else LOUPE_OFF)
         self.loupe_on = bool(on)
+        self._loupe_rem = (0.0, 0.0)
 
     def loupe_move(self, direction):
         """Move the zoom frame one step: up, down, left or right."""
@@ -930,6 +936,17 @@ class UsbCamera:
         if direction not in LOUPE_MOVES:
             raise CameraError("Zoom frame: direction up, down, left or right")
         self._opcode(OP_LOUPE_MOVE, LOUPE_MOVES[direction])
+
+    def loupe_drag(self, dx, dy):
+        """Move the zoom frame by a drag of dx, dy pixels in the zoomed 1024-wide picture (REQ-F54).
+        Only 0x9488 steps move the frame (0x9483 does nothing while zoomed, tested 2026-11-16)."""
+        self._need_write()
+        if not self.loupe_on:
+            raise CameraError("Zoom AF is not on")
+        moves, self._loupe_rem = loupe_drag_moves(float(dx), float(dy), self.loupe_ratio, self._loupe_rem)
+        for d in moves:
+            self._opcode(OP_LOUPE_MOVE, LOUPE_MOVES[d])
+        return len(moves)
 
     def _loupe_off_locked(self):
         """d04b = 2 without raising; caller holds the lock. Only with the write permission."""
@@ -1220,12 +1237,13 @@ class UsbCamera:
                     self.last_af = result[1]  # exact and at once (d05d/d05e lag behind)
                 elif result and not result[0]:
                     self.last_af = {"x": 0, "y": 0}  # no focus: no green field
-                elif self.focus_ok and getattr(self, "af_mode", AF_ALL) == AF_ALL:
+                elif self.focus_ok and getattr(self, "af_mode", AF_ALL) == AF_ALL and not self.loupe_on:
                     self._read_focus_position()  # libgphoto2 backend: events carry Param1 only
                 if result is None:
                     print("USB focus: no AF result from the camera within %.0f s" % FOCUS_WAIT, flush=True)
             finally:
-                self._shutter(OP_RELEASE)
+                # zoomed: 5 ends the half press without a shot (the camera answers 0xC003 (1,0,0), no position)
+                self._shutter(OP_RELEASE_NOSHOT if self.loupe_on else OP_RELEASE)
             # no extra event wait here: each idle libgphoto2 event check costs ~0.3 s (150 ms timeout
             # plus one retry); the next check (dial watch or next focus) collects what is left
         finally:

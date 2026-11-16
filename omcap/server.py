@@ -976,6 +976,7 @@ def public_state():
         # USB: time the mode dial was last turned (the session was rebuilt, values are new)
         "mode_at": getattr(cam, "mode_changed_at", None),
         "loupe": bool(getattr(cam, "loupe_on", False)),  # USB Zoom AF (camera magnification) on
+        "loupe_ratio": getattr(cam, "loupe_ratio", 5),
     }
 
 
@@ -1362,7 +1363,9 @@ class Handler(BaseHTTPRequestHandler):
             if not live.running:
                 raise CameraError("Start the live view first")
             ensure_idle()
-            if b.get("move"):
+            if b.get("drag"):
+                cam.loupe_drag(b["drag"].get("dx", 0), b["drag"].get("dy", 0))
+            elif b.get("move"):
                 cam.loupe_move(b["move"])
             else:
                 cam.loupe(bool(b.get("on")), b.get("ratio"), b.get("x"), b.get("y"))
