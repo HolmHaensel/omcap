@@ -975,6 +975,7 @@ def public_state():
         "lvinfo": live.live_values() if hasattr(live, "live_values") else None,
         # USB: time the mode dial was last turned (the session was rebuilt, values are new)
         "mode_at": getattr(cam, "mode_changed_at", None),
+        "loupe": bool(getattr(cam, "loupe_on", False)),  # USB Zoom AF (camera magnification) on
     }
 
 
@@ -1355,6 +1356,17 @@ class Handler(BaseHTTPRequestHandler):
                 raise CameraError("Focus drive only over USB (no Wi-Fi command)")
             ensure_idle()
             cam.mf_drive(b.get("direction"), int(b.get("step", 1)))
+        elif path == "/api/loupe":
+            if conn_type != "usb":
+                raise CameraError("Zoom AF only over USB (no Wi-Fi command)")
+            if not live.running:
+                raise CameraError("Start the live view first")
+            ensure_idle()
+            if b.get("move"):
+                cam.loupe_move(b["move"])
+            else:
+                cam.loupe(bool(b.get("on")), b.get("ratio"), b.get("x"), b.get("y"))
+            return {"loupe": cam.loupe_on}
         elif path == "/api/take":
             if b.get("action") == "prepare":
                 ensure_idle()

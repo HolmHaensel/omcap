@@ -81,6 +81,8 @@ main{display:grid;grid-template-columns:minmax(0,1044px) 340px;justify-content:c
 .tb .lab select{border:0;background:transparent;padding:0;color:var(--text);font-family:var(--font-value)}
 .tb .vsep{width:1px;height:24px;background:var(--line);margin:0 4px}
 #lvTools{display:contents}
+#loupeTools{display:inline-flex;gap:6px;align-items:center}
+#viewport.loupe #afGrid,#viewport.loupe #afMark{display:none} /* magnified picture: the AF grid would not match */
 #statusLine{display:flex;gap:var(--s4);flex-wrap:wrap;font-size:13px;color:var(--muted)}
 #statusLine #msg{margin:0;min-height:0}
 #lvSize{font-family:var(--font-value)}
@@ -411,6 +413,11 @@ body.webcam{cursor:none;display:flex;align-items:center;justify-content:center}
     <span id="autoLvStatus" class="chip" hidden data-feat="lvsize"></span>
     <span class="vsep"></span>
     <span id="lvTools" hidden>
+      <span data-feat="loupe"><span id="loupeTools">
+        <button class="w" id="loupeBtn" aria-pressed="false" data-i18n="lv.loupe" data-i18n-title="lv.loupeTitle">Zoom AF</button>
+        <select id="loupeRatio" data-i18n-aria="lv.loupeRatio" aria-label="Zoom ratio"><option value="3">×3</option><option value="5" selected>×5</option><option value="7">×7</option><option value="10">×10</option><option value="14">×14</option></select>
+        <span id="loupeMove" class="seg" role="group" hidden data-i18n-aria="lv.loupeMove" aria-label="Move the zoom frame"><button class="w" data-lm="left" data-i18n-aria="lv.left" aria-label="Left">◀</button><button class="w" data-lm="up" data-i18n-aria="lv.up" aria-label="Up">▲</button><button class="w" data-lm="down" data-i18n-aria="lv.down" aria-label="Down">▼</button><button class="w" data-lm="right" data-i18n-aria="lv.right" aria-label="Right">▶</button></span>
+      </span></span>
       <label class="tog" data-feat="level"><input type="checkbox" id="lvlOn"> <span data-i18n="lv.level">Level gauge</span></label>
       <span data-feat="level"><span id="lvlTools" hidden>
         <button class="w" id="lvlHold" data-i18n="lv.hold">Hold angle</button>
@@ -789,6 +796,11 @@ const I18N={en:{
   "lv.peakYellow": "Yellow",
   "lv.roll": "Horizon {a}° · Tilt {b}°",
   "lv.delta": "Δ Horizon {a}° · Δ Tilt {b}° to the held angle",
+  "lv.loupe": "Zoom AF", "lv.loupeTitle": "The camera's own magnified live view (USB only; Zoom frame AF/zoom AF in the manual). Starts at the AF target. No AF with Four Thirds lenses while zoomed (manual p.56).",
+  "lv.loupeRatio": "Zoom ratio", "lv.loupeMove": "Move the zoom frame",
+  "lv.left": "Left", "lv.up": "Up", "lv.down": "Down", "lv.right": "Right",
+  "msg.loupeOn": "Zoom AF on", "msg.loupeOff": "Zoom AF off", "msg.loupeMove": "Zoom frame moved",
+  "msg.loupeTap": "Zoom AF is on: move the frame with the arrows, or switch Zoom AF off to pick an AF target",
   "lv.hold": "Hold angle", "lv.clear": "Clear angle", "lv.sound": "Sound",
   "lv.levelOk": "Level", "lv.angleOk": "Angle matched",
   "msg.angleHeld": "Angle held: Horizon {a}° · Tilt {b}°",
@@ -1152,6 +1164,7 @@ async function tick(){
   if(rec) $('#recText').textContent=tr('movie.rec',{t:clock(st.movie)});
   const dc=$('#dropChip'); dc.hidden=!stale&&!gone; if(stale||gone) dc.textContent=gone||tr('lv.noSignal',{s:Math.round(st.lv_age)});
   $('#lvTools').hidden=!st.live;
+  if(!!st.loupe!==loupeOn) loupeShow(st.loupe); // the server ends Zoom AF with the live view or a new session
   $('#reset').hidden=!(features.has('stages')&&(st.stage>0||propsFailed));
   applyContext();
   if(st.stage===0&&focusHit&&focusHit.held) focusHit=null;
@@ -2184,6 +2197,7 @@ function applyZoom(){
   document.querySelectorAll('[data-z]').forEach(b=>b.classList.toggle('on',+b.dataset.z===z));
 }
 function setZoom(n,cx,cy){
+  if(loupeOn) n=1; // the camera magnifies: the app's own zoom stays at 1x
   const r=vp.getBoundingClientRect();
   cx=cx??r.width/2; cy=cy??r.height/2;
   px=cx-(cx-px)*n/z; py=cy-(cy-py)*n/z; z=n; applyZoom();
@@ -2201,8 +2215,34 @@ vp.onpointermove=e=>{if(!drag)return;const dx=e.clientX-drag.x,dy=e.clientY-drag
 vp.onpointerup=e=>{
   const d=drag;drag=null;
   if(!d||d.moved||!st.live) return;
+  if(loupeOn){msg(tr('msg.loupeTap'));return}
   pickField(e);
 };
+/* Zoom AF over USB (REQ-F53): the camera's own magnified live view, x3-x14 (E-M1 manual p.56); no Wi-Fi command.
+   The frame starts at the chosen AF target (centre with All Targets), the arrows move it one step. While it is
+   on, the app's own zoom stays at 1x and a tap does not pick an AF target (the picture is magnified). */
+let loupeOn=false;
+function loupePoint(){
+  if(!af||af.mode===33024) return {x:.5,y:.5};
+  const a=af.area,row=Math.floor((af.field-1)/9),col=(af.field-1)%9;
+  return {x:(a.x0+(col+.5)*(a.x1-a.x0)/9)/a.w,y:(a.y0+(row+.5)*(a.y1-a.y0)/9)/a.h};
+}
+function loupeShow(on){
+  loupeOn=!!on; const b=$('#loupeBtn');
+  b.setAttribute('aria-pressed',String(loupeOn)); b.classList.toggle('on',loupeOn);
+  $('#loupeMove').hidden=!loupeOn; vp.classList.toggle('loupe',loupeOn);
+  if(loupeOn) setZoom(1);
+}
+async function loupeSet(on){
+  const body={on};
+  if(on) body.ratio=+$('#loupeRatio').value;
+  if(on&&!loupeOn) Object.assign(body,loupePoint()); // a new ratio keeps the moved frame
+  const j=await act(tr(on?'msg.loupeOn':'msg.loupeOff'),'/api/loupe',body);
+  if(j) loupeShow(j.loupe);
+}
+$('#loupeBtn').onclick=()=>loupeSet(!loupeOn);
+$('#loupeRatio').onchange=()=>{if(loupeOn) loupeSet(true)};
+document.querySelectorAll('[data-lm]').forEach(b=>b.onclick=()=>act(tr('msg.loupeMove'),'/api/loupe',{move:b.dataset.lm}));
 /* Level Gauge (USB): spirit level, also watch the mode dial */
 let lvl=null,lvlBusy=false,lvPicked=false;
 // The camera is asked every 0.15 s; in between the drawing glides towards the last value (about 0.1 s),
@@ -2860,6 +2900,7 @@ async function enterApp(){
     statusBase={model:s.model,conn:s.type==='usb'?'USB':'Wi-Fi',rights:canWrite?tr('app.write'):tr('app.readOnly')};
     showStatus();
     if(!canWrite) document.querySelectorAll('button.w').forEach(b=>{b.disabled=true;b.classList.add('na');b.title=tr('na.readOnly')});
+    $('#loupeRatio').disabled=!canWrite;
     showSaved(); // before props: over USB props waits for the card index (~1 min)
     await tick(); await props(); loadDevice(true); if(isUsb) loadLens();
     if(isUsb||(features.has('af_area')&&st.live)) loadAf();
