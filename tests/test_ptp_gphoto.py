@@ -300,9 +300,13 @@ class FocusStacking(unittest.TestCase):
         cam.set_prop("focusstacking", "1")
         self.assertEqual((fake.props[0xD020]["value"], fake.props[0xD0CB]["value"], fake.props[0xD0CE]["value"]), (3, 1, 1))
         self.assertTrue(cam._stacking_on())
-        fake.props[0xD0CE]["value"] = 2  # Focus BKT alone is a plain series
-        self.assertFalse(cam._stacking_on())
-        fake.props[0xD0CE]["value"] = 1
+        only = {"focusstacking": ("d0cb", None)}
+        with mock.patch.object(usb_camera.UsbCamera, "PROPS", only), \
+                mock.patch.object(usb_camera.UsbCamera, "_value", lambda self, n: "6" if n == "d006" else self._call(lambda: self._c.get_single_config(n).get_value())):
+            self.assertEqual(cam.props()["focusstacking"]["value"], "1")
+            fake.props[0xD0CE]["value"] = 2  # Focus BKT alone is a plain series
+            self.assertEqual(cam.props()["focusstacking"]["value"], "2")  # the switch shows Off
+            fake.props[0xD0CE]["value"] = 1
         cam.set_prop("focusstacking", "2")
         self.assertEqual((fake.props[0xD020]["value"], fake.props[0xD0CB]["value"], fake.props[0xD0CE]["value"]), (1, 2, 2))  # earlier kind back
         self.assertEqual(cam.refresh.call_count, 2)

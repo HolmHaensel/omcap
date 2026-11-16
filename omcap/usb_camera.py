@@ -635,6 +635,8 @@ class UsbCamera:
                 if key in self.OPTIONAL:
                     continue  # e.g. firmware without Focus Stacking: hide the setting, keep the panel
                 raise
+            if key == "focusstacking" and str(value) == "1" and not self._stacking_on():
+                value = "2"  # Focus BKT alone (d0cb) is a plain series; the switch shows On only with d0ce too
             if key == "artfilter":  # d010 also holds the kind of filter (from 34305)
                 choices = [c for c in choices if int(c) >= 34305]
             if key == "shutspeedvalue":  # M only: BULB, LIVE TIME, LIVECOMP are in d01c
