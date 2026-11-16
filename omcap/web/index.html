@@ -1172,7 +1172,7 @@ async function tick(){
   const dc=$('#dropChip'); dc.hidden=!stale&&!gone; if(stale||gone) dc.textContent=gone||tr('lv.noSignal',{s:Math.round(st.lv_age)});
   $('#lvTools').hidden=!st.live;
   // Zoom AF is not offered while the camera is busy (the server refuses it then, like other commands)
-  zBlock=st.stage>0||st.indexing||st.movie!=null||st.take!=null||!!(st.job&&st.job.running)||st.play!=null;
+  zBlock=st.stage>0||st.indexing||st.movie!=null||st.take!=null||!!(st.job&&st.job.running)||st.play;
   if(usbZoom){
     $('#zoomUsb').hidden=zBlock; $('#loupeTools').style.display=zBlock?'none':'';
     // the server ends Zoom AF with the live view or a new session: show what the camera does now (never stay soft)
@@ -2230,12 +2230,12 @@ vp.onpointermove=e=>{if(usbZoom&&!zBlock){loupeMoveEv(e);return}if(!drag)return;
   if(Math.hypot(dx,dy)>4)drag.moved=true;
   if(drag.moved&&z>1){px=drag.px+dx;py=drag.py+dy;applyZoom()}};
 vp.onpointerup=e=>{
-  if(usbZoom&&!zBlock){loupeUp(e);return}
+  if(loupePtrEnd(e)) return;
   const d=drag;drag=null;
   if(!d||d.moved||!st.live||loupeOn) return; // magnified view (busy camera): no AF target click
   pickField(e);
 };
-vp.onpointercancel=e=>{if(usbZoom&&!zBlock){loupeUp(e,true);return}drag=null};
+vp.onpointercancel=e=>{if(!loupePtrEnd(e,true)) drag=null};
 /* Zoom AF over USB (REQ-F53, REQ-F54): the camera's own magnified live view replaces the app's screen zoom.
    1x = off, x3-x14 = Zoom AF (E-M1 manual p.56); no Wi-Fi command, there the 1x/2x/4x screen zoom stays.
    Smooth zoom, "soft while moving, sharp at rest": while the user drags, wheels or pinches, the camera is switched
@@ -2389,6 +2389,15 @@ function loupeMoveEv(e){
   if(!loupeOn) return;
   // grab the picture: dragging right shows what is left, so the view centre moves left
   V.cx=zClamp(lDrag.cx-(e.clientX-lDrag.x)/(r.width*V.s),V.s); V.cy=zClamp(lDrag.cy-(e.clientY-lDrag.y)/(r.height*V.s),V.s); zRender();
+}
+// Pointer up or cancel of a zoom gesture. The camera got busy meanwhile (zBlock): only forget the pointer,
+// tick() then shows what the camera does; a pointer left in lPtr would turn the next touch into a pinch.
+function loupePtrEnd(e,cancel){
+  if(!lPtr.has(e.pointerId)) return false;
+  if(!zBlock){loupeUp(e,cancel); return true}
+  lPtr.delete(e.pointerId); lPinch=null;
+  if(!lPtr.size){lDrag=null; vp.classList.remove('grabbing')}
+  return true;
 }
 function loupeUp(e,cancel){
   lPtr.delete(e.pointerId);

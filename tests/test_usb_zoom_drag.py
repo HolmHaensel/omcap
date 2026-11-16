@@ -196,6 +196,22 @@ class Page(unittest.TestCase):
         self.assertIn("X-Loupe-Rev", h)
         self.assertNotIn("loupeBtn", h)
 
+    def test_idle_server_does_not_block_the_zoom(self):
+        """zBlock hides the zoom control while the camera is busy: every state key it reads is falsy when idle
+        ("play" is a boolean in /api/state, so `!=null` would always block)."""
+        m = re.search(r"zBlock=([^;]*);", self.html)
+        self.assertNotIn("st.play!=null", m.group(1))
+        saved = (server.cam, server.live)
+        server.cam = make()
+        server.live = type("Live", (), {"running": True, "age": 0.0})()
+        try:
+            st = server.public_state()
+        finally:
+            server.cam, server.live = saved
+        for key in set(re.findall(r"st\.(\w+)", m.group(1))) - {"job"}:
+            self.assertFalse(st[key], key)
+        self.assertFalse(st["job"]["running"])
+
     def test_title_describes_the_new_gestures(self):
         m = re.search(r'"lv.loupeTitle": "([^"]*)"', self.html)
         self.assertIn("wheel or pinch = zoom smoothly", m.group(1))
