@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Peaking now reacts to the focus ring: it is computed at 640 px instead of 320 px and only edges above a fixed strength light up (before, the strongest 3 % of the edges were marked in any picture, sharp or not). Over Wi-Fi the gain needs a live view size of 640×480 or more (REQ-F52).
 - USB Focus Stacking: the switch now also sets the camera's stacking flag (`d0ce`, found 2026-11-16: `d0cb` is only Focus BKT, a plain series of shots); "Focus Stacking is on" needs both. Bodies without `d0ce` behave as before. Camera-tested 2026-11-16 over USB: one series of 8 frames plus the merged JPG (REQ-F38).
 - Partial Color as a colour ring: in ART with Partial Color (and Picture Mode Partial Color in P/A/S/M) the LV super control panel shows the 18 colours as a ring like the camera's – yellow at the top, clockwise; a click sets the colour, the centre names it in small grey type (Yellow, Orange, Red … Blue … Green); the list uses the same names. Wi-Fi only (`colorphase`); over USB the colour is not available (probe: only selecting Partial Color is, `d010` = 34318). Camera-checked over Wi-Fi (REQ-F42).
 - Wi-Fi: no battery level any more. The value taken for it is not the battery (it said 100 % while the camera showed half full); the server log now notes each change of that value so its meaning can be found. Over USB the battery level stays (REQ-F19).
