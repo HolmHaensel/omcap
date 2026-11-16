@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- USB Focus Stacking: the switch now also sets the camera's stacking flag (`d0ce`, found 2026-11-16: `d0cb` is only Focus BKT, a plain series of shots); "Focus Stacking is on" needs both. Bodies without `d0ce` behave as before (REQ-F38).
 - Partial Color as a colour ring: in ART with Partial Color (and Picture Mode Partial Color in P/A/S/M) the LV super control panel shows the 18 colours as a ring like the camera's – yellow at the top, clockwise; a click sets the colour, the centre names it in small grey type (Yellow, Orange, Red … Blue … Green); the list uses the same names. Wi-Fi only (`colorphase`); over USB the colour is not available (probe: only selecting Partial Color is, `d010` = 34318). Camera-checked over Wi-Fi (REQ-F42).
 - Wi-Fi: no battery level any more. The value taken for it is not the battery (it said 100 % while the camera showed half full); the server log now notes each change of that value so its meaning can be found. Over USB the battery level stays (REQ-F19).
 - Wi-Fi dropped and back: the camera answered again but had ended the live view, and the app waited forever. Now the app notices the stalled live view, shows *Camera not found. Is the computer in the camera's Wi-Fi?* while the camera does not answer, and restarts the live view by itself once it does (next try after 5, 10 … 60 s, reset only by real new frames); not during a shot, movie, job, half press or Playback. Camera-tested: the message during a 10 s drop; the restart itself not yet seen on the camera (REQ-Q14).

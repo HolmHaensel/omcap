@@ -198,7 +198,7 @@ USB_TABLES = {
     "d01d": {"0": "S-IS Off", "1": "S-IS1", "2": "S-IS2", "3": "S-IS3", "4": "S-IS AUTO"},
     "d01a": {"0": "Face Priority Off", "32769": "Face Priority On", "32770": "Face & Eye Priority On",
              "32771": "Face & R. Eye Priority On", "32772": "Face & L. Eye Priority On"},  # 32771 inferred
-    "d0cb": {"1": "On", "2": "Off"},  # Focus Stacking (FW 4.x, mapped 2026-11-13; libgphoto2's d065 does not change)
+    "d0cb": {"1": "On", "2": "Off"},  # Focus BKT (user's firmware: d0ce is Focus Stacking, mapped 2026-11-16)
 }
 # Bracketing kind d020: 2 = Off, 3 = Focus BKT (mapped 2026-11-13). Focus Stacking needs Focus BKT; the camera then
 # switches by itself to Silent Sequential H, electronic shutter (1/16000 … 1/8 s) and flash off (E-M1 manual, p.174).
@@ -919,21 +919,37 @@ class UsbCamera:
                 self._bkt_before = kind  # lost after a reconnect: Off then sets Bracketing Off
             self._set("d020", BKT_FOCUS)
             try:
-                self._set("d0cb", 1)
+                self._set("d0cb", 1)  # Focus BKT on
             except CameraError:
                 self._set("d020", getattr(self, "_bkt_before", BKT_OFF))  # e.g. a lens without Focus BKT (p.173)
                 raise
+            self._set_stack_flag(1)  # d0ce: merge the series in the camera (Focus Stacking)
         else:
+            self._set_stack_flag(2)
             self._set("d0cb", 2)
             if int(float(self._value("d020"))) == BKT_FOCUS:  # leave another bracketing kind alone
                 self._set("d020", getattr(self, "_bkt_before", BKT_OFF))
         self.refresh()  # drive mode, shutter limits and flash change with it; they arrive with a new session
 
+    def _set_stack_flag(self, value):
+        """d0ce = Focus Stacking On (1) / Off (2), mapped 2026-11-16 (changed alone when the stacking switch was
+        flipped on the camera). d0cb is only Focus BKT, a plain series. Not every body has it: then it is skipped."""
+        try:
+            self._value("d0ce")
+        except CameraError:
+            return
+        self._set("d0ce", value)
+
     def _stacking_on(self):
         try:
-            return str(self._value("d0cb")) == "1"
+            if str(self._value("d0cb")) != "1":
+                return False
         except CameraError:
             return False
+        try:
+            return str(self._value("d0ce")) == "1"  # Focus BKT alone is a plain series, not stacking
+        except CameraError:
+            return True  # a body without d0ce: Focus BKT is the only switch
 
     def set_af_area(self, mode=None, field=None):
         if mode is not None:
