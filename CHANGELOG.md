@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Zoom AF over USB: new "Zoom AF" switch next to the live view tools shows the camera's own magnified live view (Zoom frame AF/zoom AF, E-M1 manual p.56) at ×3, ×5, ×7, ×10 or ×14; the frame starts at the chosen AF target (centre with All Targets), four arrows move it one step. While it is on, the app's own 1×/2×/4× zoom stays at 1× and a tap does not set an AF target. The app switches Zoom AF off at live view start and stop and after a rebuilt session, because a magnified view outlives the session. Not over Wi-Fi (no command). Protocol from OM Capture traces, confirmed on the camera by hand; the app's controls are not camera-tested yet (REQ-F53).
 - Peaking now reacts to the focus ring: it is computed at 640 px instead of 320 px and only edges above a fixed strength light up (before, the strongest 3 % of the edges were marked in any picture, sharp or not). Over Wi-Fi the gain needs a live view size of 640×480 or more (REQ-F52).
 - USB battery: shown as a rough level ("Battery: high (rough)" / "Battery: half or less (rough)") instead of a percentage. The camera sends 100 or 50 in coarse steps (50 from half full to almost empty, 100 for a fresh battery), so "50 %" was misleading (REQ-F19).
 - USB Focus Stacking: the switch now also sets the camera's stacking flag (`d0ce`, found 2026-11-16: `d0cb` is only Focus BKT, a plain series of shots); "Focus Stacking is on" needs both. Bodies without `d0ce` behave as before. Camera-tested 2026-11-16 over USB: one series of 8 frames plus the merged JPG (REQ-F38).

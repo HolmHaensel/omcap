@@ -14,6 +14,8 @@ import threading
 import time
 
 from .camera import CameraError, WriteBlocked
+from .ptp import (LOUPE_GRID, LOUPE_MOVES, LOUPE_OFF, LOUPE_ON, LOUPE_RATIOS, OP_LOUPE_MOVE, OP_LOUPE_POINT,
+                  loupe_point)
 
 
 def _check_usb_path(path):
@@ -27,7 +29,7 @@ EXPOSURE_PROGRAM = {"1": "M", "2": "P", "3": "A", "4": "S", "8": "movie", "11": 
 WB_NAMES = ["AUTO", "5300K", "7500K", "6000K", "3000K", "4000K", "Underwater", "5500K Flash",
             "One-touch 1", "One-touch 2", "One-touch 3", "One-touch 4", "CWB"]
 FEATURES = ["liveview", "af_area", "af_modes", "stages", "scp", "time_lapse", "ae_bkt",
-            "playback", "transfer", "long", "mf_drive", "movie", "erase"]
+            "playback", "transfer", "long", "mf_drive", "movie", "erase", "loupe"]
 
 # Movie button, PTP 0x948C (Olympus OM-D MovieRecButton): 1 press, 0 release; each press toggles recording.
 # The camera records in all shooting modes except PHOTO STORY, not during BULB / LIVE TIME / LIVECOMP,
@@ -350,6 +352,7 @@ class UsbCamera:
     _last_level = None  # last level gauge reading, returned while a shot, movie or card read holds the camera
     last_press = 0.0  # time of the last shutter command or written setting (see __init__)
     saf_shot = False  # S-AF during the running shot: no focus means no release
+    loupe_on = False  # Zoom AF (camera magnification) switched on by the app
 
     # setting named as over Wi-Fi -> gphoto name, display names from the choice values
     PROPS = {
@@ -466,6 +469,7 @@ class UsbCamera:
         self._c = self.gp.Camera()
         try:
             self._open()
+            self._loupe_off_locked()  # a magnified view outlives the session; the page shows it off
             self._apply_lv_size_locked()  # keep the chosen size after a rebuilt session
             self._resync_files_locked()
             self.gone = False  # also after reload (refresh) or a rebuild without live view
@@ -526,6 +530,7 @@ class UsbCamera:
 
     def close(self):
         self.live.stop()
+        self._loupe_off()
         with self._lock:
             try:
                 self._c.exit()
@@ -896,9 +901,54 @@ class UsbCamera:
 
     def start_liveview(self, port):
         self._need_write()
+        self._loupe_off()  # a magnified view can be left over from an earlier session (OM Capture, crash)
 
     def stop_liveview(self):
-        pass
+        self._loupe_off()
+
+    # --- Zoom AF (the camera's magnified live view, E-M1 manual p.56; protocol in omcap/ptp.py) ---
+    def loupe(self, on, ratio=None, x=None, y=None):
+        """Zoom AF on or off. ratio: 3, 5, 7, 10 or 14 (x); x, y: centre of the zoom frame as a fraction
+        of the live picture (0-1), sent before switching on. Order as OM Capture: d0cf, 0x9483, d04b."""
+        self._need_write()
+        if ratio is not None:
+            value = next((k for k, v in LOUPE_RATIOS.items() if v == int(ratio)), None)
+            if value is None:
+                raise CameraError("Zoom ratio: one of %s" % ", ".join("%dx" % v for v in LOUPE_RATIOS.values()))
+            self._set("d0cf", value)
+        if on and x is not None and y is not None:
+            fx, fy = float(x), float(y)
+            if not (0 <= fx <= 1 and 0 <= fy <= 1):
+                raise CameraError("Zoom frame: x and y between 0 and 1")
+            self._opcode(OP_LOUPE_POINT, loupe_point(fx * LOUPE_GRID[0], fy * LOUPE_GRID[1]))
+        self._set("d04b", LOUPE_ON if on else LOUPE_OFF)
+        self.loupe_on = bool(on)
+
+    def loupe_move(self, direction):
+        """Move the zoom frame one step: up, down, left or right."""
+        self._need_write()
+        if direction not in LOUPE_MOVES:
+            raise CameraError("Zoom frame: direction up, down, left or right")
+        self._opcode(OP_LOUPE_MOVE, LOUPE_MOVES[direction])
+
+    def _loupe_off_locked(self):
+        """d04b = 2 without raising; caller holds the lock. Only with the write permission."""
+        self.loupe_on = False
+        if not self.allow_write:
+            return
+        try:
+            w = self._c.get_single_config("d04b")
+            w.set_value(str(LOUPE_OFF))
+            self._c.set_single_config("d04b", w)
+        except self.gp.GPhoto2Error:
+            pass  # body without d04b, or the camera is gone: nothing left to end
+
+    def _loupe_off(self):
+        if self.gone:
+            self.loupe_on = False
+            return
+        with self._lock:
+            self._loupe_off_locked()
 
     def set_prop(self, prop, value):
         if prop not in self.PROPS:

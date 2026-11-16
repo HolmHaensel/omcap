@@ -37,6 +37,25 @@ DPC_LV_SIZE, LV_SIZE_DEFAULT = 0xD06D, 0x04000300  # live view size (w << 16 | h
 OP_SHUTTER, OP_LIVEVIEW = 0x9481, 0x9484
 DPC_CONTROL_MODE = 0xD052  # 1 = PC control, 2 = camera
 
+# Zoom frame AF / Zoom AF (the camera's own magnified live view, E-M1 manual p.56), from OM Capture traces
+# and confirmed on the camera 2026-11-16 (out/research/loupe_protocol.md): d0cf = ratio, 0x9483 = point
+# as ONE packed parameter (y << 16 | x) in the 1024x768 live view grid, d04b = on (1) / off (2),
+# 0x9488 = move the frame one step. A magnified view can outlive a session: write d04b = 2 at start and stop.
+# The app sends them through the gphoto2-style widgets ("d04b", "opcode"), so both USB backends can.
+DPC_LOUPE, LOUPE_ON, LOUPE_OFF = 0xD04B, 1, 2
+DPC_LOUPE_RATIO = 0xD0CF
+LOUPE_RATIOS = {1: 3, 2: 5, 3: 7, 4: 10, 5: 14}  # d0cf value -> magnification
+OP_LOUPE_POINT, OP_LOUPE_MOVE = 0x9483, 0x9488
+LOUPE_MOVES = {"up": 1, "down": 2, "left": 3, "right": 4}
+LOUPE_GRID = (1024, 768)
+
+
+def loupe_point(x, y):
+    """The one 0x9483 parameter for a point in the 1024x768 grid, clamped to it (centre = 0x01800200)."""
+    w, h = LOUPE_GRID
+    x, y = min(max(int(round(x)), 0), w - 1), min(max(int(round(y)), 0), h - 1)
+    return (y << 16) | x
+
 
 class PtpError(Exception):
     def __init__(self, message, code=None):
