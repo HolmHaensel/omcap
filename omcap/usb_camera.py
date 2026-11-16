@@ -15,7 +15,7 @@ import time
 
 from .camera import CameraError, WriteBlocked
 from .ptp import (LOUPE_GRID, LOUPE_MOVES, LOUPE_OFF, LOUPE_ON, LOUPE_RATIOS, OP_LOUPE_MOVE, OP_LOUPE_POINT,
-                  loupe_drag_moves, loupe_point)
+                  loupe_point)
 
 
 def _check_usb_path(path):
@@ -241,6 +241,7 @@ class UsbLive:
     def __init__(self, camera):
         self.camera = camera
         self.frame = None
+        self.stamp = (0, 0)  # (zoom revision, zoom on) of the camera when `frame` was fetched (REQ-F54)
         self.seq = 0
         self.last_frame = None
         self.cond = threading.Condition()
@@ -285,6 +286,8 @@ class UsbLive:
                         "mode dial turned, %s" % getattr(self.camera, "dial_reason", "?")):
                     self.camera.mode_changed_at = time.time()
                     continue
+            # read before the fetch: a write in between only makes the stamp older, never newer than the frame
+            stamp = (getattr(self.camera, "loupe_rev", 0), int(getattr(self.camera, "loupe_on", False)))
             data = self.camera.preview_frame()
             if data is None:
                 failures += 1
@@ -297,7 +300,7 @@ class UsbLive:
                 continue
             failures, self._backoff, self.camera.gone = 0, 0.0, False
             with self.cond:
-                self.frame = data
+                self.frame, self.stamp = data, stamp
                 self.seq += 1
                 self.last_frame = time.monotonic()
                 self.cond.notify_all()
@@ -341,6 +344,12 @@ class UsbLive:
             self.cond.wait_for(lambda: self.seq != last_seq, timeout)
             return self.seq, self.frame
 
+    def wait_frame_stamp(self, last_seq, timeout=3.0):
+        """Like wait_frame, plus the zoom stamp of that very frame."""
+        with self.cond:
+            self.cond.wait_for(lambda: self.seq != last_seq, timeout)
+            return self.seq, self.frame, self.stamp
+
 
 class UsbCamera:
     usb = True
@@ -355,8 +364,8 @@ class UsbCamera:
     last_press = 0.0  # time of the last shutter command or written setting (see __init__)
     saf_shot = False  # S-AF during the running shot: no focus means no release
     loupe_on = False  # Zoom AF (camera magnification) switched on by the app
-    loupe_ratio = 5  # magnification last sent (x), for the drag step size
-    _loupe_rem = (0.0, 0.0)  # drag pixels not yet worth a step
+    loupe_ratio = 5  # magnification last sent (x)
+    loupe_rev = 0  # counts every change of the camera's zoom state; live frames carry it (REQ-F54)
 
     # setting named as over Wi-Fi -> gphoto name, display names from the choice values
     PROPS = {
@@ -925,10 +934,12 @@ class UsbCamera:
             fx, fy = float(x), float(y)
             if not (0 <= fx <= 1 and 0 <= fy <= 1):
                 raise CameraError("Zoom frame: x and y between 0 and 1")
+            if self.loupe_on:  # 0x9483 only takes effect while d04b goes to 1 (camera test 2026-11-16)
+                self._set("d04b", LOUPE_OFF)
             self._opcode(OP_LOUPE_POINT, loupe_point(fx * LOUPE_GRID[0], fy * LOUPE_GRID[1]))
         self._set("d04b", LOUPE_ON if on else LOUPE_OFF)
         self.loupe_on = bool(on)
-        self._loupe_rem = (0.0, 0.0)
+        self.loupe_rev += 1
 
     def loupe_move(self, direction):
         """Move the zoom frame one step: up, down, left or right."""
@@ -937,20 +948,10 @@ class UsbCamera:
             raise CameraError("Zoom frame: direction up, down, left or right")
         self._opcode(OP_LOUPE_MOVE, LOUPE_MOVES[direction])
 
-    def loupe_drag(self, dx, dy):
-        """Move the zoom frame by a drag of dx, dy pixels in the zoomed 1024-wide picture (REQ-F54).
-        Only 0x9488 steps move the frame (0x9483 does nothing while zoomed, tested 2026-11-16)."""
-        self._need_write()
-        if not self.loupe_on:
-            raise CameraError("Zoom AF is not on")
-        moves, self._loupe_rem = loupe_drag_moves(float(dx), float(dy), self.loupe_ratio, self._loupe_rem)
-        for d in moves:
-            self._opcode(OP_LOUPE_MOVE, LOUPE_MOVES[d])
-        return len(moves)
-
     def _loupe_off_locked(self):
         """d04b = 2 without raising; caller holds the lock. Only with the write permission."""
         self.loupe_on = False
+        self.loupe_rev += 1
         if not self.allow_write:
             return
         try:
@@ -963,6 +964,7 @@ class UsbCamera:
     def _loupe_off(self):
         if self.gone:
             self.loupe_on = False
+            self.loupe_rev += 1
             return
         with self._lock:
             self._loupe_off_locked()

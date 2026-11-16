@@ -103,7 +103,10 @@ button:disabled{color:var(--disabled);opacity:.6;cursor:not-allowed}
 #viewport{position:relative;overflow:hidden;background:#000;border-radius:var(--r-lg);aspect-ratio:4/3;width:min(100%,calc(74vh * 4 / 3));margin:0 auto;touch-action:none}
 #zoomLayer{position:absolute;inset:0;transform-origin:0 0}
 #levelGauge{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
-#live,#ovl,#grid,#afGrid{position:absolute;inset:0;width:100%;height:100%;object-fit:contain}
+#live,#liveBack,#ovl,#grid,#afGrid{position:absolute;inset:0;width:100%;height:100%;object-fit:contain}
+#live,#liveBack{transform-origin:0 0}#liveBack{pointer-events:none} /* backdrop: the last normal frame behind the moved camera crop (REQ-F54) */
+@media(prefers-reduced-motion:no-preference){#live.xf{animation:lvfade .18s ease-out}}
+@keyframes lvfade{from{opacity:.35}to{opacity:1}}
 #ovl,#grid,#afGrid,#aidCv{pointer-events:none}
 #aidCv{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;image-rendering:pixelated}
 #histCv{position:absolute;left:12px;top:12px;width:160px;height:70px;background:var(--overlay);border-radius:var(--r-sm);pointer-events:none;z-index:2}
@@ -203,7 +206,7 @@ body.autoLv label[data-feat=lvsize]{display:none!important}
 #hslBox{position:relative;max-width:calc(100vw - 80px);line-height:0}
 #hslBox img{max-width:calc(100vw - 80px);max-height:70vh;display:block}
 #hslBox{cursor:ew-resize;touch-action:none;user-select:none}
-#live,#ovl,#hslBox img,#vImg{-webkit-user-drag:none;user-select:none}
+#live,#liveBack,#ovl,#hslBox img,#vImg{-webkit-user-drag:none;user-select:none}
 #viewport.loupe{cursor:grab;touch-action:none}#viewport.loupe.grabbing{cursor:grabbing} /* Zoom AF: grab the picture (REQ-F54) */
 .sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap} /* drag moves the picture / the before-after line, not a copy of the image */
 #hslHandle{position:absolute;top:0;bottom:0;left:50%;width:2px;margin-left:-1px;background:#fff;box-shadow:0 0 4px #0009;pointer-events:none}
@@ -385,6 +388,7 @@ body.webcam{cursor:none;display:flex;align-items:center;justify-content:center}
 <div id="liveCol">
   <div id="viewport">
     <div id="zoomLayer">
+      <img id="liveBack" alt="" hidden draggable="false">
       <img id="live" alt="" draggable="false">
       <img id="ovl" alt="" hidden draggable="false">
       <canvas id="grid"></canvas>
@@ -799,10 +803,10 @@ const I18N={en:{
   "lv.peakYellow": "Yellow",
   "lv.roll": "Horizon {a}° · Tilt {b}°",
   "lv.delta": "Δ Horizon {a}° · Δ Tilt {b}° to the held angle",
-  "lv.loupeTitle": "The camera's own magnified live view (USB only; Zoom frame AF/zoom AF in the manual). Click = focus, drag = move the frame, wheel or pinch = next ratio. Starts at the AF target. No AF with Four Thirds lenses while zoomed (manual p.56).",
+  "lv.loupeTitle": "The camera's own magnified live view (USB only; Zoom frame AF/zoom AF in the manual). Click = focus, drag = move, wheel or pinch = zoom smoothly; at rest it snaps to the camera's ratios and turns sharp. Starts at the AF target. No AF with Four Thirds lenses while zoomed (manual p.56).",
   "lv.zoomUsbGroup": "Zoom (camera Zoom AF)", "lv.loupeLabel": "Zoom AF ×{n}", "lv.loupeMove": "Move the zoom frame",
   "lv.left": "Left", "lv.up": "Up", "lv.down": "Down", "lv.right": "Right",
-  "msg.loupeOn": "Zoom AF on", "msg.loupeOff": "Zoom AF off", "msg.loupeMove": "Zoom frame moved",
+  "msg.loupeMove": "Zoom frame moved",
   "lv.hold": "Hold angle", "lv.clear": "Clear angle", "lv.sound": "Sound",
   "lv.levelOk": "Level", "lv.angleOk": "Angle matched",
   "msg.angleHeld": "Angle held: Horizon {a}° · Tilt {b}°",
@@ -1166,7 +1170,8 @@ async function tick(){
   if(rec) $('#recText').textContent=tr('movie.rec',{t:clock(st.movie)});
   const dc=$('#dropChip'); dc.hidden=!stale&&!gone; if(stale||gone) dc.textContent=gone||tr('lv.noSignal',{s:Math.round(st.lv_age)});
   $('#lvTools').hidden=!st.live;
-  if(!!st.loupe!==loupeOn) loupeShow(st.loupe,st.loupe_ratio); // the server ends Zoom AF with the live view or a new session
+  // the server ends Zoom AF with the live view or a new session: show what the camera does now (never stay soft)
+  if(usbZoom&&!recBusy&&(!!st.loupe!==zSent.on||(!st.live&&V.s>1.001))) loupeSync(st.loupe&&st.live,st.loupe_ratio);
   $('#reset').hidden=!(features.has('stages')&&(st.stage>0||propsFailed));
   applyContext();
   if(st.stage===0&&focusHit&&focusHit.held) focusHit=null;
@@ -2199,7 +2204,7 @@ function applyZoom(){
   document.querySelectorAll('[data-z]').forEach(b=>b.classList.toggle('on',+b.dataset.z===z));
 }
 function setZoom(n,cx,cy){
-  if(loupeOn||usbZoom) n=1; // over USB the camera magnifies: the app's own zoom stays at 1x
+  if(usbZoom) n=1; // over USB the camera magnifies: the app's own zoom stays at 1x
   const r=vp.getBoundingClientRect();
   cx=cx??r.width/2; cy=cy??r.height/2;
   px=cx-(cx-px)*n/z; py=cy-(cy-py)*n/z; z=n; applyZoom();
@@ -2212,112 +2217,188 @@ vp.addEventListener('wheel',e=>{e.preventDefault();
 vp.onpointerdown=e=>{
   if(e.target.closest('#lastShot')) return; // own click (single-frame view); pointer capture would turn it into an AF tap
   e.preventDefault(); // no native image drag
-  if(loupeOn){loupeDown(e);return}
+  if(usbZoom){loupeDown(e);return}
   drag={x:e.clientX,y:e.clientY,px,py,moved:false};vp.setPointerCapture(e.pointerId)};
-vp.onpointermove=e=>{if(loupeOn){loupeMoveEv(e);return}if(!drag)return;const dx=e.clientX-drag.x,dy=e.clientY-drag.y;
+vp.onpointermove=e=>{if(usbZoom){loupeMoveEv(e);return}if(!drag)return;const dx=e.clientX-drag.x,dy=e.clientY-drag.y;
   if(Math.hypot(dx,dy)>4)drag.moved=true;
   if(drag.moved&&z>1){px=drag.px+dx;py=drag.py+dy;applyZoom()}};
 vp.onpointerup=e=>{
-  if(loupeOn){loupeUp(e);return}
+  if(usbZoom){loupeUp(e);return}
   const d=drag;drag=null;
   if(!d||d.moved||!st.live) return;
   pickField(e);
 };
 /* Zoom AF over USB (REQ-F53, REQ-F54): the camera's own magnified live view replaces the app's screen zoom.
    1x = off, x3-x14 = Zoom AF (E-M1 manual p.56); no Wi-Fi command, there the 1x/2x/4x screen zoom stays.
-   Click = focus, drag = move the frame (grab the picture: drag right shows what is left), wheel or pinch =
-   next or previous ratio. The frame starts at the chosen AF target (centre with All Targets). */
-let loupeOn=false,usbZoom=false,loupeRatio=1;
-const LOUPE_STEPS=[1,3,5,7,10,14],LOUPE_TAP_PX=6;
+   Smooth zoom, "soft while moving, sharp at rest": while the user drags, wheels or pinches, the camera is switched
+   to the normal view and the browser magnifies it (soft, but live and smooth, like the 1x/2x/4x screen zoom);
+   at rest the camera's own crop is switched on at the tracked view and shown (sharp). The camera cannot report
+   its frame, so the page tracks the view V itself. Click = focus, drag = move, wheel/pinch = zoom, snapping to
+   the camera's ratios at rest. The frame starts at the chosen AF target (centre with All Targets). */
+let loupeOn=false,usbZoom=false; // loupeOn: the zoom view is magnified (V.s > 1), sharp or soft
+const LOUPE_STEPS=[1,3,5,7,10,14]; // camera ratios (d0cf), 1 = off
+const LOUPE_TAP_PX=6,LOUPE_REST_MS=150,LOUPE_WHEEL_MS=250;
+// Frames that still show the old camera state after the first frame stamped with the answered revision.
+// To be measured on the camera (REQ-F54): the live view runs about 3 frames behind the camera's own state.
+const LOUPE_LAG_FRAMES=2;
+const LOUPE_ARROW_PX=17.4; // px of the 1024x768 grid one 0x9488 step moves the frame (ptp.LOUPE_STEP_NORMAL_PX)
+// zoom maths (pure; view v = {s: scale 1-14, cx, cy: centre as fractions of the picture})
+const zClamp=(c,s)=>Math.min(1-.5/s,Math.max(.5/s,c)); // the view never leaves the picture
+const zSnap=s=>LOUPE_STEPS.reduce((b,n)=>Math.abs(Math.log(n/s))<Math.abs(Math.log(b/s))?n:b,1); // nearest ratio, log scale
+const zPic=(v,fx,fy)=>({x:v.cx+(fx-.5)/v.s,y:v.cy+(fy-.5)/v.s}); // picture point shown at the view fraction fx, fy
+const zCentre=(p,s,fx,fy)=>({cx:zClamp(p.x-(fx-.5)/s,s),cy:zClamp(p.y-(fy-.5)/s,s)}); // centre that puts p at fx, fy
+const zShift=(v,W,H)=>({x:W/2-v.cx*W*v.s,y:H/2-v.cy*H*v.s}); // translate of the full picture scaled by v.s
+const zCrop=(v,c,W,H)=>{const k=v.s/c.s;return{k,x:W/2+(c.cx-v.cx)*W*v.s-.5*W*k,y:H/2+(c.cy-v.cy)*H*v.s-.5*H*k}}; // camera crop c drawn into view v
+// zoom maths end
+const V={s:1,cx:.5,cy:.5};  // the view the user sees (tracked here, the camera cannot report it)
+let zCam={s:1,cx:.5,cy:.5};  // the crop the camera shows while zCamShows
+let zCamShows=false;         // frames are the camera's crop (sharp render) or the full picture (soft render)
+let zWant={on:false,ratio:5,x:.5,y:.5},zSent={on:false,ratio:5,x:.5,y:.5}; // camera state wanted / last confirmed by the server
+let zPend=null,recBusy=false,restT=0,lastNormal=null,backSrc=null,backUrl='',fadeUntil=0;
 function loupePoint(){
   if(!af||af.mode===33024) return {x:.5,y:.5};
   const a=af.area,row=Math.floor((af.field-1)/9),col=(af.field-1)%9;
   return {x:(a.x0+(col+.5)*(a.x1-a.x0)/9)/a.w,y:(a.y0+(row+.5)*(a.y1-a.y0)/9)/a.h};
 }
-function loupeShow(on,ratio){
-  loupeOn=!!on; if(ratio) loupeRatio=ratio; if(!loupeOn) loupeRatio=1;
-  $('#loupeMove').hidden=!loupeOn; vp.classList.toggle('loupe',loupeOn);
-  const l=$('#loupeLabel'); l.style.display=loupeOn?'':'none'; l.textContent=tr('lv.loupeLabel',{n:loupeRatio});
-  document.querySelectorAll('[data-lz]').forEach(b=>b.classList.toggle('on',+b.dataset.lz===loupeRatio));
-  if(loupeOn) setZoom(1);
+function zRender(anim){
+  const r=vp.getBoundingClientRect(),W=r.width,H=r.height,live=$('#live'),back=$('#liveBack');
+  loupeOn=V.s>1.001; vp.classList.toggle('loupe',loupeOn);
+  $('#loupeMove').hidden=!loupeOn;
+  const l=$('#loupeLabel'); l.style.display=loupeOn?'':'none'; l.textContent=tr('lv.loupeLabel',{n:+V.s.toFixed(1)});
+  document.querySelectorAll('[data-lz]').forEach(b=>b.classList.toggle('on',Math.abs(+b.dataset.lz-V.s)<.05));
+  if(!zCamShows){ // soft: full picture, the page magnifies (same transform as the screen zoom)
+    live.style.transform=''; back.hidden=true;
+    const t=zShift(V,W,H); z=V.s; px=t.x; py=t.y;
+    layer.style.transition=anim&&!calm.matches?'transform 120ms ease-out':'none';
+    applyZoom();
+  }else{ // sharp: the camera's crop, moved and scaled to where the view is; the last normal frame fills the edges
+    z=1; px=py=0; layer.style.transition='none'; applyZoom();
+    const c=zCrop(V,zCam,W,H);
+    live.style.transform=`translate(${c.x}px,${c.y}px) scale(${c.k})`;
+    const off=Math.abs(c.k-1)>.001||Math.abs(c.x)>.5||Math.abs(c.y)>.5;
+    if((off||performance.now()<fadeUntil)&&lastNormal){
+      if(backSrc!==lastNormal){if(backUrl) URL.revokeObjectURL(backUrl); backUrl=URL.createObjectURL(lastNormal); back.src=backUrl; backSrc=lastNormal}
+      const t=zShift(V,W,H); back.style.transform=`translate(${t.x}px,${t.y}px) scale(${V.s})`; back.hidden=false;
+    }else back.hidden=true;
+  }
 }
-let loupeBusy=false;
-async function loupeZoom(n){
-  if(loupeBusy||!canWrite||n===loupeRatio) return;
-  loupeBusy=true;
+// The camera state now shown on the page's own terms: the server answered (or reported) it; used after errors and
+// when the server ended Zoom AF itself (live view stopped, new session)
+function loupeSync(on,ratio){
+  clearTimeout(restT); restT=0; zPend=null; zCamShows=!!on;
+  zSent={on:!!on,ratio:ratio||5,x:V.cx,y:V.cy}; zWant={...sent};
+  if(on){V.s=ratio||5; V.cx=zClamp(V.cx,V.s); V.cy=zClamp(V.cy,V.s); zCam={s:V.s,cx:V.cx,cy:V.cy}} else Object.assign(V,{s:1,cx:.5,cy:.5});
+  zRender();
+}
+const wantEq=(a,b)=>a.on===b.on&&(!a.on||(a.ratio===b.ratio&&Math.abs(a.x-b.x)<.002&&Math.abs(a.y-b.y)<.002));
+// One command path, latest wins: no command per event; one request carries the newest wanted state until both agree
+async function loupeReconcile(){
+  if(recBusy) return;
+  recBusy=true;
   try{
-    const body=n===1?{on:false}:{on:true,ratio:n};
-    if(n!==1&&!loupeOn) Object.assign(body,loupePoint()); // a new ratio keeps the moved frame
-    const j=await act(tr(n===1?'msg.loupeOff':'msg.loupeOn'),'/api/loupe',body);
-    if(j) loupeShow(j.loupe,n);
-  }finally{loupeBusy=false}
+    while(!wantEq(zWant,zSent)){
+      const w={...want};
+      const j=await api('/api/loupe',w.on?{on:true,ratio:w.ratio,x:w.x,y:w.y}:{on:false});
+      zSent=w; zPend={rev:j.rev,on:w.on,n:0,ratio:w.ratio,x:w.x,y:w.y};
+    }
+  }catch(e){
+    msg(e.message||String(e),true);
+    try{const s=await api('/api/state'); loupeSync(s.loupe&&s.live,s.loupe_ratio)}catch{loupeSync(false)} // show what the camera really does
+  }finally{recBusy=false}
 }
-function loupeStep(dir){
-  const i=LOUPE_STEPS.indexOf(loupeRatio),n=LOUPE_STEPS[Math.min(LOUPE_STEPS.length-1,Math.max(0,i+dir))];
-  if(n!==loupeRatio) loupeZoom(n);
+// Called for every live frame with the zoom stamp of the server: rev >= the answered revision and LOUPE_LAG_FRAMES
+// further frames mean the picture now shows the new camera state; only then the rendering switches.
+function loupeOnFrame(info,blob){
+  if(!usbZoom) return;
+  if(zPend&&info.rev>=zPend.rev&&++zPend.n>LOUPE_LAG_FRAMES){
+    const sharp=zPend.on&&!zCamShows;
+    zCamShows=zPend.on; if(zCamShows) zCam={s:zPend.ratio,cx:zClamp(zPend.x,zPend.ratio),cy:zClamp(zPend.y,zPend.ratio)};
+    zPend=null;
+    if(sharp&&!calm.matches){ // short crossfade soft to sharp: the old picture stays behind for a moment
+      const lv=$('#live'); lv.classList.remove('xf'); void lv.offsetWidth; lv.classList.add('xf');
+      fadeUntil=performance.now()+180; setTimeout(()=>zRender(),200);
+    }
+    zRender();
+  }
+  if(!zCamShows&&!zPend&&!recBusy) lastNormal=blob; // a frame known to be normal: the backdrop of the next drag
 }
-let wheelAt=0;
+// A gesture starts: the camera shows the normal view while it runs
+function loupeHold(){
+  clearTimeout(restT); restT=0;
+  if(zWant.on){zWant={...want,on:false}; loupeReconcile()}
+}
+const loupeRest=ms=>{clearTimeout(restT); restT=setTimeout(loupeCommit,ms)};
+// At rest: snap to the nearest ratio and ask the camera for the sharp crop at the tracked view
+function loupeCommit(){
+  restT=0; V.s=zSnap(V.s); V.cx=zClamp(V.cx,V.s); V.cy=zClamp(V.cy,V.s);
+  zWant=V.s>1?{on:true,ratio:V.s,x:V.cx,y:V.cy}:{...want,on:false};
+  zRender(true); loupeReconcile();
+}
+function loupeZoom(n){ // ratio buttons: the tracked centre stays, re-clamped
+  if(!canWrite||!st.live) return;
+  clearTimeout(restT);
+  if(n===1) Object.assign(V,{s:1,cx:.5,cy:.5});
+  else{ if(V.s<=1.001){const p=loupePoint(); V.cx=p.x; V.cy=p.y} V.s=n }
+  loupeCommit();
+}
 function loupeWheel(e){
-  if(!canWrite||!st.live||Date.now()-wheelAt<250) return; // one notch = one ratio, a trackpad sends many events
-  wheelAt=Date.now(); loupeStep(e.deltaY<0?1:-1);
+  if(!canWrite||!st.live) return;
+  const r=vp.getBoundingClientRect(),fx=(e.clientX-r.left)/r.width,fy=(e.clientY-r.top)/r.height;
+  const s2=Math.min(14,Math.max(1,V.s*Math.exp(-e.deltaY*(e.deltaMode===1?.05:.0025))));
+  if(s2===V.s) return;
+  loupeHold(); Object.assign(V,{s:s2},zCentre(zPic(V,fx,fy),s2,fx,fy)); zRender(); loupeRest(LOUPE_WHEEL_MS);
 }
-// drag (REQ-F54): the picture follows the pointer at once (CSS shift of the shown frame). During the drag whole
-// 0x9488 steps go to the camera every LOUPE_SEND_MS; once the camera's moved frame is on screen (LOUPE_LAG_FRAMES
-// frames after the answer) the shift shrinks by those steps, so new picture content fills in while dragging.
-// Sending raw drag pixels and waiting for the camera looked jerky and slow (camera test 2026-11-16).
-const LOUPE_STEP_PX=17.4,LOUPE_SEND_MS=120,LOUPE_LAG_FRAMES=2; // step: px of the normal 1024-wide view (ptp.LOUPE_STEP_NORMAL_PX)
-let lDrag=null,lPtr=new Map(),lPinch=0,lTick=0,lConfirm=[];
-function loupeShift(x,y,smooth){ // smooth: a short ease when the camera's frame catches up, none under the finger
-  layer.style.transition=smooth?'transform 90ms ease-out':'none'; layer.style.transform=x||y?`translate(${x}px,${y}px)`:'';
-}
-function loupeStepScreen(){return LOUPE_STEP_PX*loupeRatio*(vp.getBoundingClientRect().width||1024)/1024} // one step in screen px
-function loupeRedraw(smooth){
-  if(!lDrag){ if(!lConfirm.length) loupeShift(0,0,true); return }
-  const s=loupeStepScreen(); loupeShift(lDrag.tx-lDrag.cx*s,lDrag.ty-lDrag.cy*s,smooth);
-}
-function loupeSend(){
-  const d=lDrag; if(!d) return;
-  const s=loupeStepScreen(),nx=Math.trunc(d.tx/s)-d.sx,ny=Math.trunc(d.ty/s)-d.sy;
-  if(!nx&&!ny) return;
-  d.sx+=nx; d.sy+=ny; const k=LOUPE_STEP_PX*loupeRatio; // zoomed-frame px per step (the server's unit)
-  api('/api/loupe',{drag:{dx:nx*k,dy:ny*k}})
-    .then(()=>lConfirm.push({d,nx,ny,frames:LOUPE_LAG_FRAMES}))
-    .catch(e=>{d.sx-=nx;d.sy-=ny;msg(e.message||String(e),true)});
-}
-function loupeOnFrame(){ // called by the live loop for every frame shown
-  if(!lConfirm.length) return;
-  lConfirm=lConfirm.filter(c=>{ if(--c.frames>0) return true; c.d.cx+=c.nx; c.d.cy+=c.ny; return false });
-  loupeRedraw(true);
-}
+let lPtr=new Map(),lDrag=null,lPinch=null;
 function loupeDown(e){
   lPtr.set(e.pointerId,{x:e.clientX,y:e.clientY}); vp.setPointerCapture(e.pointerId);
-  if(lPtr.size===1) lDrag={x:e.clientX,y:e.clientY,moved:false,tx:0,ty:0,sx:0,sy:0,cx:0,cy:0};
-  else{lDrag=null;const [a,b]=[...lPtr.values()];lPinch=Math.hypot(a.x-b.x,a.y-b.y)}
+  if(lPtr.size===1){lDrag={x:e.clientX,y:e.clientY,moved:false,cx:V.cx,cy:V.cy,resume:!!restT}; clearTimeout(restT); restT=0} // grabbing again cancels the rest
+  else{
+    lDrag=null; const [a,b]=[...lPtr.values()],r=vp.getBoundingClientRect();
+    lPinch={d:Math.hypot(a.x-b.x,a.y-b.y)||1,s:V.s,p:zPic(V,((a.x+b.x)/2-r.left)/r.width,((a.y+b.y)/2-r.top)/r.height)};
+  }
 }
 function loupeMoveEv(e){
   const p=lPtr.get(e.pointerId); if(!p) return;
-  if(lPtr.size>=2){
-    p.x=e.clientX;p.y=e.clientY;
-    const [a,b]=[...lPtr.values()],d=Math.hypot(a.x-b.x,a.y-b.y);
-    if(lPinch&&d>lPinch*1.35){lPinch=d;loupeStep(1)} else if(lPinch&&d<lPinch/1.35){lPinch=d;loupeStep(-1)}
+  p.x=e.clientX; p.y=e.clientY;
+  const r=vp.getBoundingClientRect();
+  if(lPtr.size>=2){ // pinch: the picture point between the fingers stays between them
+    if(!lPinch) return;
+    const [a,b]=[...lPtr.values()],s2=Math.min(14,Math.max(1,lPinch.s*Math.hypot(a.x-b.x,a.y-b.y)/lPinch.d));
+    loupeHold(); Object.assign(V,{s:s2},zCentre(lPinch.p,s2,((a.x+b.x)/2-r.left)/r.width,((a.y+b.y)/2-r.top)/r.height)); zRender();
     return;
   }
   if(!lDrag) return;
-  p.x=e.clientX;p.y=e.clientY;
-  if(!lDrag.moved&&Math.hypot(e.clientX-lDrag.x,e.clientY-lDrag.y)<=LOUPE_TAP_PX) return;
-  if(!lDrag.moved){lDrag.moved=true; vp.classList.add('grabbing'); lTick=setInterval(loupeSend,LOUPE_SEND_MS)}
-  // grab the picture: dragging right shows what is left (the server turns positive dx into "left" steps)
-  lDrag.tx=e.clientX-lDrag.x; lDrag.ty=e.clientY-lDrag.y; loupeRedraw();
+  if(!lDrag.moved){
+    if(Math.hypot(e.clientX-lDrag.x,e.clientY-lDrag.y)<=LOUPE_TAP_PX) return;
+    lDrag.moved=true; if(loupeOn){vp.classList.add('grabbing'); loupeHold()}
+  }
+  if(!loupeOn) return;
+  // grab the picture: dragging right shows what is left, so the view centre moves left
+  V.cx=zClamp(lDrag.cx-(e.clientX-lDrag.x)/(r.width*V.s),V.s); V.cy=zClamp(lDrag.cy-(e.clientY-lDrag.y)/(r.height*V.s),V.s); zRender();
 }
 function loupeUp(e){
   lPtr.delete(e.pointerId);
-  const d=lDrag; if(lPtr.size===0) lDrag=null;
+  const d=lDrag,pinched=lPinch&&lPtr.size<2;
+  if(lPtr.size<2) lPinch=null;
+  if(lPtr.size===0) lDrag=null;
+  vp.classList.remove('grabbing');
+  if(pinched){loupeRest(LOUPE_REST_MS); return}
   if(!d||lPtr.size||!st.live) return;
-  if(d.moved){clearInterval(lTick); vp.classList.remove('grabbing'); lDrag=d; loupeSend(); lDrag=null; setTimeout(()=>loupeRedraw(true),1500); return} // last steps; the shift clears once they show
-  if(canWrite) setAf({focus:true}); // a click in the zoomed view only focuses (half press, release without a shot)
+  if(d.moved){if(loupeOn) loupeRest(LOUPE_REST_MS); return}
+  if(d.resume) loupeRest(LOUPE_REST_MS);
+  if(loupeOn){if(canWrite) setAf({focus:true})} // a click in the zoomed view only focuses (half press, release without a shot)
+  else pickField(e); // 1x: the AF target click
 }
 document.querySelectorAll('[data-lz]').forEach(b=>b.onclick=()=>loupeZoom(+b.dataset.lz));
-document.querySelectorAll('[data-lm]').forEach(b=>b.onclick=()=>act(tr('msg.loupeMove'),'/api/loupe',{move:b.dataset.lm}));
+// Arrow buttons: one 0x9488 step each, the tracked centre follows by the estimated step (not camera-measured)
+document.querySelectorAll('[data-lm]').forEach(b=>b.onclick=async()=>{
+  const dir=b.dataset.lm,dx=(dir==='left'?-1:dir==='right'?1:0)*LOUPE_ARROW_PX/1024,dy=(dir==='up'?-1:dir==='down'?1:0)*LOUPE_ARROW_PX/768;
+  const live=zSent.on&&zWant.on; // camera not zoomed (or about to change): only the view moves, the next commit sends it
+  if(live&&!await act(tr('msg.loupeMove'),'/api/loupe',{move:dir})) return;
+  V.cx=zClamp(V.cx+dx,V.s); V.cy=zClamp(V.cy+dy,V.s);
+  if(live) for(const o of [zCam,zSent,zWant]){o.cx!==undefined?(o.cx=zClamp(o.cx+dx,o.s)):(o.x=zClamp(o.x+dx,o.ratio)); o.cy!==undefined?(o.cy=zClamp(o.cy+dy,o.s)):(o.y=zClamp(o.y+dy,o.ratio))}
+  zRender(); if(!live) loupeRest(LOUPE_REST_MS);
+});
 /* Level Gauge (USB): spirit level, also watch the mode dial */
 let lvl=null,lvlBusy=false,lvPicked=false;
 // The camera is asked every 0.15 s; in between the drawing glides towards the last value (about 0.1 s),
@@ -2633,7 +2714,7 @@ AID_IDS.filter(i=>i!=='lvlOn').concat('aidPeakCol').forEach(i=>$('#'+i).onchange
 setInterval(aidTick,250); // 4 frames/s are enough and keep the CPU low
 // Level gauge (USB, PTP backend): own poll, faster than tick(), only while it is shown (REQ-F23)
 setInterval(()=>{if(features.has('level')&&st&&st.live&&$('#lvlOn').checked)pollLevel()},150);
-new ResizeObserver(()=>{drawGrid();applyZoom();drawAf();drawLevel()}).observe(vp);
+new ResizeObserver(()=>{drawGrid();usbZoom?zRender():applyZoom();drawAf();drawLevel()}).observe(vp);
 /* Turning the phone: iOS Safari can keep a page zoom from before, so the page looks as if it did not turn.
    Briefly limiting the scale resets it; the layout itself follows the CSS for portrait/landscape. */
 const VP_META=document.querySelector('meta[name=viewport]'), VP0=VP_META.content; // read once: two quick turns must not keep the limit
@@ -2793,14 +2874,14 @@ function startLiveLoop(img=$('#live')){
         const r=await pending;
         if(!r){await sleep(1000);pending=ask(seq);continue}
         if(r.status!==200){await sleep(r.status===204?20:1000);pending=ask(seq);continue} // 204: no new frame within 3 s
-        seq=+r.headers.get('X-Seq')||0;
+        seq=+r.headers.get('X-Seq')||0; const info={rev:+r.headers.get('X-Loupe-Rev')||0}; // USB zoom stamp of this frame
         pending=ask(seq); // next frame on its way while this one decodes
-        const url=URL.createObjectURL(await r.blob()), next=new Image(); next.src=url;
+        const blob=await r.blob(), url=URL.createObjectURL(blob), next=new Image(); next.src=url;
         try{await next.decode()}catch{URL.revokeObjectURL(url);continue} // bad frame: skip it
         if(g!==lvGen){URL.revokeObjectURL(url);break}
         const old=img.src; img.src=url; if(old.startsWith('blob:')) URL.revokeObjectURL(old); // also the last one of an earlier loop
         lvShown.push(performance.now()); if(lvShown.length>90) lvShown.shift(); // frames shown, for the fps in the status line
-        if(img.id==='live') loupeOnFrame(); // Zoom AF drag: the camera's moved frame is now on screen
+        if(img.id==='live') loupeOnFrame(info,blob); // Zoom AF: which camera state this frame shows (REQ-F54)
       }catch{await sleep(1000)} // body lost (server restarting or gone); the next request is already on its way
     }
   })();

@@ -1,72 +1,56 @@
-"""USB zoom drag, click focus and ratio handling (REQ-F54): offline, no camera."""
+"""USB smooth zoom (REQ-F54): revision stamps, frame headers, click focus, page markup and zoom maths. No camera."""
+import io
+import json
 import os
+import re
+import shutil
+import subprocess
 import unittest
 
 from omcap import ptp, server, usb_camera
-from omcap.camera import CameraError, WriteBlocked
+from omcap.camera import CameraError
 from tests.test_usb_loupe import make
 
-
-class DragMoves(unittest.TestCase):
-    def test_step_size_at_x5_is_87_px(self):
-        step = ptp.LOUPE_STEP_NORMAL_PX * 5
-        self.assertAlmostEqual(step, 87)
-        self.assertEqual(ptp.loupe_drag_moves(step - 1, 0, 5)[0], [])
-        self.assertEqual(ptp.loupe_drag_moves(step + 1, 0, 5)[0], ["left"])
-
-    def test_grab_the_picture_directions(self):
-        # dragging the picture right shows what is left: the frame moves left
-        self.assertEqual(ptp.loupe_drag_moves(100, 0, 5)[0], ["left"])
-        self.assertEqual(ptp.loupe_drag_moves(-100, 0, 5)[0], ["right"])
-        self.assertEqual(ptp.loupe_drag_moves(0, 100, 5)[0], ["up"])
-        self.assertEqual(ptp.loupe_drag_moves(0, -100, 5)[0], ["down"])
-
-    def test_step_grows_with_ratio(self):
-        self.assertEqual(len(ptp.loupe_drag_moves(500, 0, 3)[0]), 9)
-        self.assertEqual(len(ptp.loupe_drag_moves(500, 0, 14)[0]), 2)
-
-    def test_remainder_accumulates(self):
-        rem, total = (0.0, 0.0), 0
-        for _ in range(10):
-            moves, rem = ptp.loupe_drag_moves(30, -10, 5, rem)
-            total += len(moves)
-        self.assertEqual(total, 3 + 1)  # 300 px = 3 steps, 100 px = 1 step
-        self.assertLess(abs(rem[0]), 87)
-
-    def test_capped_per_call(self):
-        self.assertEqual(len(ptp.loupe_drag_moves(100000, 0, 3)[0]), ptp.LOUPE_MAX_STEPS)
-
-    def test_both_axes(self):
-        self.assertEqual(ptp.loupe_drag_moves(100, -100, 5)[0], ["left", "down"])
+HTML = os.path.join(os.path.dirname(__file__), "..", "omcap", "web", "index.html")
 
 
-class Drag(unittest.TestCase):
-    def test_sends_only_step_opcodes(self):
+class Revision(unittest.TestCase):
+    def test_every_successful_write_counts(self):
         cam = make()
-        cam.loupe(True, 5)
-        cam._c.writes.clear()
-        self.assertEqual(cam.loupe_drag(180, 0), 2)
-        self.assertEqual(cam._c.writes, [("opcode", "0x9488,0x3")] * 2)  # never 0x9483
+        self.assertEqual(cam.loupe_rev, 0)
+        cam.loupe(True, 5, 0.5, 0.5)
+        cam.loupe(False)
+        self.assertEqual(cam.loupe_rev, 2)
 
-    def test_remainder_kept_between_calls(self):
-        cam = make()
-        cam.loupe(True, 5)
-        cam._c.writes.clear()
-        self.assertEqual(cam.loupe_drag(60, 0), 0)
-        self.assertEqual(cam.loupe_drag(60, 0), 1)
-
-    def test_step_follows_chosen_ratio(self):
-        cam = make()
-        cam.loupe(True, 14)
-        self.assertEqual(cam.loupe_drag(250, 0), 1)  # 243.6 px per step at x14
-
-    def test_needs_zoom_on_and_write(self):
+    def test_failed_write_does_not_count(self):
         cam = make()
         with self.assertRaises(CameraError):
-            cam.loupe_drag(100, 0)
-        with self.assertRaises(WriteBlocked):
-            make(allow_write=False).loupe_drag(100, 0)
-        self.assertEqual(cam._c.writes, [])
+            cam.loupe(True, 4)
+        self.assertEqual(cam.loupe_rev, 0)
+
+    def test_forced_off_counts(self):
+        cam = make()
+        cam.loupe_on = True
+        cam.stop_liveview()
+        self.assertEqual(cam.loupe_rev, 1)
+        cam.gone, cam.loupe_on = True, True
+        cam.stop_liveview()
+        self.assertEqual(cam.loupe_rev, 2)
+
+    def test_new_centre_while_on_cycles_d04b(self):
+        # 0x9483 only takes effect while d04b goes to 1, so a moved centre needs off then on
+        cam = make()
+        cam.loupe(True, 5, 0.5, 0.5)
+        cam._c.writes.clear()
+        cam.loupe(True, 5, 0.25, 0.5)
+        self.assertEqual([n for n, _ in cam._c.writes], ["d0cf", "d04b", "opcode", "d04b"])
+        self.assertEqual(cam._c.writes[1], ("d04b", "2"))
+        self.assertEqual(cam._c.writes[3], ("d04b", "1"))
+
+    def test_no_drag_path_left(self):
+        self.assertFalse(hasattr(usb_camera.UsbCamera, "loupe_drag"))
+        self.assertFalse(hasattr(ptp, "loupe_drag_moves"))
+        self.assertFalse(hasattr(ptp, "LOUPE_MAX_STEPS"))
 
 
 class FocusInZoom(unittest.TestCase):
@@ -103,37 +87,146 @@ class Endpoint(unittest.TestCase):
     def act(self, b):
         return server.Handler._action(server.Handler.__new__(server.Handler), "/api/loupe", b)
 
-    def test_drag_over_usb(self):
+    def test_answer_carries_the_revision(self):
+        server.cam, server.conn_type = make(), "usb"
+        self.assertEqual(self.act({"on": True, "ratio": 3, "x": 0.5, "y": 0.5}), {"loupe": True, "rev": 1})
+        self.assertEqual(self.act({"on": False}), {"loupe": False, "rev": 2})
+
+    def test_drag_request_no_longer_moves_anything(self):
         server.cam, server.conn_type = make(), "usb"
         self.act({"on": True, "ratio": 3})
         server.cam._c.writes.clear()
-        self.assertEqual(self.act({"drag": {"dx": 0, "dy": 110}}), {"loupe": True})
-        self.assertEqual(server.cam._c.writes, [("opcode", "0x9488,0x1")] * 2)
+        self.act({"drag": {"dx": 0, "dy": 110}})  # not a command any more: treated as "off"
+        self.assertEqual(server.cam._c.writes, [("d04b", "2")])
 
     def test_wifi_unchanged(self):
         server.cam, server.conn_type = object(), "wifi"
         with self.assertRaises(CameraError):
-            self.act({"drag": {"dx": 10, "dy": 0}})
+            self.act({"on": True})
         self.assertNotIn("loupe", server.WIFI_FEATURES)
 
-    def test_ratio_remembered(self):
-        cam = make()
-        cam.loupe(True, 10)
-        self.assertEqual(cam.loupe_ratio, 10)
+
+class FrameHeaders(unittest.TestCase):
+    """/live.jpg stamps each frame with the zoom state valid when it was fetched."""
+
+    def frame(self, live):
+        saved = server.live
+        server.live = live
+        sent = []
+        h = server.Handler.__new__(server.Handler)
+        h.send_response = lambda code: sent.append(("code", code))
+        h.send_header = lambda k, v: sent.append((k, v))
+        h.end_headers = lambda: None
+        h.wfile = io.BytesIO()
+        try:
+            h._live_frame(0)
+        finally:
+            server.live = saved
+        return dict(sent)
+
+    def test_usb_frame_has_stamp(self):
+        live = usb_camera.UsbLive.__new__(usb_camera.UsbLive)
+        import threading
+        live.cond, live.seq, live.frame, live.stamp = threading.Condition(), 4, b"\xff\xd8x\xff\xd9", (7, 1)
+        hdr = self.frame(live)
+        self.assertEqual((hdr["X-Seq"], hdr["X-Loupe"], hdr["X-Loupe-Rev"]), ("4", "1", "7"))
+
+    def test_wifi_frame_is_zero(self):
+        live = type("L", (), {"wait_frame": lambda self, s: (2, b"\xff\xd8x\xff\xd9")})()
+        hdr = self.frame(live)
+        self.assertEqual((hdr["X-Loupe"], hdr["X-Loupe-Rev"]), ("0", "0"))
+
+    def test_stamp_is_taken_before_the_fetch(self):
+        class Cam:
+            loupe_rev, loupe_on, hold = 3, True, False
+
+            def dial_turned(self):
+                return False
+
+            def preview_frame(self):  # a zoom write lands during the fetch: the stamp must stay the older one
+                Cam.loupe_rev, Cam.loupe_on = 4, False
+                live._run = False
+                return b"frame"
+
+        live = usb_camera.UsbLive(Cam())
+        live._run = True
+        live._loop()
+        self.assertEqual(live.stamp, (3, 1))
 
 
 class Page(unittest.TestCase):
-    """The page keeps the ratio steps and both zoom controls (Wi-Fi keeps 1x/2x/4x)."""
+    def setUp(self):
+        self.html = open(HTML, encoding="utf-8").read()
 
     def test_markup(self):
-        path = os.path.join(os.path.dirname(__file__), "..", "omcap", "web", "index.html")
-        html = open(path, encoding="utf-8").read()
-        self.assertIn("LOUPE_STEPS=[1,3,5,7,10,14]", html)
+        h = self.html
         for z in (1, 2, 4):
-            self.assertIn('data-z="%d"' % z, html)
+            self.assertIn('data-z="%d"' % z, h)
         for z in (1, 3, 5, 7, 10, 14):
-            self.assertIn('data-lz="%d"' % z, html)
-        self.assertNotIn("loupeBtn", html)
+            self.assertIn('data-lz="%d"' % z, h)
+        self.assertIn("const LOUPE_STEPS=[1,3,5,7,10,14]", h)
+        self.assertIn('id="liveBack"', h)  # backdrop behind the moved camera crop
+        self.assertIn("const LOUPE_LAG_FRAMES=2", h)
+        for name in ("loupeReconcile", "loupeCommit", "loupeHold", "loupeOnFrame", "zRender", "zSnap", "zClamp", "zCrop"):
+            self.assertIn("function %s(" % name if name[0] != "z" or name == "zRender" else "const %s=" % name, h)
+        self.assertIn("X-Loupe-Rev", h)
+        self.assertNotIn("loupeBtn", h)
+
+    def test_step_drag_is_gone(self):
+        for old in ("loupeSend", "lConfirm", "LOUPE_SEND_MS", "{drag:{dx", "loupeStepScreen", "loupeShow(", "loupeStep("):
+            self.assertNotIn(old, self.html)
+
+    def test_title_describes_the_new_gestures(self):
+        m = re.search(r'"lv.loupeTitle": "([^"]*)"', self.html)
+        self.assertIn("wheel or pinch = zoom smoothly", m.group(1))
+        self.assertIn("snaps", m.group(1))
+
+
+@unittest.skipUnless(shutil.which("osascript"), "needs the JavaScript engine of macOS (osascript)")
+class ZoomMaths(unittest.TestCase):
+    """Runs the page's pure zoom functions (between the 'zoom maths' markers) in JavaScriptCore."""
+
+    def run_js(self, expr):
+        h = open(HTML, encoding="utf-8").read()
+        steps = re.search(r"const LOUPE_STEPS=\[[^\]]*\];", h).group(0)
+        maths = h[h.index("// zoom maths (pure"):h.index("// zoom maths end")]
+        code = "%s\n%s\nJSON.stringify(%s)" % (steps, maths, expr)
+        out = subprocess.run(["osascript", "-l", "JavaScript", "-e", code], capture_output=True, text=True, timeout=30)
+        self.assertEqual(out.returncode, 0, out.stderr)
+        return json.loads(out.stdout.strip())
+
+    def test_clamp_keeps_the_view_in_the_picture(self):
+        self.assertEqual(self.run_js("[zClamp(0.1,5),zClamp(0.95,5),zClamp(0.4,1),zClamp(0.5,14)]"), [0.1, 0.9, 0.5, 0.5])
+
+    def test_snap_on_a_log_scale(self):
+        # 6 is nearer to 7 than to 5 on a log scale (1.17 vs 1.2), though 1 away from both
+        self.assertEqual(self.run_js("[1,1.4,1.8,2,4,6,8,8.5,12,13.9,20].map(zSnap)"), [1, 1, 3, 3, 5, 7, 7, 10, 14, 14, 14])
+
+    def test_shift_centres_the_view(self):
+        t = self.run_js("[zShift({s:1,cx:.5,cy:.5},800,600),zShift({s:2,cx:.25,cy:.25},800,600),zShift({s:2,cx:.75,cy:.75},800,600)]")
+        self.assertEqual(t[0], {"x": 0, "y": 0})
+        self.assertEqual(t[1], {"x": 0, "y": 0})  # clamped corner: picture top left at the viewport corner
+        self.assertEqual(t[2], {"x": -800, "y": -600})
+
+    def test_zoom_about_a_point_keeps_it_in_place(self):
+        r = self.run_js("(()=>{const v={s:1,cx:.5,cy:.5},p=zPic(v,.8,.3),c=zCentre(p,3,.8,.3);"
+                        "const q=zPic({s:3,cx:c.cx,cy:c.cy},.8,.3);return [p,q]})()")
+        self.assertAlmostEqual(r[0]["x"], r[1]["x"])
+        self.assertAlmostEqual(r[0]["y"], r[1]["y"])
+
+    def test_crop_of_the_view_itself_sits_at_the_origin(self):
+        c = self.run_js("zCrop({s:5,cx:.3,cy:.6},{s:5,cx:.3,cy:.6},1024,768)")
+        self.assertEqual((c["k"], c["x"], c["y"]), (1, 0, 0))
+
+    def test_crop_follows_a_dragged_view(self):
+        # view centre moved right by 0.01 of the picture at x5: the crop moves left by 0.01*W*5 px
+        c = self.run_js("zCrop({s:5,cx:.31,cy:.6},{s:5,cx:.3,cy:.6},1000,750)")
+        self.assertAlmostEqual(c["x"], -50)
+        self.assertAlmostEqual(c["y"], 0)
+
+    def test_crop_scales_with_the_view(self):
+        c = self.run_js("zCrop({s:10,cx:.5,cy:.5},{s:5,cx:.5,cy:.5},1000,750)")
+        self.assertEqual((c["k"], c["x"], c["y"]), (2, -500, -375))
 
 
 if __name__ == "__main__":

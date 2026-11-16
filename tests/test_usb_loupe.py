@@ -151,10 +151,10 @@ class Endpoint(unittest.TestCase):
 
     def test_usb_on_and_move(self):
         server.cam, server.conn_type = make(), "usb"
-        self.assertEqual(act("/api/loupe", {"on": True, "ratio": 7, "x": 0.25, "y": 0.75}), {"loupe": True})
+        self.assertEqual(act("/api/loupe", {"on": True, "ratio": 7, "x": 0.25, "y": 0.75}), {"loupe": True, "rev": 1})
         self.assertEqual(server.cam._c.writes[1], ("opcode", "0x9483,0x%x" % ((576 << 16) | 256)))
-        self.assertEqual(act("/api/loupe", {"move": "left"}), {"loupe": True})
-        self.assertEqual(act("/api/loupe", {"on": False}), {"loupe": False})
+        self.assertEqual(act("/api/loupe", {"move": "left"}), {"loupe": True, "rev": 1})
+        self.assertEqual(act("/api/loupe", {"on": False}), {"loupe": False, "rev": 2})
 
 
 if __name__ == "__main__":
