@@ -128,11 +128,19 @@ def act(path, b):
 
 class Endpoint(unittest.TestCase):
     def setUp(self):
-        self.saved = (server.cam, server.conn_type, server.ensure_idle)
+        self.saved = (server.cam, server.conn_type, server.ensure_idle, server.live)
         server.ensure_idle = lambda: None
+        server.live = type("Live", (), {"running": True})()
 
     def tearDown(self):
-        server.cam, server.conn_type, server.ensure_idle = self.saved
+        server.cam, server.conn_type, server.ensure_idle, server.live = self.saved
+
+    def test_needs_live_view(self):
+        server.cam, server.conn_type = make(), "usb"
+        server.live.running = False
+        with self.assertRaises(CameraError):
+            act("/api/loupe", {"on": True})
+        self.assertEqual(server.cam._c.writes, [])
 
     def test_usb_only(self):
         self.assertIn("loupe", usb_camera.FEATURES)

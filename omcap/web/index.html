@@ -796,7 +796,7 @@ const I18N={en:{
   "lv.peakYellow": "Yellow",
   "lv.roll": "Horizon {a}° · Tilt {b}°",
   "lv.delta": "Δ Horizon {a}° · Δ Tilt {b}° to the held angle",
-  "lv.loupe": "Zoom AF", "lv.loupeTitle": "The camera's own magnified live view (USB only; Zoom frame AF/zoom AF in the manual). Starts at the AF target.",
+  "lv.loupe": "Zoom AF", "lv.loupeTitle": "The camera's own magnified live view (USB only; Zoom frame AF/zoom AF in the manual). Starts at the AF target. No AF with Four Thirds lenses while zoomed (manual p.56).",
   "lv.loupeRatio": "Zoom ratio", "lv.loupeMove": "Move the zoom frame",
   "lv.left": "Left", "lv.up": "Up", "lv.down": "Down", "lv.right": "Right",
   "msg.loupeOn": "Zoom AF on", "msg.loupeOff": "Zoom AF off", "msg.loupeMove": "Zoom frame moved",
@@ -2234,7 +2234,8 @@ function loupeShow(on){
   if(loupeOn) setZoom(1);
 }
 async function loupeSet(on){
-  const body={on,ratio:+$('#loupeRatio').value};
+  const body={on};
+  if(on) body.ratio=+$('#loupeRatio').value;
   if(on&&!loupeOn) Object.assign(body,loupePoint()); // a new ratio keeps the moved frame
   const j=await act(tr(on?'msg.loupeOn':'msg.loupeOff'),'/api/loupe',body);
   if(j) loupeShow(j.loupe);
@@ -2899,6 +2900,7 @@ async function enterApp(){
     statusBase={model:s.model,conn:s.type==='usb'?'USB':'Wi-Fi',rights:canWrite?tr('app.write'):tr('app.readOnly')};
     showStatus();
     if(!canWrite) document.querySelectorAll('button.w').forEach(b=>{b.disabled=true;b.classList.add('na');b.title=tr('na.readOnly')});
+    $('#loupeRatio').disabled=!canWrite;
     showSaved(); // before props: over USB props waits for the card index (~1 min)
     await tick(); await props(); loadDevice(true); if(isUsb) loadLens();
     if(isUsb||(features.has('af_area')&&st.live)) loadAf();

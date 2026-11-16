@@ -75,6 +75,7 @@ recording a movie, read only, Wi-Fi drop-out (last good frame kept, "No signal f
 |---|---|---|
 | LV super control panel | "LV super control panel" (live view), "super control panel" (viewfinder) | p.19, p.24 |
 | Level gauge (Horizon, Tilt) | "Level gauge" (INFO cycle in live view; tilt on the vertical bar, horizon on the horizontal bar) | p.35, p.37 |
+| Zoom AF, Zoom ratio, Move the zoom frame | "Zoom frame AF/zoom AF", zoom frame, zoom ratio ×3–×14 (the app button switches the magnified stage, zoom AF) | p.56 |
 | Hold angle, Clear angle, Angle matched, Δ Horizon / Δ Tilt, "Level ✓", Sound | app terms (no manual equivalent) for a held target horizon/tilt and the level feedback, built on "Horizon" and "Tilt" | p.35, p.37 |
 | Phone, Open on a phone, Stay here, Auto · {size}, Live view adjusted to … | app terms (no manual equivalent) for the phone link, auto-connect and the automatic live view size | – |
 | Shooting mode iAUTO / P / A / S / M / ART / Movie | iAUTO, Program shooting, Aperture priority, Shutter priority, Manual shooting, ART, movie mode | p.18, p.38–50 |

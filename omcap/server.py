@@ -1359,6 +1359,8 @@ class Handler(BaseHTTPRequestHandler):
         elif path == "/api/loupe":
             if conn_type != "usb":
                 raise CameraError("Zoom AF only over USB (no Wi-Fi command)")
+            if not live.running:
+                raise CameraError("Start the live view first")
             ensure_idle()
             if b.get("move"):
                 cam.loupe_move(b["move"])
