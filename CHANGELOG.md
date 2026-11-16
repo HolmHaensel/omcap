@@ -2,7 +2,6 @@
 
 ## Unreleased
 
-- Tools: `tools/usbsniff/`, a listen-only USB capture and decoding tool (macOS ImageCaptureCore hook on a re-signed program copy, pcap/pcapng import from USBPcap or usbmon, PTP/mass storage/HID/hex decoders, log/JSON lines/pcapng output, diff of a baseline and an action recording). Not part of the app (REQ-R05).
 - Peaking now reacts to the focus ring: it is computed at 640 px instead of 320 px and only edges above a fixed strength light up (before, the strongest 3 % of the edges were marked in any picture, sharp or not). Over Wi-Fi the gain needs a live view size of 640×480 or more (REQ-F52).
 - USB battery: shown as a rough level ("Battery: high (rough)" / "Battery: half or less (rough)") instead of a percentage. The camera sends 100 or 50 in coarse steps (50 from half full to almost empty, 100 for a fresh battery), so "50 %" was misleading (REQ-F19).
 - USB Focus Stacking: the switch now also sets the camera's stacking flag (`d0ce`, found 2026-11-16: `d0cb` is only Focus BKT, a plain series of shots); "Focus Stacking is on" needs both. Bodies without `d0ce` behave as before. Camera-tested 2026-11-16 over USB: one series of 8 frames plus the merged JPG (REQ-F38).
