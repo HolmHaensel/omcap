@@ -104,6 +104,7 @@ More in [Start and stop](#start-and-stop).
 |---|---|---|---|
 | LV super control panel: shutter speed, aperture, exposure compensation, ISO, WB, drive, Picture Mode | ✅ | ✅ | |
 | Art filter | ✅ | 🟡 | USB: not tested in ART mode |
+| Partial Color colour ring (ART and Picture Mode Partial Color; 18 colours, laid out like the camera's ring) | ✅ | – | USB: the camera offers no value for the colour, only selecting Partial Color |
 | Shooting mode | ✅ | – | USB: set by the mode dial; the app follows the dial and reloads the values (tested; iAUTO, ART, SCN, PHOTO STORY show as P) |
 | AF mode, Metering, Flash mode, Record mode, Aspect ratio, Image stabilizer, Face priority | – | ✅ | no Wi-Fi command |
 | Aperture list limited to the attached lens | ✅ | ✅ | USB after the first picture of the session |

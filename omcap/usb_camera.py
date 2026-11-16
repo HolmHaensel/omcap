@@ -198,7 +198,7 @@ USB_TABLES = {
     "d01d": {"0": "S-IS Off", "1": "S-IS1", "2": "S-IS2", "3": "S-IS3", "4": "S-IS AUTO"},
     "d01a": {"0": "Face Priority Off", "32769": "Face Priority On", "32770": "Face & Eye Priority On",
              "32771": "Face & R. Eye Priority On", "32772": "Face & L. Eye Priority On"},  # 32771 inferred
-    "d0cb": {"1": "On", "2": "Off"},  # Focus Stacking (FW 4.x, mapped 2026-11-13; libgphoto2's d065 does not change)
+    "d0cb": {"1": "On", "2": "Off"},  # Focus BKT (user's firmware: d0ce is Focus Stacking, mapped 2026-11-16)
 }
 # Bracketing kind d020: 2 = Off, 3 = Focus BKT (mapped 2026-11-13). Focus Stacking needs Focus BKT; the camera then
 # switches by itself to Silent Sequential H, electronic shutter (1/16000 … 1/8 s) and flash off (E-M1 manual, p.174).
@@ -635,6 +635,8 @@ class UsbCamera:
                 if key in self.OPTIONAL:
                     continue  # e.g. firmware without Focus Stacking: hide the setting, keep the panel
                 raise
+            if key == "focusstacking" and str(value) == "1" and not self._stack_flag_on():
+                value = "2"  # Focus BKT alone (d0cb) is a plain series; the switch shows On only with d0ce too
             if key == "artfilter":  # d010 also holds the kind of filter (from 34305)
                 choices = [c for c in choices if int(c) >= 34305]
             if key == "shutspeedvalue":  # M only: BULB, LIVE TIME, LIVECOMP are in d01c
@@ -909,7 +911,8 @@ class UsbCamera:
             self._set(self.PROPS[prop][0], value)
 
     def _set_focus_stacking(self, on):
-        """Focus Stacking on or off; also sets the bracketing kind (Focus BKT) and keeps the earlier one."""
+        """Focus Stacking on or off: bracketing kind d020 = Focus BKT, Focus BKT d0cb and the stacking flag d0ce;
+        the earlier bracketing kind is kept and comes back on Off."""
         self._need_write()
         if on:
             if LONG_LABELS.get(self._value("shutterspeed")):  # the camera stacks with the electronic shutter only
@@ -919,21 +922,44 @@ class UsbCamera:
                 self._bkt_before = kind  # lost after a reconnect: Off then sets Bracketing Off
             self._set("d020", BKT_FOCUS)
             try:
-                self._set("d0cb", 1)
+                self._set("d0cb", 1)  # Focus BKT on
+                try:
+                    self._set_stack_flag(1)  # d0ce: merge the series in the camera (Focus Stacking)
+                except CameraError:
+                    self._set("d0cb", 2)  # not a plain series left behind
+                    raise
             except CameraError:
                 self._set("d020", getattr(self, "_bkt_before", BKT_OFF))  # e.g. a lens without Focus BKT (p.173)
                 raise
         else:
+            self._set_stack_flag(2)
             self._set("d0cb", 2)
             if int(float(self._value("d020"))) == BKT_FOCUS:  # leave another bracketing kind alone
                 self._set("d020", getattr(self, "_bkt_before", BKT_OFF))
         self.refresh()  # drive mode, shutter limits and flash change with it; they arrive with a new session
 
+    def _set_stack_flag(self, value):
+        """d0ce = Focus Stacking On (1) / Off (2), mapped 2026-11-16 (changed alone when the stacking switch was
+        flipped on the camera). d0cb is only Focus BKT, a plain series. Not every body has it: then it is skipped."""
+        try:
+            self._value("d0ce")
+        except CameraError:
+            return
+        self._set("d0ce", value)
+
+    def _stack_flag_on(self):
+        try:
+            return str(self._value("d0ce")) == "1"  # Focus BKT alone is a plain series, not stacking
+        except CameraError:
+            return True  # a body without d0ce: Focus BKT is the only switch
+
     def _stacking_on(self):
         try:
-            return str(self._value("d0cb")) == "1"
+            if str(self._value("d0cb")) != "1":
+                return False
         except CameraError:
             return False
+        return self._stack_flag_on()
 
     def set_af_area(self, mode=None, field=None):
         if mode is not None:
