@@ -311,6 +311,25 @@ class FocusStacking(unittest.TestCase):
         self.assertEqual((fake.props[0xD020]["value"], fake.props[0xD0CB]["value"], fake.props[0xD0CE]["value"]), (1, 2, 2))  # earlier kind back
         self.assertEqual(cam.refresh.call_count, 2)
 
+    def test_failed_stack_flag_leaves_no_plain_series(self):
+        cam = usb_camera.UsbCamera.__new__(usb_camera.UsbCamera)
+        fake = FakePtp()
+        fake.props[0xD020] = {"type": 2, "writable": True, "value": 1, "enum": [2, 1, 3, 0]}
+        fake.props[0xD0CB] = {"type": 2, "writable": True, "value": 2, "enum": [2, 1]}
+        fake.props[0xD0CE] = {"type": 2, "writable": True, "value": 2, "enum": [2, 1]}
+        cam.gp, cam._c, cam._lock, cam.allow_write = pg, camera(fake), threading.Lock(), True
+        cam.refresh = mock.Mock()
+        real = cam._set
+
+        def flaky(name, value):
+            if name == "d0ce":
+                raise usb_camera.CameraError("refused")
+            real(name, value)
+        with mock.patch.object(cam, "_set", side_effect=flaky):
+            with self.assertRaises(usb_camera.CameraError):
+                cam.set_prop("focusstacking", "1")
+        self.assertEqual((fake.props[0xD020]["value"], fake.props[0xD0CB]["value"]), (1, 2))  # earlier kind, Focus BKT off
+
     def test_body_without_d0ce_keeps_working(self):
         cam = usb_camera.UsbCamera.__new__(usb_camera.UsbCamera)
         fake = FakePtp()

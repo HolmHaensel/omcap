@@ -635,7 +635,7 @@ class UsbCamera:
                 if key in self.OPTIONAL:
                     continue  # e.g. firmware without Focus Stacking: hide the setting, keep the panel
                 raise
-            if key == "focusstacking" and str(value) == "1" and not self._stacking_on():
+            if key == "focusstacking" and str(value) == "1" and not self._stack_flag_on():
                 value = "2"  # Focus BKT alone (d0cb) is a plain series; the switch shows On only with d0ce too
             if key == "artfilter":  # d010 also holds the kind of filter (from 34305)
                 choices = [c for c in choices if int(c) >= 34305]
@@ -911,7 +911,8 @@ class UsbCamera:
             self._set(self.PROPS[prop][0], value)
 
     def _set_focus_stacking(self, on):
-        """Focus Stacking on or off; also sets the bracketing kind (Focus BKT) and keeps the earlier one."""
+        """Focus Stacking on or off: bracketing kind d020 = Focus BKT, Focus BKT d0cb and the stacking flag d0ce;
+        the earlier bracketing kind is kept and comes back on Off."""
         self._need_write()
         if on:
             if LONG_LABELS.get(self._value("shutterspeed")):  # the camera stacks with the electronic shutter only
@@ -922,10 +923,14 @@ class UsbCamera:
             self._set("d020", BKT_FOCUS)
             try:
                 self._set("d0cb", 1)  # Focus BKT on
+                try:
+                    self._set_stack_flag(1)  # d0ce: merge the series in the camera (Focus Stacking)
+                except CameraError:
+                    self._set("d0cb", 2)  # not a plain series left behind
+                    raise
             except CameraError:
                 self._set("d020", getattr(self, "_bkt_before", BKT_OFF))  # e.g. a lens without Focus BKT (p.173)
                 raise
-            self._set_stack_flag(1)  # d0ce: merge the series in the camera (Focus Stacking)
         else:
             self._set_stack_flag(2)
             self._set("d0cb", 2)
@@ -942,16 +947,19 @@ class UsbCamera:
             return
         self._set("d0ce", value)
 
+    def _stack_flag_on(self):
+        try:
+            return str(self._value("d0ce")) == "1"  # Focus BKT alone is a plain series, not stacking
+        except CameraError:
+            return True  # a body without d0ce: Focus BKT is the only switch
+
     def _stacking_on(self):
         try:
             if str(self._value("d0cb")) != "1":
                 return False
         except CameraError:
             return False
-        try:
-            return str(self._value("d0ce")) == "1"  # Focus BKT alone is a plain series, not stacking
-        except CameraError:
-            return True  # a body without d0ce: Focus BKT is the only switch
+        return self._stack_flag_on()
 
     def set_af_area(self, mode=None, field=None):
         if mode is not None:
