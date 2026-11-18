@@ -961,6 +961,27 @@ def preview_path(path):
     return path
 
 
+client_seen = {}  # page id -> last time that page polled or sent a zoom command (monotonic seconds)
+CLIENT_LIVE_S = 4  # a page counts as open when it was seen within this (the page polls every 1.5 s)
+
+
+def clean_client(v):
+    """A page id as sent by the page: a short alphanumeric string, else None."""
+    return v if isinstance(v, str) and v.isascii() and v.isalnum() and len(v) <= 32 else None
+
+
+def note_client(v):
+    v = clean_client(v)
+    if not v:
+        return None
+    now = time.monotonic()
+    client_seen[v] = now
+    if len(client_seen) > 32:  # forgotten tabs: keep the dict small
+        for k in [k for k, t in client_seen.items() if now - t > 60]:
+            del client_seen[k]
+    return v
+
+
 def public_state():
     now = time.time()
     return {
@@ -979,6 +1000,7 @@ def public_state():
         "loupe_ratio": getattr(cam, "loupe_ratio", 5),
         "loupe_x": getattr(cam, "loupe_x", None), "loupe_y": getattr(cam, "loupe_y", None),  # wanted centre, for pages that follow
         "loupe_owner": getattr(cam, "loupe_owner", None),
+        "loupe_owner_live": time.monotonic() - client_seen.get(getattr(cam, "loupe_owner", None), -1e9) < CLIENT_LIVE_S,  # is that page still open?
     }
 
 
@@ -1136,6 +1158,7 @@ class Handler(BaseHTTPRequestHandler):
             if u.path == "/api/lvext":  # research: camera status sent with the Wi-Fi live view
                 return self._send(live.ext_info() if hasattr(live, "ext_info") else {"error": "no Wi-Fi live view"})
             if u.path == "/api/state":
+                note_client(q.get("client"))  # which page asks: tells the others whether the zoom owner is still there
                 return self._send(public_state())
             if u.path == "/api/device":
                 return self._send(device_status(force=q.get("fresh") == "1"))
@@ -1373,7 +1396,7 @@ class Handler(BaseHTTPRequestHandler):
                 cam.loupe(bool(b.get("on")), b.get("ratio"), b.get("x"), b.get("y"))
             else:
                 raise CameraError("Zoom AF: on, ratio or move")
-            cam.loupe_owner = b.get("client")  # the page that sent the last request drives the zoom, others follow
+            cam.loupe_owner = note_client(b.get("client"))  # the page that sent the last request drives the zoom, others follow
             return {"loupe": cam.loupe_on, "rev": cam.loupe_rev}  # rev: the page waits for frames stamped with it
         elif path == "/api/take":
             if b.get("action") == "prepare":

@@ -5,6 +5,7 @@ import os
 import re
 import shutil
 import subprocess
+import time
 import unittest
 
 from omcap import ptp, server, usb_camera
@@ -103,6 +104,34 @@ class Ownership(unittest.TestCase):
         self.assertEqual(server.public_state()["loupe_owner"], "pageB")
         self.act({"move": "left", "client": "pageA"})
         self.assertEqual(server.public_state()["loupe_owner"], "pageA")
+
+    def test_client_id_is_validated(self):
+        for bad in (None, 5, "", "a b", "x" * 33, "ä", "a/b", ["x"]):
+            self.assertIsNone(server.clean_client(bad), bad)
+        self.assertEqual(server.clean_client("abc123"), "abc123")
+        self.act({"on": True, "ratio": 5, "x": 0.5, "y": 0.5, "client": "bad id!"})
+        self.assertIsNone(server.public_state()["loupe_owner"])
+
+    def test_off_records_the_owner_too(self):
+        self.act({"on": True, "ratio": 5, "x": 0.5, "y": 0.5, "client": "pageA"})
+        self.act({"on": False, "client": "pageB"})
+        self.assertEqual(server.public_state()["loupe_owner"], "pageB")
+
+    def test_owner_is_live_while_it_polls(self):
+        server.client_seen.clear()
+        self.act({"on": True, "ratio": 5, "x": 0.5, "y": 0.5, "client": "pageA"})
+        self.assertTrue(server.public_state()["loupe_owner_live"])
+        server.client_seen["pageA"] -= 10  # not seen for a while: the tab is gone
+        self.assertFalse(server.public_state()["loupe_owner_live"])
+        server.note_client("pageA")  # a poll brings it back
+        self.assertTrue(server.public_state()["loupe_owner_live"])
+
+    def test_forgotten_clients_are_pruned(self):
+        server.client_seen.clear()
+        for i in range(40):
+            server.client_seen["old%d" % i] = time.monotonic() - 120
+        server.note_client("fresh")
+        self.assertEqual(list(server.client_seen), ["fresh"])
 
     def test_reset_when_the_server_ends_the_zoom(self):
         self.act({"on": True, "ratio": 5, "x": 0.5, "y": 0.5, "client": "pageA"})
@@ -498,13 +527,16 @@ class CommandPath(unittest.TestCase):
     function __drive(g){var r=g.next();while(!r.done){var v=r.value;r=(v&&v.__err)?g.throw(new Error(v.__err)):g.next(v)}return r.value}
     """
 
-    def run_js(self, scenario):
+    def run_js(self, scenario, with_map=False):
         with open(HTML, encoding="utf-8") as f:
             h = f.read()
-        a, b = h.index("let loupeOn=false,usbZoom=false"), h.index("function loupePtrEnd(")
+        a, b = h.index("function zClientId("), h.index("function loupePtrEnd(")
         region = h[a:b].replace("let loupeOn=false,usbZoom=false,", "var ").replace("let lPtr=new Map()", "var lPtr=new Map()")  # the stubs declare loupeOn and usbZoom
         region = region.replace("async function loupeReconcile(", "function* __rec(").replace("async function loupeRecover(", "function* __recv(")
         region = region.replace("await ", "yield ")
+        if with_map:  # the overview map handlers (after loupeUp in the page)
+            m0 = h.index("// Overview map: a click moves")
+            region += h[m0:h.index("document.querySelectorAll('[data-lz]')", m0)]
         region = region.replace("$(", "Q(")  # $ is the ObjC bridge in this engine
         region += "\nfunction loupeReconcile(){return __drive(__rec())}\nfunction loupeRecover(){return __drive(__recv())}\n"
         code = "%s\n%s\nzId='me';%s" % (self.STUBS, region, scenario)
@@ -677,6 +709,61 @@ class CommandPath(unittest.TestCase):
         r = self.zoom_calls(self.FOREIGN + "loupePoll(loupeAns);Object.assign(V,{s:9.5,cx:.4,cy:.45});loupeCommit();")
         self.assertEqual(len(r["calls"]), 1)  # the commit is explicit: one request, with this page's id
         self.assertEqual(r["calls"][0][1]["client"], "me")
+
+    def test_stale_owner_lets_the_remaining_page_run_its_backdrop_cycle(self):
+        r = self.zoom_calls("st={live:true,loupe:true,loupe_owner:'gone',loupe_owner_live:false,loupe_ratio:10,loupe_x:.3,loupe_y:.6};"
+                            "lastNormal=null;loupePoll(loupeAns);")
+        self.assertEqual(len(r["calls"]), 1)  # the owner tab is closed: the cycle runs, this page now owns the zoom
+        self.assertEqual(r["calls"][0][1]["client"], "me")
+
+    def test_live_foreign_owner_still_blocks_it(self):
+        r = self.zoom_calls("st={live:true,loupe:true,loupe_owner:'other',loupe_owner_live:true,loupe_ratio:10,loupe_x:.3,loupe_y:.6};"
+                            "lastNormal=null;loupePoll(loupeAns);")
+        self.assertEqual(r["calls"], [])
+
+    def test_a_reloaded_tab_keeps_its_id(self):
+        r = self.run_js("var store={};sessionStorage={getItem:function(k){return store[k]||null},setItem:function(k,v){store[k]=v}};"
+                        "var a=zClientId(),b=zClientId();sessionStorage={getItem:function(){throw new Error('no storage')}};var c=zClientId();"
+                        "JSON.stringify([a,b,c])")
+        self.assertEqual(r[0], r[1])
+        self.assertRegex(r[0], r"^[A-Za-z0-9]{1,32}$")
+        self.assertRegex(r[2], r"^[A-Za-z0-9]{1,32}$")  # no storage: a random id
+
+    def test_follower_in_a_backdrop_cycle_adopting_a_zoom_out_sends_nothing(self):
+        r = self.zoom_calls("st={live:true,loupe:false,loupe_owner:'other',loupe_owner_live:true,loupe_ratio:5};"
+                            "zCamShows=true;zBackWant={on:true,ratio:5,x:.5,y:.5};zWant={on:false,ratio:5,x:.5,y:.5};zSent={on:true,ratio:5,x:.5,y:.5};"
+                            "loupePoll(loupeAns);loupeBackdropOn();")
+        self.assertEqual(r["calls"], [])
+        self.assertFalse(r["shows"])  # it followed the zoom-out
+
+    def test_a_backdrop_on_after_the_owner_changed_is_dropped(self):
+        r = self.zoom_calls("st={live:true,loupe:false,loupe_owner:'other',loupe_owner_live:true};zBackWant={on:true,ratio:5,x:.5,y:.5};"
+                            "zWant={on:false,ratio:5,x:.5,y:.5};zSent={on:false,ratio:5,x:.5,y:.5};loupeBackdropOn();")
+        self.assertEqual(r["calls"], [])
+
+    def test_a_failed_request_does_not_claim_the_zoom(self):
+        r = self.run_js("mode='err';st={live:true,loupe:true,loupe_owner:'other',loupe_owner_live:true,loupe_ratio:5};"
+                        "Object.assign(V,{s:5,cx:.5,cy:.5});loupeCommit();JSON.stringify(st.loupe_owner)")
+        self.assertEqual(r, "other")
+
+    def test_a_request_claims_the_zoom(self):
+        r = self.run_js("st={live:true,loupe_owner:'other',loupe_owner_live:true};Object.assign(V,{s:5,cx:.5,cy:.5});loupeCommit();JSON.stringify(st.loupe_owner)")
+        self.assertEqual(r, "me")
+
+    def map_event(self, x, y):
+        return "{pointerId:1,clientX:%s,clientY:%s,stopPropagation:function(){},preventDefault:function(){}}" % (x, y)
+
+    def test_map_drag_moves_the_view_live_and_commits_once_at_rest(self):
+        r = self.run_js(self.ZOOMED + "lastNormal='L';Object.assign(V,{s:5,cx:.5,cy:.5});zRender();"
+                        "zMap.getBoundingClientRect=function(){return {left:0,top:0,width:200,height:150}};zMap.setPointerCapture=function(){};"
+                        "zMap.onpointerdown(" + self.map_event(60, 45) + ");zMap.onpointermove(" + self.map_event(80, 60) + ");"
+                        "var mid={cx:V.cx,cy:V.cy,calls:calls.length,rest:restT};zMap.onpointerup(" + self.map_event(80, 60) + ");"
+                        "var armed=restT;var before=calls.length;loupeCommit();JSON.stringify({mid:mid,armed:armed,before:before,after:calls.length})",
+                        with_map=True)
+        self.assertAlmostEqual(r["mid"]["cx"], 0.4)  # map point (80, 60) of 200x150 = 0.4, 0.4
+        self.assertAlmostEqual(r["mid"]["cy"], 0.4)
+        self.assertEqual(r["mid"]["calls"], 0)  # no command while the pointer is down
+        self.assertEqual((r["before"], r["after"]), (0, 1))  # one commit at rest
 
     def test_click_is_not_a_command(self):
         r = self.run_js(self.ZOOMED + "loupeHold();JSON.stringify(calls)")  # loupeHold is all a pointer down does

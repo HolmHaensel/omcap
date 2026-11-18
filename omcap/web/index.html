@@ -1146,7 +1146,7 @@ async function tick(){
   if(view||!connected||quitting) return;
   const liOld=JSON.stringify(st&&st.lvinfo);
   const ans0=loupeAns; // a poll requested before the latest /api/loupe answer must not reset the zoom view
-  try{st=await api('/api/state')}catch(e){if(e.message===tr('srv.offline'))msg(e.message,true);return}
+  try{st=await api('/api/state?client='+zId)}catch(e){if(e.message===tr('srv.offline'))msg(e.message,true);return}
   if(JSON.stringify(st.lvinfo)!==liOld) showStatus();
   if(!st.live&&lvl){lvl=null;lvlShown=null;drawLevel()} // live view stopped: clear the level gauge
   if(modeAt===undefined) modeAt=st.mode_at||null; // first tick after loading: no message for an old turn
@@ -2248,14 +2248,20 @@ vp.onpointercancel=e=>{if(!loupePtrEnd(e,true)) drag=null};
    and the page holds the old crop until the new one arrives. The normal view is only shown ("soft": the browser
    magnifies the live normal frames) when zooming in from 1x and out to 1x. Click = focus, drag = move, wheel/pinch =
    zoom about the pointer, snapping to
-   the camera's ratios at rest. The frame starts at the chosen AF target (centre with All Targets). 
+   the camera's ratios at rest. The frame starts at the chosen AF target (centre with All Targets).
    One page drives the camera zoom, others follow: every /api/loupe request carries this page's client id (zId) and the
    server reports who sent the last one (loupe_owner) with the zoom state. Only explicit user actions (gesture commit,
    ratio buttons, arrows, overview map, zoom out) send commands. Automatic paths (state poll, error recovery, watchdog,
    hidden backdrop cycle) never send in reaction to a state this page did not cause: a page that is not the owner
    adopts the server's zoom state (loupePoll, loupeSync) and sends nothing, so two pages cannot fight over the zoom.
-   A user action on a follower page makes it the owner from its next request on. */
-let loupeOn=false,usbZoom=false,zBlock=false,loupeAns=0,zLastRev=0,zId=Math.random().toString(36).slice(2); // zId: this page's client id // loupeOn: the zoom view is magnified (V.s > 1), sharp or soft
+   A user action on a follower page makes it the owner from its next request on. A closed or crashed owner
+   (loupe_owner_live false: not seen polling for a few seconds) no longer holds the automatic paths back.*/
+// loupeOn: the zoom view is magnified (V.s > 1), sharp or soft; zId: this page's client id, kept per tab (a reload stays the owner)
+function zClientId(){
+  const rnd=()=>'p'+Math.random().toString(36).slice(2,12);
+  try{let v=sessionStorage.getItem('omcap.zid'); if(!v||!/^[A-Za-z0-9]{1,32}$/.test(v)){v=rnd(); sessionStorage.setItem('omcap.zid',v)} return v}catch{return rnd()}
+}
+let loupeOn=false,usbZoom=false,zBlock=false,loupeAns=0,zLastRev=0,zId=zClientId();
 const LOUPE_STEPS=[1,3,5,7,10,14]; // camera ratios (d0cf), 1 = off
 const LOUPE_SETTLE_MS=500; // after a switch the camera's exposure needs this long before its normal frames refresh the backdrop
 const LOUPE_STUCK_MS=2500; // the new crop must show up within this, else the page asks the server what the camera does
@@ -2416,9 +2422,9 @@ function zMeasureCrop(sharp,r,ex,ey,ref){
 }
 // The camera state now shown on the page's own terms: the server answered (or reported) it; used after errors and
 // when the server ended Zoom AF itself (live view stopped, new session)
-const zMayAuto=()=>!st||!st.loupe_owner||st.loupe_owner===zId; // automatic commands only from the owner (or when nobody owns the zoom)
+const zMayAuto=()=>!st||!st.loupe_owner||st.loupe_owner===zId||st.loupe_owner_live===false; // automatic commands only from the owner, nobody, or a page that is gone
 function loupeSync(on,ratio,x,y){ // x, y: the server's wanted centre, when known (a follower adopts it)
-  clearTimeout(restT); restT=0; zPend=null; zCamShows=!!on;
+  clearTimeout(restT); restT=0; zPend=null; zCamShows=!!on; clearTimeout(zBackT); zBackWant=null; // a pending backdrop cycle ends with what the server says
   if(on){V.s=ratio||5; if(x!=null&&y!=null){V.cx=x; V.cy=y} V.cx=zClampCam(V.cx,V.s); V.cy=zClampCam(V.cy,V.s); zCam={s:V.s,cx:V.cx,cy:V.cy}} else Object.assign(V,{s:1,cx:.5,cy:.5});
   zSent={on:!!on,ratio:ratio||5,x:V.cx,y:V.cy}; zWant={...zSent};
   zRender();
@@ -2525,6 +2531,7 @@ function loupeBackdropOff(){
 }
 function loupeBackdropOn(){
   clearTimeout(zBackT); const w=zBackWant;
+  if(w&&!zMayAuto()){zBackWant=null; return} // another page drives the zoom now
   if(w&&(restT||lPtr.size)){zBackT=setTimeout(loupeBackdropOn,300); return} // not under the finger
   zBackWant=null;
   if(w&&!zWant.on){zWant={...w,on:true}; loupeReconcile()}
