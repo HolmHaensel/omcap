@@ -242,7 +242,7 @@ class Page(unittest.TestCase):
         self.assertIn("LOUPE_LAG_FRAMES=6", h)
         for name in ("loupeReconcile", "loupeCommit", "loupeHold", "loupeOnFrame", "zRender"):
             self.assertIn("function %s(" % name, h)
-        for name in ("zSnap", "zClamp", "zClampCam", "zCrop", "zSigDiff", "zSwapDue", "zMatch", "zRubber", "zWheelScale", "zZoomAt"):
+        for name in ("zSnap", "zClamp", "zClampCam", "zCrop", "zSigDiff", "zSwapDue", "zMatch", "zRubber", "zWheelScale", "zZoomAt", "zMatchLimit"):
             self.assertIn("const %s=" % name, h)
         self.assertIn("X-Loupe-Rev", h)
         self.assertIn("const zCovers=", h)
@@ -327,6 +327,12 @@ class ZoomMaths(unittest.TestCase):
         self.assertEqual((r[0]["dx"], r[0]["dy"]), (3, -2))
         self.assertEqual(r[1:], [None, None])  # shift (3, -2) beyond the limit in x or y
 
+    def test_match_limit_is_relative_to_the_crop(self):
+        r = self.run_js("[zMatchLimit(3),zMatchLimit(14)]")
+        self.assertAlmostEqual(r[0]["pic"], 0.05)
+        self.assertAlmostEqual(r[1]["pic"], 0.15 / 14)  # at x14 a correction is at most 15 % of the crop = of the viewport
+        self.assertEqual((r[0]["x"], r[0]["y"]), (r[1]["x"], r[1]["y"]))  # the same in crop pixels
+
     def test_match_refuses_an_ambiguous_repeating_picture(self):
         r = self.run_js("(()=>{const bw=78,bh=58,big=[];for(let y=0;y<bh;y++)for(let x=0;x<bw;x++)big.push((x%8<4?30:220)+(y%2));"
                         "const sm=[];for(let y=0;y<48;y++)for(let x=0;x<64;x++)sm.push(big[(y+5)*bw+x+7]);return zMatch(big,bw,bh,sm,64,48,9,9)})()")
@@ -403,7 +409,7 @@ class CommandPath(unittest.TestCase):
     """Runs the page's real zoom state code (loupeCommit, loupeHold, loupeReconcile, loupeSync) with a stubbed api."""
 
     STUBS = """
-    var calls=[],msgs=[],mode='ok',rev=0,z,px,py,usbZoom=true,loupeOn,tr=function(){return ''},performance={now:function(){return 0}};
+    var lPtr={size:0},calls=[],msgs=[],mode='ok',rev=0,z,px,py,usbZoom=true,loupeOn,tr=function(){return ''},performance={now:function(){return 0}};
     var el=function(){return {style:{},hidden:false,textContent:'',classList:{toggle:function(){},add:function(){},remove:function(){}},setAttribute:function(){},querySelector:function(){return el()}}};
     var vp=el(),layer=el(),Q=function(){return el()},document={querySelectorAll:function(){return []}},calm={matches:true};
     vp.getBoundingClientRect=function(){return {width:800,height:600}};
@@ -468,6 +474,20 @@ class CommandPath(unittest.TestCase):
         self.assertEqual(r["out"], [False] * 6 + [True, True])  # held for LOUPE_LAG_FRAMES frames, then the new crop
         self.assertEqual(r["cam"]["s"], 10)
         self.assertIsNone(r["pend"])
+
+    def test_view_follows_the_camera_crop_after_the_swap(self):
+        r = self.run_js(self.ZOOMED + "zLastRev=0;zRevAtSend=0;Object.assign(V,{s:10,cx:.43,cy:.47});loupeCommit();zCam={s:5,cx:.9,cy:.9};"
+                        "for(var i=0;i<8;i++)loupeOnFrame({rev:1,on:true},null,null);"
+                        "JSON.stringify({V:V,cam:zCam,cov:zCovers(zCrop(V,zCam,800,600),800,600)})")
+        self.assertAlmostEqual(r["V"]["cx"], r["cam"]["cx"])
+        self.assertAlmostEqual(r["V"]["cy"], r["cam"]["cy"])
+        self.assertEqual((r["V"]["s"], r["cam"]["s"]), (10, 10))
+        self.assertTrue(r["cov"])
+
+    def test_view_stays_with_the_user_while_a_gesture_runs(self):
+        r = self.run_js(self.ZOOMED + "zLastRev=0;zRevAtSend=0;Object.assign(V,{s:10,cx:.43,cy:.47});loupeCommit();"
+                        "restT=1;Object.assign(V,{cx:.6});for(var i=0;i<8;i++)loupeOnFrame({rev:1,on:true},null,null);JSON.stringify(V)")
+        self.assertEqual(r["cx"], 0.6)
 
     def test_click_is_not_a_command(self):
         r = self.run_js(self.ZOOMED + "loupeHold();JSON.stringify(calls)")  # loupeHold is all a pointer down does

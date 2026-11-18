@@ -2277,8 +2277,10 @@ const zSwapDue=(diff,n)=>diff>=LOUPE_SIG_DIFF||n>LOUPE_LAG_FRAMES; // n: frames 
 // zero-mean normalised correlation over all offsets; returns the shift of the best offset from the centred one, or null for a
 // flat scene or a weak match.
 // LOUPE_MATCH_GAP: how much the best match must beat the best one elsewhere (repeating patterns are ambiguous);
-// LOUPE_MATCH_MAX: the largest correction accepted, as a share of the picture (a wrong match would jump and uncover edges)
-const LOUPE_MATCH_MIN=.8,LOUPE_MATCH_STD=6,LOUPE_MATCH_GAP=.03,LOUPE_MATCH_MAX=.02,LOUPE_RUBBER=.3; // LOUPE_RUBBER: share of a drag beyond the camera limits that moves the view
+// LOUPE_MATCH_MAX_CROP: the largest correction accepted, as a share of the crop size (so 1/ratio of the picture: a camera
+// position error is magnified by the ratio on screen, a wrong match would jump)
+const LOUPE_MATCH_MIN=.8,LOUPE_MATCH_STD=6,LOUPE_MATCH_GAP=.03,LOUPE_MATCH_MAX_CROP=.15,LOUPE_RUBBER=.3; // LOUPE_RUBBER: share of a drag beyond the camera limits that moves the view
+const zMatchLimit=r=>({x:LOUPE_MATCH_MAX_CROP*64,y:LOUPE_MATCH_MAX_CROP*48,pic:LOUPE_MATCH_MAX_CROP/r}); // in px of the 64x48 crop, and as a share of the picture
 const zMatch=(big,bw,bh,sm,sw,sh,limx,limy)=>{
   const n=sw*sh;let ms=0;for(let i=0;i<n;i++)ms+=sm[i];ms/=n;
   let vs=0;for(let i=0;i<n;i++)vs+=(sm[i]-ms)*(sm[i]-ms);
@@ -2371,7 +2373,7 @@ function zMeasureCrop(sharp,r,ex,ey,ref){
     const x0=Math.min(1-rw,Math.max(0,ex-rw/2)),y0=Math.min(1-rh,Math.max(0,ey-rh/2));
     const big=zGreyOf(ref,x0*nw,y0*nh,rw*nw,rh*nh,BW,BH);
     const small=zGreyOf(sharp,0,0,sharp.naturalWidth||sharp.width,sharp.naturalHeight||sharp.height,64,48);
-    const m=zMatch(big,BW,BH,small,64,48,Math.max(1,LOUPE_MATCH_MAX*64*r),Math.max(1,LOUPE_MATCH_MAX*48*r));
+    const m=zMatch(big,BW,BH,small,64,48,zMatchLimit(r).x,zMatchLimit(r).y);
     return m&&{cx:x0+rw/2+m.dx/(64*r),cy:y0+rh/2+m.dy/(48*r)};
   }catch{return null}
 }
@@ -2426,7 +2428,7 @@ function loupeOnFrame(info,blob,img){ // returns false: do not draw this frame (
   // picture cannot tell; wait the frame count. Normal to crop and back: the first clearly different picture.
   if(zPend&&info.rev>=zPend.rev&&(zCamShows&&zPend.on?++zPend.n>LOUPE_LAG_FRAMES:zSwapDue(zSigDiff(zPend.before&&img?zSig(img):null,zPend.before),++zPend.n))){
     clearTimeout(zWatch);
-    const sharp=zPend.on&&!zCamShows,glide=zPend.on&&zCamShows;
+    const sharp=zPend.on&&!zCamShows;
     zCamShows=zPend.on; if(zCamShows){
       zCam={s:zPend.ratio,cx:zClampCam(zPend.x,zPend.ratio),cy:zClampCam(zPend.y,zPend.ratio)};
       // draw the first sharp frame exactly where the soft picture was: use the crop position measured in the picture
@@ -2438,7 +2440,12 @@ function loupeOnFrame(info,blob,img){ // returns false: do not draw this frame (
       const lv=$('#live'); lv.classList.remove('xf'); void lv.offsetWidth; lv.classList.add('xf');
       fadeUntil=performance.now()+180; setTimeout(()=>zRender(),200);
     }
-    zRender(glide&&!calm.matches); // a new crop at a slightly different place glides into it
+    zRender();
+    // at rest the view follows the camera: the sharp crop then fills the whole viewport and no backdrop edge stays;
+    // the view glides to the crop's real place (not while the user has grabbed the picture again)
+    if(zCamShows&&!restT&&!lPtr.size&&wantEq(zWant,zSent)){
+      Object.assign(V,{s:zCam.s,cx:zCam.cx,cy:zCam.cy}); void $('#live').offsetWidth; zRender(!calm.matches);
+    }
   }
   // while a change is under way the page holds the old crop: only frames of the old camera state are drawn (stamped on and
   // not newer than the command); normal or newer frames would flash the full picture or a half-switched one
