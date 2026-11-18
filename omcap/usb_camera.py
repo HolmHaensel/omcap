@@ -14,8 +14,8 @@ import threading
 import time
 
 from .camera import CameraError, WriteBlocked
-from .ptp import (LOUPE_GRID, LOUPE_X_GAIN, LOUPE_MOVES, LOUPE_OFF, LOUPE_ON, LOUPE_RATIOS, OP_LOUPE_MOVE, OP_LOUPE_POINT,
-                  loupe_point)
+from .ptp import (LOUPE_X_GAIN, LOUPE_MOVES, LOUPE_OFF, LOUPE_ON, LOUPE_RATIOS, OP_LOUPE_MOVE, OP_LOUPE_POINT,
+                  loupe_grid, loupe_point)
 
 
 def _check_usb_path(path):
@@ -942,7 +942,8 @@ class UsbCamera:
                 self.loupe_on = False  # frames in between are normal, and a failing 0x9483 leaves a true state
                 self.loupe_rev += 1
             fx = 0.5 + (fx - 0.5) / LOUPE_X_GAIN  # the camera overshoots x: send less so the crop lands where asked
-            self._opcode(OP_LOUPE_POINT, loupe_point(fx * LOUPE_GRID[0], fy * LOUPE_GRID[1]))
+            gw, gh = loupe_grid(self.lvqty)  # the camera reads the point in the grid of the live view size
+            self._opcode(OP_LOUPE_POINT, loupe_point(fx * gw, fy * gh, (gw, gh)))
         self._set("d04b", LOUPE_ON if on else LOUPE_OFF)
         self.loupe_on = bool(on)
         self.loupe_rev += 1

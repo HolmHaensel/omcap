@@ -47,7 +47,7 @@ DPC_LOUPE_RATIO = 0xD0CF
 LOUPE_RATIOS = {1: 3, 2: 5, 3: 7, 4: 10, 5: 14}  # d0cf value -> magnification
 OP_LOUPE_POINT, OP_LOUPE_MOVE = 0x9483, 0x9488
 LOUPE_MOVES = {"up": 1, "down": 2, "left": 3, "right": 4}
-LOUPE_GRID = (1024, 768)
+LOUPE_GRID = (1024, 768)  # default grid of the 0x9483 point (live view size 1024x768)
 # Measured on the E-M1 2026-11-16 (live view 1024x768, crop matched against the normal frame, x3/x5/x10/x14): the crop
 # is 1/ratio of the picture, y lands where it was sent, but x lands 1.135x as far from the centre as sent (sent 0.30
 # -> 0.2705, 0.70 -> 0.725; centre exact). The camera also keeps the crop inside the middle 80 % of the picture.
@@ -57,9 +57,20 @@ LOUPE_X_GAIN = 1.135
 LOUPE_STEP_NORMAL_PX = 17.4  # the page uses it for the arrow buttons' centre estimate (index.html LOUPE_ARROW_PX)
 
 
-def loupe_point(x, y):
-    """The one 0x9483 parameter for a point in the 1024x768 grid, clamped to it (centre = 0x01800200)."""
-    w, h = LOUPE_GRID
+def loupe_grid(lvqty):
+    """The grid the camera reads the 0x9483 point in: that of the current live view size ("1280x0960" -> 1280x960),
+    1024x768 when unknown. Measured 2026-11-18 at 1280x960 (crop landed at p/1280 and p/960) and at 1024x768;
+    320x240, 640x480 and 800x600 are assumed to follow the same rule (not measured)."""
+    try:
+        w, h = (int(v) for v in lvqty.split("x"))
+        return (w, h) if w > 0 and h > 0 else LOUPE_GRID
+    except (AttributeError, ValueError):
+        return LOUPE_GRID
+
+
+def loupe_point(x, y, grid=LOUPE_GRID):
+    """The one 0x9483 parameter for a point in the given grid (default 1024x768), clamped to it (centre = 0x01800200)."""
+    w, h = grid
     x, y = min(max(int(round(x)), 0), w - 1), min(max(int(round(y)), 0), h - 1)
     return (y << 16) | x
 

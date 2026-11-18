@@ -80,11 +80,27 @@ class AfAreaFixed(unittest.TestCase):
 class CropPosition(unittest.TestCase):
     """The camera moves the crop 1.135x as far from the centre as sent (measured 2026-11-16): send less x."""
 
-    def sent_point(self, x, y):
+    def sent_point(self, x, y, lvqty=None):
         cam = make()
+        cam.lvqty = lvqty
         cam.loupe(True, 5, x, y)
         value = int(cam._c.writes[1][1].split(",")[1], 16)
         return value & 0xFFFF, value >> 16
+
+    def test_point_is_packed_in_the_grid_of_the_live_view_size(self):
+        # measured 2026-11-18: at 1280x960 the camera reads the point in a 1280x960 grid
+        self.assertEqual(self.sent_point(0.5, 0.5, "1280x0960"), (640, 480))
+        self.assertEqual(self.sent_point(0.5, 0.5, "1024x0768"), (512, 384))
+        x, y = self.sent_point(0.32, 0.41, "1280x0960")
+        self.assertAlmostEqual(0.5 + (x / 1280 - 0.5) * ptp.LOUPE_X_GAIN, 0.32, places=2)  # what the camera makes of it
+        self.assertAlmostEqual(y / 960, 0.41, places=2)
+        x2, y2 = self.sent_point(0.32, 0.41, "1024x0768")
+        self.assertAlmostEqual(x2 / 1024, x / 1280, places=2)  # the same picture point in both grids
+
+    def test_unknown_size_falls_back_to_1024(self):
+        for lv in (None, "", "garbage", "0x0"):
+            self.assertEqual(ptp.loupe_grid(lv), (1024, 768))
+        self.assertEqual(ptp.loupe_grid("0800x0600"), (800, 600))
 
     def test_centre_is_exact_and_y_unchanged(self):
         self.assertEqual(self.sent_point(0.5, 0.5), (512, 384))
