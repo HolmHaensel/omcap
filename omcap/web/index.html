@@ -2345,11 +2345,14 @@ function zMeasureCrop(sharp,r,ex,ey){
 }
 // The camera state now shown on the page's own terms: the server answered (or reported) it; used after errors and
 // when the server ended Zoom AF itself (live view stopped, new session)
+// The camera's AF area changes while Zoom AF is on: read it again once the zoom is off (REQ-F54)
+const loupeAfReload=()=>{if(typeof loadAf==='function') loadAf()};
 function loupeSync(on,ratio){
   clearTimeout(restT); restT=0; zPend=null; zCamShows=!!on;
   zSent={on:!!on,ratio:ratio||5,x:V.cx,y:V.cy}; zWant={...zSent};
   if(on){V.s=ratio||5; V.cx=zClampCam(V.cx,V.s); V.cy=zClampCam(V.cy,V.s); zCam={s:V.s,cx:V.cx,cy:V.cy}} else Object.assign(V,{s:1,cx:.5,cy:.5});
   zRender();
+  if(!on) loupeAfReload();
 }
 const wantEq=(a,b)=>a.on===b.on&&(!a.on||(a.ratio===b.ratio&&Math.abs(a.x-b.x)<.002&&Math.abs(a.y-b.y)<.002));
 // Tiny grey picture (16x12) of a decoded image, for telling the camera's states apart; null when it cannot be read
@@ -2385,7 +2388,7 @@ function loupeOnFrame(info,blob,img){ // returns false: do not draw this frame (
   zLastRev=info.rev;
   if(zPend&&info.rev>=zPend.rev&&zSwapDue(zSigDiff(zPend.before&&img?zSig(img):null,zPend.before),++zPend.n)){
     const sharp=zPend.on&&!zCamShows;
-    zCamShows=zPend.on; if(zCamShows){
+    zCamShows=zPend.on; if(!zCamShows) loupeAfReload(); else{
       zCam={s:zPend.ratio,cx:zClampCam(zPend.x,zPend.ratio),cy:zClampCam(zPend.y,zPend.ratio)};
       // draw the first sharp frame exactly where the soft picture was: use the crop position measured in the picture
       const m=sharp&&img&&Math.abs(V.s-zPend.ratio)<.01?zMeasureCrop(img,zPend.ratio,zCam.cx,zCam.cy):null;

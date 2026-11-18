@@ -48,6 +48,41 @@ class Revision(unittest.TestCase):
         self.assertEqual(cam._c.writes[3], ("d04b", "1"))
 
 
+class AfAreaLive(unittest.TestCase):
+    """af_area() follows the camera live with the own PTP backend and keeps the normal area while Zoom AF is on."""
+
+    def cam(self, values):
+        cam = make()
+        cam.gone, cam.last_af = False, None
+        calls = []
+
+        def get_prop_value(code):
+            calls.append(code)
+            return values[code]
+        cam._c.get_prop_value = get_prop_value
+        cam._calls = calls
+        return cam
+
+    NORMAL = {0xD05A: 336, 0xD05B: 940, 0xD071: 252, 0xD072: 704, 0xD00C: 33024, 0xD051: 41}
+    ZOOMED = {0xD05A: 500, 0xD05B: 700, 0xD071: 400, 0xD072: 500, 0xD00C: 33024, 0xD051: 41}
+
+    def test_reads_the_live_values(self):
+        cam = self.cam(self.NORMAL)
+        a = cam.af_area()
+        self.assertEqual((a["area"]["x0"], a["area"]["x1"], a["area"]["y0"], a["area"]["y1"]), (336, 940, 252, 704))
+        self.assertEqual((a["mode"], a["field"]), (33024, 41))
+        self.assertEqual(set(cam._calls), {0xD05A, 0xD05B, 0xD071, 0xD072, 0xD00C, 0xD051})
+
+    def test_zoomed_area_is_not_used(self):
+        cam = self.cam(self.NORMAL)
+        cam.af_area()
+        cam._c.get_prop_value = self.cam(self.ZOOMED)._c.get_prop_value
+        cam.loupe_on = True
+        self.assertEqual(cam.af_area()["area"]["x0"], 336)  # cached while Zoom AF is on
+        cam.loupe_on = False
+        self.assertEqual(cam.af_area()["area"]["x0"], 500)  # read again once it is off
+
+
 class CropPosition(unittest.TestCase):
     """The camera moves the crop 1.135x as far from the centre as sent (measured 2026-11-16): send less x."""
 
@@ -216,6 +251,8 @@ class Page(unittest.TestCase):
         for name in ("zSnap", "zClamp", "zClampCam", "zCrop", "zSigDiff", "zSwapDue", "zMatch", "zRubber"):
             self.assertIn("const %s=" % name, h)
         self.assertIn("X-Loupe-Rev", h)
+        self.assertIn("const loupeAfReload=", h)  # the AF grid is read again after the camera zoom goes off
+        self.assertEqual(h.count("loupeAfReload()"), 2)
         self.assertNotIn("loupeBtn", h)
 
     def test_idle_server_does_not_block_the_zoom(self):
