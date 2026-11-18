@@ -2263,6 +2263,7 @@ function zClientId(){
 }
 let loupeOn=false,usbZoom=false,zBlock=false,loupeAns=0,zLastRev=0,zId=zClientId();
 const LOUPE_STEPS=[1,3,5,7,10,14]; // camera ratios (d0cf), 1 = off
+const LOUPE_RATIO_WAIT_MS=1500; // a changed ratio: no verified new crop after this long, take the frame
 const LOUPE_SETTLE_MS=500; // after a switch the camera's exposure needs this long before its normal frames refresh the backdrop
 const LOUPE_STUCK_MS=2500; // the new crop must show up within this, else the page asks the server what the camera does
 const LOUPE_TAP_PX=6,LOUPE_REST_MS=150,LOUPE_WHEEL_MS=300; // wheel: a trackpad sends events every ~17 ms, with inertia for up to ~1 s after the fingers leave
@@ -2365,11 +2366,16 @@ function zClassifyFrame(img){
   if(big&&zNormImg&&zNormFor!==zNormImg){zNormSig=zSig(zNormImg); zNormFor=zNormImg} // signature of the last normal frame, once
   const close=big&&!!zNormImg&&zSigDiff(sig,zNormSig)<LOUPE_NORMAL_CLOSE;
   const matched=big&&!close&&!!zMeasureCrop($('#live'),zCam.s,zCam.cx,zCam.cy,img); // the old crop (still on screen) inside the frame
-  const kind=zFrameKind(d,close,matched,zPend.sawNormal,!!zPend.cand&&zSigDiff(sig,zPend.cand)<LOUPE_SIG_DIFF);
+  let kind=zFrameKind(d,close,matched,zPend.sawNormal,!!zPend.cand&&zSigDiff(sig,zPend.cand)<LOUPE_SIG_DIFF);
   if(kind==='normal') zPend.sawNormal=true;
   zPend.cand=kind==='candidate'?sig:null;
   let m=null;
-  if(kind==='new'){const back=$('#liveBack'); if(back.naturalWidth) m=zMeasureCrop(img,zPend.ratio,zClampCam(zPend.x,zPend.ratio),zClampCam(zPend.y,zPend.ratio),back)}
+  if(kind!=='normal'&&kind!=='old'){
+    // anything that might be the new crop is checked against the backdrop at the NEW scale around the sent centre: normal
+    // frames of the switch that could not be confirmed, or frames still showing the old ratio, never pass for it
+    const back=$('#liveBack');
+    if(back.naturalWidth){m=zMeasureCrop(img,zPend.ratio,zClampCam(zPend.x,zPend.ratio),zClampCam(zPend.y,zPend.ratio),back); kind=m?'new':'hold'}
+  }
   return {kind,m};
 }
 function zRender(anim){
@@ -2457,7 +2463,7 @@ async function loupeReconcile(){
       const w={...zWant}, before=zSig($('#live')); // the picture on screen when the command goes out
       const j=await api('/api/loupe',w.on?{on:true,ratio:w.ratio,x:w.x,y:w.y,client:zId}:{on:false,client:zId});
       if(st) st.loupe_owner=zId; // this page drives the zoom now
-      loupeAns++; zSent=w; zPend={rev:j.rev,on:w.on,n:0,before,ratio:w.ratio,x:w.x,y:w.y};
+      loupeAns++; zSent=w; zPend={rev:j.rev,on:w.on,n:0,t:performance.now(),before,ratio:w.ratio,x:w.x,y:w.y};
       clearTimeout(zWatch); zWatch=setTimeout(loupeStuck,LOUPE_STUCK_MS);
     }
   }catch(e){
@@ -2484,7 +2490,9 @@ function loupeOnFrame(info,blob,img){ // returns false: do not draw this frame (
   if(zPend&&info.rev>=zPend.rev){
     if(zCamShows&&zPend.on){ // crop to crop: the frames in between are normal pictures, tell them apart by the picture
       const c=zClassifyFrame(img); verdict=c.kind; meas=c.m;
-      swap=verdict==='new'||(verdict!=='normal'&&++zPend.n>LOUPE_LAG_FRAMES); // no clear answer (or a new crop that looks like the old): the frame count decides
+      // no clear answer: a pure move may count LOUPE_LAG_FRAMES frames; with a new ratio the old crop looks nothing like the new
+      // one, so frames never count and only the time limit ends the wait (the watchdog then asks the camera)
+      swap=verdict==='new'||(verdict!=='normal'&&(zPend.ratio!==zCam.s?performance.now()-zPend.t>LOUPE_RATIO_WAIT_MS:++zPend.n>LOUPE_LAG_FRAMES));
     }else swap=zSwapDue(zSigDiff(zPend.before&&img?zSig(img):null,zPend.before),++zPend.n); // normal to crop and back
   }
   // the normal frames of a switch are exactly what the backdrop needs: keep the newest one instead of only skipping it

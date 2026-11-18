@@ -516,7 +516,7 @@ class CommandPath(unittest.TestCase):
     STUBS = """
     var canWrite=true,st={live:true},URL={createObjectURL:function(){return 'u'},revokeObjectURL:function(){}},calls=[],msgs=[],mode='ok',rev=0,z,px,py,usbZoom=true,loupeOn,tr=function(){return ''},nowT=0,performance={now:function(){return nowT}};
     var el=function(){return {style:{},hidden:false,textContent:'',classList:{toggle:function(){},add:function(){},remove:function(){}},setAttribute:function(){},querySelector:function(){return el()}}};
-    var vp=el(),layer=el(),Q=function(){return el()},document={querySelectorAll:function(){return []}},calm={matches:true};
+    var vp=el(),layer=el(),els={},Q=function(s){return els[s]||(els[s]=el())},document={querySelectorAll:function(){return []}},calm={matches:true};
     vp.getBoundingClientRect=function(){return {width:800,height:600,left:0,top:0}};vp.setPointerCapture=function(){};
     function applyZoom(){} function msg(t,e){msgs.push([t,!!e])}
     function setTimeout(){return 1} function clearTimeout(){} function requestAnimationFrame(){return 1} function cancelAnimationFrame(){}
@@ -576,20 +576,20 @@ class CommandPath(unittest.TestCase):
         self.assertEqual(r["pend"]["rev"], 1)  # the stub server answers rev 1
 
     def test_new_crop_shows_after_the_lag_frames(self):
-        r = self.run_js(self.ZOOMED + "lastNormal='x';zLastRev=0;zRevAtSend=0;Object.assign(V,{s:10,cx:.4,cy:.45});loupeCommit();"
+        r = self.run_js(self.ZOOMED + "lastNormal='x';zLastRev=0;zRevAtSend=0;Object.assign(V,{s:5,cx:.4,cy:.45});loupeCommit();"
                         "var out=[];for(var i=0;i<8;i++)out.push(loupeOnFrame({rev:1,on:true},null,null));"
                         "JSON.stringify({out:out,cam:zCam,pend:zPend})")
         self.assertEqual(r["out"], [False] * 6 + [True, True])  # held for LOUPE_LAG_FRAMES frames, then the new crop
-        self.assertEqual(r["cam"]["s"], 10)
+        self.assertEqual(r["cam"]["s"], 5)
         self.assertIsNone(r["pend"])
 
     def test_view_follows_the_camera_crop_after_the_swap(self):
-        r = self.run_js(self.ZOOMED + "zLastRev=0;zRevAtSend=0;Object.assign(V,{s:10,cx:.43,cy:.47});loupeCommit();zCam={s:5,cx:.9,cy:.9};"
+        r = self.run_js(self.ZOOMED + "zLastRev=0;zRevAtSend=0;Object.assign(V,{s:5,cx:.43,cy:.47});loupeCommit();zCam={s:5,cx:.9,cy:.9};"
                         "for(var i=0;i<8;i++)loupeOnFrame({rev:1,on:true},null,null);"
                         "JSON.stringify({V:V,cam:zCam,cov:zCovers(zCrop(V,zCam,800,600),800,600)})")
         self.assertAlmostEqual(r["V"]["cx"], r["cam"]["cx"])
         self.assertAlmostEqual(r["V"]["cy"], r["cam"]["cy"])
-        self.assertEqual((r["V"]["s"], r["cam"]["s"]), (10, 10))
+        self.assertEqual((r["V"]["s"], r["cam"]["s"]), (5, 5))
         self.assertTrue(r["cov"])
 
     def test_view_stays_with_the_user_while_a_gesture_runs(self):
@@ -642,6 +642,38 @@ class CommandPath(unittest.TestCase):
                         "lastNormal=null;nowT=710;loupeOnFrame({rev:0,on:false},'first',null);JSON.stringify([a,b,lastNormal])")
         self.assertEqual(r, ["L", "late", "first"])  # settled frames refresh, a missing backdrop is filled at once
 
+    RATIO = ("zSent={on:true,ratio:7,x:.5,y:.5};zWant={...zSent};zCamShows=true;zCam={s:7,cx:.5,cy:.5};lastNormal='L';zNormImg=null;"
+             "Q('#liveBack').naturalWidth=100;zLastRev=0;zRevAtSend=0;Object.assign(V,{s:14,cx:.5,cy:.5});"
+             "zMeasureCrop=function(img,r){return img&&img.is14&&r===14?{cx:.5,cy:.5,score:.9}:null};"
+             "function c14(d){var p=pic(d);p.is14=true;return p}")
+
+    def test_ratio_change_swaps_only_at_the_first_frame_of_the_new_crop(self):
+        # x7 -> x14: frames after the answer still show the x7 crop for a while (the camera lags): they are drawn, never a swap
+        r = self.run_js(self.PICS + self.RATIO + "loupeCommit();var pend0=zPend!==null;"
+                        "var pre=loupeOnFrame({rev:0,on:true},'a',c14(40));var pre_pend=zPend!==null;"  # before the answer's rev: nothing
+                        "var o=[loupeOnFrame({rev:1,on:true},'o0',pic(0)),loupeOnFrame({rev:1,on:true},'o1',pic(0))];var o_pend=zPend!==null;"
+                        "var n=loupeOnFrame({rev:1,on:true},'n0',c14(40));JSON.stringify({pend0:pend0,pre_pend:pre_pend,o:o,o_pend:o_pend,n:n,after:zPend,cam:zCam})")
+        self.assertTrue(r["pend0"])
+        self.assertTrue(r["pre_pend"])  # a frame from before the answer's revision does not swap
+        self.assertEqual(r["o"], [True, True])  # the old x7 frames keep flowing
+        self.assertTrue(r["o_pend"])  # and do not count towards a swap
+        self.assertTrue(r["n"])
+        self.assertIsNone(r["after"])  # the first x14 frame completes the swap
+        self.assertEqual(r["cam"]["s"], 14)
+
+    def test_unconfirmed_normal_frames_do_not_pass_for_the_new_crop(self):
+        # the bug: two identical normal frames of the switch that could not be confirmed repeated and counted as the new crop
+        r = self.run_js(self.PICS + self.RATIO + "loupeCommit();var f=[loupeOnFrame({rev:1,on:true},'x0',pic(80)),loupeOnFrame({rev:1,on:true},'x1',pic(80))];"
+                        "JSON.stringify({f:f,pend:zPend!==null})")
+        self.assertEqual(r["f"], [False, False])
+        self.assertTrue(r["pend"])
+
+    def test_ratio_change_without_a_verified_crop_waits_for_the_time_limit(self):
+        r = self.run_js(self.PICS + self.RATIO + "loupeCommit();var a=[];for(var i=0;i<12;i++)a.push(loupeOnFrame({rev:1,on:true},'o'+i,pic(0)));"
+                        "var still=zPend!==null;nowT=1600;loupeOnFrame({rev:1,on:true},'late',pic(0));JSON.stringify({still:still,done:zPend===null})")
+        self.assertTrue(r["still"])  # 12 frames do not end it when the ratio changed
+        self.assertTrue(r["done"])  # 1.5 s do
+
     def test_one_explicit_off_when_the_switch_brought_no_normal_frame(self):
         r = self.run_js(self.ZOOMED + "lastNormal=null;zBackTried=true;loupeBackdropOff();loupeBackdropOff();"
                         "var a=calls.length;loupeBackdropOn();JSON.stringify({a:a,calls:calls})")
@@ -650,7 +682,7 @@ class CommandPath(unittest.TestCase):
         self.assertEqual(r["calls"][1][1]["ratio"], 5)
 
     def swap_after(self, d):
-        r = self.run_js(self.PICS + self.ZOOMED + "lastNormal='x';zLastRev=0;Object.assign(V,{s:10,cx:.43,cy:.47});loupeCommit();"
+        r = self.run_js(self.PICS + self.ZOOMED + "lastNormal='x';zLastRev=0;Object.assign(V,{s:5,cx:.43,cy:.47});loupeCommit();"
                         "var out=[],pend=[];for(var i=0;i<8;i++){out.push(loupeOnFrame({rev:1,on:true},'b'+i,pic(%d)));pend.push(zPend===null)}"
                         "JSON.stringify({out:out,pend:pend,msgs:msgs,calls:calls.length})" % d)
         return r
