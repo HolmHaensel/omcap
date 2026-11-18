@@ -14,8 +14,8 @@ import threading
 import time
 
 from .camera import CameraError, WriteBlocked
-from .ptp import (LOUPE_GRID, LOUPE_MOVES, LOUPE_OFF, LOUPE_ON, LOUPE_RATIOS, OP_LOUPE_MOVE, OP_LOUPE_POINT,
-                  loupe_point)
+from .ptp import (LOUPE_X_GAIN, LOUPE_MOVES, LOUPE_OFF, LOUPE_ON, LOUPE_RATIOS, OP_LOUPE_MOVE, OP_LOUPE_POINT,
+                  loupe_grid, loupe_point)
 
 
 def _check_usb_path(path):
@@ -62,6 +62,8 @@ DRIVE_STYLE = {0: "", 1: "Anti-Shock ", 2: "Silent "}
 # Shutter stages of PTP 0x9481, matching exec_shutter over Wi-Fi.
 # 1 and 6 are tested on the camera, 3 and 6 are what libgphoto2 uses to release.
 OP_FIRST, OP_SECOND, OP_FULL, OP_SECOND_BACK, OP_RELEASE = 1, 2, 3, 4, 6
+# 5 releases the half press without a shot (OM Capture trace, Zoom AF); used when only focusing while zoomed
+OP_RELEASE_NOSHOT = 5
 # Turning the mode dial sends event 0xC003 with param1 = 3 (E-M1 Mark I, tested 2026-11-12);
 # the new value only arrives with a new session. d006 knows only M, P, A, S, Movie: iAUTO, ART, SCN
 # and PHOTO STORY read as P
@@ -239,6 +241,7 @@ class UsbLive:
     def __init__(self, camera):
         self.camera = camera
         self.frame = None
+        self.stamp = (0, 0)  # (zoom revision, zoom on) of the camera when `frame` was fetched (REQ-F54)
         self.seq = 0
         self.last_frame = None
         self.cond = threading.Condition()
@@ -283,6 +286,8 @@ class UsbLive:
                         "mode dial turned, %s" % getattr(self.camera, "dial_reason", "?")):
                     self.camera.mode_changed_at = time.time()
                     continue
+            # read before the fetch: a write in between only makes the stamp older, never newer than the frame
+            stamp = (getattr(self.camera, "loupe_rev", 0), int(getattr(self.camera, "loupe_on", False)))
             data = self.camera.preview_frame()
             if data is None:
                 failures += 1
@@ -295,7 +300,7 @@ class UsbLive:
                 continue
             failures, self._backoff, self.camera.gone = 0, 0.0, False
             with self.cond:
-                self.frame = data
+                self.frame, self.stamp = data, stamp
                 self.seq += 1
                 self.last_frame = time.monotonic()
                 self.cond.notify_all()
@@ -335,9 +340,10 @@ class UsbLive:
         return True
 
     def wait_frame(self, last_seq, timeout=3.0):
+        """(seq, frame, stamp): stamp = (zoom revision, zoom on) of the camera when that frame was fetched."""
         with self.cond:
             self.cond.wait_for(lambda: self.seq != last_seq, timeout)
-            return self.seq, self.frame
+            return self.seq, self.frame, self.stamp
 
 
 class UsbCamera:
@@ -353,6 +359,10 @@ class UsbCamera:
     last_press = 0.0  # time of the last shutter command or written setting (see __init__)
     saf_shot = False  # S-AF during the running shot: no focus means no release
     loupe_on = False  # Zoom AF (camera magnification) switched on by the app
+    loupe_ratio = 5  # magnification last sent (x)
+    loupe_x = loupe_y = None  # wanted zoom centre as last requested (picture fractions, before the x gain)
+    loupe_owner = None  # client id of the page that sent the last zoom request; None when the server ended the zoom
+    loupe_rev = 0  # counts every change of the camera's zoom state; live frames carry it (REQ-F54)
 
     # setting named as over Wi-Fi -> gphoto name, display names from the choice values
     PROPS = {
@@ -685,16 +695,24 @@ class UsbCamera:
         self._last_level = {"a": a, "b": b}  # no mode: d006 only changes with a new session (mode dial events)
         return self._last_level
 
+    def _live_int(self, name):
+        """Own PTP backend: GetDevicePropValue follows the camera live, the descriptor (_value) keeps a stale
+        value inside a session (see level()). gphoto2 backend: the descriptor is all there is."""
+        if hasattr(self._c, "get_prop_value"):
+            return int(self._call(self._c.get_prop_value, int(name, 16)))
+        return int(self._value(name))
+
+    # The AF area of the E-M1 is fixed (Wi-Fi touchactiveframe at 800x600: x 135-662, y 100-497 = 0.169-0.828 and
+    # 0.167-0.828). d05a/d05b/d071/d072 are NOT this area: they are the Zoom AF frame-centre limits for the current
+    # zoom ratio d0cf, [0.1+0.5/r, 0.9-0.5/r] of the picture (measured 2026-11-18); at the camera's default x7 they
+    # happen to equal the AF area, which is why they looked right until Zoom AF was used.
+    AF_AREA = {"x0": 216, "x1": 1060, "y0": 160, "y1": 796, "w": 1280, "h": 960}
+
     def af_area(self):
-        area = {"x0": 216, "x1": 1060, "y0": 160, "y1": 796, "w": 1280, "h": 960}
-        for key, name in (("x0", "d05a"), ("x1", "d05b"), ("y0", "d071"), ("y1", "d072")):
-            area[key] = int(self._value(name))
-        # The AF area is centred, so its grid is (x0+x1) × (y0+y1) – as with Wi-Fi
-        # (touchactiveframe). d06d is no good: depending on the session the camera reports the area
-        # in 1280×960 or 1024×768, independent of the current d06d (measured 2026-11-09).
+        area = dict(self.AF_AREA)  # centred, so its grid is (x0+x1) x (y0+y1) as with Wi-Fi
         area["w"], area["h"] = af_raster(area)
-        self.af_mode = int(self._value("d00c"))
-        return {"mode": self.af_mode, "field": int(self._value("d051")), "area": area,
+        self.af_mode = self._live_int("d00c")
+        return {"mode": self.af_mode, "field": self._live_int("d051"), "area": area,
                 "last_af": focus_in_raster(self.last_af, area), "focus_ok": getattr(self, "focus_ok", None)}
 
     def preview_frame(self):
@@ -909,20 +927,37 @@ class UsbCamera:
     # --- Zoom AF (the camera's magnified live view, E-M1 manual p.56; protocol in omcap/ptp.py) ---
     def loupe(self, on, ratio=None, x=None, y=None):
         """Zoom AF on or off. ratio: 3, 5, 7, 10 or 14 (x); x, y: centre of the zoom frame as a fraction
-        of the live picture (0-1), sent before switching on. Order as OM Capture: d0cf, 0x9483, d04b."""
+        of the live picture (0-1), sent before switching on. Order as OM Capture: d0cf, 0x9483, d04b; with the zoom already
+        on and a new centre or ratio: d04b=2 first, so the camera never re-scales the old crop to the new ratio (it did when d0cf
+        came first: old crop, re-scaled old crop, normal frames, new crop; camera test 2026-11-18)."""
         self._need_write()
+        value = None
         if ratio is not None:
             value = next((k for k, v in LOUPE_RATIOS.items() if v == int(ratio)), None)
             if value is None:
                 raise CameraError("Zoom ratio: one of %s" % ", ".join("%dx" % v for v in LOUPE_RATIOS.values()))
-            self._set("d0cf", value)
-        if on and x is not None and y is not None:
+        point = on and x is not None and y is not None
+        if point:
             fx, fy = float(x), float(y)
             if not (0 <= fx <= 1 and 0 <= fy <= 1):
                 raise CameraError("Zoom frame: x and y between 0 and 1")
-            self._opcode(OP_LOUPE_POINT, loupe_point(fx * LOUPE_GRID[0], fy * LOUPE_GRID[1]))
+        # a new centre (0x9483 only takes effect while d04b goes to 1, camera test 2026-11-16) or a new ratio while the zoom
+        # is on: off first
+        if self.loupe_on and on and (point or value is not None):
+            self._set("d04b", LOUPE_OFF)
+            self.loupe_on = False  # frames in between are normal, and a failing 0x9483 leaves a true state
+            self.loupe_rev += 1
+        if value is not None:
+            self._set("d0cf", value)
+            self.loupe_ratio = int(ratio)
+        if point:
+            self.loupe_x, self.loupe_y = fx, fy
+            fx = 0.5 + (fx - 0.5) / LOUPE_X_GAIN  # the camera overshoots x: send less so the crop lands where asked
+            gw, gh = loupe_grid(self.lvqty)  # the camera reads the point in the grid of the live view size
+            self._opcode(OP_LOUPE_POINT, loupe_point(fx * gw, fy * gh, (gw, gh)))
         self._set("d04b", LOUPE_ON if on else LOUPE_OFF)
         self.loupe_on = bool(on)
+        self.loupe_rev += 1
 
     def loupe_move(self, direction):
         """Move the zoom frame one step: up, down, left or right."""
@@ -934,6 +969,8 @@ class UsbCamera:
     def _loupe_off_locked(self):
         """d04b = 2 without raising; caller holds the lock. Only with the write permission."""
         self.loupe_on = False
+        self.loupe_x = self.loupe_y = self.loupe_owner = None  # ended by the server: nobody owns the zoom
+        self.loupe_rev += 1
         if not self.allow_write:
             return
         try:
@@ -946,6 +983,8 @@ class UsbCamera:
     def _loupe_off(self):
         if self.gone:
             self.loupe_on = False
+            self.loupe_x = self.loupe_y = self.loupe_owner = None
+            self.loupe_rev += 1
             return
         with self._lock:
             self._loupe_off_locked()
@@ -1220,12 +1259,13 @@ class UsbCamera:
                     self.last_af = result[1]  # exact and at once (d05d/d05e lag behind)
                 elif result and not result[0]:
                     self.last_af = {"x": 0, "y": 0}  # no focus: no green field
-                elif self.focus_ok and getattr(self, "af_mode", AF_ALL) == AF_ALL:
+                elif self.focus_ok and getattr(self, "af_mode", AF_ALL) == AF_ALL and not self.loupe_on:
                     self._read_focus_position()  # libgphoto2 backend: events carry Param1 only
                 if result is None:
                     print("USB focus: no AF result from the camera within %.0f s" % FOCUS_WAIT, flush=True)
             finally:
-                self._shutter(OP_RELEASE)
+                # zoomed: 5 ends the half press without a shot (the camera answers 0xC003 (1,0,0), no position)
+                self._shutter(OP_RELEASE_NOSHOT if self.loupe_on else OP_RELEASE)
             # no extra event wait here: each idle libgphoto2 event check costs ~0.3 s (150 ms timeout
             # plus one retry); the next check (dial watch or next focus) collects what is left
         finally:

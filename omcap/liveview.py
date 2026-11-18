@@ -212,4 +212,4 @@ class LiveView:
     def wait_frame(self, last_seq, timeout=3.0):
         with self.cond:
             self.cond.wait_for(lambda: self.seq != last_seq, timeout)
-            return self.seq, self.frame
+            return self.seq, self.frame, (0, 0)  # no camera zoom over Wi-Fi

@@ -65,7 +65,7 @@ More in [Start and stop](#start-and-stop).
 | Feature | Wi-Fi | USB | Note |
 |---|---|---|---|
 | Live view with zoom, Displayed Grid and overlay | ✅ | ✅ | |
-| Zoom AF: the camera's own magnified live view (×3–×14), frame starts at the AF target, arrows move it | – | 🟡 | no Wi-Fi command (`exec_takemisc ctrlzoom` is the lens power zoom); AF in the zoomed view uses the screen centre, and the camera has no AF with Four Thirds lenses while zoomed (manual p.56, untested); USB both layers, camera-checked by hand on 2026-11-16 (×5 on/off at the centre), the app's controls not yet tried on the camera |
+| Zoom (USB): 1× and ×3–×14 are the camera's own Zoom AF and replace the screen zoom; click = focus, drag = move, wheel/pinch = smooth zoom that snaps to the camera's ratios at rest and turns sharp (Wi-Fi keeps the 1×/2×/4× screen zoom) | – | 🟡 | no Wi-Fi command (`exec_takemisc ctrlzoom` is the lens power zoom); AF in the zoomed view uses the screen centre, and the camera has no AF with Four Thirds lenses while zoomed (manual p.56, untested); USB both layers; camera-checked by hand 2026-11-16 (on/off, ratios, arrows); smooth zoom (drag, wheel, overview map, pinch on the phone) tried with the camera 2026-11-18; click focus (half press 1, release 5) not camera-tested (REQ-F54) |
 | Live view size (up to 1280×960) | ✅ | ✅ | USB: with the app's own USB layer (macOS default); with libgphoto2 see [Larger USB live view](#larger-usb-live-view-libgphoto2) |
 | Histogram, Highlight&Shadow, Peaking | ✅ | ✅ | Peaking follows the focus best at a live view size of 640×480 or more |
 | Frames per second shown next to the live view size (and "libgphoto2" when USB uses the slower fallback) | ✅ | 🟡 | same page code; not yet looked at over USB |

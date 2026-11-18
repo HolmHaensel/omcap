@@ -22,6 +22,37 @@ Tokens: [`tokens.css`](tokens.css). Implemented in version 0.4.0 (2026-11-11); t
    2026-11-12), following the manual's per-mode logic: e.g. BULB / LIVE TIME / LIVECOMP only in M, Art filter
    only in ART, AE BKT not in M. Over USB the modes iAUTO, ART, SCN and PHOTO STORY read as P and are treated as P.
    Where the manual is unclear or wrong, the camera decides: test it and record the result (maintainer, 2026-11-12).
+8. **Handle the picture the way people do today, not the way the camera did in 2013** (maintainer decision
+   2026-11-18). Zoom and drag follow the habits of current photo apps, maps and the iOS Camera app; the old
+   flow of the camera and of Olympus/OM Capture (button for the zoom frame, arrow keys, ratio list, frame
+   jumps) is deliberately overwritten. The camera's own functions stay the engine underneath – the app gives
+   the E-M1 a modern touch, a "rebirth", without changing what the camera does.
+
+## Zoom and drag (USB, REQ-F54) – modern handling on top of Zoom frame AF
+
+The engine is the camera's Zoom frame AF/zoom AF (E-M1 manual p.56, ×3/×5/×7/×10/×14): a sharp crop from the
+sensor, not an enlarged screen picture. The handling on top follows today's habits:
+
+| Habit (today) | In the app | Instead of (old flow) |
+|---|---|---|
+| The point under the finger/pointer stays put while zooming | Wheel, trackpad and pinch zoom about the pointer; continuous while the gesture runs, snaps to the camera's next ratio at rest | Zoom button → zoom frame → ratio list, always about the frame |
+| Grab the picture and move it | Drag moves the picture directly, without delay; the sharp crop moves over the last normal frame, so there are never black edges | Four arrow keys, one step per press |
+| Where am I? | Overview map bottom left: whole picture, visible view, camera crop; click or drag in the map moves the view | No overview while magnified |
+| Tap = act | A click in the zoomed view focuses (half press, no shot) | Separate AF button |
+| Nothing flickers | One camera command only at rest (after the pointer is up / the wheel has stopped); the old crop keeps flowing until the new one is recognised in the picture; normal frames never show while zoomed; the view then glides to where the camera really is | Picture blanks or jumps on every frame move |
+
+Rules learned on the camera (2026-11-16/18, maintainer's local research notes): the crop is exactly
+1/ratio; the point (`0x9483`) is in the grid of the current live view size, with x landing 1.135× as far from
+the centre as sent; the crop centre stays inside [0.1+0.5/r, 0.9−0.5/r]; a ratio change while zoomed goes
+`d04b` off → `d0cf` → point → on; the live view lags 1–5 frames behind a switch, so the page recognises the new
+crop by picture, not by time. One page drives the zoom; other open pages follow without sending.
+
+Arrow buttons stay as a keyboard path (accessibility). Wi-Fi has no Zoom frame AF command; there the app keeps
+its own 1×/2×/4× view zoom.
+
+**Why it matters beyond comfort:** this precise, calm zoom is the base of the **Star AF aid (REQ-F24)** –
+measuring star size/sharpness in the magnified sensor crop and focusing with the focus ring or the focus drive
+(`0x9487`) needs a steady, sharp, correctly placed crop at ×10/×14. This zoom is the base for REQ-F24.
 
 ## Live view and shutter always together
 
@@ -40,7 +71,7 @@ The live view and *Take picture* are visible at the same time on every screen si
 |---|---|
 | Header | App name, connection chip (E-M1 · Wi-Fi/USB), *Write enabled* chip, lens, battery (USB), card space, Playback, On the computer, Disconnect, Turn off camera (Wi-Fi) |
 | Live view | Image, AF grid, Displayed Grid, Histogram, Highlight&Shadow, Peaking, focus status chip, self-timer countdown, last shot, value strip |
-| Under the image | View zoom 1×/2×/4× (app only), Size (Wi-Fi; USB only with libgphoto2 2.5.34.1 or later), live view aids as toggles, Second monitor, Webcam (OBS), Stop live view; one status line |
+| Under the image | Zoom: over USB 1×/×3–×14 (camera Zoom frame AF, see "Zoom and drag"), over Wi-Fi view zoom 1×/2×/4× (app only), Size (Wi-Fi; USB only with libgphoto2 2.5.34.1 or later), live view aids as toggles, Second monitor, Webcam (OBS), Stop live view; one status line |
 | Right column (340 px) | LV super control panel: shooting mode, value tiles; AF target (USB); read-only settings line; Movie and Shooting options; Self-timer; Press halfway + Take picture; Save to |
 
 States: live view off, focusing (amber field), in focus (green field), self-timer running,
