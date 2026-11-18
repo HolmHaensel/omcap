@@ -485,7 +485,7 @@ class CommandPath(unittest.TestCase):
     """Runs the page's real zoom state code (loupeCommit, loupeHold, loupeReconcile, loupeSync) with a stubbed api."""
 
     STUBS = """
-    var canWrite=true,st={live:true},URL={createObjectURL:function(){return 'u'},revokeObjectURL:function(){}},calls=[],msgs=[],mode='ok',rev=0,z,px,py,usbZoom=true,loupeOn,tr=function(){return ''},performance={now:function(){return 0}};
+    var canWrite=true,st={live:true},URL={createObjectURL:function(){return 'u'},revokeObjectURL:function(){}},calls=[],msgs=[],mode='ok',rev=0,z,px,py,usbZoom=true,loupeOn,tr=function(){return ''},nowT=0,performance={now:function(){return nowT}};
     var el=function(){return {style:{},hidden:false,textContent:'',classList:{toggle:function(){},add:function(){},remove:function(){}},setAttribute:function(){},querySelector:function(){return el()}}};
     var vp=el(),layer=el(),Q=function(){return el()},document={querySelectorAll:function(){return []}},calm={matches:true};
     vp.getBoundingClientRect=function(){return {width:800,height:600,left:0,top:0}};vp.setPointerCapture=function(){};
@@ -580,7 +580,7 @@ class CommandPath(unittest.TestCase):
                         "var out=[],ln=[];[1,53,46,43,11,10,3].forEach(function(d,i){out.push(loupeOnFrame({rev:1,on:true},'b'+i,pic(d)));ln.push(lastNormal)});"
                         "JSON.stringify({out:out,ln:ln,pend:zPend,cam:zCam})")
         self.assertEqual(r["out"], [True, False, False, False, False, False, True])  # old crop flows, 5 frames held, new crop shown
-        self.assertEqual(r["ln"], [None, "b1", "b2", "b3", "b3", "b3", "b3"])  # newest normal frame wins
+        self.assertEqual(r["ln"], [None, "b1", "b1", "b1", "b1", "b1", "b1"])  # the first confirmed one starts the backdrop, later ones do not replace it
         self.assertIsNone(r["pend"])
         self.assertEqual(r["cam"]["s"], 10)
 
@@ -596,13 +596,19 @@ class CommandPath(unittest.TestCase):
         self.assertEqual(r["ln"], "L")  # never replaced by an unconfirmed frame
         self.assertIsNone(r["pend"])
 
-    def test_true_normal_frame_is_held_and_refreshes_the_backdrop(self):
+    def test_true_normal_frame_is_held_and_keeps_the_backdrop(self):
         r = self.run_js(self.PICS + self.NOMATCH + self.ZOOMED + "lastNormal='L';zNormImg=pic(100);zLastRev=0;"
                         "Object.assign(V,{s:10,cx:.8,cy:.3});loupeCommit();"
                         "var a=loupeOnFrame({rev:1,on:true},'N',pic(98));JSON.stringify({a:a,ln:lastNormal,pend:zPend!==null})")
         self.assertFalse(r["a"])
-        self.assertEqual(r["ln"], "N")
+        self.assertEqual(r["ln"], "L")  # held, but a good backdrop is kept (the switch frames carry the zoomed exposure)
         self.assertTrue(r["pend"])  # still waiting for the new crop
+
+    def test_backdrop_refreshes_only_when_the_camera_zoom_is_off_and_settled(self):
+        r = self.run_js("zCamShows=false;zPend=null;lastNormal='L';zSwitchAt=0;nowT=100;loupeOnFrame({rev:0,on:false},'early',null);var a=lastNormal;"
+                        "nowT=700;loupeOnFrame({rev:0,on:false},'late',null);var b=lastNormal;"
+                        "lastNormal=null;nowT=710;loupeOnFrame({rev:0,on:false},'first',null);JSON.stringify([a,b,lastNormal])")
+        self.assertEqual(r, ["L", "late", "first"])  # settled frames refresh, a missing backdrop is filled at once
 
     def test_one_explicit_off_when_the_switch_brought_no_normal_frame(self):
         r = self.run_js(self.ZOOMED + "lastNormal=null;zBackTried=true;loupeBackdropOff();loupeBackdropOff();"
