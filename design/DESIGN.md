@@ -51,7 +51,9 @@ Arrow buttons stay as a keyboard path (accessibility). Wi-Fi has no Zoom frame A
 its own screen zoom (REQ-F55) with the same handling and no camera command: wheel/pinch zoom continuously about
 the pointer (1×–4×, the live view is at most 1280×960), drag pans inside the picture, the 1×/2×/4× buttons stay
 and light up on a match, the overview map shows the current live frame and the visible view, and a click without
-drag picks the AF target at that picture point, also while zoomed.
+drag picks the AF target at that picture point, also while zoomed. On the phone the live view size goes up
+while the zoom rests above 1.5× (1024×768 up to 2.5×, 1280×960 above) and returns to the adaptive size at 1×;
+if the sharp size is too slow the app falls back and uses it only for focusing ("sharp on focus").
 
 **Why it matters beyond comfort:** this precise, calm zoom is the base of the **Star AF aid (REQ-F24)** –
 measuring star size/sharpness in the magnified sensor crop and focusing with the focus ring or the focus drive
@@ -74,7 +76,7 @@ The live view and *Take picture* are visible at the same time on every screen si
 |---|---|
 | Header | App name, connection chip (E-M1 · Wi-Fi/USB), *Write enabled* chip, lens, battery (USB), card space, Playback, On the computer, Disconnect, Turn off camera (Wi-Fi) |
 | Live view | Image, AF grid, Displayed Grid, Histogram, Highlight&Shadow, Peaking, focus status chip, self-timer countdown, last shot, value strip |
-| Under the image | Zoom: over USB 1×/×3–×14 (camera Zoom frame AF, see "Zoom and drag"), over Wi-Fi view zoom 1×/2×/4× (app only), Size (Wi-Fi; USB only with libgphoto2 2.5.34.1 or later), live view aids as toggles, Second monitor, Webcam (OBS), Stop live view; one status line |
+| Under the image | Zoom: over USB 1×/×3–×14 (camera Zoom frame AF, see "Zoom and drag"), over Wi-Fi smooth view zoom 1×–4× with buttons 1×/2×/4× (app only, see "Zoom and drag"), Size (Wi-Fi; USB only with libgphoto2 2.5.34.1 or later), live view aids as toggles, Second monitor, Webcam (OBS), Stop live view; one status line |
 | Right column (340 px) | LV super control panel: shooting mode, value tiles; AF target (USB); read-only settings line; Movie and Shooting options; Self-timer; Press halfway + Take picture; Save to |
 
 States: live view off, focusing (amber field), in focus (green field), self-timer running,
@@ -126,7 +128,7 @@ recording a movie, read only, Wi-Fi drop-out (last good frame kept, "No signal f
 | Press halfway / Take picture | "press the shutter button halfway" / "press fully" | p.20 |
 | Index display, Calendar display, single-frame playback, close-up playback | same | p.31–33, p.63 |
 | Image only / Simplified display / Overall display | INFO button cycle during playback | p.62 |
-| View zoom 1×/2×/4× | not a camera function (the camera's own is Magnify / Zoom frame AF, ×3–×14); label it as the app's view zoom | – |
+| View zoom 1×–4× (smooth; buttons 1×/2×/4×) | not a camera function (the camera's own is Magnify / Zoom frame AF, ×3–×14); label it as the app's view zoom | – |
 
 ## Build order for `omcap/web/index.html` (done in 0.4.0; kept as record)
 
