@@ -1181,9 +1181,7 @@ async function tick(){
   zBlock=st.stage>0||st.indexing||st.movie!=null||st.take!=null||!!(st.job&&st.job.running)||st.play;
   if(usbZoom){
     $('#zoomUsb').hidden=zBlock; $('#loupeTools').style.display=zBlock?'none':'';
-    // the server ends Zoom AF with the live view or a new session: show what the camera does now (never stay soft)
-    const idle=!recBusy&&!restT&&!lPtr.size&&ans0===loupeAns;
-    if(idle&&(!!st.loupe!==zSent.on||(!st.live&&V.s>1.001)||(!st.loupe&&V.s>1.001&&!zWant.on&&!zBackWant)||(zBlock&&V.s>1.001&&!zCamShows))) loupeSync(st.loupe&&st.live,st.loupe_ratio);
+    loupePoll(ans0);
   }
   $('#reset').hidden=!(features.has('stages')&&(st.stage>0||propsFailed));
   applyContext();
@@ -2250,8 +2248,14 @@ vp.onpointercancel=e=>{if(!loupePtrEnd(e,true)) drag=null};
    and the page holds the old crop until the new one arrives. The normal view is only shown ("soft": the browser
    magnifies the live normal frames) when zooming in from 1x and out to 1x. Click = focus, drag = move, wheel/pinch =
    zoom about the pointer, snapping to
-   the camera's ratios at rest. The frame starts at the chosen AF target (centre with All Targets). */
-let loupeOn=false,usbZoom=false,zBlock=false,loupeAns=0,zLastRev=0; // loupeOn: the zoom view is magnified (V.s > 1), sharp or soft
+   the camera's ratios at rest. The frame starts at the chosen AF target (centre with All Targets). 
+   One page drives the camera zoom, others follow: every /api/loupe request carries this page's client id (zId) and the
+   server reports who sent the last one (loupe_owner) with the zoom state. Only explicit user actions (gesture commit,
+   ratio buttons, arrows, overview map, zoom out) send commands. Automatic paths (state poll, error recovery, watchdog,
+   hidden backdrop cycle) never send in reaction to a state this page did not cause: a page that is not the owner
+   adopts the server's zoom state (loupePoll, loupeSync) and sends nothing, so two pages cannot fight over the zoom.
+   A user action on a follower page makes it the owner from its next request on. */
+let loupeOn=false,usbZoom=false,zBlock=false,loupeAns=0,zLastRev=0,zId=Math.random().toString(36).slice(2); // zId: this page's client id // loupeOn: the zoom view is magnified (V.s > 1), sharp or soft
 const LOUPE_STEPS=[1,3,5,7,10,14]; // camera ratios (d0cf), 1 = off
 const LOUPE_STUCK_MS=2500; // the new crop must show up within this, else the page asks the server what the camera does
 const LOUPE_TAP_PX=6,LOUPE_REST_MS=150,LOUPE_WHEEL_MS=250;
@@ -2411,14 +2415,27 @@ function zMeasureCrop(sharp,r,ex,ey,ref){
 }
 // The camera state now shown on the page's own terms: the server answered (or reported) it; used after errors and
 // when the server ended Zoom AF itself (live view stopped, new session)
-function loupeSync(on,ratio){
+const zMayAuto=()=>!st||!st.loupe_owner||st.loupe_owner===zId; // automatic commands only from the owner (or when nobody owns the zoom)
+function loupeSync(on,ratio,x,y){ // x, y: the server's wanted centre, when known (a follower adopts it)
   clearTimeout(restT); restT=0; zPend=null; zCamShows=!!on;
+  if(on){V.s=ratio||5; if(x!=null&&y!=null){V.cx=x; V.cy=y} V.cx=zClampCam(V.cx,V.s); V.cy=zClampCam(V.cy,V.s); zCam={s:V.s,cx:V.cx,cy:V.cy}} else Object.assign(V,{s:1,cx:.5,cy:.5});
   zSent={on:!!on,ratio:ratio||5,x:V.cx,y:V.cy}; zWant={...zSent};
-  if(on){V.s=ratio||5; V.cx=zClampCam(V.cx,V.s); V.cy=zClampCam(V.cy,V.s); zCam={s:V.s,cx:V.cx,cy:V.cy}} else Object.assign(V,{s:1,cx:.5,cy:.5});
   zRender();
   // the page never saw a normal frame (loaded while the camera zoom was on): one hidden off/on cycle fetches one for the
-  // backdrop; the old crop stays on screen meanwhile. Once per page, so a failing request cannot loop.
-  if(on&&!lastNormal&&!zBackTried){zBackTried=true; zSent={...zSent,x:-9}; loupeReconcile()}
+  // backdrop; the old crop stays on screen meanwhile. Once per page, only by the owner, so a failing request cannot loop
+  // and two pages cannot fight.
+  if(on&&!lastNormal&&!zBackTried&&zMayAuto()){zBackTried=true; zSent={...zSent,x:-9}; loupeReconcile()}
+}
+// Called by tick() with the fresh state (ans0: loupeAns when it was requested): show what the camera does, send nothing
+function loupePoll(ans0){
+  if(!usbZoom||recBusy||restT||lPtr.size||ans0!==loupeAns) return;
+  const on=!!(st.loupe&&st.live),foreign=!!st.loupe_owner&&st.loupe_owner!==zId;
+  const near=(a,b)=>b==null||Math.abs(a-zClampCam(b,st.loupe_ratio||5))<.002; // the page keeps centres the camera can reach
+  // another page changed the zoom: adopt it (ratio, centre), whatever it is
+  const other=foreign&&(on!==zSent.on||(on&&(st.loupe_ratio!==zSent.ratio||!near(zSent.x,st.loupe_x)||!near(zSent.y,st.loupe_y))));
+  // the server ended Zoom AF with the live view or a new session: show it (never stay soft)
+  const ended=!!st.loupe!==zSent.on||(!st.live&&V.s>1.001)||(!st.loupe&&V.s>1.001&&!zWant.on&&!zBackWant)||(zBlock&&V.s>1.001&&!zCamShows);
+  if(other||ended) loupeSync(on,st.loupe_ratio,st.loupe_x,st.loupe_y);
 }
 const wantEq=(a,b)=>a.on===b.on&&(!a.on||(a.ratio===b.ratio&&Math.abs(a.x-b.x)<.002&&Math.abs(a.y-b.y)<.002));
 // Tiny grey picture (16x12) of a decoded image, for telling the camera's states apart; null when it cannot be read
@@ -2431,7 +2448,8 @@ async function loupeReconcile(){
     if(!zPend) zRevAtSend=zLastRev; // frames stamped later come from the changed camera: not drawn as the old crop
     while(!wantEq(zWant,zSent)){
       const w={...zWant}, before=zSig($('#live')); // the picture on screen when the command goes out
-      const j=await api('/api/loupe',w.on?{on:true,ratio:w.ratio,x:w.x,y:w.y}:{on:false});
+      const j=await api('/api/loupe',w.on?{on:true,ratio:w.ratio,x:w.x,y:w.y,client:zId}:{on:false,client:zId});
+      if(st) st.loupe_owner=zId; // this page drives the zoom now
       loupeAns++; zSent=w; zPend={rev:j.rev,on:w.on,n:0,before,ratio:w.ratio,x:w.x,y:w.y};
       clearTimeout(zWatch); zWatch=setTimeout(loupeStuck,LOUPE_STUCK_MS);
     }
@@ -2442,7 +2460,7 @@ async function loupeReconcile(){
 // Show what the camera really does (after an error, or when the new crop never arrives)
 async function loupeRecover(){
   clearTimeout(zWatch);
-  try{const s=await api('/api/state'); loupeSync(s.loupe&&s.live,s.loupe_ratio)}catch{loupeSync(false)}
+  try{const s=await api('/api/state'); loupeSync(s.loupe&&s.live,s.loupe_ratio,s.loupe_x,s.loupe_y)}catch{loupeSync(false)}
 }
 function loupeStuck(){
   if(lPtr.size||restT){zWatch=setTimeout(loupeStuck,LOUPE_STUCK_MS); return} // the user is busy: no recovery under the finger
@@ -2495,7 +2513,7 @@ function loupeOnFrame(info,blob,img){ // returns false: do not draw this frame (
 // Still no normal frame for the backdrop: ONE explicit camera off, back on with the first normal frame (1.5 s at most).
 // The crop is held until the off is shown, then the soft view shows for a moment. Once per page.
 function loupeBackdropOff(){
-  if(zBackOffDone||lastNormal||!zCamShows||!zWant.on||restT||lPtr.size) return;
+  if(zBackOffDone||lastNormal||!zCamShows||!zWant.on||restT||lPtr.size||!zMayAuto()) return;
   zBackOffDone=true; zBackWant={...zWant}; zWant={...zWant,on:false}; loupeReconcile();
   zBackT=setTimeout(loupeBackdropOn,1500);
 }
@@ -2607,7 +2625,7 @@ document.querySelectorAll('[data-lz]').forEach(b=>b.onclick=()=>loupeZoom(+b.dat
 document.querySelectorAll('[data-lm]').forEach(b=>b.onclick=async()=>{
   const dir=b.dataset.lm,dx=(dir==='left'?-1:dir==='right'?1:0)*LOUPE_ARROW_PX/1024,dy=(dir==='up'?-1:dir==='down'?1:0)*LOUPE_ARROW_PX/768;
   const live=zSent.on&&zWant.on; // camera not zoomed (or about to change): only the view moves, the next commit sends it
-  if(live&&!await act(tr('msg.loupeMove'),'/api/loupe',{move:dir})) return;
+  if(live&&!await act(tr('msg.loupeMove'),'/api/loupe',{move:dir,client:zId})) return;
   V.cx=zClampCam(V.cx+dx,V.s); V.cy=zClampCam(V.cy+dy,V.s);
   if(live) for(const o of [zCam,zSent,zWant]){o.cx!==undefined?(o.cx=zClampCam(o.cx+dx,o.s)):(o.x=zClampCam(o.x+dx,o.ratio)); o.cy!==undefined?(o.cy=zClampCam(o.cy+dy,o.s)):(o.y=zClampCam(o.y+dy,o.ratio))}
   zRender(); if(!live) loupeRest(LOUPE_REST_MS);

@@ -77,6 +77,40 @@ class AfAreaFixed(unittest.TestCase):
         self.assertEqual(cam.af_area()["area"], before)
 
 
+class Ownership(unittest.TestCase):
+    """The page that sent the last zoom request owns the zoom; /api/state tells the others (REQ-F54)."""
+
+    def setUp(self):
+        self.saved = (server.cam, server.conn_type, server.ensure_idle, server.live)
+        server.ensure_idle = lambda: None
+        server.live = type("Live", (), {"running": True, "age": 0.0})()
+        server.cam, server.conn_type = make(), "usb"
+
+    def tearDown(self):
+        server.cam, server.conn_type, server.ensure_idle, server.live = self.saved
+
+    def act(self, b):
+        return server.Handler._action(server.Handler.__new__(server.Handler), "/api/loupe", b)
+
+    def test_state_carries_centre_and_owner(self):
+        self.act({"on": True, "ratio": 7, "x": 0.3, "y": 0.6, "client": "pageA"})
+        st = server.public_state()
+        self.assertEqual((st["loupe"], st["loupe_ratio"], st["loupe_x"], st["loupe_y"], st["loupe_owner"]), (True, 7, 0.3, 0.6, "pageA"))
+
+    def test_owner_is_the_last_requester(self):
+        self.act({"on": True, "ratio": 5, "x": 0.5, "y": 0.5, "client": "pageA"})
+        self.act({"on": True, "ratio": 10, "x": 0.4, "y": 0.5, "client": "pageB"})
+        self.assertEqual(server.public_state()["loupe_owner"], "pageB")
+        self.act({"move": "left", "client": "pageA"})
+        self.assertEqual(server.public_state()["loupe_owner"], "pageA")
+
+    def test_reset_when_the_server_ends_the_zoom(self):
+        self.act({"on": True, "ratio": 5, "x": 0.5, "y": 0.5, "client": "pageA"})
+        server.cam.stop_liveview()
+        st = server.public_state()
+        self.assertEqual((st["loupe"], st["loupe_owner"], st["loupe_x"], st["loupe_y"]), (False, None, None, None))
+
+
 class CropPosition(unittest.TestCase):
     """The camera moves the crop 1.135x as far from the centre as sent (measured 2026-11-16): send less x."""
 
@@ -473,7 +507,7 @@ class CommandPath(unittest.TestCase):
         region = region.replace("await ", "yield ")
         region = region.replace("$(", "Q(")  # $ is the ObjC bridge in this engine
         region += "\nfunction loupeReconcile(){return __drive(__rec())}\nfunction loupeRecover(){return __drive(__recv())}\n"
-        code = "%s\n%s\n%s" % (self.STUBS, region, scenario)
+        code = "%s\n%s\nzId='me';%s" % (self.STUBS, region, scenario)
         out = subprocess.run(["osascript", "-l", "JavaScript", "-e", code], capture_output=True, text=True, timeout=30)
         self.assertEqual(out.returncode, 0, out.stderr)
         return json.loads(out.stdout.strip())
@@ -481,7 +515,7 @@ class CommandPath(unittest.TestCase):
     def test_commit_sends_one_on_request_and_stops(self):
         r = self.run_js("Object.assign(V,{s:4.4,cx:.3,cy:.6});loupeCommit();"
                         "JSON.stringify({calls:calls,sent:zSent,pend:zPend,busy:recBusy})")
-        self.assertEqual(r["calls"], [["/api/loupe", {"on": True, "ratio": 5, "x": 0.3, "y": 0.6}]])
+        self.assertEqual(r["calls"], [["/api/loupe", {"on": True, "ratio": 5, "x": 0.3, "y": 0.6, "client": "me"}]])
         self.assertTrue(r["sent"]["on"])
         self.assertEqual((r["pend"]["rev"], r["pend"]["on"]), (1, True))
         self.assertFalse(r["busy"])
@@ -498,7 +532,7 @@ class CommandPath(unittest.TestCase):
     def test_one_request_at_rest(self):
         r = self.run_js(self.ZOOMED + "loupeHold();Object.assign(V,{s:9.5,cx:.4,cy:.45});loupeCommit();"
                         "JSON.stringify({calls:calls,shows:zCamShows})")
-        self.assertEqual(r["calls"], [["/api/loupe", {"on": True, "ratio": 10, "x": 0.4, "y": 0.45}]])
+        self.assertEqual(r["calls"], [["/api/loupe", {"on": True, "ratio": 10, "x": 0.4, "y": 0.45, "client": "me"}]])
         self.assertTrue(r["shows"])  # still the old crop until the new one arrives
 
     def test_old_crop_is_held_during_the_cycle(self):
@@ -603,6 +637,40 @@ class CommandPath(unittest.TestCase):
         self.assertTrue(r["had"])
         self.assertIsNone(r["a"])  # a new grab forgets the wheel's anchor
         self.assertAlmostEqual(r["cx"], 0.4)  # the snap keeps the dragged centre
+
+    FOREIGN = ("st={live:true,loupe:true,loupe_owner:'other',loupe_ratio:10,loupe_x:.3,loupe_y:.6};")
+
+    def zoom_calls(self, scenario):
+        r = self.run_js(scenario + "JSON.stringify({calls:calls.filter(function(c){return c[0]==='/api/loupe'}),V:V,sent:zSent,shows:zCamShows})")
+        return r
+
+    def test_follower_adopts_a_foreign_state_and_sends_nothing(self):
+        r = self.zoom_calls(self.FOREIGN + "lastNormal=null;loupePoll(loupeAns);")
+        self.assertEqual(r["calls"], [])  # not even the hidden backdrop cycle: the other page owns the zoom
+        self.assertEqual((r["V"]["s"], r["V"]["cx"], r["V"]["cy"]), (10, 0.3, 0.6))
+        self.assertTrue(r["sent"]["on"])
+        self.assertTrue(r["shows"])  # the camera's frames already show it: sharp render
+
+    def test_follower_sends_nothing_when_the_watchdog_fires_either(self):
+        r = self.zoom_calls(self.FOREIGN + "lastNormal=null;loupePoll(loupeAns);zPend={rev:1,on:true,n:0,ratio:10,x:.3,y:.6};loupeStuck();")
+        self.assertEqual(r["calls"], [])
+
+    def test_owner_still_does_its_hidden_backdrop_cycle(self):
+        r = self.zoom_calls("st={live:true,loupe:true,loupe_owner:'me',loupe_ratio:10,loupe_x:.3,loupe_y:.6};lastNormal=null;loupeSync(true,10,.3,.6);")
+        self.assertEqual(len(r["calls"]), 1)
+        self.assertEqual(r["calls"][0][1]["client"], "me")
+
+    def test_two_pages_alternating_states_cause_no_requests_from_the_follower(self):
+        r = self.zoom_calls("lastNormal=null;[[5,.5,.5],[10,.3,.6],[3,.7,.4],[14,.2,.8],[5,.5,.5]].forEach(function(z){"
+                            "st={live:true,loupe:true,loupe_owner:'A',loupe_ratio:z[0],loupe_x:z[1],loupe_y:z[2]};loupePoll(loupeAns)});"
+                            "st={live:true,loupe:false,loupe_owner:'A',loupe_ratio:5};loupePoll(loupeAns);")
+        self.assertEqual(r["calls"], [])
+        self.assertEqual(r["V"]["s"], 1)  # the last state: the owner zoomed out, the follower followed
+
+    def test_a_user_action_makes_the_follower_the_owner(self):
+        r = self.zoom_calls(self.FOREIGN + "loupePoll(loupeAns);Object.assign(V,{s:9.5,cx:.4,cy:.45});loupeCommit();")
+        self.assertEqual(len(r["calls"]), 1)  # the commit is explicit: one request, with this page's id
+        self.assertEqual(r["calls"][0][1]["client"], "me")
 
     def test_click_is_not_a_command(self):
         r = self.run_js(self.ZOOMED + "loupeHold();JSON.stringify(calls)")  # loupeHold is all a pointer down does

@@ -977,6 +977,8 @@ def public_state():
         "mode_at": getattr(cam, "mode_changed_at", None),
         "loupe": bool(getattr(cam, "loupe_on", False)),  # USB Zoom AF (camera magnification) on
         "loupe_ratio": getattr(cam, "loupe_ratio", 5),
+        "loupe_x": getattr(cam, "loupe_x", None), "loupe_y": getattr(cam, "loupe_y", None),  # wanted centre, for pages that follow
+        "loupe_owner": getattr(cam, "loupe_owner", None),
     }
 
 
@@ -1371,6 +1373,7 @@ class Handler(BaseHTTPRequestHandler):
                 cam.loupe(bool(b.get("on")), b.get("ratio"), b.get("x"), b.get("y"))
             else:
                 raise CameraError("Zoom AF: on, ratio or move")
+            cam.loupe_owner = b.get("client")  # the page that sent the last request drives the zoom, others follow
             return {"loupe": cam.loupe_on, "rev": cam.loupe_rev}  # rev: the page waits for frames stamped with it
         elif path == "/api/take":
             if b.get("action") == "prepare":

@@ -360,6 +360,8 @@ class UsbCamera:
     saf_shot = False  # S-AF during the running shot: no focus means no release
     loupe_on = False  # Zoom AF (camera magnification) switched on by the app
     loupe_ratio = 5  # magnification last sent (x)
+    loupe_x = loupe_y = None  # wanted zoom centre as last requested (picture fractions, before the x gain)
+    loupe_owner = None  # client id of the page that sent the last zoom request; None when the server ended the zoom
     loupe_rev = 0  # counts every change of the camera's zoom state; live frames carry it (REQ-F54)
 
     # setting named as over Wi-Fi -> gphoto name, display names from the choice values
@@ -937,6 +939,7 @@ class UsbCamera:
             fx, fy = float(x), float(y)
             if not (0 <= fx <= 1 and 0 <= fy <= 1):
                 raise CameraError("Zoom frame: x and y between 0 and 1")
+            self.loupe_x, self.loupe_y = fx, fy
             if self.loupe_on:  # 0x9483 only takes effect while d04b goes to 1 (camera test 2026-11-16)
                 self._set("d04b", LOUPE_OFF)
                 self.loupe_on = False  # frames in between are normal, and a failing 0x9483 leaves a true state
@@ -958,6 +961,7 @@ class UsbCamera:
     def _loupe_off_locked(self):
         """d04b = 2 without raising; caller holds the lock. Only with the write permission."""
         self.loupe_on = False
+        self.loupe_x = self.loupe_y = self.loupe_owner = None  # ended by the server: nobody owns the zoom
         self.loupe_rev += 1
         if not self.allow_write:
             return
@@ -971,6 +975,7 @@ class UsbCamera:
     def _loupe_off(self):
         if self.gone:
             self.loupe_on = False
+            self.loupe_x = self.loupe_y = self.loupe_owner = None
             self.loupe_rev += 1
             return
         with self._lock:
