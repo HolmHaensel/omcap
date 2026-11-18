@@ -2268,22 +2268,29 @@ const zSwapDue=(diff,n)=>diff>=LOUPE_SIG_DIFF||n>LOUPE_LAG_FRAMES; // n: frames 
 // where the sharp frame (sm, sw x sh grey values) really sits inside a larger grey picture of the normal view (big, bw x bh):
 // zero-mean normalised correlation over all offsets; returns the shift of the best offset from the centred one, or null for a
 // flat scene or a weak match.
-const LOUPE_MATCH_MIN=.8,LOUPE_MATCH_STD=6,LOUPE_RUBBER=.3; // LOUPE_RUBBER: share of a drag beyond the camera limits that moves the view
-const zMatch=(big,bw,bh,sm,sw,sh)=>{
+// LOUPE_MATCH_GAP: how much the best match must beat the best one elsewhere (repeating patterns are ambiguous);
+// LOUPE_MATCH_MAX: the largest correction accepted, as a share of the picture (a wrong match would jump and uncover edges)
+const LOUPE_MATCH_MIN=.8,LOUPE_MATCH_STD=6,LOUPE_MATCH_GAP=.03,LOUPE_MATCH_MAX=.02,LOUPE_RUBBER=.3; // LOUPE_RUBBER: share of a drag beyond the camera limits that moves the view
+const zMatch=(big,bw,bh,sm,sw,sh,limx,limy)=>{
   const n=sw*sh;let ms=0;for(let i=0;i<n;i++)ms+=sm[i];ms/=n;
   let vs=0;for(let i=0;i<n;i++)vs+=(sm[i]-ms)*(sm[i]-ms);
   if(Math.sqrt(vs/n)<LOUPE_MATCH_STD)return null;
-  let best=-2,bx=0,by=0;
-  for(let oy=0;oy<=bh-sh;oy++)for(let ox=0;ox<=bw-sw;ox++){
+  const W=bw-sw+1,H=bh-sh+1,sc=[];let best=-2,bx=0,by=0;
+  for(let oy=0;oy<H;oy++)for(let ox=0;ox<W;ox++){
     let mb=0;for(let y=0;y<sh;y++)for(let x=0;x<sw;x++)mb+=big[(oy+y)*bw+ox+x];mb/=n;
     let vb=0,c=0;for(let y=0;y<sh;y++)for(let x=0;x<sw;x++){const a=big[(oy+y)*bw+ox+x]-mb;vb+=a*a;c+=a*(sm[y*sw+x]-ms)}
-    const r=vb>0?c/Math.sqrt(vb*vs):-2;if(r>best){best=r;bx=ox;by=oy}
+    const r=vb>0?c/Math.sqrt(vb*vs):-2;sc.push(r);if(r>best){best=r;bx=ox;by=oy}
   }
-  return best>=LOUPE_MATCH_MIN?{dx:bx-(bw-sw)/2,dy:by-(bh-sh)/2,score:best}:null;
+  let second=-2;for(let oy=0;oy<H;oy++)for(let ox=0;ox<W;ox++)if(Math.abs(ox-bx)>2||Math.abs(oy-by)>2)second=Math.max(second,sc[oy*W+ox]);
+  const dx=bx-(bw-sw)/2,dy=by-(bh-sh)/2;
+  if(best<LOUPE_MATCH_MIN||best-second<LOUPE_MATCH_GAP||Math.abs(dx)>limx||Math.abs(dy)>limy)return null;
+  return {dx,dy,score:best};
 };
 // While dragging, movement beyond what the camera can show (zClampCam limits) is damped, so a release needs little glide
 const zRubber=(c,s,k)=>{if(s<=1)return .5;const lo=LOUPE_CAM_MARGIN+.5/s,hi=1-LOUPE_CAM_MARGIN-.5/s;
   return zClamp(c<lo?lo+(c-lo)*k:c>hi?hi+(c-hi)*k:c,s)};
+// Does the camera crop c (from zCrop) cover the whole W x H viewport? Otherwise the backdrop must be seen at the edges.
+const zCovers=(c,W,H)=>c.x<=.5&&c.y<=.5&&c.x+W*c.k>=W-.5&&c.y+H*c.k>=H-.5;
 // zoom maths end
 const V={s:1,cx:.5,cy:.5};  // the view the user sees (tracked here, the camera cannot report it)
 let zCam={s:1,cx:.5,cy:.5};  // the crop the camera shows while zCamShows
@@ -2317,10 +2324,10 @@ function zRender(anim){
     z=1; px=py=0; layer.style.transition='none'; layer.style.transform='translate3d(0,0,0)';
     const c=zCrop(V,zCam,W,H);
     live.style.transform=`translate3d(${c.x}px,${c.y}px,0) scale(${c.k})`;
-    const off=Math.abs(c.k-1)>.001||Math.abs(c.x)>.5||Math.abs(c.y)>.5;
-    if((off||performance.now()<fadeUntil)&&lastNormal){
+    if(lastNormal){ // always in place (and decoded) behind the crop; seen only where the crop does not reach
       if(backSrc!==lastNormal){if(backUrl) URL.revokeObjectURL(backUrl); backUrl=URL.createObjectURL(lastNormal); back.src=backUrl; backSrc=lastNormal}
-      const t=zShift(V,W,H); back.style.transform=`translate3d(${t.x}px,${t.y}px,0) scale(${V.s})`; back.hidden=false;
+      const t=zShift(V,W,H); back.style.transform=`translate3d(${t.x}px,${t.y}px,0) scale(${V.s})`;
+      back.style.opacity=zCovers(c,W,H)&&performance.now()>=fadeUntil?0:1; back.hidden=false;
     }else back.hidden=true;
   }
 }
@@ -2339,20 +2346,17 @@ function zMeasureCrop(sharp,r,ex,ey){
     const x0=Math.min(1-rw,Math.max(0,ex-rw/2)),y0=Math.min(1-rh,Math.max(0,ey-rh/2));
     const big=zGreyOf(ref,x0*nw,y0*nh,rw*nw,rh*nh,BW,BH);
     const small=zGreyOf(sharp,0,0,sharp.naturalWidth||sharp.width,sharp.naturalHeight||sharp.height,64,48);
-    const m=zMatch(big,BW,BH,small,64,48);
+    const m=zMatch(big,BW,BH,small,64,48,Math.max(1,LOUPE_MATCH_MAX*64*r),Math.max(1,LOUPE_MATCH_MAX*48*r));
     return m&&{cx:x0+rw/2+m.dx/(64*r),cy:y0+rh/2+m.dy/(48*r)};
   }catch{return null}
 }
 // The camera state now shown on the page's own terms: the server answered (or reported) it; used after errors and
 // when the server ended Zoom AF itself (live view stopped, new session)
-// The camera's AF area changes while Zoom AF is on: read it again once the zoom is off (REQ-F54)
-const loupeAfReload=()=>{if(typeof loadAf==='function') loadAf()};
 function loupeSync(on,ratio){
   clearTimeout(restT); restT=0; zPend=null; zCamShows=!!on;
   zSent={on:!!on,ratio:ratio||5,x:V.cx,y:V.cy}; zWant={...zSent};
   if(on){V.s=ratio||5; V.cx=zClampCam(V.cx,V.s); V.cy=zClampCam(V.cy,V.s); zCam={s:V.s,cx:V.cx,cy:V.cy}} else Object.assign(V,{s:1,cx:.5,cy:.5});
   zRender();
-  if(!on) loupeAfReload();
 }
 const wantEq=(a,b)=>a.on===b.on&&(!a.on||(a.ratio===b.ratio&&Math.abs(a.x-b.x)<.002&&Math.abs(a.y-b.y)<.002));
 // Tiny grey picture (16x12) of a decoded image, for telling the camera's states apart; null when it cannot be read
@@ -2388,7 +2392,7 @@ function loupeOnFrame(info,blob,img){ // returns false: do not draw this frame (
   zLastRev=info.rev;
   if(zPend&&info.rev>=zPend.rev&&zSwapDue(zSigDiff(zPend.before&&img?zSig(img):null,zPend.before),++zPend.n)){
     const sharp=zPend.on&&!zCamShows;
-    zCamShows=zPend.on; if(!zCamShows) loupeAfReload(); else{
+    zCamShows=zPend.on; if(zCamShows){
       zCam={s:zPend.ratio,cx:zClampCam(zPend.x,zPend.ratio),cy:zClampCam(zPend.y,zPend.ratio)};
       // draw the first sharp frame exactly where the soft picture was: use the crop position measured in the picture
       const m=sharp&&img&&Math.abs(V.s-zPend.ratio)<.01?zMeasureCrop(img,zPend.ratio,zCam.cx,zCam.cy):null;

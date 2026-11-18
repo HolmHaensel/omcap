@@ -693,8 +693,6 @@ class UsbCamera:
         self._last_level = {"a": a, "b": b}  # no mode: d006 only changes with a new session (mode dial events)
         return self._last_level
 
-    _area_cache = None  # AF area limits read while Zoom AF was off
-
     def _live_int(self, name):
         """Own PTP backend: GetDevicePropValue follows the camera live, the descriptor (_value) keeps a stale
         value inside a session (see level()). gphoto2 backend: the descriptor is all there is."""
@@ -702,19 +700,14 @@ class UsbCamera:
             return int(self._call(self._c.get_prop_value, int(name, 16)))
         return int(self._value(name))
 
+    # The AF area of the E-M1 is fixed (Wi-Fi touchactiveframe at 800x600: x 135-662, y 100-497 = 0.169-0.828 and
+    # 0.167-0.828). d05a/d05b/d071/d072 are NOT this area: they are the Zoom AF frame-centre limits for the current
+    # zoom ratio d0cf, [0.1+0.5/r, 0.9-0.5/r] of the picture (measured 2026-11-18); at the camera's default x7 they
+    # happen to equal the AF area, which is why they looked right until Zoom AF was used.
+    AF_AREA = {"x0": 216, "x1": 1060, "y0": 160, "y1": 796, "w": 1280, "h": 960}
+
     def af_area(self):
-        area = {"x0": 216, "x1": 1060, "y0": 160, "y1": 796, "w": 1280, "h": 960}
-        keys = (("x0", "d05a"), ("x1", "d05b"), ("y0", "d071"), ("y1", "d072"))
-        if self.loupe_on and self._area_cache:
-            area.update(self._area_cache)  # Zoom AF shrinks the limits (OM Capture reads them before 0x9483): keep the normal ones
-        else:
-            for key, name in keys:
-                area[key] = self._live_int(name)
-            if not self.loupe_on:
-                self._area_cache = {k: area[k] for k, _ in keys}
-        # The AF area is centred, so its grid is (x0+x1) × (y0+y1) – as with Wi-Fi
-        # (touchactiveframe). d06d is no good: depending on the session the camera reports the area
-        # in 1280×960 or 1024×768, independent of the current d06d (measured 2026-11-09).
+        area = dict(self.AF_AREA)  # centred, so its grid is (x0+x1) x (y0+y1) as with Wi-Fi
         area["w"], area["h"] = af_raster(area)
         self.af_mode = self._live_int("d00c")
         return {"mode": self.af_mode, "field": self._live_int("d051"), "area": area,

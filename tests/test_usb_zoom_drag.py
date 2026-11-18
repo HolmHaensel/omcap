@@ -48,13 +48,12 @@ class Revision(unittest.TestCase):
         self.assertEqual(cam._c.writes[3], ("d04b", "1"))
 
 
-class AfAreaLive(unittest.TestCase):
-    """af_area() follows the camera live with the own PTP backend and keeps the normal area while Zoom AF is on."""
+class AfAreaFixed(unittest.TestCase):
+    """The AF area is fixed; d05a/d05b/d071/d072 are the Zoom AF frame limits (measured 2026-11-18), never read for it."""
 
     def cam(self, values):
         cam = make()
-        cam.gone, cam.last_af = False, None
-        calls = []
+        cam.gone, cam.last_af, calls = False, None, []
 
         def get_prop_value(code):
             calls.append(code)
@@ -63,24 +62,19 @@ class AfAreaLive(unittest.TestCase):
         cam._calls = calls
         return cam
 
-    NORMAL = {0xD05A: 336, 0xD05B: 940, 0xD071: 252, 0xD072: 704, 0xD00C: 33024, 0xD051: 41}
-    ZOOMED = {0xD05A: 500, 0xD05B: 700, 0xD071: 400, 0xD072: 500, 0xD00C: 33024, 0xD051: 41}
-
-    def test_reads_the_live_values(self):
-        cam = self.cam(self.NORMAL)
+    def test_fixed_area_and_live_mode_and_field(self):
+        cam = self.cam({0xD00C: 33024, 0xD051: 41})
         a = cam.af_area()
-        self.assertEqual((a["area"]["x0"], a["area"]["x1"], a["area"]["y0"], a["area"]["y1"]), (336, 940, 252, 704))
+        self.assertEqual({k: a["area"][k] for k in ("x0", "x1", "y0", "y1")}, {"x0": 216, "x1": 1060, "y0": 160, "y1": 796})
+        self.assertEqual((a["area"]["w"], a["area"]["h"]), (1280, 960))
         self.assertEqual((a["mode"], a["field"]), (33024, 41))
-        self.assertEqual(set(cam._calls), {0xD05A, 0xD05B, 0xD071, 0xD072, 0xD00C, 0xD051})
+        self.assertEqual(set(cam._calls), {0xD00C, 0xD051})  # no zoom limits read as the AF area
 
-    def test_zoomed_area_is_not_used(self):
-        cam = self.cam(self.NORMAL)
-        cam.af_area()
-        cam._c.get_prop_value = self.cam(self.ZOOMED)._c.get_prop_value
+    def test_same_while_zoom_af_is_on(self):
+        cam = self.cam({0xD00C: 33025, 0xD051: 5})
+        before = cam.af_area()["area"]
         cam.loupe_on = True
-        self.assertEqual(cam.af_area()["area"]["x0"], 336)  # cached while Zoom AF is on
-        cam.loupe_on = False
-        self.assertEqual(cam.af_area()["area"]["x0"], 500)  # read again once it is off
+        self.assertEqual(cam.af_area()["area"], before)
 
 
 class CropPosition(unittest.TestCase):
@@ -251,8 +245,7 @@ class Page(unittest.TestCase):
         for name in ("zSnap", "zClamp", "zClampCam", "zCrop", "zSigDiff", "zSwapDue", "zMatch", "zRubber"):
             self.assertIn("const %s=" % name, h)
         self.assertIn("X-Loupe-Rev", h)
-        self.assertIn("const loupeAfReload=", h)  # the AF grid is read again after the camera zoom goes off
-        self.assertEqual(h.count("loupeAfReload()"), 2)
+        self.assertIn("const zCovers=", h)
         self.assertNotIn("loupeBtn", h)
 
     def test_idle_server_does_not_block_the_zoom(self):
@@ -324,6 +317,24 @@ class ZoomMaths(unittest.TestCase):
         weak = self.run_js("(P=>{const big=[];for(let i=0;i<78*58;i++)big.push(P(i));"
                            "const sm=[];for(let i=0;i<64*48;i++)sm.push((i*i*13+i*7)%256);return zMatch(big,78,58,sm,64,48)})(" + self.PATTERN + ")")
         self.assertIsNone(weak)
+
+    def test_match_refuses_a_large_correction(self):
+        src = ("(P=>{const bw=78,bh=58,big=[];for(let i=0;i<bw*bh;i++)big.push(P(i));"
+               "const sm=[];for(let y=0;y<48;y++)for(let x=0;x<64;x++)sm.push(big[(y+3)*bw+x+10]);"
+               "return [zMatch(big,bw,bh,sm,64,48,3,2),zMatch(big,bw,bh,sm,64,48,2.9,2),zMatch(big,bw,bh,sm,64,48,3,1.9)]})(")
+        r = self.run_js(src + self.PATTERN + ")")
+        self.assertEqual((r[0]["dx"], r[0]["dy"]), (3, -2))
+        self.assertEqual(r[1:], [None, None])  # shift (3, -2) beyond the limit in x or y
+
+    def test_match_refuses_an_ambiguous_repeating_picture(self):
+        r = self.run_js("(()=>{const bw=78,bh=58,big=[];for(let y=0;y<bh;y++)for(let x=0;x<bw;x++)big.push((x%8<4?30:220)+(y%2));"
+                        "const sm=[];for(let y=0;y<48;y++)for(let x=0;x<64;x++)sm.push(big[(y+5)*bw+x+7]);return zMatch(big,bw,bh,sm,64,48,9,9)})()")
+        self.assertIsNone(r)  # the same score every 8 px: no clear peak
+
+    def test_coverage_of_the_viewport(self):
+        r = self.run_js("[zCovers({k:1,x:0,y:0},800,600),zCovers({k:1,x:-30,y:-5},800,600),zCovers({k:1,x:12,y:0},800,600),"
+                        "zCovers({k:1,x:0,y:-6},800,600),zCovers({k:2,x:-400,y:-300},800,600),zCovers({k:.9,x:0,y:0},800,600)]")
+        self.assertEqual(r, [True, False, False, False, True, False])  # x -30 leaves 30 px open at the right, y -6 six px at the bottom, y +0 is fine
 
     def test_rubber_band_damps_beyond_the_camera_limits(self):
         r = self.run_js("[zRubber(.5,5,.3),zRubber(.1,5,.3),zRubber(.9,5,.3),zRubber(-1,5,.3),zRubber(.3,1,.3)]")
