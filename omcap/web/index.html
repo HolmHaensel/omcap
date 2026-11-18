@@ -1158,6 +1158,7 @@ async function tick(){
   else if(st.mode_at&&st.mode_at!==modeAt){modeAt=st.mode_at;usbShotMode=null;props();msg(tr('msg.modeDial'))} // USB: mode dial turned
   $('#half').classList.toggle('on',st.stage>=1); $('#half').setAttribute('aria-pressed',st.stage>=1?'true':'false');
   $('#empty').hidden=st.live;
+  if(st.live&&!wzLivePrev&&!usbZoom) wzSizeSoon(); wzLivePrev=!!st.live; // live view (re)started: check the zoomed size again (REQ-F55)
   $('#live').style.visibility=st.live?'':'hidden'; // live view off: dark picture area, not the last frame
   $('#lvStart').hidden=st.live||!canWrite; $('#lvStop').hidden=!st.live;
   renderStrip();
@@ -2221,6 +2222,7 @@ let wzSizeT=0,wzSharpOn=false,wzBase=null,wzFocusOnly=false,wzFocusUntil=0; // w
 const WZ_FOCUS_HOLD_MS=5000; // sharp-on-focus mode: how long the sharp size stays after the last focus action
 const wzSharp=()=>z>WZ_SHARP_Z;
 const wzSizeFor=zv=>zv<=WZ_SHARP_Z?null:zv<=WZ_SHARP_MID_Z?'1024x0768':'1280x0960'; // null: the normal adaptive size
+let wzLivePrev=false;
 function wzSizeSoon(ms=WZ_REST_MS){clearTimeout(wzSizeT); if(autoLvEnabled()||wzSharpOn) wzSizeT=setTimeout(wzSizeCheck,ms)}
 // A focus action (tap AF, half press) in "sharp on focus" mode brings the sharp size for a moment. Called after the focus
 // request is on its way: the size change runs from a timer, so the focus never waits for the live view restart.
@@ -2242,7 +2244,8 @@ async function wzSizeCheck(){
   }
   // never during a gesture, a shot, a job, a movie or a card read (as reduceAutoLiveSize); try again later.
   // Never while half-pressed either: the size change is a mode switch play -> rec and would release the press.
-  if(wzPtr.size||wzMapId!==null||autoLvBusy||!st.live||st.stage>0||st.busy||st.indexing||st.movie!=null||st.take!=null||(st.job&&st.job.running)||now-autoLvLastChange<WZ_SIZE_GAP_MS){wzSizeSoon(1000); return}
+  if(!st.live) return; // live view off: starting it or the next zoom change looks again
+  if(wzPtr.size||wzMapId!==null||autoLvBusy||st.stage>0||st.busy||st.indexing||st.movie!=null||st.take!=null||(st.job&&st.job.running)||now-autoLvLastChange<WZ_SIZE_GAP_MS){wzSizeSoon(1000); return}
   if(sharp&&!wzSharpOn) wzBase=cur; // remember the adaptive size to return to
   wzSharpOn=!!sharp; if(!target) wzFocusOnly=false;
   autoLvBusy=true; autoLvLastChange=now; autoLvSlowSince=0;
