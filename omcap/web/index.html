@@ -1180,7 +1180,7 @@ async function tick(){
   // Zoom AF is not offered while the camera is busy (the server refuses it then, like other commands)
   zBlock=st.stage>0||st.indexing||st.movie!=null||st.take!=null||!!(st.job&&st.job.running)||st.play;
   if(usbZoom){
-    $('#zoomUsb').hidden=zBlock; $('#loupeTools').style.display=zBlock?'none':'';
+    $('#zoomUsb').hidden=zBlock; $('#loupeTools').style.display=zBlock?'none':''; $('#zoomMap').style.visibility=zBlock?'hidden':''; // busy camera: the map would not react
     loupePoll(ans0);
   }
   $('#reset').hidden=!(features.has('stages')&&(st.stage>0||propsFailed));
@@ -2359,8 +2359,8 @@ function zMapUpdate(){
   box(mv,V.cx,V.cy,V.s); mc.style.display=zCamShows?'':'none'; if(zCamShows) box(mc,zCam.cx,zCam.cy,zCam.s);
 }
 // Which camera state does this frame show while a crop-to-crop change is pending (zFrameKind)? The frame's 16x12 signature
-// (zCurSig, read once per frame) and, for frames that differ a lot or might be the new crop, a 64x48
-// match (~5 ms) only for frames that differ a lot (normal candidates) or that complete the switch (the new crop's place).
+// (zCurSig, read once per frame) and a 64x48 match (~5 ms) only for frames that differ a lot from the old crop
+// (normal candidates) or that might be the new crop (its place).
 function zClassifyFrame(img){
   const sig=img&&zPend.before?zCurSig:null; if(!sig) return {kind:null};
   const d=zSigDiff(sig,zPend.before),big=d>=LOUPE_NORMAL_JUMP;

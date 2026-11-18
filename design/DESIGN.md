@@ -41,7 +41,7 @@ sensor, not an enlarged screen picture. The handling on top follows today's habi
 | Tap = act | A click in the zoomed view focuses (half press, no shot) | Separate AF button |
 | Nothing flickers | One camera command only at rest (after the pointer is up / the wheel has stopped); the old crop keeps flowing until the new one is recognised in the picture; normal frames never show while zoomed; the view then glides to where the camera really is | Picture blanks or jumps on every frame move |
 
-Rules learned on the camera (2026-11-16/18, details in `out/research/loupe_protocol.md`): the crop is exactly
+Rules learned on the camera (2026-11-16/18, maintainer's local research notes): the crop is exactly
 1/ratio; the point (`0x9483`) is in the grid of the current live view size, with x landing 1.135× as far from
 the centre as sent; the crop centre stays inside [0.1+0.5/r, 0.9−0.5/r]; a ratio change while zoomed goes
 `d04b` off → `d0cf` → point → on; the live view lags 1–5 frames behind a switch, so the page recognises the new
@@ -52,8 +52,7 @@ its own 1×/2×/4× view zoom.
 
 **Why it matters beyond comfort:** this precise, calm zoom is the base of the **Star AF aid (REQ-F24)** –
 measuring star size/sharpness in the magnified sensor crop and focusing with the focus ring or the focus drive
-(`0x9487`) needs a steady, sharp, correctly placed crop at ×10/×14. The branch `usb-zoom-drag` is kept as the
-base for REQ-F24.
+(`0x9487`) needs a steady, sharp, correctly placed crop at ×10/×14. This zoom is the base for REQ-F24.
 
 ## Live view and shutter always together
 
