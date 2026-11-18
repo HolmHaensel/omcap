@@ -212,6 +212,8 @@ body.autoLv label[data-feat=lvsize]{display:none!important}
 #hslBox img{max-width:calc(100vw - 80px);max-height:70vh;display:block}
 #hslBox{cursor:ew-resize;touch-action:none;user-select:none}
 #live,#liveBack,#ovl,#hslBox img,#vImg{-webkit-user-drag:none;user-select:none}
+#viewport.wzoom #zoomMap{display:block;pointer-events:auto;cursor:pointer;touch-action:none}
+#viewport.wzoom{cursor:grab}#viewport.wzoom.grabbing{cursor:grabbing} /* Wi-Fi screen zoom (REQ-F55) */
 #viewport.loupe{cursor:grab;touch-action:none}#viewport.loupe.grabbing{cursor:grabbing} /* Zoom AF: grab the picture (REQ-F54) */
 .sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap} /* drag moves the picture / the before-after line, not a copy of the image */
 #hslHandle{position:absolute;top:0;bottom:0;left:50%;width:2px;margin-left:-1px;background:#fff;box-shadow:0 0 4px #0009;pointer-events:none}
@@ -767,7 +769,7 @@ const I18N={en:{
   "lv.start": "Start live view",
   "lv.stop": "Stop live view",
   "lv.size": "Size",
-  "lv.auto": "Auto · {size}",
+  "lv.auto": "Auto · {size}", "lv.autoFocus": "Auto · {size} · sharp on focus",
   "lv.autoReduced": "Live view adjusted to {size} for a smoother signal",
   "lv.second": "Second monitor",
   "lv.webcam": "Webcam (OBS)",
@@ -1110,7 +1112,7 @@ const lvSizeText=size=>size.replace(/^0+/,'').replace('x0','×');
 function autoLvLabel(size){
   const el=$('#autoLvStatus'), on=autoLvEnabled();
   el.hidden=!on; document.body.classList.toggle('autoLv',on);
-  if(size) el.textContent=tr('lv.auto',{size:lvSizeText(size)});
+  if(size) el.textContent=tr(wzFocusOnly?'lv.autoFocus':'lv.auto',{size:lvSizeText(size)}); // wzFocusOnly: sharp only on focus while zoomed (REQ-F55)
 }
 function idealMobileLvSize(){
   // at most 800×600: a phone screen with 3× pixels asked for 1280×960, which the camera sends over Wi-Fi at only
@@ -1125,17 +1127,20 @@ function prepareAutoLiveSize(){
   autoLvLabel(size);
   return true;
 }
+function lvSlowNow(){ // too few frames, too many lost, or stalled
+  const perf=st.lvperf||{}, stale=st.lv_age!=null&&st.lv_age>1.5;
+  return stale||(perf.sample_seconds>=4&&((perf.fps!=null&&perf.fps<12)||(perf.drop_ratio!=null&&perf.drop_ratio>.18)));
+}
 async function reduceAutoLiveSize(){
-  if(autoLvBusy||!autoLvEnabled()||Date.now()-autoLvLastChange<8000) return;
+  if(autoLvBusy||!autoLvEnabled()||Date.now()-autoLvLastChange<8000||(wzSharp()&&(!wzSharpOn||wzFocusOnly))) return; // zoomed: no step down for slowness (REQ-F55); the sharp size falls back below
   if(st.stage>0||st.busy||st.indexing||st.movie!=null||st.take!=null||(st.job&&st.job.running)) return;
   const current=st.lvqty||$('#lvqty').value, i=AUTO_LV_SIZES.indexOf(current);
   if(i<=0) return;
-  const perf=st.lvperf||{}, stale=st.lv_age!=null&&st.lv_age>1.5;
-  const slow=perf.sample_seconds>=4&&((perf.fps!=null&&perf.fps<12)||(perf.drop_ratio!=null&&perf.drop_ratio>.18));
-  if(!stale&&!slow){autoLvSlowSince=0;return}
+  if(!lvSlowNow()){autoLvSlowSince=0;return}
   if(!autoLvSlowSince){autoLvSlowSince=Date.now();return}
   if(Date.now()-autoLvSlowSince<AUTO_LV_SLOW_MS) return;
   autoLvSlowSince=0;
+  if(wzSharp()){wzFocusOnly=true; autoLvLabel(current); wzSizeSoon(0); return} // sharp size too slow: back to the adaptive size, sharp only on focus (REQ-F55)
   const next=AUTO_LV_SIZES[i-1];
   autoLvBusy=true; autoLvLastChange=Date.now();
   $('#lvqty').value=next; lvPicked=true; autoLvLabel(next);
@@ -1153,6 +1158,7 @@ async function tick(){
   else if(st.mode_at&&st.mode_at!==modeAt){modeAt=st.mode_at;usbShotMode=null;props();msg(tr('msg.modeDial'))} // USB: mode dial turned
   $('#half').classList.toggle('on',st.stage>=1); $('#half').setAttribute('aria-pressed',st.stage>=1?'true':'false');
   $('#empty').hidden=st.live;
+  if(st.live&&!wzLivePrev&&!usbZoom) wzSizeSoon(); wzLivePrev=!!st.live; // live view (re)started: check the zoomed size again (REQ-F55)
   $('#live').style.visibility=st.live?'':'hidden'; // live view off: dark picture area, not the last frame
   $('#lvStart').hidden=st.live||!canWrite; $('#lvStop').hidden=!st.live;
   renderStrip();
@@ -2208,38 +2214,123 @@ async function local(){
 /* Live image: zoom, pan, touch AF */
 let z=1,px=0,py=0,drag=null;
 const vp=$('#viewport'),layer=$('#zoomLayer');
-function applyZoom(){
+// Wi-Fi screen zoom (REQ-F55): the live view is at most 1280x960, so beyond 4x it only gets blurrier
+const WZ_MAX=4,WZ_TAP_PX=4,WZ_MAP_MS=600;
+// Phone over Wi-Fi: while the zoom rests above WZ_SHARP_Z the live view gets a bigger size (4x of 640 px leaves 160 px), REQ-F55
+const WZ_SHARP_Z=1.5,WZ_SHARP_MID_Z=2.5,WZ_REST_MS=600,WZ_SIZE_GAP_MS=3000;
+let wzSizeT=0,wzSharpOn=false,wzBase=null,wzFocusOnly=false,wzFocusUntil=0; // wzSharpOn: the sharp size is on; wzBase: the size to return to
+const WZ_FOCUS_HOLD_MS=5000; // sharp-on-focus mode: how long the sharp size stays after the last focus action
+const wzSharp=()=>z>WZ_SHARP_Z;
+const wzSizeFor=zv=>zv<=WZ_SHARP_Z?null:zv<=WZ_SHARP_MID_Z?'1024x0768':'1280x0960'; // null: the normal adaptive size
+let wzLivePrev=false;
+function wzSizeSoon(ms=WZ_REST_MS){clearTimeout(wzSizeT); if(autoLvEnabled()||wzSharpOn) wzSizeT=setTimeout(wzSizeCheck,ms)}
+// A focus action (tap AF, half press) in "sharp on focus" mode brings the sharp size for a moment. Called after the focus
+// request is on its way: the size change runs from a timer, so the focus never waits for the live view restart.
+function wzFocusAction(){
+  if(usbZoom||!wzFocusOnly||!wzSharp()||!autoLvEnabled()) return;
+  wzFocusUntil=Date.now()+WZ_FOCUS_HOLD_MS; wzSizeSoon(0);
+}
+async function wzSizeCheck(){
+  if(!autoLvEnabled()){wzSharpOn=wzFocusOnly=false; return}
+  const now=Date.now(),target=wzSizeFor(z),holding=wzFocusOnly&&now<wzFocusUntil,sharp=target&&(!wzFocusOnly||holding)?target:null,cur=st.lvqty||$('#lvqty').value;
+  if(!target&&!wzSharpOn){if(wzFocusOnly){wzFocusOnly=false; autoLvLabel(cur)} return} // back at 1x and the normal size is on: the mode ends
+  const want=sharp||(wzSharpOn?wzBase||idealMobileLvSize():null);
+  if(!want) return; // focus mode, idle: the normal size stays
+  if(want===cur){
+    wzSharpOn=!!sharp; if(!target) wzFocusOnly=false;
+    autoLvLabel(cur);
+    if(holding&&sharp) wzSizeSoon(wzFocusUntil-now+50); // look again when the hold is over
+    return;
+  }
+  // never during a gesture, a shot, a job, a movie or a card read (as reduceAutoLiveSize); try again later.
+  // Never while half-pressed either: the size change is a mode switch play -> rec and would release the press.
+  if(!st.live) return; // live view off: starting it or the next zoom change looks again
+  if(wzPtr.size||wzMapId!==null||autoLvBusy||st.stage>0||st.busy||st.indexing||st.movie!=null||st.take!=null||(st.job&&st.job.running)||now-autoLvLastChange<WZ_SIZE_GAP_MS){wzSizeSoon(1000); return}
+  if(sharp&&!wzSharpOn) wzBase=cur; // remember the adaptive size to return to
+  wzSharpOn=!!sharp; if(!target) wzFocusOnly=false;
+  autoLvBusy=true; autoLvLastChange=now; autoLvSlowSince=0;
+  $('#lvqty').value=want; lvPicked=true; autoLvLabel(want);
+  try{await $('#lvStart').onclick()}finally{autoLvBusy=false}
+  wzSizeSoon(holding?wzFocusUntil-Date.now()+50:WZ_REST_MS); // the zoom may have moved meanwhile, or the hold ends
+}
+function applyZoom(anim){
   const r=vp.getBoundingClientRect();
   px=Math.min(0,Math.max(r.width*(1-z),px)); py=Math.min(0,Math.max(r.height*(1-z),py));
+  layer.style.transition=anim&&!calm.matches?'transform 120ms ease-out':'none'; // only a button or map click glides, never a gesture
   layer.style.transform=`translate(${px}px,${py}px) scale(${z})`;
-  document.querySelectorAll('[data-z]').forEach(b=>b.classList.toggle('on',+b.dataset.z===z));
+  document.querySelectorAll('[data-z]').forEach(b=>b.classList.toggle('on',Math.abs(+b.dataset.z-z)<.02));
+  if(!usbZoom){wzUi(); wzSizeSoon()}
 }
-function setZoom(n,cx,cy){
+// The view as the shared zoom maths know it (scale, centre as fractions of the picture), and back
+function wzView(){const r=zBox();return {s:z,cx:(r.width/2-px)/(r.width*z),cy:(r.height/2-py)/(r.height*z)}}
+function wzSet(v,anim){const r=zBox(),t=zShift(v,r.width,r.height);z=v.s;px=t.x;py=t.y;applyZoom(anim)}
+function wzAt(clientX,clientY,s2){ // zoom about a screen point: the picture point under it stays there
+  const r=zMeasure(),fx=(clientX-r.left)/r.width,fy=(clientY-r.top)/r.height;
+  wzSet(zZoomAt(zPic(wzView(),fx,fy),s2,fx,fy));
+}
+// Overview map: the current live frame (a small copy, at most every WZ_MAP_MS, never during a gesture) and the visible view
+let wzMapT=0,wzMapId=null;
+const wzPtr=new Map();let wzPinch=null;
+function wzMapShot(){
+  const live=$('#live'),img=$('#zoomMap img');
+  if(!live.naturalWidth) return;
+  const c=wzMapShot.c||(wzMapShot.c=document.createElement('canvas'));
+  c.width=192; c.height=Math.round(192*live.naturalHeight/live.naturalWidth);
+  c.getContext('2d').drawImage(live,0,0,c.width,c.height);
+  img.src=c.toDataURL('image/jpeg',.6);
+}
+function wzUi(){
+  const zoomed=z>1.001;
+  if(vp.classList.contains('wzoom')!==zoomed){
+    vp.classList.toggle('wzoom',zoomed);
+    if(zoomed){wzMapShot(); wzMapT=setInterval(()=>{if(st.live&&!wzPtr.size&&wzMapId===null) wzMapShot()},WZ_MAP_MS)}
+    else{clearInterval(wzMapT); wzMapT=0}
+  }
+  if(!zoomed) return;
+  const v=wzView(),mv=$('#zoomMap .mv'),w=100/v.s;
+  $('#zoomMap .mc').style.display='none'; // no camera crop over Wi-Fi
+  Object.assign(mv.style,{left:(v.cx*100-w/2)+'%',top:(v.cy*100-w/2)+'%',width:w+'%',height:w+'%'});
+}
+function setZoom(n,cx,cy,anim){
   if(usbZoom) n=1; // over USB the camera magnifies: the app's own zoom stays at 1x
-  const r=vp.getBoundingClientRect();
-  cx=cx??r.width/2; cy=cy??r.height/2;
-  px=cx-(cx-px)*n/z; py=cy-(cy-py)*n/z; z=n; applyZoom();
+  const r=zMeasure(),fx=(cx??r.width/2)/r.width,fy=(cy??r.height/2)/r.height;
+  wzSet(zZoomAt(zPic(wzView(),fx,fy),n,fx,fy),anim);
 }
-document.querySelectorAll('[data-z]').forEach(b=>b.onclick=()=>setZoom(+b.dataset.z));
+document.querySelectorAll('[data-z]').forEach(b=>b.onclick=()=>setZoom(+b.dataset.z,undefined,undefined,true));
 vp.addEventListener('wheel',e=>{e.preventDefault();
   if(usbZoom){loupeWheel(e);return}
-  const r=vp.getBoundingClientRect();
-  setZoom(Math.min(8,Math.max(1,z*(e.deltaY<0?1.2:1/1.2))),e.clientX-r.left,e.clientY-r.top)},{passive:false});
+  wzAt(e.clientX,e.clientY,zWheelScale(z,e.deltaY,e.deltaMode,WZ_MAX))},{passive:false});
 vp.onpointerdown=e=>{
   if(e.target.closest('#lastShot')) return; // own click (single-frame view); pointer capture would turn it into an AF tap
   e.preventDefault(); // no native image drag
   if(usbZoom&&!zBlock){loupeDown(e);return}
-  drag={x:e.clientX,y:e.clientY,px,py,moved:false};vp.setPointerCapture(e.pointerId)};
-vp.onpointermove=e=>{if(usbZoom&&!zBlock){loupeMoveEv(e);return}if(!drag)return;const dx=e.clientX-drag.x,dy=e.clientY-drag.y;
-  if(Math.hypot(dx,dy)>4)drag.moved=true;
+  wzPtr.set(e.pointerId,{x:e.clientX,y:e.clientY}); vp.setPointerCapture(e.pointerId); zMeasure();
+  if(wzPtr.size===1){drag={x:e.clientX,y:e.clientY,px,py,moved:false}}
+  else{ // second finger: pinch about the midpoint, no tap
+    drag=null; const [a,b]=[...wzPtr.values()],r=zBox();
+    wzPinch={d:Math.hypot(a.x-b.x,a.y-b.y)||1,s:z,p:zPic(wzView(),((a.x+b.x)/2-r.left)/r.width,((a.y+b.y)/2-r.top)/r.height)};
+  }};
+vp.onpointermove=e=>{if(usbZoom&&!zBlock){loupeMoveEv(e);return}
+  const q=wzPtr.get(e.pointerId); if(q){q.x=e.clientX;q.y=e.clientY}
+  if(wzPtr.size>=2&&wzPinch){
+    const [a,b]=[...wzPtr.values()],r=zBox(),s2=Math.min(WZ_MAX,Math.max(1,wzPinch.s*Math.hypot(a.x-b.x,a.y-b.y)/wzPinch.d));
+    wzSet(zZoomAt(wzPinch.p,s2,((a.x+b.x)/2-r.left)/r.width,((a.y+b.y)/2-r.top)/r.height)); return;
+  }
+  if(!drag)return;const dx=e.clientX-drag.x,dy=e.clientY-drag.y;
+  if(Math.hypot(dx,dy)>WZ_TAP_PX){drag.moved=true; if(z>1.001) vp.classList.add('grabbing')}
   if(drag.moved&&z>1){px=drag.px+dx;py=drag.py+dy;applyZoom()}};
+function wzEnd(e){
+  const pinched=!!wzPinch; wzPtr.delete(e.pointerId); if(wzPtr.size<2) wzPinch=null;
+  if(pinched&&wzPtr.size===1){const [q]=wzPtr.values(); drag={x:q.x,y:q.y,px,py,moved:true}} // one finger stays: it goes on panning, no tap
+ if(!wzPtr.size) vp.classList.remove('grabbing')}
 vp.onpointerup=e=>{
   if(loupePtrEnd(e)) return;
   const d=drag;drag=null;
+  wzEnd(e);
   if(!d||d.moved||!st.live||loupeOn) return; // magnified view (busy camera): no AF target click
   pickField(e);
 };
-vp.onpointercancel=e=>{if(!loupePtrEnd(e,true)) drag=null};
+vp.onpointercancel=e=>{if(!loupePtrEnd(e,true)){drag=null;wzEnd(e)}};
 /* Zoom AF over USB (REQ-F53, REQ-F54): the camera's own magnified live view replaces the app's screen zoom.
    1x = off, x3-x14 = Zoom AF (E-M1 manual p.56); no Wi-Fi command, there the 1x/2x/4x screen zoom stays.
    Smooth zoom: the camera cannot report its frame, so the page tracks the view V itself. While the camera zoom is
@@ -2315,7 +2406,7 @@ const zRubber=(c,s,k)=>{if(s<=1)return .5;const lo=LOUPE_CAM_MARGIN+.5/s,hi=1-LO
 // Does the camera crop c (from zCrop) cover the whole W x H viewport? Otherwise the backdrop must be seen at the edges.
 const zCovers=(c,W,H)=>c.x<=.5&&c.y<=.5&&c.x+W*c.k>=W-.5&&c.y+H*c.k>=H-.5;
 // One wheel notch (~100 px) is about one ratio step on a log scale (1-3-5-7-10-14); one event never changes more than e^.5
-const zWheelScale=(s,dy,mode)=>{const d=dy*(mode===1?16:mode===2?400:1),l=Math.min(.5,Math.max(-.5,-d*.004));return Math.min(14,Math.max(1,s*Math.exp(l)))};
+const zWheelScale=(s,dy,mode,max=14)=>{const d=dy*(mode===1?16:mode===2?400:1),l=Math.min(.5,Math.max(-.5,-d*.004));return Math.min(max,Math.max(1,s*Math.exp(l)))};
 // Zoom about the pointer: the picture point p stays at the view fraction fx, fy (clamped to the picture)
 const zZoomAt=(p,s,fx,fy)=>Object.assign({s},zCentre(p,s,fx,fy));
 // Crop to crop: the X-Loupe stamp runs 1-5 frames ahead of the picture, so around a switch the PICTURE tells the frames apart.
@@ -2655,12 +2746,15 @@ function zMapMove(e,anim){
 }
 zMap.onpointerdown=e=>{
   e.stopPropagation(); e.preventDefault(); // not the viewport: no AF or focus click
+  if(!usbZoom){if(z>1.001&&wzMapId===null){wzMapId=e.pointerId; zMap.setPointerCapture(e.pointerId); wzMapMove(e,true)} return}
   if(!loupeOn||zBlock||zMapId!==null) return;
   zMapId=e.pointerId; zMap.setPointerCapture(e.pointerId); zAnchor=null; loupeHold(); zMapMove(e,true);
 };
-zMap.onpointermove=e=>{e.stopPropagation(); if(e.pointerId===zMapId){loupeHold(); zMapMove(e,false)}};
-const zMapEnd=e=>{e.stopPropagation(); if(e.pointerId!==zMapId) return; zMapId=null; loupeRest(LOUPE_REST_MS)};
+zMap.onpointermove=e=>{e.stopPropagation(); if(!usbZoom){if(e.pointerId===wzMapId) wzMapMove(e,false); return} if(e.pointerId===zMapId){loupeHold(); zMapMove(e,false)}};
+const zMapEnd=e=>{e.stopPropagation(); if(!usbZoom){if(e.pointerId===wzMapId) wzMapId=null; return} if(e.pointerId!==zMapId) return; zMapId=null; loupeRest(LOUPE_REST_MS)};
 zMap.onpointerup=zMap.onpointercancel=zMapEnd;
+// Wi-Fi: a click or drag in the map moves the view (same mapping as over USB)
+function wzMapMove(e,anim){wzSet(Object.assign({s:z},zMapTo(e.clientX,e.clientY,zMap.getBoundingClientRect(),z)),anim)}
 document.querySelectorAll('[data-lz]').forEach(b=>b.onclick=()=>loupeZoom(+b.dataset.lz));
 // Arrow buttons: one 0x9488 step each, the tracked centre follows by the estimated step (not camera-measured)
 document.querySelectorAll('[data-lm]').forEach(b=>b.onclick=async()=>{
@@ -2764,6 +2858,7 @@ let afTapShow=0; // until when the tapped frame shows without the AF grid (REQ-F
 async function setAf(b){
   const f=b.field||b.focus;
   if(f&&focusing) return;
+  if(f) wzFocusAction(); // zoomed, sharp-on-focus mode: the size change runs from a timer, after this request has started
   if(f){focusing=true;focusMiss=0;afTapShow=Date.now()+FOCUS_SHOW+3000;msg(tr('msg.focusing'));focusChipUpdate()} // frame shows while focusing
   // show the tapped field at once; the camera needs 0.4-1.5 s to focus (measured over Wi-Fi)
   if(b.field&&af){af={...af,field:b.field,last_af:null};focusHit=null;showAf()}
@@ -3186,6 +3281,7 @@ document.querySelectorAll('#timerSeg [data-t]').forEach(b=>b.onclick=()=>{
 $('#half').onclick=async()=>{
   const pressing=st.stage<1;
   const j=await act(tr('msg.shutter'),'/api/shutter',{stage:st.stage>=1?0:1});
+  if(!pressing) wzFocusAction(); // released: now the sharp size may come, held from this moment (REQ-F55)
   if(!pressing||!j||!af||af.mode!==33024) return;
   // All Targets: show the focused field as long as Halfway is held
   af={...af,last_af:j.last_af};
