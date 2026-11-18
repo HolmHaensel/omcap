@@ -765,6 +765,30 @@ class CommandPath(unittest.TestCase):
         self.assertEqual(r["mid"]["calls"], 0)  # no command while the pointer is down
         self.assertEqual((r["before"], r["after"]), (0, 1))  # one commit at rest
 
+    TIMERS = ("var timers={},tid=0;setTimeout=function(f,ms){timers[++tid]={f:f,at:nowT+ms};return tid};clearTimeout=function(i){delete timers[i]};"
+              "function adv(t){nowT=t;Object.keys(timers).sort(function(a,b){return timers[a].at-timers[b].at}).forEach(function(k){"
+              "if(timers[k]&&timers[k].at<=t){var f=timers[k].f;delete timers[k];f()}})}"
+              "function zoomCalls(){return calls.filter(function(c){return c[0]==='/api/loupe'}).length}")
+
+    def wheel_stream(self, start, dy):
+        # 60 trackpad events 17 ms apart; the scale hits the clamp after a few of them and the events go on
+        return self.run_js(self.PICS + self.TIMERS + start +
+                           "var n=zoomCalls(),end=0,ev=0;for(var i=0;i<60;i++){end=i*17;adv(end);loupeWheel({clientX:400,clientY:300,deltaY:%d,deltaMode:0});"
+                           "if(zoomCalls()>n){ev++}}var during=zoomCalls()-n;adv(end+LOUPE_WHEEL_MS-1);var before=zoomCalls()-n;adv(end+LOUPE_WHEEL_MS);"
+                           "JSON.stringify({during:during,before:before,after:zoomCalls()-n,s:V.s,body:calls[calls.length-1][1]})" % dy)
+
+    def test_wheel_clamped_at_x14_commits_once_after_the_last_event(self):
+        r = self.wheel_stream("lastNormal='x';", -100)
+        self.assertEqual((r["during"], r["before"], r["after"]), (0, 0, 1))  # nothing mid-gesture, one commit after the last event
+        self.assertEqual(r["s"], 14)
+        self.assertEqual((r["body"]["on"], r["body"]["ratio"]), (True, 14))
+
+    def test_wheel_clamped_at_1x_commits_once_after_the_last_event(self):
+        r = self.wheel_stream(self.ZOOMED + "lastNormal='x';", 100)
+        self.assertEqual((r["during"], r["before"], r["after"]), (0, 0, 1))
+        self.assertEqual(r["s"], 1)
+        self.assertFalse(r["body"]["on"])
+
     def test_click_is_not_a_command(self):
         r = self.run_js(self.ZOOMED + "loupeHold();JSON.stringify(calls)")  # loupeHold is all a pointer down does
         self.assertEqual(r, [])

@@ -2265,7 +2265,7 @@ let loupeOn=false,usbZoom=false,zBlock=false,loupeAns=0,zLastRev=0,zId=zClientId
 const LOUPE_STEPS=[1,3,5,7,10,14]; // camera ratios (d0cf), 1 = off
 const LOUPE_SETTLE_MS=500; // after a switch the camera's exposure needs this long before its normal frames refresh the backdrop
 const LOUPE_STUCK_MS=2500; // the new crop must show up within this, else the page asks the server what the camera does
-const LOUPE_TAP_PX=6,LOUPE_REST_MS=150,LOUPE_WHEEL_MS=250;
+const LOUPE_TAP_PX=6,LOUPE_REST_MS=150,LOUPE_WHEEL_MS=300; // wheel: a trackpad sends events every ~17 ms, with inertia for up to ~1 s after the fingers leave
 const LOUPE_ARROW_PX=17.4; // px of the 1024x768 grid one 0x9488 step moves the frame: ~87 px of the zoomed picture at x5 (camera test 2026-11-16), assumed the same share at other ratios
 // zoom maths (pure; view v = {s: scale 1-14, cx, cy: centre as fractions of the picture})
 // Camera measurement 2026-11-16: the crop centre stays inside the middle 80 % of the picture (x5: 0.20-0.80, x10: 0.15-0.85)
@@ -2562,7 +2562,7 @@ function loupeWheel(e){
   if(!canWrite||!st.live||zBlock) return;
   const r=zMeasure(),fx=(e.clientX-r.left)/r.width,fy=(e.clientY-r.top)/r.height;
   const s2=zWheelScale(V.s,e.deltaY,e.deltaMode);
-  if(s2===V.s) return;
+  if(s2===V.s){if(restT) loupeRest(LOUPE_WHEEL_MS); return} // clamped at 1x or x14: the gesture goes on, the commit waits for the last event
   if(!zAnchor) zAnchor={p:zPic(V,fx,fy)}; // the picture point under the pointer stays there for the whole gesture and the snap
   Object.assign(zAnchor,{fx,fy});
   loupeHold(); Object.assign(V,zZoomAt(zAnchor.p,s2,fx,fy)); zSchedule(); loupeRest(LOUPE_WHEEL_MS);
