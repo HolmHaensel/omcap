@@ -2241,8 +2241,8 @@ async function wzSizeCheck(){
     return;
   }
   // never during a gesture, a shot, a job, a movie or a card read (as reduceAutoLiveSize); try again later.
-  // A half press (stage 1) is allowed inside the focus hold: it is the focus action that asks for the size.
-  if(wzPtr.size||wzMapId!==null||autoLvBusy||!st.live||st.stage>(holding?1:0)||st.busy||st.indexing||st.movie!=null||st.take!=null||(st.job&&st.job.running)||now-autoLvLastChange<WZ_SIZE_GAP_MS){wzSizeSoon(1000); return}
+  // Never while half-pressed either: the size change is a mode switch play -> rec and would release the press.
+  if(wzPtr.size||wzMapId!==null||autoLvBusy||!st.live||st.stage>0||st.busy||st.indexing||st.movie!=null||st.take!=null||(st.job&&st.job.running)||now-autoLvLastChange<WZ_SIZE_GAP_MS){wzSizeSoon(1000); return}
   if(sharp&&!wzSharpOn) wzBase=cur; // remember the adaptive size to return to
   wzSharpOn=!!sharp; if(!target) wzFocusOnly=false;
   autoLvBusy=true; autoLvLastChange=now; autoLvSlowSince=0;
@@ -3277,8 +3277,8 @@ document.querySelectorAll('#timerSeg [data-t]').forEach(b=>b.onclick=()=>{
 });
 $('#half').onclick=async()=>{
   const pressing=st.stage<1;
-  if(pressing) wzFocusAction();
   const j=await act(tr('msg.shutter'),'/api/shutter',{stage:st.stage>=1?0:1});
+  if(!pressing) wzFocusAction(); // released: now the sharp size may come, held from this moment (REQ-F55)
   if(!pressing||!j||!af||af.mode!==33024) return;
   // All Targets: show the focused field as long as Halfway is held
   af={...af,last_af:j.last_af};

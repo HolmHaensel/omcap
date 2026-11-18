@@ -228,6 +228,23 @@ class SharpSizeAndPointers(unittest.TestCase):
         r = self.run_js("z=3; wzFocusAction(); var a=timers.length; wzFocusOnly=true; wzPtr.set(1,{x:0,y:0}); wzFocusAction(); wzSizeCheck(); JSON.stringify({a:a,c:calls.length})")
         self.assertEqual((r["a"], r["c"]), (0, 0))
 
+    def test_no_size_change_while_half_pressed_even_inside_the_hold(self):
+        r = self.run_js("""
+        z=3; st.lvqty='0640x0480'; wzFocusOnly=true; wzBase='0640x0480'; wzFocusAction(); st.stage=1; wzSizeCheck();
+        var held=calls.length, retry=timers.at(-1)[1]; st.stage=0; autoLvLastChange=0; wzSizeCheck();
+        JSON.stringify({held:held,retry:retry,after:calls})""")
+        self.assertEqual(r["held"], 0)
+        self.assertEqual(r["retry"], 1000)
+        self.assertEqual(r["after"], ["start 1280x0960"])
+
+    def test_half_press_asks_for_the_size_only_on_release(self):
+        with open(HTML, encoding="utf-8") as f:
+            h = f.read()
+        body = h[h.index("$('#half').onclick="):h.index("$('#reset').onclick=")]
+        self.assertEqual(body.count("wzFocusAction()"), 1)
+        self.assertLess(body.index("await act("), body.index("wzFocusAction()"))
+        self.assertIn("if(!pressing) wzFocusAction()", body)
+
     def test_focus_mode_ends_at_1x(self):
         r = self.run_js("z=1; wzFocusOnly=true; wzSizeCheck(); JSON.stringify({f:wzFocusOnly,c:calls.length})")
         self.assertEqual((r["f"], r["c"]), (False, 0))
