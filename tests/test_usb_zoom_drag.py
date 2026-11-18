@@ -356,14 +356,17 @@ class ZoomMaths(unittest.TestCase):
         self.assertEqual((r[2]["cx"], r[2]["cy"]), (0.5, 0.5))
 
     def test_frame_kinds_follow_the_measured_sequence(self):
-        # measured at x10 around one switch: diff of the 16x12 signature to the old crop, frames 7..16
+        # measured at x10 around one switch: diff of the 16x12 signature to the old crop, frames 7..16; the normal frames are
+        # close to the last normal frame (or contain the old crop)
         r = self.run_js("(()=>{const ds=[1,1,2,3,53,46,43,11,10,3],out=[];let saw=false;"
-                        "for(const d of ds){const k=zFrameKind(d,d>=30,saw);if(k==='normal')saw=true;out.push(k)}return out})()")
+                        "for(const d of ds){const k=zFrameKind(d,d>=30,false,saw,false);if(k==='normal')saw=true;out.push(k)}return out})()")
         self.assertEqual(r, ["old", "old", "old", "old", "normal", "normal", "normal", "hold", "hold", "new"])
 
-    def test_big_difference_without_a_match_is_normal_only_when_very_large(self):
-        r = self.run_js("[zFrameKind(35,false,false),zFrameKind(52,false,false),zFrameKind(12,false,false),zFrameKind(3,false,true)]")
-        self.assertEqual(r, ["hold", "normal", "hold", "new"])
+    def test_a_big_difference_alone_is_not_a_normal_frame(self):
+        # after a large drag the new crop differs as much as a normal frame does: unconfirmed, it is a candidate, then new
+        r = self.run_js("[zFrameKind(60,false,false,false,false),zFrameKind(60,false,false,false,true),zFrameKind(60,true,false,false,false),"
+                        "zFrameKind(60,false,true,false,false),zFrameKind(12,false,false,false,false),zFrameKind(3,false,false,true,false)]")
+        self.assertEqual(r, ["candidate", "new", "normal", "normal", "hold", "new"])
 
     def test_without_backdrop_the_view_stays_inside_the_crop(self):
         r = self.run_js("[zCoverClamp({s:14,cx:.5,cy:.5},{s:14,cx:.7,cy:.3}),zCoverClamp({s:5,cx:.5,cy:.5},{s:10,cx:.58,cy:.5}),"
@@ -539,13 +542,33 @@ class CommandPath(unittest.TestCase):
 
     def test_normal_frames_are_found_by_the_picture_and_become_the_backdrop(self):
         # the measured sequence, all stamped on with the answered rev (the stamp runs ahead of the picture)
-        r = self.run_js(self.PICS + self.ZOOMED + "lastNormal=null;zLastRev=0;Object.assign(V,{s:10,cx:.4,cy:.45});loupeCommit();"
+        r = self.run_js(self.PICS + self.ZOOMED + "lastNormal=null;zNormImg=null;zLastRev=0;Object.assign(V,{s:10,cx:.4,cy:.45});loupeCommit();"
                         "var out=[],ln=[];[1,53,46,43,11,10,3].forEach(function(d,i){out.push(loupeOnFrame({rev:1,on:true},'b'+i,pic(d)));ln.push(lastNormal)});"
                         "JSON.stringify({out:out,ln:ln,pend:zPend,cam:zCam})")
         self.assertEqual(r["out"], [True, False, False, False, False, False, True])  # old crop flows, 5 frames held, new crop shown
         self.assertEqual(r["ln"], [None, "b1", "b2", "b3", "b3", "b3", "b3"])  # newest normal frame wins
         self.assertIsNone(r["pend"])
         self.assertEqual(r["cam"]["s"], 10)
+
+    NOMATCH = "zMeasureCrop=function(){return null};"
+
+    def test_big_move_is_a_new_crop_and_keeps_the_backdrop(self):
+        # the old crop looks like 0, the last normal frame like 100; after a big drag the new crop looks like 60: neither
+        r = self.run_js(self.PICS + self.NOMATCH + self.ZOOMED + "lastNormal='L';zNormImg=pic(100);zLastRev=0;"
+                        "Object.assign(V,{s:10,cx:.8,cy:.3});loupeCommit();var out=[];"
+                        "for(var i=0;i<3;i++){out.push(loupeOnFrame({rev:1,on:true},'n'+i,pic(60)));}"
+                        "JSON.stringify({out:out,ln:lastNormal,pend:zPend})")
+        self.assertEqual(r["out"], [False, True, True])  # held once, the repeat is the new crop and is drawn
+        self.assertEqual(r["ln"], "L")  # never replaced by an unconfirmed frame
+        self.assertIsNone(r["pend"])
+
+    def test_true_normal_frame_is_held_and_refreshes_the_backdrop(self):
+        r = self.run_js(self.PICS + self.NOMATCH + self.ZOOMED + "lastNormal='L';zNormImg=pic(100);zLastRev=0;"
+                        "Object.assign(V,{s:10,cx:.8,cy:.3});loupeCommit();"
+                        "var a=loupeOnFrame({rev:1,on:true},'N',pic(98));JSON.stringify({a:a,ln:lastNormal,pend:zPend!==null})")
+        self.assertFalse(r["a"])
+        self.assertEqual(r["ln"], "N")
+        self.assertTrue(r["pend"])  # still waiting for the new crop
 
     def test_one_explicit_off_when_the_switch_brought_no_normal_frame(self):
         r = self.run_js(self.ZOOMED + "lastNormal=null;zBackTried=true;loupeBackdropOff();loupeBackdropOff();"

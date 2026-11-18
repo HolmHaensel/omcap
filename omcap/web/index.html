@@ -2308,9 +2308,13 @@ const zWheelScale=(s,dy,mode)=>{const d=dy*(mode===1?16:mode===2?400:1),l=Math.m
 const zZoomAt=(p,s,fx,fy)=>Object.assign({s},zCentre(p,s,fx,fy));
 // Crop to crop: the X-Loupe stamp runs 1-5 frames ahead of the picture, so around a switch the PICTURE tells the frames apart.
 // Measured at x10 (16x12 signature difference to the old crop): same crop 1-3, normal frames 43-53, transition frames 10-11,
-// then the new crop (close to the old one again). d: that difference; matched: the old crop was found inside the frame.
-const LOUPE_NORMAL_JUMP=30,LOUPE_NORMAL_SURE=50;
-const zFrameKind=(d,matched,sawNormal)=>d>=LOUPE_NORMAL_JUMP?(matched||d>=LOUPE_NORMAL_SURE?'normal':'hold'):d<LOUPE_SIG_DIFF?(sawNormal?'new':'old'):'hold';
+// then the new crop (close to the old one again). A big difference alone does NOT make a normal frame (after a large drag the
+// new crop differs just as much); a frame is normal only when confirmed: close to the last normal frame (same scene: 1-3), or
+// the old crop is found inside it. An unconfirmed big difference is a candidate for the new crop; it counts once it repeats.
+// d: difference to the old crop; close/matched: the confirmations; repeat: the previous candidate looked the same.
+const LOUPE_NORMAL_JUMP=30,LOUPE_NORMAL_CLOSE=15;
+const zFrameKind=(d,close,matched,sawNormal,repeat)=>d<LOUPE_SIG_DIFF?(sawNormal?'new':'old'):d<LOUPE_NORMAL_JUMP?'hold':
+  (close||matched)?'normal':repeat?'new':'candidate';
 // Without a backdrop the crop must never leave the viewport: keep the view inside what the crop covers
 const zCoverClamp=(c,v)=>{const s=Math.max(v.s,c.s),h=Math.max(0,.5/c.s-.5/s);
   return {s,cx:Math.min(c.cx+h,Math.max(c.cx-h,v.cx)),cy:Math.min(c.cy+h,Math.max(c.cy-h,v.cy))}};
@@ -2321,7 +2325,7 @@ const V={s:1,cx:.5,cy:.5};  // the view the user sees (tracked here, the camera 
 let zCam={s:1,cx:.5,cy:.5};  // the crop the camera shows while zCamShows
 let zCamShows=false;         // frames are the camera's crop (sharp render) or the full picture (soft render)
 let zWant={on:false,ratio:5,x:.5,y:.5},zSent={on:false,ratio:5,x:.5,y:.5}; // camera state wanted / last confirmed by the server
-let zPend=null,zWatch=0,zRevAtSend=0,recBusy=false,restT=0,lastNormal=null,backSrc=null,backUrl='',fadeUntil=0;
+let zNormImg=null,zNormSig=null,zNormFor=null,zPend=null,zWatch=0,zRevAtSend=0,recBusy=false,restT=0,lastNormal=null,backSrc=null,backUrl='',fadeUntil=0;
 let zBackTried=false,zBackOffDone=false,zBackWant=null,zBackT=0,zBoxC=null,zRaf=0,zUiKey='',zAnchor=null,mapSrc=null,mapUrl='',mapAt=0; // zAnchor: picture point under the pointer for a wheel/pinch gesture // viewport size cached (no layout read per pointer event); one render per animation frame
 function zMeasure(){const r=vp.getBoundingClientRect();zBoxC={width:r.width,height:r.height,left:r.left,top:r.top};return zBoxC}
 const zBox=()=>zBoxC||zMeasure();
@@ -2346,10 +2350,13 @@ function zMapUpdate(){
 // match (~5 ms) only for frames that differ a lot (normal candidates) or that complete the switch (the new crop's place).
 function zClassifyFrame(img){
   const sig=img&&zPend.before?zSig(img):null; if(!sig) return {kind:null};
-  const d=zSigDiff(sig,zPend.before);
-  const matched=d>=LOUPE_NORMAL_JUMP?!!zMeasureCrop($('#live'),zCam.s,zCam.cx,zCam.cy,img):false; // the old crop (still on screen) inside the frame
-  const kind=zFrameKind(d,matched,zPend.sawNormal);
+  const d=zSigDiff(sig,zPend.before),big=d>=LOUPE_NORMAL_JUMP;
+  if(big&&zNormImg&&zNormFor!==zNormImg){zNormSig=zSig(zNormImg); zNormFor=zNormImg} // signature of the last normal frame, once
+  const close=big&&!!zNormImg&&zSigDiff(sig,zNormSig)<LOUPE_NORMAL_CLOSE;
+  const matched=big&&!close&&!!zMeasureCrop($('#live'),zCam.s,zCam.cx,zCam.cy,img); // the old crop (still on screen) inside the frame
+  const kind=zFrameKind(d,close,matched,zPend.sawNormal,!!zPend.cand&&zSigDiff(sig,zPend.cand)<LOUPE_SIG_DIFF);
   if(kind==='normal') zPend.sawNormal=true;
+  zPend.cand=kind==='candidate'?sig:null;
   let m=null;
   if(kind==='new'){const back=$('#liveBack'); if(back.naturalWidth) m=zMeasureCrop(img,zPend.ratio,zClampCam(zPend.x,zPend.ratio),zClampCam(zPend.y,zPend.ratio),back)}
   return {kind,m};
@@ -2456,7 +2463,7 @@ function loupeOnFrame(info,blob,img){ // returns false: do not draw this frame (
     }else swap=zSwapDue(zSigDiff(zPend.before&&img?zSig(img):null,zPend.before),++zPend.n); // normal to crop and back
   }
   // the normal frames of a switch are exactly what the backdrop needs: keep the newest one instead of only skipping it
-  if(switching&&verdict==='normal') lastNormal=blob;
+  if(switching&&verdict==='normal'){lastNormal=blob; zNormImg=img} // only a confirmed normal frame replaces the backdrop
   if(swap){
     clearTimeout(zWatch);
     const sharp=zPend.on&&!zCamShows;
@@ -2482,7 +2489,7 @@ function loupeOnFrame(info,blob,img){ // returns false: do not draw this frame (
   // while a change is under way the page holds the old crop: frames of the old camera state (stamped on and not newer than
   // the command, or recognised as the old crop) keep flowing; normal or half-switched frames are not drawn
   if(zCamShows&&(recBusy||zPend)&&!(info.on&&info.rev<=zRevAtSend)&&verdict!=='old') return false;
-  if(!zCamShows&&!zPend&&!recBusy){lastNormal=blob; if(zBackWant) loupeBackdropOn()} // a frame known to be normal: the backdrop of the next drag
+  if(!zCamShows&&!zPend&&!recBusy){lastNormal=blob; zNormImg=img; if(zBackWant) loupeBackdropOn()} // a frame known to be normal: the backdrop of the next drag
   return true;
 }
 // Still no normal frame for the backdrop: ONE explicit camera off, back on with the first normal frame (1.5 s at most).
