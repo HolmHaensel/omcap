@@ -213,7 +213,7 @@ class Page(unittest.TestCase):
         self.assertIn("LOUPE_LAG_FRAMES=6", h)
         for name in ("loupeReconcile", "loupeCommit", "loupeHold", "loupeOnFrame", "zRender"):
             self.assertIn("function %s(" % name, h)
-        for name in ("zSnap", "zClamp", "zClampCam", "zCrop", "zSigDiff", "zSwapDue"):
+        for name in ("zSnap", "zClamp", "zClampCam", "zCrop", "zSigDiff", "zSwapDue", "zMatch", "zRubber"):
             self.assertIn("const %s=" % name, h)
         self.assertIn("X-Loupe-Rev", h)
         self.assertNotIn("loupeBtn", h)
@@ -270,6 +270,27 @@ class ZoomMaths(unittest.TestCase):
     def test_swap_on_a_clear_difference_or_after_the_lag(self):
         r = self.run_js("[zSwapDue(2,1),zSwapDue(9.9,3),zSwapDue(10,1),zSwapDue(55,1),zSwapDue(0,6),zSwapDue(0,7)]")
         self.assertEqual(r, [False, False, True, True, False, True])
+
+    PATTERN = "i=>(i*7919%251)+((i*31)%17)*5"  # a busy but non-repeating test picture
+
+    def test_match_finds_a_shifted_crop(self):
+        # a 78x58 picture, the 64x48 'sharp frame' cut out at offset (10, 3): shift from the centred (7, 5) = (3, -2)
+        r = self.run_js("(P=>{const bw=78,bh=58,big=[];for(let i=0;i<bw*bh;i++)big.push(P(i));"
+                        "const sm=[];for(let y=0;y<48;y++)for(let x=0;x<64;x++)sm.push(big[(y+3)*bw+x+10]);"
+                        "return zMatch(big,bw,bh,sm,64,48)})(%s)" % self.PATTERN)
+        self.assertEqual((r["dx"], r["dy"]), (3, -2))
+        self.assertAlmostEqual(r["score"], 1.0)
+
+    def test_match_gives_up_on_flat_or_unrelated(self):
+        flat = self.run_js("(()=>{const big=new Array(78*58).fill(120),sm=new Array(64*48).fill(120);return zMatch(big,78,58,sm,64,48)})()")
+        self.assertIsNone(flat)
+        weak = self.run_js("(P=>{const big=[];for(let i=0;i<78*58;i++)big.push(P(i));"
+                           "const sm=[];for(let i=0;i<64*48;i++)sm.push((i*i*13+i*7)%256);return zMatch(big,78,58,sm,64,48)})(" + self.PATTERN + ")")
+        self.assertIsNone(weak)
+
+    def test_rubber_band_damps_beyond_the_camera_limits(self):
+        r = self.run_js("[zRubber(.5,5,.3),zRubber(.1,5,.3),zRubber(.9,5,.3),zRubber(-1,5,.3),zRubber(.3,1,.3)]")
+        self.assertEqual([round(v, 4) for v in r], [0.5, 0.17, 0.83, 0.1, 0.5])  # 0.2 - 0.1*0.3 ..., whole-picture clamp at 0.1
 
     def test_snap_on_a_log_scale(self):
         # 6 is nearer to 7 than to 5 on a log scale (1.17 vs 1.2), though 1 away from both
