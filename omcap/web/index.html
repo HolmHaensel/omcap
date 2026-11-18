@@ -97,6 +97,10 @@ button:disabled{color:var(--disabled);opacity:.6;cursor:not-allowed}
 .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:8px}
 .row:last-child{margin-bottom:0}
 .row label{display:flex;gap:4px;align-items:center}
+#zoomMap{display:none;position:absolute;left:8px;bottom:8px;width:20%;aspect-ratio:4/3;z-index:3;pointer-events:none;border:1px solid rgba(255,255,255,.7);background:rgba(0,0,0,.45);box-shadow:0 0 0 1px rgba(0,0,0,.5)}
+#viewport.loupe #zoomMap{display:block}
+#zoomMap img{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;opacity:.75}
+#zoomMap i{position:absolute;box-sizing:border-box}#zoomMap .mv{border:1px solid #fff;background:rgba(255,255,255,.12)}#zoomMap .mc{border:1px dashed var(--accent)}
 #blackout{position:absolute;inset:0;background:#000;opacity:0;pointer-events:none;z-index:5}
 #blackout.flash{animation:blackout .18s steps(1,end)}
 @keyframes blackout{0%{opacity:1}100%{opacity:0}}
@@ -396,6 +400,7 @@ body.webcam{cursor:none;display:flex;align-items:center;justify-content:center}
       <canvas id="aidCv"></canvas>
       <div id="afMark"></div>
     </div>
+    <div id="zoomMap" aria-hidden="true"><img alt="" draggable="false"><i class="mv"></i><i class="mc"></i></div>
     <div id="blackout" aria-hidden="true"></div>
     <canvas id="levelGauge"></canvas>
     <canvas id="histCv" width="160" height="70" hidden></canvas>
@@ -806,7 +811,7 @@ const I18N={en:{
   "lv.loupeTitle": "The camera's own magnified live view (USB only; Zoom frame AF/zoom AF in the manual). Click = focus, drag = move, wheel or pinch = zoom smoothly; at rest it snaps to the camera's ratios and turns sharp. Starts at the AF target. No AF with Four Thirds lenses while zoomed (manual p.56).",
   "lv.zoomUsbGroup": "Zoom (camera Zoom AF)", "lv.loupeLabel": "Zoom AF ×{n}", "lv.loupeMove": "Move the zoom frame",
   "lv.left": "Left", "lv.up": "Up", "lv.down": "Down", "lv.right": "Right",
-  "msg.loupeMove": "Zoom frame moved",
+  "msg.loupeMove": "Zoom frame moved", "msg.zoomStuck": "The camera zoom did not answer in time; showing what the camera does",
   "lv.hold": "Hold angle", "lv.clear": "Clear angle", "lv.sound": "Sound",
   "lv.levelOk": "Level", "lv.angleOk": "Angle matched",
   "msg.angleHeld": "Angle held: Horizon {a}° · Tilt {b}°",
@@ -2238,13 +2243,16 @@ vp.onpointerup=e=>{
 vp.onpointercancel=e=>{if(!loupePtrEnd(e,true)) drag=null};
 /* Zoom AF over USB (REQ-F53, REQ-F54): the camera's own magnified live view replaces the app's screen zoom.
    1x = off, x3-x14 = Zoom AF (E-M1 manual p.56); no Wi-Fi command, there the 1x/2x/4x screen zoom stays.
-   Smooth zoom, "soft while moving, sharp at rest": while the user drags, wheels or pinches, the camera is switched
-   to the normal view and the browser magnifies it (soft, but live and smooth, like the 1x/2x/4x screen zoom);
-   at rest the camera's own crop is switched on at the tracked view and shown (sharp). The camera cannot report
-   its frame, so the page tracks the view V itself. Click = focus, drag = move, wheel/pinch = zoom, snapping to
+   Smooth zoom: the camera cannot report its frame, so the page tracks the view V itself. While the camera zoom is
+   on, drag, wheel and pinch move and scale the last sharp crop frame (zCrop) over the last normal frame (backdrop,
+   magnified at V) and send no command; at rest ONE request (d0cf, 0x9483, d04b) puts the camera's crop at the new view
+   and the page holds the old crop until the new one arrives. The normal view is only shown ("soft": the browser
+   magnifies the live normal frames) when zooming in from 1x and out to 1x. Click = focus, drag = move, wheel/pinch =
+   zoom about the pointer, snapping to
    the camera's ratios at rest. The frame starts at the chosen AF target (centre with All Targets). */
 let loupeOn=false,usbZoom=false,zBlock=false,loupeAns=0,zLastRev=0; // loupeOn: the zoom view is magnified (V.s > 1), sharp or soft
 const LOUPE_STEPS=[1,3,5,7,10,14]; // camera ratios (d0cf), 1 = off
+const LOUPE_STUCK_MS=2500; // the new crop must show up within this, else the page asks the server what the camera does
 const LOUPE_TAP_PX=6,LOUPE_REST_MS=150,LOUPE_WHEEL_MS=250;
 const LOUPE_ARROW_PX=17.4; // px of the 1024x768 grid one 0x9488 step moves the frame (ptp.LOUPE_STEP_NORMAL_PX)
 // zoom maths (pure; view v = {s: scale 1-14, cx, cy: centre as fractions of the picture})
@@ -2291,13 +2299,17 @@ const zRubber=(c,s,k)=>{if(s<=1)return .5;const lo=LOUPE_CAM_MARGIN+.5/s,hi=1-LO
   return zClamp(c<lo?lo+(c-lo)*k:c>hi?hi+(c-hi)*k:c,s)};
 // Does the camera crop c (from zCrop) cover the whole W x H viewport? Otherwise the backdrop must be seen at the edges.
 const zCovers=(c,W,H)=>c.x<=.5&&c.y<=.5&&c.x+W*c.k>=W-.5&&c.y+H*c.k>=H-.5;
+// One wheel notch (~100 px) is about one ratio step on a log scale (1-3-5-7-10-14); one event never changes more than e^.5
+const zWheelScale=(s,dy,mode)=>{const d=dy*(mode===1?16:mode===2?400:1),l=Math.min(.5,Math.max(-.5,-d*.004));return Math.min(14,Math.max(1,s*Math.exp(l)))};
+// Zoom about the pointer: the picture point p stays at the view fraction fx, fy (clamped to the picture)
+const zZoomAt=(p,s,fx,fy)=>Object.assign({s},zCentre(p,s,fx,fy));
 // zoom maths end
 const V={s:1,cx:.5,cy:.5};  // the view the user sees (tracked here, the camera cannot report it)
 let zCam={s:1,cx:.5,cy:.5};  // the crop the camera shows while zCamShows
 let zCamShows=false;         // frames are the camera's crop (sharp render) or the full picture (soft render)
 let zWant={on:false,ratio:5,x:.5,y:.5},zSent={on:false,ratio:5,x:.5,y:.5}; // camera state wanted / last confirmed by the server
-let zPend=null,recBusy=false,restT=0,lastNormal=null,backSrc=null,backUrl='',fadeUntil=0;
-let zBoxC=null,zRaf=0,zUiKey=''; // viewport size cached (no layout read per pointer event); one render per animation frame
+let zPend=null,zWatch=0,zRevAtSend=0,recBusy=false,restT=0,lastNormal=null,backSrc=null,backUrl='',fadeUntil=0;
+let zBoxC=null,zRaf=0,zUiKey='',zAnchor=null,mapSrc=null,mapUrl='',mapAt=0; // zAnchor: picture point under the pointer for a wheel/pinch gesture // viewport size cached (no layout read per pointer event); one render per animation frame
 function zMeasure(){const r=vp.getBoundingClientRect();zBoxC={width:r.width,height:r.height,left:r.left,top:r.top};return zBoxC}
 const zBox=()=>zBoxC||zMeasure();
 function zSchedule(){if(!zRaf)zRaf=requestAnimationFrame(()=>{zRaf=0;zRender()})}
@@ -2305,6 +2317,16 @@ function loupePoint(){
   if(!af||af.mode===33024) return {x:.5,y:.5};
   const a=af.area,row=Math.floor((af.field-1)/9),col=(af.field-1)%9;
   return {x:(a.x0+(col+.5)*(a.x1-a.x0)/9)/a.w,y:(a.y0+(row+.5)*(a.y1-a.y0)/9)/a.h};
+}
+// Overview map (bottom left while zoomed): the last normal frame, the visible view and the camera's crop
+function zMapUpdate(){
+  const m=$('#zoomMap'),img=m.querySelector('img'),mv=m.querySelector('.mv'),mc=m.querySelector('.mc');
+  if(lastNormal&&lastNormal!==mapSrc&&(!mapUrl||performance.now()-mapAt>600)){ // not at every frame
+    if(mapUrl) URL.revokeObjectURL(mapUrl);
+    mapUrl=URL.createObjectURL(lastNormal); img.src=mapUrl; mapSrc=lastNormal; mapAt=performance.now();
+  }
+  const box=(el,cx,cy,s)=>{const w=100/s,h=100/s;Object.assign(el.style,{left:(cx*100-w/2)+'%',top:(cy*100-h/2)+'%',width:w+'%',height:h+'%'})};
+  box(mv,V.cx,V.cy,V.s); mc.style.display=zCamShows?'':'none'; if(zCamShows) box(mc,zCam.cx,zCam.cy,zCam.s);
 }
 function zRender(anim){
   const W=zBox().width,H=zBox().height,live=$('#live'),back=$('#liveBack');
@@ -2315,14 +2337,17 @@ function zRender(anim){
     const l=$('#loupeLabel'); l.style.display=loupeOn?'':'none'; l.textContent=tr('lv.loupeLabel',{n:zSnap(V.s)}); // camera ratios only
     document.querySelectorAll('[data-lz]').forEach(b=>{const on=+b.dataset.lz===zSnap(V.s);b.classList.toggle('on',on);b.setAttribute('aria-pressed',on)});
   }
+  if(loupeOn) zMapUpdate();
   if(!zCamShows){ // soft: full picture, the page magnifies (same maths as the screen zoom; transform only, no layout)
-    live.style.transform=''; back.hidden=true;
+    live.style.transform=''; live.style.transition=''; back.hidden=true;
     const t=zShift(V,W,H); z=V.s; px=t.x; py=t.y;
     layer.style.transition=anim&&!calm.matches?'transform 120ms ease-out':'none'; // only the glide at rest animates, never under the pointer
     layer.style.transform=`translate3d(${px}px,${py}px,0) scale(${z})`;
   }else{ // sharp: the camera's crop, moved and scaled to where the view is; the last normal frame fills the edges
     z=1; px=py=0; layer.style.transition='none'; layer.style.transform='translate3d(0,0,0)';
     const c=zCrop(V,zCam,W,H);
+    const tr3=anim&&!calm.matches?'transform 120ms ease-out':'none'; // a correction after release glides, a drag never does
+    live.style.transition=back.style.transition=tr3;
     live.style.transform=`translate3d(${c.x}px,${c.y}px,0) scale(${c.k})`;
     if(lastNormal){ // always in place (and decoded) behind the crop; seen only where the crop does not reach
       if(backSrc!==lastNormal){if(backUrl) URL.revokeObjectURL(backUrl); backUrl=URL.createObjectURL(lastNormal); back.src=backUrl; backSrc=lastNormal}
@@ -2339,9 +2364,9 @@ function zGreyOf(src,sx,sy,sw,sh,w,h){
 }
 // Where the camera's crop really is: match the first sharp frame (64x48) against the normal picture still on screen,
 // around the expected centre (ex, ey) +-10 % of the crop size. Returns the measured centre or null (flat scene, weak match).
-function zMeasureCrop(sharp,r,ex,ey){
+function zMeasureCrop(sharp,r,ex,ey,ref){
   try{
-    const ref=$('#live'),nw=ref.naturalWidth,nh=ref.naturalHeight; if(!nw||!nh) return null;
+    const nw=ref.naturalWidth,nh=ref.naturalHeight; if(!nw||!nh) return null;
     const BW=78,BH=58,rw=BW/64/r,rh=BH/48/r; // region = the crop plus about 10 % each side, 1 px = 1/64 crop width
     const x0=Math.min(1-rw,Math.max(0,ex-rw/2)),y0=Math.min(1-rh,Math.max(0,ey-rh/2));
     const big=zGreyOf(ref,x0*nw,y0*nh,rw*nw,rh*nh,BW,BH);
@@ -2373,16 +2398,23 @@ async function loupeReconcile(){
   if(recBusy) return;
   recBusy=true;
   try{
+    if(!zPend) zRevAtSend=zLastRev; // frames stamped later come from the changed camera: not drawn as the old crop
     while(!wantEq(zWant,zSent)){
       const w={...zWant}, before=zSig($('#live')); // the picture on screen when the command goes out
       const j=await api('/api/loupe',w.on?{on:true,ratio:w.ratio,x:w.x,y:w.y}:{on:false});
       loupeAns++; zSent=w; zPend={rev:j.rev,on:w.on,n:0,before,ratio:w.ratio,x:w.x,y:w.y};
+      clearTimeout(zWatch); zWatch=setTimeout(loupeStuck,LOUPE_STUCK_MS);
     }
   }catch(e){
-    msg(e.message||String(e),true);
-    try{const s=await api('/api/state'); loupeSync(s.loupe&&s.live,s.loupe_ratio)}catch{loupeSync(false)} // show what the camera really does
+    msg(e.message||String(e),true); loupeRecover();
   }finally{recBusy=false}
 }
+// Show what the camera really does (after an error, or when the new crop never arrives)
+async function loupeRecover(){
+  clearTimeout(zWatch);
+  try{const s=await api('/api/state'); loupeSync(s.loupe&&s.live,s.loupe_ratio)}catch{loupeSync(false)}
+}
+function loupeStuck(){if(zPend){msg(tr('msg.zoomStuck'),true); loupeRecover()}}
 // Called for every live frame with the zoom stamp of the server. Once a frame's rev has reached the answered one, the
 // first frame whose picture differs clearly from the one before the command shows the new camera state (zSwapDue);
 // only then the rendering switches, with that very frame. img: the decoded frame.
@@ -2390,12 +2422,15 @@ function loupeOnFrame(info,blob,img){ // returns false: do not draw this frame (
   if(!usbZoom) return true;
   if(info.rev<zLastRev) loupeSync(false); // a new session counts from 0 again: the camera zoom is off
   zLastRev=info.rev;
-  if(zPend&&info.rev>=zPend.rev&&zSwapDue(zSigDiff(zPend.before&&img?zSig(img):null,zPend.before),++zPend.n)){
-    const sharp=zPend.on&&!zCamShows;
+  // crop to crop (new ratio or centre): the frames in between are normal pictures that differ from the old crop, so the
+  // picture cannot tell; wait the frame count. Normal to crop and back: the first clearly different picture.
+  if(zPend&&info.rev>=zPend.rev&&(zCamShows&&zPend.on?++zPend.n>LOUPE_LAG_FRAMES:zSwapDue(zSigDiff(zPend.before&&img?zSig(img):null,zPend.before),++zPend.n))){
+    clearTimeout(zWatch);
+    const sharp=zPend.on&&!zCamShows,glide=zPend.on&&zCamShows;
     zCamShows=zPend.on; if(zCamShows){
       zCam={s:zPend.ratio,cx:zClampCam(zPend.x,zPend.ratio),cy:zClampCam(zPend.y,zPend.ratio)};
       // draw the first sharp frame exactly where the soft picture was: use the crop position measured in the picture
-      const m=sharp&&img&&Math.abs(V.s-zPend.ratio)<.01?zMeasureCrop(img,zPend.ratio,zCam.cx,zCam.cy):null;
+      const m=img&&Math.abs(V.s-zPend.ratio)<.01?zMeasureCrop(img,zPend.ratio,zCam.cx,zCam.cy,sharp?$('#live'):$('#liveBack')):null;
       if(m){zCam.cx=m.cx; zCam.cy=m.cy}
     }
     zPend=null;
@@ -2403,31 +2438,31 @@ function loupeOnFrame(info,blob,img){ // returns false: do not draw this frame (
       const lv=$('#live'); lv.classList.remove('xf'); void lv.offsetWidth; lv.classList.add('xf');
       fadeUntil=performance.now()+180; setTimeout(()=>zRender(),200);
     }
-    zRender();
+    zRender(glide&&!calm.matches); // a new crop at a slightly different place glides into it
   }
-  // a frame stamped normal while the page still shows the crop and a change is under way (ratio button, arrows,
-  // the off/on cycle for a new centre) must not be drawn as the crop: it would flash the full picture
-  if(zCamShows&&(recBusy||zPend)&&!info.on) return false;
+  // while a change is under way the page holds the old crop: only frames of the old camera state are drawn (stamped on and
+  // not newer than the command); normal or newer frames would flash the full picture or a half-switched one
+  if(zCamShows&&(recBusy||zPend)&&!(info.on&&info.rev<=zRevAtSend)) return false;
   if(!zCamShows&&!zPend&&!recBusy) lastNormal=blob; // a frame known to be normal: the backdrop of the next drag
   return true;
 }
-// A gesture starts: the camera shows the normal view while it runs
-function loupeHold(){
-  clearTimeout(restT); restT=0;
-  if(zWant.on){zWant={...zWant,on:false}; loupeReconcile()}
-}
+// A gesture goes on: the rest timer starts again
+function loupeHold(){clearTimeout(restT); restT=0} // no camera command while a gesture runs (the sharp crop moves in the page)
 const loupeRest=ms=>{clearTimeout(restT); restT=setTimeout(loupeCommit,ms)};
 // At rest: snap to the nearest ratio and ask the camera for the sharp crop at the tracked view
 function loupeCommit(){
   restT=0; if(zRaf){cancelAnimationFrame(zRaf); zRaf=0}
   const s0=V.s,x0=V.cx,y0=V.cy;
-  V.s=zSnap(V.s); V.cx=zClampCam(V.cx,V.s); V.cy=zClampCam(V.cy,V.s); // the view glides to where the crop can be, only if it has to
+  const a=zAnchor; zAnchor=null;
+  V.s=zSnap(V.s);
+  if(a&&V.s>1) Object.assign(V,zCentre(a.p,V.s,a.fx,a.fy)); // the snap zooms about the pointer too
+  V.cx=zClampCam(V.cx,V.s); V.cy=zClampCam(V.cy,V.s); // then the least move the camera needs; the view glides there, only if it has to
   zWant=V.s>1?{on:true,ratio:V.s,x:V.cx,y:V.cy}:{...zWant,on:false};
   zRender(Math.abs(V.s-s0)>.001||Math.abs(V.cx-x0)>.0005||Math.abs(V.cy-y0)>.0005); loupeReconcile();
 }
-function loupeZoom(n){ // ratio buttons: the tracked centre stays, re-clamped
+function loupeZoom(n){ // ratio buttons: zoom about the view centre, re-clamped
   if(!canWrite||!st.live||zBlock) return;
-  clearTimeout(restT);
+  clearTimeout(restT); zAnchor=null;
   if(n===1) Object.assign(V,{s:1,cx:.5,cy:.5});
   else{ if(V.s<=1.001){const p=loupePoint(); V.cx=p.x; V.cy=p.y} V.s=n }
   loupeCommit();
@@ -2435,9 +2470,11 @@ function loupeZoom(n){ // ratio buttons: the tracked centre stays, re-clamped
 function loupeWheel(e){
   if(!canWrite||!st.live||zBlock) return;
   const r=zMeasure(),fx=(e.clientX-r.left)/r.width,fy=(e.clientY-r.top)/r.height;
-  const s2=Math.min(14,Math.max(1,V.s*Math.exp(-e.deltaY*(e.deltaMode===1?.05:.0025))));
+  const s2=zWheelScale(V.s,e.deltaY,e.deltaMode);
   if(s2===V.s) return;
-  loupeHold(); Object.assign(V,{s:s2},zCentre(zPic(V,fx,fy),s2,fx,fy)); zSchedule(); loupeRest(LOUPE_WHEEL_MS);
+  if(!zAnchor) zAnchor={p:zPic(V,fx,fy)}; // the picture point under the pointer stays there for the whole gesture and the snap
+  Object.assign(zAnchor,{fx,fy});
+  loupeHold(); Object.assign(V,zZoomAt(zAnchor.p,s2,fx,fy)); zSchedule(); loupeRest(LOUPE_WHEEL_MS);
 }
 let lPtr=new Map(),lDrag=null,lPinch=null;
 function loupeDown(e){
@@ -2455,7 +2492,8 @@ function loupeMoveEv(e){
   if(lPtr.size>=2){ // pinch: the picture point between the fingers stays between them
     if(!lPinch) return;
     const [a,b]=[...lPtr.values()],s2=Math.min(14,Math.max(1,lPinch.s*Math.hypot(a.x-b.x,a.y-b.y)/lPinch.d));
-    loupeHold(); Object.assign(V,{s:s2},zCentre(lPinch.p,s2,((a.x+b.x)/2-r.left)/r.width,((a.y+b.y)/2-r.top)/r.height)); zSchedule();
+    const fx=((a.x+b.x)/2-r.left)/r.width,fy=((a.y+b.y)/2-r.top)/r.height;
+    zAnchor={p:lPinch.p,fx,fy}; loupeHold(); Object.assign(V,zZoomAt(lPinch.p,s2,fx,fy)); zSchedule();
     return;
   }
   if(!lDrag) return;

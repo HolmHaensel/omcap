@@ -242,10 +242,11 @@ class Page(unittest.TestCase):
         self.assertIn("LOUPE_LAG_FRAMES=6", h)
         for name in ("loupeReconcile", "loupeCommit", "loupeHold", "loupeOnFrame", "zRender"):
             self.assertIn("function %s(" % name, h)
-        for name in ("zSnap", "zClamp", "zClampCam", "zCrop", "zSigDiff", "zSwapDue", "zMatch", "zRubber"):
+        for name in ("zSnap", "zClamp", "zClampCam", "zCrop", "zSigDiff", "zSwapDue", "zMatch", "zRubber", "zWheelScale", "zZoomAt"):
             self.assertIn("const %s=" % name, h)
         self.assertIn("X-Loupe-Rev", h)
         self.assertIn("const zCovers=", h)
+        self.assertIn('id="zoomMap"', h)  # overview map, shown only while .loupe
         self.assertNotIn("loupeBtn", h)
 
     def test_idle_server_does_not_block_the_zoom(self):
@@ -336,6 +337,32 @@ class ZoomMaths(unittest.TestCase):
                         "zCovers({k:1,x:0,y:-6},800,600),zCovers({k:2,x:-400,y:-300},800,600),zCovers({k:.9,x:0,y:0},800,600)]")
         self.assertEqual(r, [True, False, False, False, True, False])  # x -30 leaves 30 px open at the right, y -6 six px at the bottom, y +0 is fine
 
+    def test_wheel_step_is_about_one_ratio_step_and_capped(self):
+        r = self.run_js("[zWheelScale(3,-100,0),zWheelScale(3,100,0),zWheelScale(3,-5,0),zWheelScale(3,-3000,0),zWheelScale(10,-100,0),zWheelScale(1,100,0),zWheelScale(3,-3,1)]")
+        self.assertAlmostEqual(r[0], 3 * 1.4918, places=2)  # one notch: e^0.4
+        self.assertAlmostEqual(r[1], 3 / 1.4918, places=2)
+        self.assertAlmostEqual(r[2], 3 * 1.0202, places=2)  # a trackpad pixel trickle is gentle
+        self.assertAlmostEqual(r[3], 3 * 1.6487, places=2)  # a flick is capped at e^0.5 per event
+        self.assertEqual((r[4], r[5]), (14, 1))
+        self.assertAlmostEqual(r[6], 3 * 1.2, places=1)  # line mode: 16 px per line
+
+    def test_pointer_point_stays_through_zoom_and_snap(self):
+        # the point under the pointer at (.7, .4) stays there for every wheel step and for the snap at rest
+        r = self.run_js("(()=>{let v={s:1,cx:.5,cy:.5};const p=zPic(v,.7,.4);const at=[];"
+                        "for(const s of [1.5,2.2,3.3,4.4,4.6]){v=Object.assign({},v,zZoomAt(p,s,.7,.4));const q=zPic(v,.7,.4);at.push([q.x,q.y])}"
+                        "v=Object.assign({},v,zZoomAt(p,zSnap(v.s),.7,.4));const q=zPic(v,.7,.4);at.push([q.x,q.y]);return {at,p,s:v.s}})()")
+        for x, y in r["at"]:
+            self.assertAlmostEqual(x, r["p"]["x"])
+            self.assertAlmostEqual(y, r["p"]["y"])
+        self.assertEqual(r["s"], 5)
+
+    def test_zoom_at_the_edge_clamps_to_the_picture(self):
+        # a point at the picture's edge cannot reach the view centre: the view stops at the camera-independent picture limit
+        r = self.run_js("(()=>{const v=zZoomAt({x:.99,y:.99},5,.5,.5);return [v.cx,v.cy,v.s]})()")
+        self.assertAlmostEqual(r[0], 0.9)
+        self.assertAlmostEqual(r[1], 0.9)
+        self.assertEqual(r[2], 5)
+
     def test_rubber_band_damps_beyond_the_camera_limits(self):
         r = self.run_js("[zRubber(.5,5,.3),zRubber(.1,5,.3),zRubber(.9,5,.3),zRubber(-1,5,.3),zRubber(.3,1,.3)]")
         self.assertEqual([round(v, 4) for v in r], [0.5, 0.17, 0.83, 0.1, 0.5])  # 0.2 - 0.1*0.3 ..., whole-picture clamp at 0.1
@@ -377,7 +404,7 @@ class CommandPath(unittest.TestCase):
 
     STUBS = """
     var calls=[],msgs=[],mode='ok',rev=0,z,px,py,usbZoom=true,loupeOn,tr=function(){return ''},performance={now:function(){return 0}};
-    var el=function(){return {style:{},hidden:false,textContent:'',classList:{toggle:function(){},add:function(){},remove:function(){}},setAttribute:function(){}}};
+    var el=function(){return {style:{},hidden:false,textContent:'',classList:{toggle:function(){},add:function(){},remove:function(){}},setAttribute:function(){},querySelector:function(){return el()}}};
     var vp=el(),layer=el(),Q=function(){return el()},document={querySelectorAll:function(){return []}},calm={matches:true};
     vp.getBoundingClientRect=function(){return {width:800,height:600}};
     function applyZoom(){} function msg(t,e){msgs.push([t,!!e])}
@@ -394,9 +421,10 @@ class CommandPath(unittest.TestCase):
             h = f.read()
         a, b = h.index("let loupeOn=false,usbZoom=false"), h.index("function loupeZoom(")
         region = h[a:b].replace("let loupeOn=false,usbZoom=false,", "var ")  # the stubs declare loupeOn and usbZoom
-        region = region.replace("async function loupeReconcile(", "function* __rec(").replace("await ", "yield ")
+        region = region.replace("async function loupeReconcile(", "function* __rec(").replace("async function loupeRecover(", "function* __recv(")
+        region = region.replace("await ", "yield ")
         region = region.replace("$(", "Q(")  # $ is the ObjC bridge in this engine
-        region += "\nfunction loupeReconcile(){return __drive(__rec())}\n"
+        region += "\nfunction loupeReconcile(){return __drive(__rec())}\nfunction loupeRecover(){return __drive(__recv())}\n"
         code = "%s\n%s\n%s" % (self.STUBS, region, scenario)
         out = subprocess.run(["osascript", "-l", "JavaScript", "-e", code], capture_output=True, text=True, timeout=30)
         self.assertEqual(out.returncode, 0, out.stderr)
@@ -410,11 +438,40 @@ class CommandPath(unittest.TestCase):
         self.assertEqual((r["pend"]["rev"], r["pend"]["on"]), (1, True))
         self.assertFalse(r["busy"])
 
-    def test_hold_sends_one_off_request(self):
-        r = self.run_js("Object.assign(V,{s:5,cx:.5,cy:.5});loupeCommit();calls.length=0;loupeHold();loupeHold();"
-                        "JSON.stringify({calls:calls,sent:zSent})")
-        self.assertEqual(r["calls"], [["/api/loupe", {"on": False}]])  # the second hold has nothing left to turn off
-        self.assertFalse(r["sent"]["on"])
+    ZOOMED = "zSent={on:true,ratio:5,x:.5,y:.5};zWant={...zSent};zCamShows=true;zCam={s:5,cx:.5,cy:.5};Object.assign(V,{s:5,cx:.5,cy:.5});"
+
+    def test_gesture_sends_no_command_while_the_camera_zoom_is_on(self):
+        r = self.run_js(self.ZOOMED + "loupeHold();Object.assign(V,{s:9,cx:.4,cy:.45});loupeHold();"
+                        "JSON.stringify({calls:calls,want:zWant,shows:zCamShows})")
+        self.assertEqual(r["calls"], [])
+        self.assertTrue(r["want"]["on"])
+        self.assertTrue(r["shows"])  # the sharp crop stays on screen
+
+    def test_one_request_at_rest(self):
+        r = self.run_js(self.ZOOMED + "loupeHold();Object.assign(V,{s:9.5,cx:.4,cy:.45});loupeCommit();"
+                        "JSON.stringify({calls:calls,shows:zCamShows})")
+        self.assertEqual(r["calls"], [["/api/loupe", {"on": True, "ratio": 10, "x": 0.4, "y": 0.45}]])
+        self.assertTrue(r["shows"])  # still the old crop until the new one arrives
+
+    def test_old_crop_is_held_during_the_cycle(self):
+        # command sent at rev 4; frames: old crop (on, rev 4) drawn; normal (off) or newer (rev 5, 6) held
+        r = self.run_js(self.ZOOMED + "zLastRev=4;Object.assign(V,{s:10,cx:.4,cy:.45});loupeCommit();"
+                        "var f=(rev,on)=>loupeOnFrame({rev:rev,on:on},null,null);"
+                        "JSON.stringify({old:f(4,true),normal:f(5,false),lag1:f(6,true),pend:zPend})")
+        self.assertEqual((r["old"], r["normal"], r["lag1"]), (True, False, False))
+        self.assertEqual(r["pend"]["rev"], 1)  # the stub server answers rev 1
+
+    def test_new_crop_shows_after_the_lag_frames(self):
+        r = self.run_js(self.ZOOMED + "zLastRev=0;zRevAtSend=0;Object.assign(V,{s:10,cx:.4,cy:.45});loupeCommit();"
+                        "var out=[];for(var i=0;i<8;i++)out.push(loupeOnFrame({rev:1,on:true},null,null));"
+                        "JSON.stringify({out:out,cam:zCam,pend:zPend})")
+        self.assertEqual(r["out"], [False] * 6 + [True, True])  # held for LOUPE_LAG_FRAMES frames, then the new crop
+        self.assertEqual(r["cam"]["s"], 10)
+        self.assertIsNone(r["pend"])
+
+    def test_click_is_not_a_command(self):
+        r = self.run_js(self.ZOOMED + "loupeHold();JSON.stringify(calls)")  # loupeHold is all a pointer down does
+        self.assertEqual(r, [])
 
     def test_nothing_sent_when_nothing_changed(self):
         r = self.run_js("loupeCommit();JSON.stringify(calls)")  # 1x and off already
