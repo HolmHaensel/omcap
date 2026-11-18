@@ -48,7 +48,10 @@ the centre as sent; the crop centre stays inside [0.1+0.5/r, 0.9−0.5/r]; a rat
 crop by picture, not by time. One page drives the zoom; other open pages follow without sending.
 
 Arrow buttons stay as a keyboard path (accessibility). Wi-Fi has no Zoom frame AF command; there the app keeps
-its own 1×/2×/4× view zoom.
+its own screen zoom (REQ-F55) with the same handling and no camera command: wheel/pinch zoom continuously about
+the pointer (1×–4×, the live view is at most 1280×960), drag pans inside the picture, the 1×/2×/4× buttons stay
+and light up on a match, the overview map shows the current live frame and the visible view, and a click without
+drag picks the AF target at that picture point, also while zoomed.
 
 **Why it matters beyond comfort:** this precise, calm zoom is the base of the **Star AF aid (REQ-F24)** –
 measuring star size/sharpness in the magnified sensor crop and focusing with the focus ring or the focus drive
