@@ -98,7 +98,8 @@ button:disabled{color:var(--disabled);opacity:.6;cursor:not-allowed}
 .row:last-child{margin-bottom:0}
 .row label{display:flex;gap:4px;align-items:center}
 #zoomMap{display:none;position:absolute;left:8px;bottom:8px;width:20%;aspect-ratio:4/3;z-index:3;pointer-events:none;border:1px solid rgba(255,255,255,.7);background:rgba(0,0,0,.45);box-shadow:0 0 0 1px rgba(0,0,0,.5)}
-#viewport.loupe #zoomMap{display:block}
+#viewport.loupe #zoomMap{display:block;pointer-events:auto;cursor:pointer;touch-action:none}
+#zoomMap{min-width:96px}@media(pointer:coarse){#zoomMap{width:28%}}
 #zoomMap img{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;opacity:.75}
 #zoomMap i{position:absolute;box-sizing:border-box}#zoomMap .mv{border:1px solid #fff;background:rgba(255,255,255,.12)}#zoomMap .mc{border:1px dashed var(--accent)}
 #blackout{position:absolute;inset:0;background:#000;opacity:0;pointer-events:none;z-index:5}
@@ -400,7 +401,7 @@ body.webcam{cursor:none;display:flex;align-items:center;justify-content:center}
       <canvas id="aidCv"></canvas>
       <div id="afMark"></div>
     </div>
-    <div id="zoomMap" aria-hidden="true"><img alt="" draggable="false"><i class="mv"></i><i class="mc"></i></div>
+    <div id="zoomMap" role="button" data-i18n-aria="lv.zoomMap" aria-label="Zoom overview: click or drag to move the zoom frame"><img alt="" draggable="false"><i class="mv"></i><i class="mc"></i></div>
     <div id="blackout" aria-hidden="true"></div>
     <canvas id="levelGauge"></canvas>
     <canvas id="histCv" width="160" height="70" hidden></canvas>
@@ -809,7 +810,7 @@ const I18N={en:{
   "lv.roll": "Horizon {a}° · Tilt {b}°",
   "lv.delta": "Δ Horizon {a}° · Δ Tilt {b}° to the held angle",
   "lv.loupeTitle": "The camera's own magnified live view (USB only; Zoom frame AF/zoom AF in the manual). Click = focus, drag = move, wheel or pinch = zoom smoothly; at rest it snaps to the camera's ratios and turns sharp. Starts at the AF target. No AF with Four Thirds lenses while zoomed (manual p.56).",
-  "lv.zoomUsbGroup": "Zoom (camera Zoom AF)", "lv.loupeLabel": "Zoom AF ×{n}", "lv.loupeMove": "Move the zoom frame",
+  "lv.zoomUsbGroup": "Zoom (camera Zoom AF)", "lv.loupeLabel": "Zoom AF ×{n}", "lv.loupeMove": "Move the zoom frame", "lv.zoomMap": "Zoom overview: click or drag to move the zoom frame",
   "lv.left": "Left", "lv.up": "Up", "lv.down": "Down", "lv.right": "Right",
   "msg.loupeMove": "Zoom frame moved", "msg.zoomStuck": "The camera zoom did not answer in time; showing what the camera does",
   "lv.hold": "Hold angle", "lv.clear": "Clear angle", "lv.sound": "Sound",
@@ -2313,6 +2314,8 @@ const zFrameKind=(d,matched,sawNormal)=>d>=LOUPE_NORMAL_JUMP?(matched||d>=LOUPE_
 // Without a backdrop the crop must never leave the viewport: keep the view inside what the crop covers
 const zCoverClamp=(c,v)=>{const s=Math.max(v.s,c.s),h=Math.max(0,.5/c.s-.5/s);
   return {s,cx:Math.min(c.cx+h,Math.max(c.cx-h,v.cx)),cy:Math.min(c.cy+h,Math.max(c.cy-h,v.cy))}};
+// A point in the overview map (rect r of the map) is the new view centre, as a share of the picture
+const zMapTo=(x,y,r,s)=>({cx:zClamp((x-r.left)/r.width,s),cy:zClamp((y-r.top)/r.height,s)});
 // zoom maths end
 const V={s:1,cx:.5,cy:.5};  // the view the user sees (tracked here, the camera cannot report it)
 let zCam={s:1,cx:.5,cy:.5};  // the crop the camera shows while zCamShows
@@ -2578,6 +2581,20 @@ function loupeUp(e,cancel){
   if(loupeOn){if(canWrite) setAf({focus:true})} // a click in the zoomed view only focuses (half press, release without a shot)
   else pickField(e); // 1x: the AF target click
 }
+// Overview map: a click moves the view there (glide), a drag moves it live like a drag in the picture; one commit at rest
+const zMap=$('#zoomMap'); let zMapId=null;
+function zMapMove(e,anim){
+  Object.assign(V,zMapTo(e.clientX,e.clientY,zMap.getBoundingClientRect(),V.s)); zKeep();
+  if(anim) zRender(!calm.matches); else zSchedule();
+}
+zMap.onpointerdown=e=>{
+  e.stopPropagation(); e.preventDefault(); // not the viewport: no AF or focus click
+  if(!loupeOn||zBlock||zMapId!==null) return;
+  zMapId=e.pointerId; zMap.setPointerCapture(e.pointerId); zAnchor=null; loupeHold(); zMapMove(e,true);
+};
+zMap.onpointermove=e=>{e.stopPropagation(); if(e.pointerId===zMapId){loupeHold(); zMapMove(e,false)}};
+const zMapEnd=e=>{e.stopPropagation(); if(e.pointerId!==zMapId) return; zMapId=null; loupeRest(LOUPE_REST_MS)};
+zMap.onpointerup=zMap.onpointercancel=zMapEnd;
 document.querySelectorAll('[data-lz]').forEach(b=>b.onclick=()=>loupeZoom(+b.dataset.lz));
 // Arrow buttons: one 0x9488 step each, the tracked centre follows by the estimated step (not camera-measured)
 document.querySelectorAll('[data-lm]').forEach(b=>b.onclick=async()=>{

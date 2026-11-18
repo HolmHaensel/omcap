@@ -258,7 +258,7 @@ class Page(unittest.TestCase):
         self.assertIn("LOUPE_LAG_FRAMES=6", h)
         for name in ("loupeReconcile", "loupeCommit", "loupeHold", "loupeOnFrame", "zRender"):
             self.assertIn("function %s(" % name, h)
-        for name in ("zSnap", "zClamp", "zClampCam", "zCrop", "zSigDiff", "zSwapDue", "zMatch", "zRubber", "zWheelScale", "zZoomAt", "zMatchLimit", "zFrameKind", "zCoverClamp"):
+        for name in ("zSnap", "zClamp", "zClampCam", "zCrop", "zSigDiff", "zSwapDue", "zMatch", "zRubber", "zWheelScale", "zZoomAt", "zMatchLimit", "zMapTo", "zFrameKind", "zCoverClamp"):
             self.assertIn("const %s=" % name, h)
         self.assertIn("X-Loupe-Rev", h)
         self.assertIn("const zCovers=", h)
@@ -347,6 +347,13 @@ class ZoomMaths(unittest.TestCase):
         r = self.run_js("zMatchLimit()")
         self.assertAlmostEqual(r["x"], 0.15 * 64)  # 15 % of the crop, whatever the ratio: 1/ratio of the picture
         self.assertAlmostEqual(r["y"], 0.15 * 48)
+
+    def test_map_point_is_the_new_view_centre(self):
+        r = self.run_js("[zMapTo(150,120,{left:100,top:100,width:200,height:150},5),zMapTo(100,100,{left:100,top:100,width:200,height:150},5),"
+                        "zMapTo(300,250,{left:100,top:100,width:200,height:150},1)]")
+        self.assertEqual([round(r[0]["cx"], 3), round(r[0]["cy"], 3)], [0.25, 0.133])  # clamped to [0.1, 0.9] at x5 only where needed
+        self.assertEqual((r[1]["cx"], r[1]["cy"]), (0.1, 0.1))  # clamped to the picture at x5
+        self.assertEqual((r[2]["cx"], r[2]["cy"]), (0.5, 0.5))
 
     def test_frame_kinds_follow_the_measured_sequence(self):
         # measured at x10 around one switch: diff of the 16x12 signature to the old crop, frames 7..16
