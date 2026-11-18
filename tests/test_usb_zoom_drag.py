@@ -344,10 +344,9 @@ class ZoomMaths(unittest.TestCase):
         self.assertEqual(r[1:], [None, None])  # shift (3, -2) beyond the limit in x or y
 
     def test_match_limit_is_relative_to_the_crop(self):
-        r = self.run_js("[zMatchLimit(3),zMatchLimit(14)]")
-        self.assertAlmostEqual(r[0]["pic"], 0.05)
-        self.assertAlmostEqual(r[1]["pic"], 0.15 / 14)  # at x14 a correction is at most 15 % of the crop = of the viewport
-        self.assertEqual((r[0]["x"], r[0]["y"]), (r[1]["x"], r[1]["y"]))  # the same in crop pixels
+        r = self.run_js("zMatchLimit()")
+        self.assertAlmostEqual(r["x"], 0.15 * 64)  # 15 % of the crop, whatever the ratio: 1/ratio of the picture
+        self.assertAlmostEqual(r["y"], 0.15 * 48)
 
     def test_frame_kinds_follow_the_measured_sequence(self):
         # measured at x10 around one switch: diff of the 16x12 signature to the old crop, frames 7..16
@@ -442,12 +441,12 @@ class CommandPath(unittest.TestCase):
     """Runs the page's real zoom state code (loupeCommit, loupeHold, loupeReconcile, loupeSync) with a stubbed api."""
 
     STUBS = """
-    var URL={createObjectURL:function(){return 'u'},revokeObjectURL:function(){}},lPtr={size:0},calls=[],msgs=[],mode='ok',rev=0,z,px,py,usbZoom=true,loupeOn,tr=function(){return ''},performance={now:function(){return 0}};
+    var canWrite=true,st={live:true},URL={createObjectURL:function(){return 'u'},revokeObjectURL:function(){}},calls=[],msgs=[],mode='ok',rev=0,z,px,py,usbZoom=true,loupeOn,tr=function(){return ''},performance={now:function(){return 0}};
     var el=function(){return {style:{},hidden:false,textContent:'',classList:{toggle:function(){},add:function(){},remove:function(){}},setAttribute:function(){},querySelector:function(){return el()}}};
     var vp=el(),layer=el(),Q=function(){return el()},document={querySelectorAll:function(){return []}},calm={matches:true};
-    vp.getBoundingClientRect=function(){return {width:800,height:600}};
+    vp.getBoundingClientRect=function(){return {width:800,height:600,left:0,top:0}};vp.setPointerCapture=function(){};
     function applyZoom(){} function msg(t,e){msgs.push([t,!!e])}
-    function setTimeout(){return 1} function clearTimeout(){}
+    function setTimeout(){return 1} function clearTimeout(){} function requestAnimationFrame(){return 1} function cancelAnimationFrame(){}
     function api(p,b){calls.push([p,b]);
       if((mode==='err'||mode==='dead')&&p==='/api/loupe') return {__err:'boom'};
       if(p==='/api/state') return mode==='dead'?{__err:'gone'}:{loupe:false,live:true,loupe_ratio:5};
@@ -458,8 +457,8 @@ class CommandPath(unittest.TestCase):
     def run_js(self, scenario):
         with open(HTML, encoding="utf-8") as f:
             h = f.read()
-        a, b = h.index("let loupeOn=false,usbZoom=false"), h.index("function loupeZoom(")
-        region = h[a:b].replace("let loupeOn=false,usbZoom=false,", "var ")  # the stubs declare loupeOn and usbZoom
+        a, b = h.index("let loupeOn=false,usbZoom=false"), h.index("function loupePtrEnd(")
+        region = h[a:b].replace("let loupeOn=false,usbZoom=false,", "var ").replace("let lPtr=new Map()", "var lPtr=new Map()")  # the stubs declare loupeOn and usbZoom
         region = region.replace("async function loupeReconcile(", "function* __rec(").replace("async function loupeRecover(", "function* __recv(")
         region = region.replace("await ", "yield ")
         region = region.replace("$(", "Q(")  # $ is the ObjC bridge in this engine
@@ -547,6 +546,33 @@ class CommandPath(unittest.TestCase):
         self.assertEqual(r["a"], 1)  # the second off is a no-op
         self.assertEqual([c[1].get("on") for c in r["calls"]], [False, True])  # off, then back on at the old ratio and centre
         self.assertEqual(r["calls"][1][1]["ratio"], 5)
+
+    def swap_after(self, d):
+        r = self.run_js(self.PICS + self.ZOOMED + "lastNormal='x';zLastRev=0;Object.assign(V,{s:10,cx:.43,cy:.47});loupeCommit();"
+                        "var out=[],pend=[];for(var i=0;i<8;i++){out.push(loupeOnFrame({rev:1,on:true},'b'+i,pic(%d)));pend.push(zPend===null)}"
+                        "JSON.stringify({out:out,pend:pend,msgs:msgs,calls:calls.length})" % d)
+        return r
+
+    def test_similar_new_crop_swaps_after_the_lag_frames(self):
+        # a small move gives a new crop within LOUPE_SIG_DIFF of the old one: the frames count as old, then it is new
+        r = self.swap_after(1)
+        self.assertEqual(r["pend"], [False] * 6 + [True, True])
+        self.assertEqual(r["out"], [True] * 8)  # the old crop keeps flowing, the 7th frame is the new one
+        self.assertEqual(r["msgs"], [])
+        self.assertEqual(r["calls"], 1)  # one request, no recovery
+
+    def test_flat_scene_swaps_after_the_lag_frames(self):
+        r = self.swap_after(0)
+        self.assertEqual(r["pend"], [False] * 6 + [True, True])
+        self.assertEqual((r["msgs"], r["calls"]), ([], 1))
+
+    def test_wheel_anchor_does_not_undo_a_later_drag(self):
+        r = self.run_js(self.ZOOMED + "loupeWheel({clientX:700,clientY:100,deltaY:-100,deltaMode:0});var had=zAnchor!==null;"
+                        "loupeDown({pointerId:1,clientX:400,clientY:300});var a=zAnchor;lPtr.clear();"
+                        "V.cx=.4;V.cy=.5;loupeCommit();JSON.stringify({had:had,a:a,cx:V.cx,s:V.s})")
+        self.assertTrue(r["had"])
+        self.assertIsNone(r["a"])  # a new grab forgets the wheel's anchor
+        self.assertAlmostEqual(r["cx"], 0.4)  # the snap keeps the dragged centre
 
     def test_click_is_not_a_command(self):
         r = self.run_js(self.ZOOMED + "loupeHold();JSON.stringify(calls)")  # loupeHold is all a pointer down does

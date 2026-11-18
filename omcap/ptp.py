@@ -52,9 +52,6 @@ LOUPE_GRID = (1024, 768)  # default grid of the 0x9483 point (live view size 102
 # is 1/ratio of the picture, y lands where it was sent, but x lands 1.135x as far from the centre as sent (sent 0.30
 # -> 0.2705, 0.70 -> 0.725; centre exact). The camera also keeps the crop inside the middle 80 % of the picture.
 LOUPE_X_GAIN = 1.135
-# One 0x9488 step moved the frame ~87 px of the 1024-wide zoomed picture at x5 (tested 2026-11-16), i.e. ~17.4 px
-# of the normal view. Other ratios are unmeasured: assume the same share of the normal view (REQ-F54).
-LOUPE_STEP_NORMAL_PX = 17.4  # the page uses it for the arrow buttons' centre estimate (index.html LOUPE_ARROW_PX)
 
 
 def loupe_grid(lvqty):
