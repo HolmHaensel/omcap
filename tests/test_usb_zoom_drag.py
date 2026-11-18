@@ -242,7 +242,7 @@ class Page(unittest.TestCase):
         self.assertIn("LOUPE_LAG_FRAMES=6", h)
         for name in ("loupeReconcile", "loupeCommit", "loupeHold", "loupeOnFrame", "zRender"):
             self.assertIn("function %s(" % name, h)
-        for name in ("zSnap", "zClamp", "zClampCam", "zCrop", "zSigDiff", "zSwapDue", "zMatch", "zRubber", "zWheelScale", "zZoomAt", "zMatchLimit"):
+        for name in ("zSnap", "zClamp", "zClampCam", "zCrop", "zSigDiff", "zSwapDue", "zMatch", "zRubber", "zWheelScale", "zZoomAt", "zMatchLimit", "zClassify", "zPickCrop", "zCoverClamp"):
             self.assertIn("const %s=" % name, h)
         self.assertIn("X-Loupe-Rev", h)
         self.assertIn("const zCovers=", h)
@@ -333,6 +333,22 @@ class ZoomMaths(unittest.TestCase):
         self.assertAlmostEqual(r[1]["pic"], 0.15 / 14)  # at x14 a correction is at most 15 % of the crop = of the viewport
         self.assertEqual((r[0]["x"], r[0]["y"]), (r[1]["x"], r[1]["y"]))  # the same in crop pixels
 
+    def test_frame_classification(self):
+        r = self.run_js("[zClassify(5,60),zClassify(55,60),zClassify(45,50),zClassify(5,8)]")
+        self.assertEqual(r, ["normal", "crop", "crop", "crop"])  # measured: crop vs normal 50-65, same state 1-3
+
+    def test_old_or_new_crop_by_the_better_match(self):
+        r = self.run_js("[zPickCrop({score:.95},{score:.6}),zPickCrop({score:.6},{score:.95}),zPickCrop({score:.9},{score:.91}),"
+                        "zPickCrop(null,{score:.9}),zPickCrop({score:.9},null),zPickCrop(null,null)]")
+        self.assertEqual(r, ["old", "new", None, "new", "old", None])
+
+    def test_without_backdrop_the_view_stays_inside_the_crop(self):
+        r = self.run_js("[zCoverClamp({s:14,cx:.5,cy:.5},{s:14,cx:.7,cy:.3}),zCoverClamp({s:5,cx:.5,cy:.5},{s:10,cx:.58,cy:.5}),"
+                        "zCoverClamp({s:5,cx:.5,cy:.5},{s:2,cx:.5,cy:.5})]")
+        self.assertEqual(r[0], {"s": 14, "cx": 0.5, "cy": 0.5})  # a crop and a view of the same size: no room to move
+        self.assertAlmostEqual(r[1]["cx"], 0.55)  # x5 crop covers .4-.6; the x10 view (+-.05) may centre within +-.05
+        self.assertEqual(r[2]["s"], 5)  # never smaller than the crop
+
     def test_match_refuses_an_ambiguous_repeating_picture(self):
         r = self.run_js("(()=>{const bw=78,bh=58,big=[];for(let y=0;y<bh;y++)for(let x=0;x<bw;x++)big.push((x%8<4?30:220)+(y%2));"
                         "const sm=[];for(let y=0;y<48;y++)for(let x=0;x<64;x++)sm.push(big[(y+5)*bw+x+7]);return zMatch(big,bw,bh,sm,64,48,9,9)})()")
@@ -409,7 +425,7 @@ class CommandPath(unittest.TestCase):
     """Runs the page's real zoom state code (loupeCommit, loupeHold, loupeReconcile, loupeSync) with a stubbed api."""
 
     STUBS = """
-    var lPtr={size:0},calls=[],msgs=[],mode='ok',rev=0,z,px,py,usbZoom=true,loupeOn,tr=function(){return ''},performance={now:function(){return 0}};
+    var URL={createObjectURL:function(){return 'u'},revokeObjectURL:function(){}},lPtr={size:0},calls=[],msgs=[],mode='ok',rev=0,z,px,py,usbZoom=true,loupeOn,tr=function(){return ''},performance={now:function(){return 0}};
     var el=function(){return {style:{},hidden:false,textContent:'',classList:{toggle:function(){},add:function(){},remove:function(){}},setAttribute:function(){},querySelector:function(){return el()}}};
     var vp=el(),layer=el(),Q=function(){return el()},document={querySelectorAll:function(){return []}},calm={matches:true};
     vp.getBoundingClientRect=function(){return {width:800,height:600}};
@@ -488,6 +504,19 @@ class CommandPath(unittest.TestCase):
         r = self.run_js(self.ZOOMED + "zLastRev=0;zRevAtSend=0;Object.assign(V,{s:10,cx:.43,cy:.47});loupeCommit();"
                         "restT=1;Object.assign(V,{cx:.6});for(var i=0;i<8;i++)loupeOnFrame({rev:1,on:true},null,null);JSON.stringify(V)")
         self.assertEqual(r["cx"], 0.6)
+
+    def test_hidden_cycle_when_the_page_never_saw_a_normal_frame(self):
+        r = self.run_js("lastNormal=null;loupeSync(true,5);var n1=calls.length;loupeSync(true,5);JSON.stringify({n1:n1,n2:calls.length,call:calls[0]})")
+        self.assertEqual(r["n1"], 1)  # one request puts the camera through off/on, the old crop stays on screen
+        self.assertEqual(r["n2"], 1)  # only once per page
+        self.assertTrue(r["call"][1]["on"])
+
+    def test_normal_frames_of_a_switch_become_the_backdrop(self):
+        r = self.run_js(self.ZOOMED + "lastNormal=null;zLastRev=4;Object.assign(V,{s:10,cx:.4,cy:.45});loupeCommit();"
+                        "var out=[];for(var i=0;i<9;i++)out.push(loupeOnFrame({rev:5,on:false},'f'+i,null));"
+                        "JSON.stringify({out:out,ln:lastNormal})")
+        self.assertEqual(r["ln"], "f6")  # the newest one while switching (after the camera's lag frames)
+        self.assertNotIn(True, r["out"][:6])  # none of them is drawn while the old crop is held
 
     def test_click_is_not_a_command(self):
         r = self.run_js(self.ZOOMED + "loupeHold();JSON.stringify(calls)")  # loupeHold is all a pointer down does

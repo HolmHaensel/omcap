@@ -2305,16 +2305,26 @@ const zCovers=(c,W,H)=>c.x<=.5&&c.y<=.5&&c.x+W*c.k>=W-.5&&c.y+H*c.k>=H-.5;
 const zWheelScale=(s,dy,mode)=>{const d=dy*(mode===1?16:mode===2?400:1),l=Math.min(.5,Math.max(-.5,-d*.004));return Math.min(14,Math.max(1,s*Math.exp(l)))};
 // Zoom about the pointer: the picture point p stays at the view fraction fx, fy (clamped to the picture)
 const zZoomAt=(p,s,fx,fy)=>Object.assign({s},zCentre(p,s,fx,fy));
+// Crop to crop: while the camera switches, each frame is normal (closer to the full picture than to the old crop), the old
+// crop (unchanged) or the new crop. A crop frame is matched against the backdrop at the old and at the sent centre; the better
+// score tells which one it is.
+const LOUPE_NORMAL_MARGIN=10,LOUPE_PICK_GAP=.02;
+const zClassify=(dNormal,dOldCrop)=>dNormal+LOUPE_NORMAL_MARGIN<dOldCrop?'normal':'crop';
+const zPickCrop=(mOld,mNew)=>{const so=mOld?mOld.score:-2,sn=mNew?mNew.score:-2;return sn>so+LOUPE_PICK_GAP?'new':so>sn+LOUPE_PICK_GAP?'old':null};
+// Without a backdrop the crop must never leave the viewport: keep the view inside what the crop covers
+const zCoverClamp=(c,v)=>{const s=Math.max(v.s,c.s),h=Math.max(0,.5/c.s-.5/s);
+  return {s,cx:Math.min(c.cx+h,Math.max(c.cx-h,v.cx)),cy:Math.min(c.cy+h,Math.max(c.cy-h,v.cy))}};
 // zoom maths end
 const V={s:1,cx:.5,cy:.5};  // the view the user sees (tracked here, the camera cannot report it)
 let zCam={s:1,cx:.5,cy:.5};  // the crop the camera shows while zCamShows
 let zCamShows=false;         // frames are the camera's crop (sharp render) or the full picture (soft render)
 let zWant={on:false,ratio:5,x:.5,y:.5},zSent={on:false,ratio:5,x:.5,y:.5}; // camera state wanted / last confirmed by the server
 let zPend=null,zWatch=0,zRevAtSend=0,recBusy=false,restT=0,lastNormal=null,backSrc=null,backUrl='',fadeUntil=0;
-let zBoxC=null,zRaf=0,zUiKey='',zAnchor=null,mapSrc=null,mapUrl='',mapAt=0; // zAnchor: picture point under the pointer for a wheel/pinch gesture // viewport size cached (no layout read per pointer event); one render per animation frame
+let zNormSeen=0,zBackTried=false,zBoxC=null,zRaf=0,zUiKey='',zAnchor=null,mapSrc=null,mapUrl='',mapAt=0; // zAnchor: picture point under the pointer for a wheel/pinch gesture // viewport size cached (no layout read per pointer event); one render per animation frame
 function zMeasure(){const r=vp.getBoundingClientRect();zBoxC={width:r.width,height:r.height,left:r.left,top:r.top};return zBoxC}
 const zBox=()=>zBoxC||zMeasure();
-function zSchedule(){if(!zRaf)zRaf=requestAnimationFrame(()=>{zRaf=0;zRender()})}
+function zKeep(){if(zCamShows&&!lastNormal) Object.assign(V,zCoverClamp(zCam,V))} // last fallback: no normal frame seen yet
+function zSchedule(){zKeep(); if(!zRaf)zRaf=requestAnimationFrame(()=>{zRaf=0;zRender()})}
 function loupePoint(){
   if(!af||af.mode===33024) return {x:.5,y:.5};
   const a=af.area,row=Math.floor((af.field-1)/9),col=(af.field-1)%9;
@@ -2323,12 +2333,24 @@ function loupePoint(){
 // Overview map (bottom left while zoomed): the last normal frame, the visible view and the camera's crop
 function zMapUpdate(){
   const m=$('#zoomMap'),img=m.querySelector('img'),mv=m.querySelector('.mv'),mc=m.querySelector('.mc');
-  if(lastNormal&&lastNormal!==mapSrc&&(!mapUrl||performance.now()-mapAt>600)){ // not at every frame
+  if(lastNormal&&lastNormal!==mapSrc&&(!mapUrl||(performance.now()-mapAt>600&&!lPtr.size&&!restT))){ // not at every frame, never under the pointer
     if(mapUrl) URL.revokeObjectURL(mapUrl);
     mapUrl=URL.createObjectURL(lastNormal); img.src=mapUrl; mapSrc=lastNormal; mapAt=performance.now();
   }
   const box=(el,cx,cy,s)=>{const w=100/s,h=100/s;Object.assign(el.style,{left:(cx*100-w/2)+'%',top:(cy*100-h/2)+'%',width:w+'%',height:h+'%'})};
   box(mv,V.cx,V.cy,V.s); mc.style.display=zCamShows?'':'none'; if(zCamShows) box(mc,zCam.cx,zCam.cy,zCam.s);
+}
+// Which camera state does this frame show while a crop-to-crop change is pending? 'normal', 'old', 'new' (with its measured
+// place) or null when the picture cannot tell (flat or moving scene): then the frame count decides. About two 16x12 reads and,
+// only for frames that differ from the old crop, two 64x48 matches (~5 ms each).
+function zClassifyFrame(img){
+  const sig=img&&zPend.before&&zPend.norm?zSig(img):null; if(!sig) return {kind:null};
+  const dOld=zSigDiff(sig,zPend.before);
+  if(dOld<LOUPE_SIG_DIFF) return {kind:'old'};
+  if(zClassify(zSigDiff(sig,zPend.norm),dOld)==='normal') return {kind:'normal'};
+  const back=$('#liveBack'); if(!back.naturalWidth) return {kind:null};
+  const mo=zMeasureCrop(img,zCam.s,zCam.cx,zCam.cy,back),mn=zMeasureCrop(img,zPend.ratio,zClampCam(zPend.x,zPend.ratio),zClampCam(zPend.y,zPend.ratio),back);
+  const k=zPickCrop(mo,mn); return {kind:k,m:k==='new'?mn:null};
 }
 function zRender(anim){
   const W=zBox().width,H=zBox().height,live=$('#live'),back=$('#liveBack');
@@ -2352,7 +2374,7 @@ function zRender(anim){
     live.style.transition=back.style.transition=tr3;
     live.style.transform=`translate3d(${c.x}px,${c.y}px,0) scale(${c.k})`;
     if(lastNormal){ // always in place (and decoded) behind the crop; seen only where the crop does not reach
-      if(backSrc!==lastNormal){if(backUrl) URL.revokeObjectURL(backUrl); backUrl=URL.createObjectURL(lastNormal); back.src=backUrl; backSrc=lastNormal}
+      if(backSrc!==lastNormal&&(!backUrl||!(lPtr.size||restT))){if(backUrl) URL.revokeObjectURL(backUrl); backUrl=URL.createObjectURL(lastNormal); back.src=backUrl; backSrc=lastNormal}
       const t=zShift(V,W,H); back.style.transform=`translate3d(${t.x}px,${t.y}px,0) scale(${V.s})`;
       back.style.opacity=zCovers(c,W,H)&&performance.now()>=fadeUntil?0:1; back.hidden=false;
     }else back.hidden=true;
@@ -2374,7 +2396,7 @@ function zMeasureCrop(sharp,r,ex,ey,ref){
     const big=zGreyOf(ref,x0*nw,y0*nh,rw*nw,rh*nh,BW,BH);
     const small=zGreyOf(sharp,0,0,sharp.naturalWidth||sharp.width,sharp.naturalHeight||sharp.height,64,48);
     const m=zMatch(big,BW,BH,small,64,48,zMatchLimit(r).x,zMatchLimit(r).y);
-    return m&&{cx:x0+rw/2+m.dx/(64*r),cy:y0+rh/2+m.dy/(48*r)};
+    return m&&{cx:x0+rw/2+m.dx/(64*r),cy:y0+rh/2+m.dy/(48*r),score:m.score};
   }catch{return null}
 }
 // The camera state now shown on the page's own terms: the server answered (or reported) it; used after errors and
@@ -2384,6 +2406,9 @@ function loupeSync(on,ratio){
   zSent={on:!!on,ratio:ratio||5,x:V.cx,y:V.cy}; zWant={...zSent};
   if(on){V.s=ratio||5; V.cx=zClampCam(V.cx,V.s); V.cy=zClampCam(V.cy,V.s); zCam={s:V.s,cx:V.cx,cy:V.cy}} else Object.assign(V,{s:1,cx:.5,cy:.5});
   zRender();
+  // the page never saw a normal frame (loaded while the camera zoom was on): one hidden off/on cycle fetches one for the
+  // backdrop; the old crop stays on screen meanwhile. Once per page, so a failing request cannot loop.
+  if(on&&!lastNormal&&!zBackTried){zBackTried=true; zSent={...zSent,x:-9}; loupeReconcile()}
 }
 const wantEq=(a,b)=>a.on===b.on&&(!a.on||(a.ratio===b.ratio&&Math.abs(a.x-b.x)<.002&&Math.abs(a.y-b.y)<.002));
 // Tiny grey picture (16x12) of a decoded image, for telling the camera's states apart; null when it cannot be read
@@ -2400,11 +2425,11 @@ async function loupeReconcile(){
   if(recBusy) return;
   recBusy=true;
   try{
-    if(!zPend) zRevAtSend=zLastRev; // frames stamped later come from the changed camera: not drawn as the old crop
+    if(!zPend){zRevAtSend=zLastRev; zNormSeen=0} // frames stamped later come from the changed camera: not drawn as the old crop
     while(!wantEq(zWant,zSent)){
-      const w={...zWant}, before=zSig($('#live')); // the picture on screen when the command goes out
+      const w={...zWant}, before=zSig($('#live')), norm=zCamShows?zSig($('#liveBack')):null; // the pictures on screen / behind it when the command goes out
       const j=await api('/api/loupe',w.on?{on:true,ratio:w.ratio,x:w.x,y:w.y}:{on:false});
-      loupeAns++; zSent=w; zPend={rev:j.rev,on:w.on,n:0,before,ratio:w.ratio,x:w.x,y:w.y};
+      loupeAns++; zSent=w; zPend={rev:j.rev,on:w.on,n:0,before,norm,ratio:w.ratio,x:w.x,y:w.y};
       clearTimeout(zWatch); zWatch=setTimeout(loupeStuck,LOUPE_STUCK_MS);
     }
   }catch(e){
@@ -2424,15 +2449,24 @@ function loupeOnFrame(info,blob,img){ // returns false: do not draw this frame (
   if(!usbZoom) return true;
   if(info.rev<zLastRev) loupeSync(false); // a new session counts from 0 again: the camera zoom is off
   zLastRev=info.rev;
-  // crop to crop (new ratio or centre): the frames in between are normal pictures that differ from the old crop, so the
-  // picture cannot tell; wait the frame count. Normal to crop and back: the first clearly different picture.
-  if(zPend&&info.rev>=zPend.rev&&(zCamShows&&zPend.on?++zPend.n>LOUPE_LAG_FRAMES:zSwapDue(zSigDiff(zPend.before&&img?zSig(img):null,zPend.before),++zPend.n))){
+  let verdict=null,swap=false,meas=null;
+  const switching=zCamShows&&(recBusy||zPend);
+  if(zPend&&info.rev>=zPend.rev){
+    if(zCamShows&&zPend.on){ // crop to crop: the frames in between are normal pictures, tell them apart by the picture
+      const c=zClassifyFrame(img); verdict=c.kind; meas=c.m;
+      swap=verdict==='new'||(verdict===null&&++zPend.n>LOUPE_LAG_FRAMES); // no clear answer: the frame count decides
+    }else swap=zSwapDue(zSigDiff(zPend.before&&img?zSig(img):null,zPend.before),++zPend.n); // normal to crop and back
+  }
+  // the normal frames of a switch are exactly what the backdrop needs: keep the newest (stamped normal and past the
+  // camera's lag, or recognised by the picture) instead of only skipping them
+  if(switching&&(!info.on?++zNormSeen>LOUPE_LAG_FRAMES:verdict==='normal')) lastNormal=blob;
+  if(swap){
     clearTimeout(zWatch);
     const sharp=zPend.on&&!zCamShows;
     zCamShows=zPend.on; if(zCamShows){
       zCam={s:zPend.ratio,cx:zClampCam(zPend.x,zPend.ratio),cy:zClampCam(zPend.y,zPend.ratio)};
       // draw the first sharp frame exactly where the soft picture was: use the crop position measured in the picture
-      const m=img&&Math.abs(V.s-zPend.ratio)<.01?zMeasureCrop(img,zPend.ratio,zCam.cx,zCam.cy,sharp?$('#live'):$('#liveBack')):null;
+      const m=meas||(img&&Math.abs(V.s-zPend.ratio)<.01?zMeasureCrop(img,zPend.ratio,zCam.cx,zCam.cy,sharp?$('#live'):$('#liveBack')):null);
       if(m){zCam.cx=m.cx; zCam.cy=m.cy}
     }
     zPend=null;
@@ -2447,9 +2481,9 @@ function loupeOnFrame(info,blob,img){ // returns false: do not draw this frame (
       Object.assign(V,{s:zCam.s,cx:zCam.cx,cy:zCam.cy}); void $('#live').offsetWidth; zRender(!calm.matches);
     }
   }
-  // while a change is under way the page holds the old crop: only frames of the old camera state are drawn (stamped on and
-  // not newer than the command); normal or newer frames would flash the full picture or a half-switched one
-  if(zCamShows&&(recBusy||zPend)&&!(info.on&&info.rev<=zRevAtSend)) return false;
+  // while a change is under way the page holds the old crop: frames of the old camera state (stamped on and not newer than
+  // the command, or recognised as the old crop) keep flowing; normal or half-switched frames are not drawn
+  if(zCamShows&&(recBusy||zPend)&&!(info.on&&info.rev<=zRevAtSend)&&verdict!=='old') return false;
   if(!zCamShows&&!zPend&&!recBusy) lastNormal=blob; // a frame known to be normal: the backdrop of the next drag
   return true;
 }
@@ -2458,6 +2492,7 @@ function loupeHold(){clearTimeout(restT); restT=0} // no camera command while a 
 const loupeRest=ms=>{clearTimeout(restT); restT=setTimeout(loupeCommit,ms)};
 // At rest: snap to the nearest ratio and ask the camera for the sharp crop at the tracked view
 function loupeCommit(){
+  if(lPtr.size){loupeRest(LOUPE_REST_MS); return} // a finger is still down: no camera cycle under it
   restT=0; if(zRaf){cancelAnimationFrame(zRaf); zRaf=0}
   const s0=V.s,x0=V.cx,y0=V.cy;
   const a=zAnchor; zAnchor=null;
