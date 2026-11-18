@@ -2337,7 +2337,7 @@ const V={s:1,cx:.5,cy:.5};  // the view the user sees (tracked here, the camera 
 let zCam={s:1,cx:.5,cy:.5};  // the crop the camera shows while zCamShows
 let zCamShows=false;         // frames are the camera's crop (sharp render) or the full picture (soft render)
 let zWant={on:false,ratio:5,x:.5,y:.5},zSent={on:false,ratio:5,x:.5,y:.5}; // camera state wanted / last confirmed by the server
-let zSwitchAt=-1e9,zNormImg=null,zNormSig=null,zNormFor=null,zPend=null,zWatch=0,zRevAtSend=0,recBusy=false,restT=0,lastNormal=null,backSrc=null,backUrl='',fadeUntil=0;
+let zLastCropImg=null,zSwitchAt=-1e9,zNormImg=null,zNormSig=null,zNormFor=null,zPend=null,zWatch=0,zRevAtSend=0,recBusy=false,restT=0,lastNormal=null,backSrc=null,backUrl='',fadeUntil=0;
 let zBackTried=false,zBackOffDone=false,zBackWant=null,zBackT=0,zBoxC=null,zRaf=0,zUiKey='',zAnchor=null,mapSrc=null,mapUrl='',mapAt=0; // zAnchor: picture point under the pointer for a wheel/pinch gesture // viewport size cached (no layout read per pointer event); one render per animation frame
 function zMeasure(){const r=vp.getBoundingClientRect();zBoxC={width:r.width,height:r.height,left:r.left,top:r.top};return zBoxC}
 const zBox=()=>zBoxC||zMeasure();
@@ -2372,11 +2372,23 @@ function zClassifyFrame(img){
   let m=null;
   if(kind!=='normal'&&kind!=='old'){
     // anything that might be the new crop is checked against the backdrop at the NEW scale around the sent centre: normal
-    // frames of the switch that could not be confirmed, or frames still showing the old ratio, never pass for it
+    // frames of the switch that could not be confirmed, or frames still showing the old ratio, never pass for it. The server
+    // cycle has an off phase (d04b=2 first), so the new crop only counts after normal frames were seen: a crop of the new
+    // ratio before them is a leftover and is held.
     const back=$('#liveBack');
-    if(back.naturalWidth){m=zMeasureCrop(img,zPend.ratio,zClampCam(zPend.x,zPend.ratio),zClampCam(zPend.y,zPend.ratio),back); kind=m?'new':'hold'}
+    if(back.naturalWidth){m=zMeasureCrop(img,zPend.ratio,zClampCam(zPend.x,zPend.ratio),zClampCam(zPend.y,zPend.ratio),back); kind=m&&zPend.sawNormal?'new':'hold'}
   }
   return {kind,m};
+}
+// A frame that shows the normal picture while the page shows the crop must not be drawn as the crop (the camera's own order
+// of frames is not under our control): close to the last normal frame and clearly unlike the last crop frame drawn. A flat
+// scene looks the same either way, then the frame stays a crop.
+function zNormalWhileSharp(img){
+  if(!img||!zNormImg||!zLastCropImg) return false;
+  const sig=zSig(img); if(!sig) return false;
+  if(zNormFor!==zNormImg){zNormSig=zSig(zNormImg); zNormFor=zNormImg}
+  if(!zNormSig||zSigDiff(sig,zNormSig)>=LOUPE_NORMAL_CLOSE) return false;
+  const last=zSig(zLastCropImg); return !!last&&zSigDiff(sig,last)>=LOUPE_SIG_DIFF;
 }
 function zRender(anim){
   const W=zBox().width,H=zBox().height,live=$('#live'),back=$('#liveBack');
@@ -2523,7 +2535,9 @@ function loupeOnFrame(info,blob,img){ // returns false: do not draw this frame (
   }
   // while a change is under way the page holds the old crop: frames of the old camera state (stamped on and not newer than
   // the command, or recognised as the old crop) keep flowing; normal or half-switched frames are not drawn
+  if(zCamShows&&zNormalWhileSharp(img)) return false; // never draw a normal frame as the crop
   if(zCamShows&&(recBusy||zPend)&&!(info.on&&info.rev<=zRevAtSend)&&verdict!=='old') return false;
+  if(zCamShows&&img) zLastCropImg=img; // the last crop frame drawn
   if(!zCamShows&&!zPend&&!recBusy){ // camera zoom off and settled: a frame known to be normal for the backdrop of the next drag
     if(!lastNormal||performance.now()-zSwitchAt>LOUPE_SETTLE_MS){lastNormal=blob; zNormImg=img}
     if(zBackWant&&lastNormal) loupeBackdropOn();

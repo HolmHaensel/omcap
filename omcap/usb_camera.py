@@ -927,23 +927,29 @@ class UsbCamera:
     # --- Zoom AF (the camera's magnified live view, E-M1 manual p.56; protocol in omcap/ptp.py) ---
     def loupe(self, on, ratio=None, x=None, y=None):
         """Zoom AF on or off. ratio: 3, 5, 7, 10 or 14 (x); x, y: centre of the zoom frame as a fraction
-        of the live picture (0-1), sent before switching on. Order as OM Capture: d0cf, 0x9483, d04b."""
+        of the live picture (0-1), sent before switching on. Order as OM Capture: d0cf, 0x9483, d04b; with the zoom already
+        on and a new centre: d04b=2 first, so the camera never re-scales the old crop to the new ratio (it did when d0cf
+        came first: old crop, re-scaled old crop, normal frames, new crop; camera test 2026-11-18)."""
         self._need_write()
+        value = None
         if ratio is not None:
             value = next((k for k, v in LOUPE_RATIOS.items() if v == int(ratio)), None)
             if value is None:
                 raise CameraError("Zoom ratio: one of %s" % ", ".join("%dx" % v for v in LOUPE_RATIOS.values()))
-            self._set("d0cf", value)
-            self.loupe_ratio = int(ratio)
-        if on and x is not None and y is not None:
+        point = on and x is not None and y is not None
+        if point:
             fx, fy = float(x), float(y)
             if not (0 <= fx <= 1 and 0 <= fy <= 1):
                 raise CameraError("Zoom frame: x and y between 0 and 1")
-            self.loupe_x, self.loupe_y = fx, fy
             if self.loupe_on:  # 0x9483 only takes effect while d04b goes to 1 (camera test 2026-11-16)
                 self._set("d04b", LOUPE_OFF)
                 self.loupe_on = False  # frames in between are normal, and a failing 0x9483 leaves a true state
                 self.loupe_rev += 1
+        if value is not None:
+            self._set("d0cf", value)
+            self.loupe_ratio = int(ratio)
+        if point:
+            self.loupe_x, self.loupe_y = fx, fy
             fx = 0.5 + (fx - 0.5) / LOUPE_X_GAIN  # the camera overshoots x: send less so the crop lands where asked
             gw, gh = loupe_grid(self.lvqty)  # the camera reads the point in the grid of the live view size
             self._opcode(OP_LOUPE_POINT, loupe_point(fx * gw, fy * gh, (gw, gh)))

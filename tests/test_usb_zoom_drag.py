@@ -44,9 +44,23 @@ class Revision(unittest.TestCase):
         cam.loupe(True, 5, 0.5, 0.5)
         cam._c.writes.clear()
         cam.loupe(True, 5, 0.25, 0.5)
-        self.assertEqual([n for n, _ in cam._c.writes], ["d0cf", "d04b", "opcode", "d04b"])
-        self.assertEqual(cam._c.writes[1], ("d04b", "2"))
+        # d04b=2 first: the camera never re-scales the old crop to the new ratio (camera test 2026-11-18)
+        self.assertEqual([n for n, _ in cam._c.writes], ["d04b", "d0cf", "opcode", "d04b"])
+        self.assertEqual(cam._c.writes[0], ("d04b", "2"))
         self.assertEqual(cam._c.writes[3], ("d04b", "1"))
+
+    def test_zoom_off_keeps_the_order_d0cf_point_on(self):
+        cam = make()
+        cam.loupe(True, 7, 0.4, 0.5)
+        self.assertEqual([n for n, _ in cam._c.writes], ["d0cf", "opcode", "d04b"])
+
+    def test_bad_ratio_with_the_zoom_on_changes_nothing(self):
+        cam = make()
+        cam.loupe(True, 5, 0.5, 0.5)
+        cam._c.writes.clear()
+        with self.assertRaises(CameraError):
+            cam.loupe(True, 4, 0.3, 0.5)
+        self.assertEqual(cam._c.writes, [])  # not even the d04b=2 of the cycle
 
 
 class AfAreaFixed(unittest.TestCase):
@@ -647,19 +661,35 @@ class CommandPath(unittest.TestCase):
              "zMeasureCrop=function(img,r){return img&&img.is14&&r===14?{cx:.5,cy:.5,score:.9}:null};"
              "function c14(d){var p=pic(d);p.is14=true;return p}")
 
-    def test_ratio_change_swaps_only_at_the_first_frame_of_the_new_crop(self):
-        # x7 -> x14: frames after the answer still show the x7 crop for a while (the camera lags): they are drawn, never a swap
-        r = self.run_js(self.PICS + self.RATIO + "loupeCommit();var pend0=zPend!==null;"
+    def test_ratio_change_swaps_only_after_the_normal_frames_at_the_new_crop(self):
+        # measured order after d04b=2 first: old crop, normal frames, new crop; a leftover crop of the new ratio before the
+        # normal frames must not swap
+        r = self.run_js(self.PICS + self.RATIO + "zNormImg=pic(100);loupeCommit();var pend0=zPend!==null;"
                         "var pre=loupeOnFrame({rev:0,on:true},'a',c14(40));var pre_pend=zPend!==null;"  # before the answer's rev: nothing
-                        "var o=[loupeOnFrame({rev:1,on:true},'o0',pic(0)),loupeOnFrame({rev:1,on:true},'o1',pic(0))];var o_pend=zPend!==null;"
-                        "var n=loupeOnFrame({rev:1,on:true},'n0',c14(40));JSON.stringify({pend0:pend0,pre_pend:pre_pend,o:o,o_pend:o_pend,n:n,after:zPend,cam:zCam})")
+                        "var o=[loupeOnFrame({rev:1,on:true},'o0',pic(0)),loupeOnFrame({rev:1,on:true},'o1',pic(0))];"
+                        "var first14=loupeOnFrame({rev:1,on:true},'f',c14(40));var after_first=zPend!==null;"
+                        "var nm=[];for(var i=0;i<5;i++)nm.push(loupeOnFrame({rev:1,on:true},'n'+i,pic(98)));var after_normals=zPend!==null;"
+                        "var last=loupeOnFrame({rev:1,on:true},'l',c14(40));JSON.stringify({pend0:pend0,pre_pend:pre_pend,o:o,first14:first14,"
+                        "after_first:after_first,nm:nm,after_normals:after_normals,last:last,after:zPend,cam:zCam})")
         self.assertTrue(r["pend0"])
         self.assertTrue(r["pre_pend"])  # a frame from before the answer's revision does not swap
         self.assertEqual(r["o"], [True, True])  # the old x7 frames keep flowing
-        self.assertTrue(r["o_pend"])  # and do not count towards a swap
-        self.assertTrue(r["n"])
-        self.assertIsNone(r["after"])  # the first x14 frame completes the swap
+        self.assertFalse(r["first14"])  # the leftover x14 crop before any normal frame is held, not swapped to
+        self.assertTrue(r["after_first"])
+        self.assertEqual(r["nm"], [False] * 5)  # normal frames are never drawn as the crop
+        self.assertTrue(r["after_normals"])
+        self.assertTrue(r["last"])  # the x14 crop after them swaps
+        self.assertIsNone(r["after"])
         self.assertEqual(r["cam"]["s"], 14)
+
+    def test_a_normal_frame_while_sharp_and_idle_is_not_drawn(self):
+        r = self.run_js(self.PICS + self.ZOOMED + "lastNormal='L';zNormImg=pic(100);zLastCropImg=pic(0);"
+                        "JSON.stringify([loupeOnFrame({rev:0,on:true},'n',pic(98)),loupeOnFrame({rev:0,on:true},'c',pic(3))])")
+        self.assertEqual(r, [False, True])  # close to the normal picture and unlike the last crop: held; like the last crop: drawn
+
+    def test_flat_scene_stays_a_crop(self):
+        r = self.run_js(self.PICS + self.ZOOMED + "lastNormal='L';zNormImg=pic(0);zLastCropImg=pic(0);JSON.stringify(loupeOnFrame({rev:0,on:true},'c',pic(0)))")
+        self.assertTrue(r)  # normal, crop and the last crop look the same: nothing to tell apart
 
     def test_unconfirmed_normal_frames_do_not_pass_for_the_new_crop(self):
         # the bug: two identical normal frames of the switch that could not be confirmed repeated and counted as the new crop
