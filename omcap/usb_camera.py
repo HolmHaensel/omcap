@@ -928,7 +928,7 @@ class UsbCamera:
     def loupe(self, on, ratio=None, x=None, y=None):
         """Zoom AF on or off. ratio: 3, 5, 7, 10 or 14 (x); x, y: centre of the zoom frame as a fraction
         of the live picture (0-1), sent before switching on. Order as OM Capture: d0cf, 0x9483, d04b; with the zoom already
-        on and a new centre: d04b=2 first, so the camera never re-scales the old crop to the new ratio (it did when d0cf
+        on and a new centre or ratio: d04b=2 first, so the camera never re-scales the old crop to the new ratio (it did when d0cf
         came first: old crop, re-scaled old crop, normal frames, new crop; camera test 2026-11-18)."""
         self._need_write()
         value = None
@@ -941,10 +941,12 @@ class UsbCamera:
             fx, fy = float(x), float(y)
             if not (0 <= fx <= 1 and 0 <= fy <= 1):
                 raise CameraError("Zoom frame: x and y between 0 and 1")
-            if self.loupe_on:  # 0x9483 only takes effect while d04b goes to 1 (camera test 2026-11-16)
-                self._set("d04b", LOUPE_OFF)
-                self.loupe_on = False  # frames in between are normal, and a failing 0x9483 leaves a true state
-                self.loupe_rev += 1
+        # a new centre (0x9483 only takes effect while d04b goes to 1, camera test 2026-11-16) or a new ratio while the zoom
+        # is on: off first
+        if self.loupe_on and on and (point or value is not None):
+            self._set("d04b", LOUPE_OFF)
+            self.loupe_on = False  # frames in between are normal, and a failing 0x9483 leaves a true state
+            self.loupe_rev += 1
         if value is not None:
             self._set("d0cf", value)
             self.loupe_ratio = int(ratio)

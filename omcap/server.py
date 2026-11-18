@@ -970,15 +970,21 @@ def clean_client(v):
     return v if isinstance(v, str) and v.isascii() and v.isalnum() and len(v) <= 32 else None
 
 
+client_lock = threading.Lock()  # the server handles requests in threads
+
+
 def note_client(v):
     v = clean_client(v)
     if not v:
         return None
     now = time.monotonic()
-    client_seen[v] = now
-    if len(client_seen) > 32:  # forgotten tabs: keep the dict small
-        for k in [k for k, t in client_seen.items() if now - t > 60]:
-            del client_seen[k]
+    with client_lock:
+        client_seen[v] = now
+        if len(client_seen) > 32:  # forgotten tabs: keep the dict small (drop the old, then the oldest)
+            for k in [k for k, t in client_seen.items() if now - t > 60]:
+                client_seen.pop(k, None)
+            while len(client_seen) > 32:
+                client_seen.pop(min(client_seen, key=client_seen.get), None)
     return v
 
 

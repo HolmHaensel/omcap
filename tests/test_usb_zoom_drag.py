@@ -49,6 +49,16 @@ class Revision(unittest.TestCase):
         self.assertEqual(cam._c.writes[0], ("d04b", "2"))
         self.assertEqual(cam._c.writes[3], ("d04b", "1"))
 
+    def test_ratio_only_change_with_the_zoom_on_also_goes_off_first(self):
+        cam = make()
+        cam.loupe(True, 5, 0.5, 0.5)
+        cam._c.writes.clear()
+        cam.loupe(True, 10)
+        self.assertEqual(cam._c.writes, [("d04b", "2"), ("d0cf", "4"), ("d04b", "1")])
+        cam._c.writes.clear()
+        cam.loupe(False)
+        self.assertEqual(cam._c.writes, [("d04b", "2")])  # switching off is a single write
+
     def test_zoom_off_keeps_the_order_d0cf_point_on(self):
         cam = make()
         cam.loupe(True, 7, 0.4, 0.5)
@@ -139,6 +149,13 @@ class Ownership(unittest.TestCase):
         self.assertFalse(server.public_state()["loupe_owner_live"])
         server.note_client("pageA")  # a poll brings it back
         self.assertTrue(server.public_state()["loupe_owner_live"])
+
+    def test_client_dict_is_capped_at_32_even_with_fresh_entries(self):
+        server.client_seen.clear()
+        for i in range(50):
+            server.note_client("c%d" % i)
+        self.assertLessEqual(len(server.client_seen), 32)
+        self.assertIn("c49", server.client_seen)  # the newest stay, the oldest go
 
     def test_forgotten_clients_are_pruned(self):
         server.client_seen.clear()
@@ -683,12 +700,24 @@ class CommandPath(unittest.TestCase):
         self.assertEqual(r["cam"]["s"], 14)
 
     def test_a_normal_frame_while_sharp_and_idle_is_not_drawn(self):
-        r = self.run_js(self.PICS + self.ZOOMED + "lastNormal='L';zNormImg=pic(100);zLastCropImg=pic(0);"
+        r = self.run_js(self.PICS + self.ZOOMED + "lastNormal='L';zNormImg=pic(100);zLastCropSig=[0,0,0,0];"
                         "JSON.stringify([loupeOnFrame({rev:0,on:true},'n',pic(98)),loupeOnFrame({rev:0,on:true},'c',pic(3))])")
         self.assertEqual(r, [False, True])  # close to the normal picture and unlike the last crop: held; like the last crop: drawn
 
+    def test_a_low_detail_crop_does_not_freeze_the_view(self):
+        # a new crop that looks like the normal picture but not like the stale last crop: 3 rejections, then it is accepted
+        r = self.run_js(self.PICS + self.ZOOMED + "lastNormal='L';zNormImg=pic(100);zLastCropSig=[0,0,0,0];"
+                        "var out=[];for(var i=0;i<6;i++)out.push(loupeOnFrame({rev:0,on:true},'c'+i,pic(98)));"
+                        "JSON.stringify({out:out,last:zLastCropSig})")
+        self.assertEqual(r["out"], [False, False, False, True, True, True])  # the accepted frame becomes the reference, the rest follow
+        self.assertEqual(r["last"], [98, 98, 98, 98])
+
+    def test_the_reference_is_cleared_with_the_zoom_state(self):
+        r = self.run_js(self.PICS + self.ZOOMED + "zLastCropSig=[5,5,5,5];loupeSync(false);JSON.stringify(zLastCropSig)")
+        self.assertIsNone(r)
+
     def test_flat_scene_stays_a_crop(self):
-        r = self.run_js(self.PICS + self.ZOOMED + "lastNormal='L';zNormImg=pic(0);zLastCropImg=pic(0);JSON.stringify(loupeOnFrame({rev:0,on:true},'c',pic(0)))")
+        r = self.run_js(self.PICS + self.ZOOMED + "lastNormal='L';zNormImg=pic(0);zLastCropSig=[0,0,0,0];JSON.stringify(loupeOnFrame({rev:0,on:true},'c',pic(0)))")
         self.assertTrue(r)  # normal, crop and the last crop look the same: nothing to tell apart
 
     def test_unconfirmed_normal_frames_do_not_pass_for_the_new_crop(self):
