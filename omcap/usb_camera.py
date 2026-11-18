@@ -14,6 +14,8 @@ import threading
 import time
 
 from .camera import CameraError, WriteBlocked
+from .ptp import (LOUPE_X_GAIN, LOUPE_MOVES, LOUPE_OFF, LOUPE_ON, LOUPE_RATIOS, OP_LOUPE_MOVE, OP_LOUPE_POINT,
+                  loupe_grid, loupe_point)
 
 
 def _check_usb_path(path):
@@ -27,7 +29,7 @@ EXPOSURE_PROGRAM = {"1": "M", "2": "P", "3": "A", "4": "S", "8": "movie", "11": 
 WB_NAMES = ["AUTO", "5300K", "7500K", "6000K", "3000K", "4000K", "Underwater", "5500K Flash",
             "One-touch 1", "One-touch 2", "One-touch 3", "One-touch 4", "CWB"]
 FEATURES = ["liveview", "af_area", "af_modes", "stages", "scp", "time_lapse", "ae_bkt",
-            "playback", "transfer", "long", "mf_drive", "movie", "erase"]
+            "playback", "transfer", "long", "mf_drive", "movie", "erase", "loupe"]
 
 # Movie button, PTP 0x948C (Olympus OM-D MovieRecButton): 1 press, 0 release; each press toggles recording.
 # The camera records in all shooting modes except PHOTO STORY, not during BULB / LIVE TIME / LIVECOMP,
@@ -60,6 +62,8 @@ DRIVE_STYLE = {0: "", 1: "Anti-Shock ", 2: "Silent "}
 # Shutter stages of PTP 0x9481, matching exec_shutter over Wi-Fi.
 # 1 and 6 are tested on the camera, 3 and 6 are what libgphoto2 uses to release.
 OP_FIRST, OP_SECOND, OP_FULL, OP_SECOND_BACK, OP_RELEASE = 1, 2, 3, 4, 6
+# 5 releases the half press without a shot (OM Capture trace, Zoom AF); used when only focusing while zoomed
+OP_RELEASE_NOSHOT = 5
 # Turning the mode dial sends event 0xC003 with param1 = 3 (E-M1 Mark I, tested 2026-11-12);
 # the new value only arrives with a new session. d006 knows only M, P, A, S, Movie: iAUTO, ART, SCN
 # and PHOTO STORY read as P
@@ -198,7 +202,7 @@ USB_TABLES = {
     "d01d": {"0": "S-IS Off", "1": "S-IS1", "2": "S-IS2", "3": "S-IS3", "4": "S-IS AUTO"},
     "d01a": {"0": "Face Priority Off", "32769": "Face Priority On", "32770": "Face & Eye Priority On",
              "32771": "Face & R. Eye Priority On", "32772": "Face & L. Eye Priority On"},  # 32771 inferred
-    "d0cb": {"1": "On", "2": "Off"},  # Focus Stacking (FW 4.x, mapped 2026-11-13; libgphoto2's d065 does not change)
+    "d0cb": {"1": "On", "2": "Off"},  # Focus BKT (user's firmware: d0ce is Focus Stacking, mapped 2026-11-16)
 }
 # Bracketing kind d020: 2 = Off, 3 = Focus BKT (mapped 2026-11-13). Focus Stacking needs Focus BKT; the camera then
 # switches by itself to Silent Sequential H, electronic shutter (1/16000 … 1/8 s) and flash off (E-M1 manual, p.174).
@@ -237,6 +241,7 @@ class UsbLive:
     def __init__(self, camera):
         self.camera = camera
         self.frame = None
+        self.stamp = (0, 0)  # (zoom revision, zoom on) of the camera when `frame` was fetched (REQ-F54)
         self.seq = 0
         self.last_frame = None
         self.cond = threading.Condition()
@@ -281,6 +286,8 @@ class UsbLive:
                         "mode dial turned, %s" % getattr(self.camera, "dial_reason", "?")):
                     self.camera.mode_changed_at = time.time()
                     continue
+            # read before the fetch: a write in between only makes the stamp older, never newer than the frame
+            stamp = (getattr(self.camera, "loupe_rev", 0), int(getattr(self.camera, "loupe_on", False)))
             data = self.camera.preview_frame()
             if data is None:
                 failures += 1
@@ -293,7 +300,7 @@ class UsbLive:
                 continue
             failures, self._backoff, self.camera.gone = 0, 0.0, False
             with self.cond:
-                self.frame = data
+                self.frame, self.stamp = data, stamp
                 self.seq += 1
                 self.last_frame = time.monotonic()
                 self.cond.notify_all()
@@ -333,9 +340,10 @@ class UsbLive:
         return True
 
     def wait_frame(self, last_seq, timeout=3.0):
+        """(seq, frame, stamp): stamp = (zoom revision, zoom on) of the camera when that frame was fetched."""
         with self.cond:
             self.cond.wait_for(lambda: self.seq != last_seq, timeout)
-            return self.seq, self.frame
+            return self.seq, self.frame, self.stamp
 
 
 class UsbCamera:
@@ -350,6 +358,11 @@ class UsbCamera:
     _last_level = None  # last level gauge reading, returned while a shot, movie or card read holds the camera
     last_press = 0.0  # time of the last shutter command or written setting (see __init__)
     saf_shot = False  # S-AF during the running shot: no focus means no release
+    loupe_on = False  # Zoom AF (camera magnification) switched on by the app
+    loupe_ratio = 5  # magnification last sent (x)
+    loupe_x = loupe_y = None  # wanted zoom centre as last requested (picture fractions, before the x gain)
+    loupe_owner = None  # client id of the page that sent the last zoom request; None when the server ended the zoom
+    loupe_rev = 0  # counts every change of the camera's zoom state; live frames carry it (REQ-F54)
 
     # setting named as over Wi-Fi -> gphoto name, display names from the choice values
     PROPS = {
@@ -466,6 +479,7 @@ class UsbCamera:
         self._c = self.gp.Camera()
         try:
             self._open()
+            self._loupe_off_locked()  # a magnified view outlives the session; the page shows it off
             self._apply_lv_size_locked()  # keep the chosen size after a rebuilt session
             self._resync_files_locked()
             self.gone = False  # also after reload (refresh) or a rebuild without live view
@@ -526,6 +540,7 @@ class UsbCamera:
 
     def close(self):
         self.live.stop()
+        self._loupe_off()
         with self._lock:
             try:
                 self._c.exit()
@@ -635,6 +650,8 @@ class UsbCamera:
                 if key in self.OPTIONAL:
                     continue  # e.g. firmware without Focus Stacking: hide the setting, keep the panel
                 raise
+            if key == "focusstacking" and str(value) == "1" and not self._stack_flag_on():
+                value = "2"  # Focus BKT alone (d0cb) is a plain series; the switch shows On only with d0ce too
             if key == "artfilter":  # d010 also holds the kind of filter (from 34305)
                 choices = [c for c in choices if int(c) >= 34305]
             if key == "shutspeedvalue":  # M only: BULB, LIVE TIME, LIVECOMP are in d01c
@@ -678,16 +695,24 @@ class UsbCamera:
         self._last_level = {"a": a, "b": b}  # no mode: d006 only changes with a new session (mode dial events)
         return self._last_level
 
+    def _live_int(self, name):
+        """Own PTP backend: GetDevicePropValue follows the camera live, the descriptor (_value) keeps a stale
+        value inside a session (see level()). gphoto2 backend: the descriptor is all there is."""
+        if hasattr(self._c, "get_prop_value"):
+            return int(self._call(self._c.get_prop_value, int(name, 16)))
+        return int(self._value(name))
+
+    # The AF area of the E-M1 is fixed (Wi-Fi touchactiveframe at 800x600: x 135-662, y 100-497 = 0.169-0.828 and
+    # 0.167-0.828). d05a/d05b/d071/d072 are NOT this area: they are the Zoom AF frame-centre limits for the current
+    # zoom ratio d0cf, [0.1+0.5/r, 0.9-0.5/r] of the picture (measured 2026-11-18); at the camera's default x7 they
+    # happen to equal the AF area, which is why they looked right until Zoom AF was used.
+    AF_AREA = {"x0": 216, "x1": 1060, "y0": 160, "y1": 796, "w": 1280, "h": 960}
+
     def af_area(self):
-        area = {"x0": 216, "x1": 1060, "y0": 160, "y1": 796, "w": 1280, "h": 960}
-        for key, name in (("x0", "d05a"), ("x1", "d05b"), ("y0", "d071"), ("y1", "d072")):
-            area[key] = int(self._value(name))
-        # The AF area is centred, so its grid is (x0+x1) × (y0+y1) – as with Wi-Fi
-        # (touchactiveframe). d06d is no good: depending on the session the camera reports the area
-        # in 1280×960 or 1024×768, independent of the current d06d (measured 2026-11-09).
+        area = dict(self.AF_AREA)  # centred, so its grid is (x0+x1) x (y0+y1) as with Wi-Fi
         area["w"], area["h"] = af_raster(area)
-        self.af_mode = int(self._value("d00c"))
-        return {"mode": self.af_mode, "field": int(self._value("d051")), "area": area,
+        self.af_mode = self._live_int("d00c")
+        return {"mode": self.af_mode, "field": self._live_int("d051"), "area": area,
                 "last_af": focus_in_raster(self.last_af, area), "focus_ok": getattr(self, "focus_ok", None)}
 
     def preview_frame(self):
@@ -894,9 +919,75 @@ class UsbCamera:
 
     def start_liveview(self, port):
         self._need_write()
+        self._loupe_off()  # a magnified view can be left over from an earlier session (OM Capture, crash)
 
     def stop_liveview(self):
-        pass
+        self._loupe_off()
+
+    # --- Zoom AF (the camera's magnified live view, E-M1 manual p.56; protocol in omcap/ptp.py) ---
+    def loupe(self, on, ratio=None, x=None, y=None):
+        """Zoom AF on or off. ratio: 3, 5, 7, 10 or 14 (x); x, y: centre of the zoom frame as a fraction
+        of the live picture (0-1), sent before switching on. Order as OM Capture: d0cf, 0x9483, d04b; with the zoom already
+        on and a new centre or ratio: d04b=2 first, so the camera never re-scales the old crop to the new ratio (it did when d0cf
+        came first: old crop, re-scaled old crop, normal frames, new crop; camera test 2026-11-18)."""
+        self._need_write()
+        value = None
+        if ratio is not None:
+            value = next((k for k, v in LOUPE_RATIOS.items() if v == int(ratio)), None)
+            if value is None:
+                raise CameraError("Zoom ratio: one of %s" % ", ".join("%dx" % v for v in LOUPE_RATIOS.values()))
+        point = on and x is not None and y is not None
+        if point:
+            fx, fy = float(x), float(y)
+            if not (0 <= fx <= 1 and 0 <= fy <= 1):
+                raise CameraError("Zoom frame: x and y between 0 and 1")
+        # a new centre (0x9483 only takes effect while d04b goes to 1, camera test 2026-11-16) or a new ratio while the zoom
+        # is on: off first
+        if self.loupe_on and on and (point or value is not None):
+            self._set("d04b", LOUPE_OFF)
+            self.loupe_on = False  # frames in between are normal, and a failing 0x9483 leaves a true state
+            self.loupe_rev += 1
+        if value is not None:
+            self._set("d0cf", value)
+            self.loupe_ratio = int(ratio)
+        if point:
+            self.loupe_x, self.loupe_y = fx, fy
+            fx = 0.5 + (fx - 0.5) / LOUPE_X_GAIN  # the camera overshoots x: send less so the crop lands where asked
+            gw, gh = loupe_grid(self.lvqty)  # the camera reads the point in the grid of the live view size
+            self._opcode(OP_LOUPE_POINT, loupe_point(fx * gw, fy * gh, (gw, gh)))
+        self._set("d04b", LOUPE_ON if on else LOUPE_OFF)
+        self.loupe_on = bool(on)
+        self.loupe_rev += 1
+
+    def loupe_move(self, direction):
+        """Move the zoom frame one step: up, down, left or right."""
+        self._need_write()
+        if direction not in LOUPE_MOVES:
+            raise CameraError("Zoom frame: direction up, down, left or right")
+        self._opcode(OP_LOUPE_MOVE, LOUPE_MOVES[direction])
+
+    def _loupe_off_locked(self):
+        """d04b = 2 without raising; caller holds the lock. Only with the write permission."""
+        self.loupe_on = False
+        self.loupe_x = self.loupe_y = self.loupe_owner = None  # ended by the server: nobody owns the zoom
+        self.loupe_rev += 1
+        if not self.allow_write:
+            return
+        try:
+            w = self._c.get_single_config("d04b")
+            w.set_value(str(LOUPE_OFF))
+            self._c.set_single_config("d04b", w)
+        except self.gp.GPhoto2Error:
+            pass  # body without d04b, or the camera is gone: nothing left to end
+
+    def _loupe_off(self):
+        if self.gone:
+            self.loupe_on = False
+            self.loupe_x = self.loupe_y = self.loupe_owner = None
+            self.loupe_rev += 1
+            return
+        with self._lock:
+            self._loupe_off_locked()
 
     def set_prop(self, prop, value):
         if prop not in self.PROPS:
@@ -909,7 +1000,8 @@ class UsbCamera:
             self._set(self.PROPS[prop][0], value)
 
     def _set_focus_stacking(self, on):
-        """Focus Stacking on or off; also sets the bracketing kind (Focus BKT) and keeps the earlier one."""
+        """Focus Stacking on or off: bracketing kind d020 = Focus BKT, Focus BKT d0cb and the stacking flag d0ce;
+        the earlier bracketing kind is kept and comes back on Off."""
         self._need_write()
         if on:
             if LONG_LABELS.get(self._value("shutterspeed")):  # the camera stacks with the electronic shutter only
@@ -919,21 +1011,44 @@ class UsbCamera:
                 self._bkt_before = kind  # lost after a reconnect: Off then sets Bracketing Off
             self._set("d020", BKT_FOCUS)
             try:
-                self._set("d0cb", 1)
+                self._set("d0cb", 1)  # Focus BKT on
+                try:
+                    self._set_stack_flag(1)  # d0ce: merge the series in the camera (Focus Stacking)
+                except CameraError:
+                    self._set("d0cb", 2)  # not a plain series left behind
+                    raise
             except CameraError:
                 self._set("d020", getattr(self, "_bkt_before", BKT_OFF))  # e.g. a lens without Focus BKT (p.173)
                 raise
         else:
+            self._set_stack_flag(2)
             self._set("d0cb", 2)
             if int(float(self._value("d020"))) == BKT_FOCUS:  # leave another bracketing kind alone
                 self._set("d020", getattr(self, "_bkt_before", BKT_OFF))
         self.refresh()  # drive mode, shutter limits and flash change with it; they arrive with a new session
 
+    def _set_stack_flag(self, value):
+        """d0ce = Focus Stacking On (1) / Off (2), mapped 2026-11-16 (changed alone when the stacking switch was
+        flipped on the camera). d0cb is only Focus BKT, a plain series. Not every body has it: then it is skipped."""
+        try:
+            self._value("d0ce")
+        except CameraError:
+            return
+        self._set("d0ce", value)
+
+    def _stack_flag_on(self):
+        try:
+            return str(self._value("d0ce")) == "1"  # Focus BKT alone is a plain series, not stacking
+        except CameraError:
+            return True  # a body without d0ce: Focus BKT is the only switch
+
     def _stacking_on(self):
         try:
-            return str(self._value("d0cb")) == "1"
+            if str(self._value("d0cb")) != "1":
+                return False
         except CameraError:
             return False
+        return self._stack_flag_on()
 
     def set_af_area(self, mode=None, field=None):
         if mode is not None:
@@ -1144,12 +1259,13 @@ class UsbCamera:
                     self.last_af = result[1]  # exact and at once (d05d/d05e lag behind)
                 elif result and not result[0]:
                     self.last_af = {"x": 0, "y": 0}  # no focus: no green field
-                elif self.focus_ok and getattr(self, "af_mode", AF_ALL) == AF_ALL:
+                elif self.focus_ok and getattr(self, "af_mode", AF_ALL) == AF_ALL and not self.loupe_on:
                     self._read_focus_position()  # libgphoto2 backend: events carry Param1 only
                 if result is None:
                     print("USB focus: no AF result from the camera within %.0f s" % FOCUS_WAIT, flush=True)
             finally:
-                self._shutter(OP_RELEASE)
+                # zoomed: 5 ends the half press without a shot (the camera answers 0xC003 (1,0,0), no position)
+                self._shutter(OP_RELEASE_NOSHOT if self.loupe_on else OP_RELEASE)
             # no extra event wait here: each idle libgphoto2 event check costs ~0.3 s (150 ms timeout
             # plus one retry); the next check (dial watch or next focus) collects what is left
         finally:

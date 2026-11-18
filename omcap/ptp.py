@@ -37,6 +37,41 @@ DPC_LV_SIZE, LV_SIZE_DEFAULT = 0xD06D, 0x04000300  # live view size (w << 16 | h
 OP_SHUTTER, OP_LIVEVIEW = 0x9481, 0x9484
 DPC_CONTROL_MODE = 0xD052  # 1 = PC control, 2 = camera
 
+# Zoom frame AF / Zoom AF (the camera's own magnified live view, E-M1 manual p.56), from OM Capture traces
+# and confirmed on the camera 2026-11-16 (out/research/loupe_protocol.md): d0cf = ratio, 0x9483 = point
+# as ONE packed parameter (y << 16 | x) in the 1024x768 live view grid, d04b = on (1) / off (2),
+# 0x9488 = move the frame one step. A magnified view can outlive a session: write d04b = 2 at start and stop.
+# The app sends them through the gphoto2-style widgets ("d04b", "opcode"), so both USB backends can.
+DPC_LOUPE, LOUPE_ON, LOUPE_OFF = 0xD04B, 1, 2
+DPC_LOUPE_RATIO = 0xD0CF
+LOUPE_RATIOS = {1: 3, 2: 5, 3: 7, 4: 10, 5: 14}  # d0cf value -> magnification
+OP_LOUPE_POINT, OP_LOUPE_MOVE = 0x9483, 0x9488
+LOUPE_MOVES = {"up": 1, "down": 2, "left": 3, "right": 4}
+LOUPE_GRID = (1024, 768)  # default grid of the 0x9483 point (live view size 1024x768)
+# Measured on the E-M1 2026-11-16 (live view 1024x768, crop matched against the normal frame, x3/x5/x10/x14): the crop
+# is 1/ratio of the picture, y lands where it was sent, but x lands 1.135x as far from the centre as sent (sent 0.30
+# -> 0.2705, 0.70 -> 0.725; centre exact). The camera also keeps the crop inside the middle 80 % of the picture.
+LOUPE_X_GAIN = 1.135
+
+
+def loupe_grid(lvqty):
+    """The grid the camera reads the 0x9483 point in: that of the current live view size ("1280x0960" -> 1280x960),
+    1024x768 when unknown. Measured 2026-11-18 at 1280x960 (crop landed at p/1280 and p/960) and at 1024x768;
+    320x240, 640x480 and 800x600 are assumed to follow the same rule (not measured)."""
+    try:
+        w, h = (int(v) for v in lvqty.split("x"))
+        return (w, h) if w > 0 and h > 0 else LOUPE_GRID
+    except (AttributeError, ValueError):
+        return LOUPE_GRID
+
+
+def loupe_point(x, y, grid=LOUPE_GRID):
+    """The one 0x9483 parameter for a point in the given grid (default 1024x768), clamped to it (centre = 0x01800200)."""
+    w, h = grid
+    x, y = min(max(int(round(x)), 0), w - 1), min(max(int(round(y)), 0), h - 1)
+    return (y << 16) | x
+
+
 
 class PtpError(Exception):
     def __init__(self, message, code=None):

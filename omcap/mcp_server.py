@@ -38,7 +38,7 @@ def liveview_snapshot(a):
         seq, t = 0, time.time()
         n = 0
         while time.time() - t < 4:
-            seq, f = lv.wait_frame(seq, 1.0)
+            seq, f, _ = lv.wait_frame(seq, 1.0)
             if f:
                 n += 1
                 frame = f

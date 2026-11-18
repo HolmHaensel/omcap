@@ -65,12 +65,13 @@ More in [Start and stop](#start-and-stop).
 | Feature | Wi-Fi | USB | Note |
 |---|---|---|---|
 | Live view with zoom, Displayed Grid and overlay | ✅ | ✅ | |
+| Zoom (USB): 1× and ×3–×14 are the camera's own Zoom AF and replace the screen zoom; click = focus, drag = move, wheel/pinch = smooth zoom that snaps to the camera's ratios at rest and turns sharp (Wi-Fi keeps the 1×/2×/4× screen zoom) | – | 🟡 | no Wi-Fi command (`exec_takemisc ctrlzoom` is the lens power zoom); AF in the zoomed view uses the screen centre, and the camera has no AF with Four Thirds lenses while zoomed (manual p.56, untested); USB both layers; camera-checked by hand 2026-11-16 (on/off, ratios, arrows); smooth zoom (drag, wheel, overview map, pinch on the phone) tried with the camera 2026-11-18; click focus (half press 1, release 5) not camera-tested (REQ-F54) |
 | Live view size (up to 1280×960) | ✅ | ✅ | USB: with the app's own USB layer (macOS default); with libgphoto2 see [Larger USB live view](#larger-usb-live-view-libgphoto2) |
-| Histogram, Highlight&Shadow, Peaking | ✅ | ✅ | |
+| Histogram, Highlight&Shadow, Peaking | ✅ | ✅ | Peaking follows the focus best at a live view size of 640×480 or more |
 | Frames per second shown next to the live view size (and "libgphoto2" when USB uses the slower fallback) | ✅ | 🟡 | same page code; not yet looked at over USB |
 | Level gauge (horizon line and tilt dot, "Level ✓", optional sound, "Hold angle") | – | ✅ | the camera sends no tilt over Wi-Fi; USB: own USB layer only, not with libgphoto2 |
 | Free card space in the header | ✅ | ✅ | |
-| Battery level in the header | – | ✅ | Wi-Fi: the value the camera sends is not the battery level (100 while the camera showed half), so it is not shown |
+| Battery level in the header | – | 🟡 | USB: only a rough level (the camera reports coarse steps, 100 or 50); Wi-Fi: the value the camera sends is not the battery level, so it is not shown |
 | Current focal length; ISO with ISO Auto ("now 800"); shutter speed and aperture the camera uses in auto modes | ✅ | – | sent with the Wi-Fi live view; no live USB value found |
 
 ### Focus
@@ -104,6 +105,7 @@ More in [Start and stop](#start-and-stop).
 |---|---|---|---|
 | LV super control panel: shutter speed, aperture, exposure compensation, ISO, WB, drive, Picture Mode | ✅ | ✅ | |
 | Art filter | ✅ | 🟡 | USB: not tested in ART mode |
+| Partial Color colour ring (ART and Picture Mode Partial Color; 18 colours, laid out like the camera's ring) | ✅ | – | USB: the camera offers no value for the colour, only selecting Partial Color |
 | Shooting mode | ✅ | – | USB: set by the mode dial; the app follows the dial and reloads the values (tested; iAUTO, ART, SCN, PHOTO STORY show as P) |
 | AF mode, Metering, Flash mode, Record mode, Aspect ratio, Image stabilizer, Face priority | – | ✅ | no Wi-Fi command |
 | Aperture list limited to the attached lens | ✅ | ✅ | USB after the first picture of the session |
