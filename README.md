@@ -72,7 +72,7 @@ More in [Start and stop](#start-and-stop).
 | Frames per second shown next to the live view size (and "libgphoto2" when USB uses the slower fallback) | ✅ | 🟡 | same page code; not yet looked at over USB |
 | Level gauge (horizon line and tilt dot, "Level ✓", optional sound, "Hold angle") | – | ✅ | the camera sends no tilt over Wi-Fi; USB: own USB layer only, not with libgphoto2 |
 | Free card space in the header | ✅ | ✅ | |
-| Battery level in the header | – | 🟡 | USB: only a rough level (the camera reports coarse steps, 100 or 50); Wi-Fi: the value the camera sends is not the battery level, so it is not shown |
+| Battery level in the header | – | 🟡 | USB: only a rough level of the body battery (the camera reports coarse steps, 100 or 50; with an HLD-7 grip in use the grip's charge is not reported); Wi-Fi: the value the camera sends is not the battery level, so it is not shown |
 | Current focal length; ISO with ISO Auto ("now 800"); shutter speed and aperture the camera uses in auto modes | ✅ | – | sent with the Wi-Fi live view; no live USB value found |
 
 ### Focus

@@ -1,18 +1,20 @@
 # Changelog
 
-## Unreleased
+## 0.7.8 – 2026-11-21
+
+Smooth zoom: over USB the camera's own Zoom AF (×3–×14) with drag, wheel and pinch, over Wi-Fi a smooth screen zoom; peaking that follows the focus ring; Erase over USB; Partial Color ring; Focus Stacking flag over USB.
 
 - Wi-Fi smooth zoom (REQ-F55): wheel, trackpad and pinch zoom 1×–4× about the pointer, drag pans, an overview map shows the view; on a phone the live view gets sharper while zoomed. No camera command.
-- USB smooth zoom (REQ-F54): zoom control 1× and ×3/×5/×7/×10/×14 (the camera's Zoom AF); drag, wheel and pinch move the crop, a click focuses. Several open pages no longer fight over the zoom. Crop geometry measured on the camera.
+- USB smooth zoom (REQ-F54): zoom control 1× and ×3/×5/×7/×10/×14 (the camera's Zoom AF); drag, wheel and pinch move the crop, a click focuses (click focus not camera-tested; no AF with Four Thirds lenses while zoomed, manual p.56). Not offered while the camera is busy. Several open pages no longer fight over the zoom. Crop geometry measured on the camera.
 - USB AF grid and tapped AF target were wrong after Zoom AF; both are right now (REQ-F54).
 - Peaking reacts to the focus ring again (REQ-F52). Over Wi-Fi it needs a live view size of 640×480 or more.
-- USB battery shows a rough level ("high" / "half or less") instead of a misleading percentage; Wi-Fi shows none, its value was not the battery (REQ-F19).
+- USB battery shows a rough level ("high" / "half or less") instead of a misleading percentage. It is the body battery: with an HLD-7 battery grip in use its charge is not reported over USB. Wi-Fi shows none, its value was not the battery (REQ-F19).
 - USB Focus Stacking also sets the camera's stacking flag; camera-tested 2026-11-16, 8 frames plus the merged JPG (REQ-F38).
 - Partial Color as a colour ring in the super control panel, Wi-Fi only; camera-checked (REQ-F42).
-- After a Wi-Fi drop the app shows "Camera not found" and restarts the live view by itself; message camera-tested, restart not yet (REQ-Q14).
+- After a Wi-Fi drop the app shows "Camera not found" and restarts the live view by itself; message camera-tested; the restart was seen working once on 2026-11-15, but only after 47 s (wait to be shortened) (REQ-Q14).
 - Phone over Wi-Fi starts the live view at 800×600 at most (about 21 fps) (REQ-F45).
 - Live view status line shows the displayed fps and "libgphoto2" on the slower USB fallback (REQ-F51).
-- Playback: Erase deletes selected pictures over USB (JPG and ORF, confirm first, needs `--allow-write`); camera-tested 2026-11-15. Not available over Wi-Fi (REQ-F50).
+- Playback: Erase deletes selected pictures over USB (JPG and ORF, confirm first, needs `--allow-write`); camera-tested 2026-11-15 with the own USB layer (libgphoto2 fallback untested). Not available over Wi-Fi (REQ-F50).
 - Playback on a phone: pinch out of 5×5 opens Calendar display and back (REQ-F48).
 - Faster, steadier live view: the next frame is requested while one decodes (USB 1024×768 29.9 fps, Wi-Fi 640×480 29.8 fps); webcam and second-monitor windows use the same loop and recover after a bad frame or reconnect; no "Broken pipe" log noise (REQ-Q13).
 - README rewritten for easier reading; speed tables updated with the 2026-11-15 measurements (USB 30 fps up to 1024×768; Wi-Fi 640×480 30 fps, 800×600 about 21, 1024×768 about 12, 1280×960 about 8).
