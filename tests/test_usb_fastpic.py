@@ -1,4 +1,4 @@
-"""Fast picture after a shot over USB (REQ-F56): PTP 0x9485 OMD_GetImage, shown before the card lists the file."""
+"""Fast picture after a shot over USB (REQ-F60): PTP 0x9485 OMD_GetImage, shown before the card lists the file."""
 import unittest
 
 from omcap import ptp, ptp_gphoto as pg, server, usb_camera

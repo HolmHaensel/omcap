@@ -391,7 +391,7 @@ class UsbCamera:
         self.allow_write = allow_write
         self.stage = 0
         self._new_files = []
-        self.on_fast_jpeg = None  # server callback(bytes): JPEG of a shot before the card lists it (REQ-F56)
+        self.on_fast_jpeg = None  # server callback(bytes): JPEG of a shot before the card lists it (REQ-F60)
         self.last_jpg = None  # JPG last reported by the camera
         self.last_press = 0.0  # time of the last shutter command (AF also sends 0xC003)
         self.mode_changed_at = None  # set when the mode dial was turned (page reloads values)

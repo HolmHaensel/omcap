@@ -1157,7 +1157,7 @@ async function tick(){
   if(!st.live&&lvl){lvl=null;lvlShown=null;drawLevel()} // live view stopped: clear the level gauge
   if(modeAt===undefined) modeAt=st.mode_at||null; // first tick after loading: no message for an old turn
   else if(st.mode_at&&st.mode_at!==modeAt){modeAt=st.mode_at;usbShotMode=null;props();msg(tr('msg.modeDial'))} // USB: mode dial turned
-  if(isUsb&&st.fast_n&&st.fast_n!==fastSeen){fastSeen=st.fast_n;showFast()} // REQ-F56: JPEG of the shot before the card lists it
+  if(isUsb&&st.fast_n&&st.fast_n!==fastSeen){fastSeen=st.fast_n;showFast()} // REQ-F60: JPEG of the shot before the card lists it
   $('#half').classList.toggle('on',st.stage>=1); $('#half').setAttribute('aria-pressed',st.stage>=1?'true':'false');
   $('#empty').hidden=st.live;
   if(st.live&&!wzLivePrev&&!usbZoom) wzSizeSoon(); wzLivePrev=!!st.live; // live view (re)started: check the zoomed size again (REQ-F55)
