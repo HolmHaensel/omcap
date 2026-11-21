@@ -357,10 +357,13 @@ class Camera:
         """Info of the next picture offered without a card (PTP 0x9495) or None. Own layer only (libgphoto2 has none)."""
         return self._cam().direct_store_info()
 
-    @_wrap
     def omd_direct_fetch(self, info):
-        """The whole picture described by `info` (PTP 0x9493 in pieces), as bytes."""
-        return b"".join(self._cam().direct_store_read(info["id"], info["size"]))
+        """The picture described by `info` as an iterator of pieces (PTP 0x9493); the camera is read lazily,
+        so the caller can write each piece before the last one (clear=1) is requested."""
+        try:
+            yield from self._cam().direct_store_read(info["id"], info["size"])
+        except ptp.PtpError as e:
+            raise GPhoto2Error("PTP: %s" % e, GP_ERROR_IO)
 
     @_wrap
     def get_prop_value(self, code):

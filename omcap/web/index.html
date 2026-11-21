@@ -3314,7 +3314,10 @@ $('#brStart').onclick=()=>act(tr('msg.bktStarted'),'/api/bracket',{frames:+$('#b
 $('#jobStop').onclick=()=>act(tr('msg.stopping'),'/api/job/stop',{});
 $('#takePrep').onclick=()=>act(tr('msg.lcPrepared'),'/api/take',{action:'prepare'});
 $('#takeStart').onclick=()=>act(tr('msg.started',{name:$('#longName').textContent}),'/api/take',{action:'start'});
-$('#takeStop').onclick=()=>act(tr('msg.stopped',{name:$('#longName').textContent}),'/api/take',{action:'stop'});
+$('#takeStop').onclick=async()=>{
+  const j=await act(tr('msg.stopped',{name:$('#longName').textContent}),'/api/take',{action:'stop'});
+  if(j&&j.saved&&j.saved.length){msg(tr('msg.savedNoCard',{n:j.saved.map(p=>p.split(/[\\/]/).pop()).join(', ')}));local();if(isUsb)gallery()} // USB without a card (REQ-F61)
+};
 /* Movie: start/stop like the R button (manual p.22); the app briefly switches to Movie mode for it */
 $('#movStart').onclick=()=>act(tr('msg.movieStarted'),'/api/movie',{action:'start'});
 $('#movStop').onclick=async()=>{await act(tr('msg.movieStopped'),'/api/movie',{action:'stop'});

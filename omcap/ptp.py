@@ -457,7 +457,7 @@ class PtpCamera:
         end = time.monotonic() + wait
         while True:
             try:
-                data = self.transact(OP_GET_IMAGE, (1,), want_data=True, timeout=1500)[0]
+                data = self._retry_busy(OP_GET_IMAGE, (1,), True, 0, timeout=1500)
                 if data and data[:2] == b"\xff\xd8":
                     return data
             except PtpError as e:

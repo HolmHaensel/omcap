@@ -14,6 +14,7 @@ import json
 import os
 import re
 import secrets
+import shutil
 import signal
 import socket
 import subprocess
@@ -608,11 +609,14 @@ def save_capture(path, size=None):
 direct_shot = {"base": None, "t": 0.0, "exts": set()}  # base name of the shot being saved without a card
 
 
-def direct_name(ext, now=None):
-    """Camera-like base name for a picture that comes without a card (E-M1_YYYYMMDD-HHMMSS). ORF and JPG of one
-    shot share it: a new base starts when the extension was seen already or the last file is older than 15 s."""
+def direct_name(ext, now=None, late=False):
+    """Camera-like base name for a picture that comes without a card (E-M1_YYYYMMDD-HHMMSS, the time it is
+    saved). ORF and JPG of one shot share it: a new base starts when the extension was seen already or the
+    last file is older than 15 s. `late`: a picture left over from an earlier shot, marked `_late`."""
     now = time.time() if now is None else now
     ext = ext.upper()
+    if late:
+        return time.strftime("E-M1_%Y%m%d-%H%M%S", time.localtime(now)) + "_late" + ext
     d = direct_shot
     if d["base"] is None or ext in d["exts"] or now - d["t"] > 15:
         d.update(base=time.strftime("E-M1_%Y%m%d-%H%M%S", time.localtime(now)), exts=set())
@@ -621,28 +625,65 @@ def direct_name(ext, now=None):
     return d["base"] + ext
 
 
-def save_direct(data, ext):
-    """USB without a card: store a picture the camera handed over (REQ-F61). Same folder and prefix scheme as
-    save_capture, written to a temp file and renamed; never overwrites. Returns the path."""
+DIRECT_MARGIN = 64 << 20  # free space kept beyond the picture size
+
+
+def save_direct(ext, size, pieces, late=False):
+    """USB without a card: store a picture the camera hands over in pieces (REQ-F61). Same folder and prefix
+    scheme as save_capture. The pieces go to `name.part` as they arrive; the last one is requested from the
+    camera with clear=1 (the camera then drops its copy), so folder, space and the .part file are checked
+    BEFORE the first piece: a failure there leaves the picture in the camera. If only the final write fails,
+    the bytes go to the temp folder and the error names that path. Never overwrites. Returns the path."""
     ext = ext if re.fullmatch(r"\.[A-Za-z0-9]{1,4}", ext or "") else ".BIN"
     folder = captures_dir()
-    os.makedirs(folder, exist_ok=True)
-    name = direct_name(ext)
-    if save_cfg["scheme"] == "prefix" and save_cfg["prefix"]:
-        name = save_cfg["prefix"] + name  # "datetime" adds nothing: the name has the time already
-    stem, ext = os.path.splitext(name)
-    dest, n = os.path.join(folder, stem + ext), 0
-    while os.path.exists(dest):
-        n += 1
-        dest = os.path.join(folder, "%s-%d%s" % (stem, n, ext))
-    tmp = dest + ".part"
-    with open(tmp, "wb") as f:
-        f.write(data)
-    os.replace(tmp, dest)
+    try:
+        os.makedirs(folder, exist_ok=True)
+        free = shutil.disk_usage(folder).free
+        if free < size + DIRECT_MARGIN:
+            raise OSError("only %d MB free in %s, the picture needs %d MB" % (free >> 20, folder, size >> 20))
+        name = direct_name(ext, late=late)
+        if save_cfg["scheme"] == "prefix" and save_cfg["prefix"]:
+            name = save_cfg["prefix"] + name  # "datetime" adds nothing: the name has the time already
+        stem, ext = os.path.splitext(name)
+        dest, n = os.path.join(folder, stem + ext), 0
+        while os.path.exists(dest):
+            n += 1
+            dest = os.path.join(folder, "%s-%d%s" % (stem, n, ext))
+        tmp = dest + ".part"
+        f = open(tmp, "wb")
+    except OSError as e:
+        raise CameraError("Picture stays in the camera, not saved: %s" % e)
+    jpeg, got, ok = bytearray(), 0, False
+    try:
+        with f:
+            for piece in pieces:
+                got += len(piece)
+                final = got >= size
+                if ext.lower() in (".jpg", ".jpeg"):
+                    jpeg += piece
+                try:
+                    f.write(piece)
+                    f.flush()
+                    if final:
+                        os.fsync(f.fileno())
+                except OSError as e:
+                    if not final:
+                        raise
+                    # the camera has dropped its copy already: keep the bytes somewhere
+                    fd, rescue = tempfile.mkstemp(prefix="omcap-", suffix=ext)
+                    with os.fdopen(fd, "wb") as g:
+                        g.write(piece)
+                    raise CameraError("Last piece could not be written (%s); it is in %s and the first part in %s"
+                                      % (e, rescue, tmp))
+        os.replace(tmp, dest)
+        ok = True
+    finally:
+        if not ok and os.path.exists(tmp) and got < size:
+            os.remove(tmp)  # the camera still has the file: nothing worth keeping
     if hsl_auto["enabled"] and ext.lower() in (".jpg", ".jpeg", ".orf"):
         hsl_auto_run(dest)
     if ext.lower() in (".jpg", ".jpeg"):
-        remember_fast_shot(data)  # shown as the last shot; there is no card copy to take over
+        remember_fast_shot(bytes(jpeg))  # shown as the last shot; there is no card copy to take over
         state["latest"] = os.path.basename(dest)
     elif state["latest"] is None or not state["latest"].lower().endswith((".jpg", ".jpeg")):
         state["latest"] = os.path.basename(dest)
@@ -1487,6 +1528,9 @@ class Handler(BaseHTTPRequestHandler):
                     cam.take_stop()
                 finally:
                     state["take"] = None
+                if conn_type == "usb":
+                    saved = cam.take_direct_files()  # no card: saved straight to the computer (REQ-F61)
+                    return {"saved": saved} if saved else None
         elif path == "/api/movie" and conn_type == "usb":
             # USB: the movie button records in every shooting mode (manual p.26), no mode switch
             # the REC button toggles: never press it for Stop when the app did not start a recording
