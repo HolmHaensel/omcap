@@ -576,7 +576,16 @@ class PtpCamera:
         want = 1 if on else 2
         # libgphoto2 waits up to 20 s (its port timeout) for this answer; the E-M1 needs longer than 5 s
         t0 = time.monotonic()
-        self.set_prop(DPC_CONTROL_MODE, want, 4, timeout=20000)
+        while True:
+            try:
+                self.set_prop(DPC_CONTROL_MODE, want, 4, timeout=20000)
+                break
+            except PtpError as e:
+                # a camera just switched on (or after an earlier session) answers "busy" for a few seconds: OM Capture
+                # got DeviceBusy once and succeeded on the retry (trace 2026-11-16); without this the app fell back to libgphoto2
+                if e.code != RC_BUSY or time.monotonic() - t0 > 8:
+                    raise
+                time.sleep(0.5)
         self.pc_answer_s = time.monotonic() - t0  # how long the camera took to answer (connect log)
         end = time.monotonic() + wait
         while time.monotonic() < end:

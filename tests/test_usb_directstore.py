@@ -464,3 +464,34 @@ class Saving(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class PcModeBusy(unittest.TestCase):
+    """A camera just switched on answers busy to the first d052 write; OM Capture retried and succeeded."""
+
+    def test_busy_then_ok(self):
+        calls = []
+
+        class Cam(ptp.PtpCamera):
+            def __init__(self):
+                pass
+
+            def set_prop(self, code, value, dtype, timeout=5000):
+                calls.append(code)
+                if len(calls) < 3:
+                    raise ptp.PtpError("busy", code=ptp.RC_BUSY)
+
+            def prop_desc(self, code):
+                return {"value": 1}
+        self.assertTrue(Cam().pc_mode(True))
+        self.assertEqual(len(calls), 3)
+
+    def test_other_error_not_retried(self):
+        class Cam(ptp.PtpCamera):
+            def __init__(self):
+                pass
+
+            def set_prop(self, code, value, dtype, timeout=5000):
+                raise ptp.PtpError("denied", code=0x200F)
+        with self.assertRaises(ptp.PtpError):
+            Cam().pc_mode(True)
