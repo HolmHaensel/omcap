@@ -114,7 +114,7 @@ class Fake:
 
     def get_storageinfo(self):
         if self.storage_error:
-            raise pg.GPhoto2Error("PTP: busy")
+            raise pg.GPhoto2Error("PTP: PTP 0x1005 answered 0x2013" if self.storage_error == 2 else "PTP: busy")
         return [type("I", (), {"freekbytes": 1000 if self.card == 1 else 0})()] if self.card else []
 
 
@@ -259,6 +259,15 @@ class Shoot(unittest.TestCase):
         with self.assertRaises(CameraError):
             cam.shoot()
         self.assertEqual(fake.fetched, [])
+
+    def test_store_not_available_means_no_card(self):
+        # camera test 2026-11-21: with no card the slot is listed but every request answers 0x2013 StoreNotAvailable
+        fake = Fake([(".ORF", b"ORF")], [C004, D0DE])
+        fake.storage_error = 2
+        saved = []
+        cam = make_cam(fake, saved)
+        self.assertEqual(cam.shoot(), [])
+        self.assertTrue(saved)
 
     def test_card_found_after_the_event_waits_for_the_card_file(self):
         usb_camera.SHOT_TIMEOUT = 3
