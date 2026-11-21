@@ -391,6 +391,7 @@ class UsbCamera:
         self.allow_write = allow_write
         self.stage = 0
         self._new_files = []
+        self.on_fast_jpeg = None  # server callback(bytes): JPEG of a shot before the card lists it (REQ-F56)
         self.last_jpg = None  # JPG last reported by the camera
         self.last_press = 0.0  # time of the last shutter command (AF also sends 0xC003)
         self.mode_changed_at = None  # set when the mode dial was turned (page reloads values)
@@ -1180,6 +1181,22 @@ class UsbCamera:
                 end = min(end, time.monotonic() + 1.0)
         return False
 
+    def _fast_picture(self):
+        """After a full release: fetch the shot's JPEG (PTP 0x9485) so it can be shown before the card lists it.
+
+        Only the own PTP layer has the call; on libgphoto2 or on any error/empty answer nothing happens
+        and the card path stays the only source.
+        """
+        fetch = getattr(self._c, "omd_get_image", None)
+        if not fetch or not self.on_fast_jpeg:
+            return
+        try:
+            data = self._call(fetch)
+        except Exception:
+            return
+        if data and data[:2] == b"\xff\xd8":
+            self.on_fast_jpeg(data)
+
     def take_new_files(self):
         new = list(dict.fromkeys(self._new_files))
         self._new_files = []
@@ -1216,6 +1233,8 @@ class UsbCamera:
                 self.stage = 0
                 # half press only while zoomed: release without a shot, as OM Capture does (step 6 untested there)
                 self._shutter(OP_RELEASE_NOSHOT if self.loupe_on and not full else OP_RELEASE)
+            if full:
+                self._fast_picture()
             self._events(2.0 if full else 0.2, "quiet" if full else None)
 
     def _read_focus_position(self):
@@ -1291,6 +1310,8 @@ class UsbCamera:
             self._shutter(OP_FULL)
             self._shutter(OP_RELEASE)
             marks.append(("released", time.monotonic() - t0))
+            self._fast_picture()
+            marks.append(("fast picture", time.monotonic() - t0))
             self.af_failed = False
             self._event_log = []
             self._events(SHOT_TIMEOUT, "quiet")

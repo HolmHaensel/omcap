@@ -114,7 +114,7 @@ job = {"name": None, "running": False, "done": 0, "total": 0, "error": None}
 state = {"transfer": "sd", "latest": None, "transfer_error": None,
          "take": None, "movie": None, "resume_live": False, "seen": None, "wifi_field": 41,
          "wifi_af": None, "pressing": False, "indexing": False, "play": None,
-         "last_shot": None}
+         "last_shot": None, "last_shot_jpeg": None, "fast_n": 0}
 
 
 DEVICE_TTL = 30  # seconds; do not query card space and battery on every tick
@@ -174,6 +174,7 @@ def connect(kind):
         threading.Thread(target=wifi_watchdog, args=(c, wifi_watch["gen"]), daemon=True).start()
     elif kind == "usb":
         c = usb_camera.UsbCamera(allow_write=options["allow_write"], backend=options["usb_backend"])
+        c.on_fast_jpeg = remember_fast_shot
         cam, live = c, c.live
         start_index(c)
     else:
@@ -468,6 +469,14 @@ def remember_shot(paths):
     p = newest_jpg(paths)
     if p:
         state["last_shot"] = p
+        state["last_shot_jpeg"] = None  # the card copy takes over from the fast one
+
+
+def remember_fast_shot(data):
+    """USB: JPEG straight from the camera (0x9485), shown at once; shown only, never saved (the card copy is)."""
+    state["last_shot_jpeg"] = data
+    state["last_shot"] = None  # the old card path belongs to the previous shot
+    state["fast_n"] = state.get("fast_n", 0) + 1
 
 
 def captures_dir():
@@ -1002,6 +1011,7 @@ def public_state():
         "lvinfo": live.live_values() if hasattr(live, "live_values") else None,
         # USB: time the mode dial was last turned (the session was rebuilt, values are new)
         "mode_at": getattr(cam, "mode_changed_at", None),
+        "fast_n": state["fast_n"] if conn_type == "usb" and state["last_shot_jpeg"] else 0,
         "loupe": bool(getattr(cam, "loupe_on", False)),  # USB Zoom AF (camera magnification) on
         "loupe_ratio": getattr(cam, "loupe_ratio", 5),
         "loupe_x": getattr(cam, "loupe_x", None), "loupe_y": getattr(cam, "loupe_y", None),  # wanted centre, for pages that follow
@@ -1201,7 +1211,13 @@ class Handler(BaseHTTPRequestHandler):
                 return self.wfile.write(hit[1])
             if u.path == "/api/lastshot":
                 # USB: the camera reports the new files of a shot (Wi-Fi uses /api/newshot)
-                return self._send({"path": state["last_shot"] if conn_type == "usb" else None})
+                usb = conn_type == "usb"
+                return self._send({"path": state["last_shot"] if usb else None,
+                                   "fast": state["fast_n"] if usb and state["last_shot_jpeg"] else None})
+            if u.path == "/api/lastfast":  # USB: the JPEG of the last shot from memory, until the card path is known
+                if conn_type != "usb" or not state["last_shot_jpeg"]:
+                    return self._send({"error": "not found"}, code=404)
+                return self._image(state["last_shot_jpeg"], q)
             if u.path == "/api/exif":
                 return self._send({"exif": picture_info(q["path"])})
             if u.path == "/api/lens":

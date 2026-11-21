@@ -1089,6 +1089,7 @@ $('#popPhoto').onclick=()=>popup('photo');
 
 /* State */
 let leavingPlay=false, wasIndexing=false;
+let fastSeen=0; // USB: last fast picture number shown
 let modeAt; // USB: last mode dial turn seen (state.mode_at); undefined until the first tick
 /* USB reports iAUTO, ART, SCN and PHOTO STORY as P (d006 = 2, tested 2026-11-12); they are shown as P
    (maintainer decision). Only the EXIF of the newest shot tells iAUTO apart (ExposureProgram 5) */
@@ -1156,6 +1157,7 @@ async function tick(){
   if(!st.live&&lvl){lvl=null;lvlShown=null;drawLevel()} // live view stopped: clear the level gauge
   if(modeAt===undefined) modeAt=st.mode_at||null; // first tick after loading: no message for an old turn
   else if(st.mode_at&&st.mode_at!==modeAt){modeAt=st.mode_at;usbShotMode=null;props();msg(tr('msg.modeDial'))} // USB: mode dial turned
+  if(isUsb&&st.fast_n&&st.fast_n!==fastSeen){fastSeen=st.fast_n;showFast()} // REQ-F56: JPEG of the shot before the card lists it
   $('#half').classList.toggle('on',st.stage>=1); $('#half').setAttribute('aria-pressed',st.stage>=1?'true':'false');
   $('#empty').hidden=st.live;
   if(st.live&&!wzLivePrev&&!usbZoom) wzSizeSoon(); wzLivePrev=!!st.live; // live view (re)started: check the zoomed size again (REQ-F55)
@@ -3217,6 +3219,13 @@ async function showLast(before,retry,before2){
   // the camera may still be busy right after the shot: retry a failed thumbnail a few times
   let tries=0; img.onerror=()=>{if(++tries<4) setTimeout(()=>{img.src=src+(src.includes('?')?'&':'?')+'r='+tries},3000)};
   img.src=src;
+}
+async function showFast(){ // USB: thumbnail from the camera's own JPEG; showLast replaces it with the card file
+  let r; try{r=await fetch('/api/lastfast?n='+fastSeen)}catch{return}
+  if(!r.ok) return;
+  const img=$('#lastShot'), url=URL.createObjectURL(await r.blob()), old=img.src;
+  lastOpen=null; img.onerror=null; img.src=url; img.hidden=false; lastShotFade();
+  if(old.startsWith('blob:')) URL.revokeObjectURL(old);
 }
 $('#lastShot').onclick=()=>{
   if(lastOpen) openViewer([lastOpen],0);

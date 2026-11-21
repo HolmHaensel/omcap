@@ -125,6 +125,7 @@ More in [Start and stop](#start-and-stop).
 | HSL color profiles (HSL button, before/after) | ✅ | 🟡 | |
 | Share Order: show, save all, reset | ✅ | – | no USB counterpart known |
 | Erase selected pictures from the card (Select → Erase, JPG and ORF together, asks first) | – | ✅ | no Wi-Fi command; protected pictures are refused by the camera and kept; tested with the own USB layer, libgphoto2 not tested |
+| Fast last-shot picture right after the release (REQ-F56) | already (`getrecview`/`getlastjpg`) | 🟡 | PTP 0x9485 OMD_GetImage, shown before the card lists the file; built, not camera-tested; own USB layer only |
 | Movie length in the single-frame view | ✅ | – | not built for USB |
 
 ### Phone, second monitor and webcam

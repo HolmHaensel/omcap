@@ -35,6 +35,7 @@ OP_DELETE_OBJECT = 0x100B
 OP_PROP_DESC, OP_GET_PROP, OP_SET_PROP = 0x1014, 0x1015, 0x1016
 DPC_LV_SIZE, LV_SIZE_DEFAULT = 0xD06D, 0x04000300  # live view size (w << 16 | h); 0 = live view off
 OP_SHUTTER, OP_LIVEVIEW = 0x9481, 0x9484
+OP_GET_IMAGE = 0x9485  # OMD_GetImage: JPEG of the shot just taken, before the card lists it (traced from OM Capture)
 DPC_CONTROL_MODE = 0xD052  # 1 = PC control, 2 = camera
 
 # Zoom frame AF / Zoom AF (the camera's own magnified live view, E-M1 manual p.56), from OM Capture traces
@@ -417,6 +418,25 @@ class PtpCamera:
                     raise PtpError("PTP 0x%04x answered 0x%04x" % (code, rc), code=rc)
                 n = (length - 12) // 4
                 return payload, struct.unpack_from("<%dI" % n, pkt, 12) if n else ()
+
+    def get_image(self, wait=1.0):
+        """JPEG of the last shot (0x9485, param 1), or b"" when the camera has none (RAW only, no card, not ready).
+
+        The camera answers busy or empty for a moment after the release, so retry for `wait` seconds.
+        Never raises for a camera answer: the caller falls back to the card.
+        """
+        end = time.monotonic() + wait
+        while True:
+            try:
+                data = self.transact(OP_GET_IMAGE, (1,), want_data=True, timeout=1500)[0]
+                if data and data[:2] == b"\xff\xd8":
+                    return data
+            except PtpError as e:
+                if e.code not in (RC_BUSY, None) and e.code > 0:
+                    return b""  # a real refusal (not supported, no object): no retry
+            if time.monotonic() >= end:
+                return b""
+            time.sleep(0.1)
 
     def drain(self):
         """Throw away data left in the pipe by an earlier program or aborted transaction."""

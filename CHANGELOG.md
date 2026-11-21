@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Fast picture after a shot over USB (REQ-F56): the camera's own JPEG (PTP 0x9485) is shown as the last-shot thumbnail about a second after the release, before the card lists the file; the card file takes over and stays the truth. Not camera-tested. Wi-Fi already has this (`getrecview`/`getlastjpg`).
+
 ## 0.7.8 – 2026-11-21
 
 Smooth zoom: over USB the camera's own Zoom AF (×3–×14) with drag, wheel and pinch, over Wi-Fi a smooth screen zoom; peaking that follows the focus ring; Erase over USB; Partial Color ring; Focus Stacking flag over USB.
