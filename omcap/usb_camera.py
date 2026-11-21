@@ -358,6 +358,7 @@ class UsbCamera:
     _last_level = None  # last level gauge reading, returned while a shot, movie or card read holds the camera
     last_press = 0.0  # time of the last shutter command or written setting (see __init__)
     saf_shot = False  # S-AF during the running shot: no focus means no release
+    _fast_empty = 0  # empty 0x9485 answers in a row (RAW only, no card): then only a short probe
     loupe_on = False  # Zoom AF (camera magnification) switched on by the app
     loupe_ratio = 5  # magnification last sent (x)
     loupe_x = loupe_y = None  # wanted zoom centre as last requested (picture fractions, before the x gain)
@@ -1216,12 +1217,17 @@ class UsbCamera:
         fetch = getattr(self._c, "omd_get_image", None)
         if not fetch or not self.on_fast_jpeg or self._no_fast_picture():
             return
+        # after two empty answers in a row (RAW only, no card) only probe briefly, so shots are not held back
+        wait = 1.2 if self._fast_empty < 2 else 0.2
         try:
-            data = self._call(fetch)
+            data = self._call(fetch, wait)
         except Exception:
             return
         if data and data[:2] == b"\xff\xd8":
+            self._fast_empty = 0
             self.on_fast_jpeg(data)
+        else:
+            self._fast_empty += 1
 
     def take_new_files(self):
         new = list(dict.fromkeys(self._new_files))

@@ -53,7 +53,7 @@ class FastPtp(FakePtp):
         super().__init__()
         self.answer = answer
 
-    def get_image(self):
+    def get_image(self, wait=1.2):
         if isinstance(self.answer, Exception):
             raise self.answer
         return self.answer
@@ -80,6 +80,22 @@ class Camera(unittest.TestCase):
             cam, got = cam_with(FastPtp(answer))
             cam._fast_picture()
             self.assertEqual(got, [])
+
+    def test_probe_only_after_empty_answers(self):
+        waits = []
+
+        class Spy(FastPtp):
+            def get_image(self, wait=1.2):
+                waits.append(wait)
+                return super().get_image(wait)
+        cam, got = cam_with(Spy(b""))
+        for _ in range(3):
+            cam._fast_picture()
+        self.assertEqual(waits, [1.2, 1.2, 0.2])   # camera test 2026-11-21: 0.3 s never got the JPEG
+        cam._c._cam().answer = JPEG
+        cam._fast_picture()
+        cam._fast_picture()
+        self.assertEqual(waits[-1], 1.2)           # a delivered picture resets the probe
 
     def test_libgphoto2_layer_skipped(self):
         cam, got = cam_with(FastPtp())

@@ -348,9 +348,9 @@ class Camera:
         return self._ptp
 
     @_wrap
-    def omd_get_image(self):
+    def omd_get_image(self, wait=None):
         """JPEG of the shot just taken (PTP 0x9485), b"" if none. Not a gphoto2 method; libgphoto2 has no such call."""
-        return self._cam().get_image()
+        return self._cam().get_image() if wait is None else self._cam().get_image(wait=wait)
 
     @_wrap
     def get_prop_value(self, code):
