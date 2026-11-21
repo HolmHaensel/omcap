@@ -358,6 +358,8 @@ class UsbCamera:
     _last_level = None  # last level gauge reading, returned while a shot, movie or card read holds the camera
     last_press = 0.0  # time of the last shutter command or written setting (see __init__)
     saf_shot = False  # S-AF during the running shot: no focus means no release
+    _fast_note = ""  # what the last fast picture attempt did (shown in the shot log line)
+    _fast_empty = 0  # empty 0x9485 answers in a row (RAW only, no card): then only a short probe
     loupe_on = False  # Zoom AF (camera magnification) switched on by the app
     loupe_ratio = 5  # magnification last sent (x)
     loupe_x = loupe_y = None  # wanted zoom centre as last requested (picture fractions, before the x gain)
@@ -391,6 +393,7 @@ class UsbCamera:
         self.allow_write = allow_write
         self.stage = 0
         self._new_files = []
+        self.on_fast_jpeg = None  # server callback(bytes): JPEG of a shot before the card lists it (REQ-F60)
         self.last_jpg = None  # JPG last reported by the camera
         self.last_press = 0.0  # time of the last shutter command (AF also sends 0xC003)
         self.mode_changed_at = None  # set when the mode dial was turned (page reloads values)
@@ -1180,6 +1183,63 @@ class UsbCamera:
                 end = min(end, time.monotonic() + 1.0)
         return False
 
+    def _no_fast_picture(self):
+        """True when 0x9485 could hand back the wrong picture: the previous shot's JPEG or one of many frames.
+
+        Self-timer (the camera exposes seconds later), Focus Stacking (one of 8 source frames), movie,
+        Bulb/Time/Composite, and S-AF without focus (no release). An unreadable value does not skip by itself.
+        """
+        if getattr(self, "af_failed", False):
+            return "af failed"
+        def read(name):
+            try:
+                return self._value(name)
+            except Exception:
+                return None
+        drive = read("drivemode")
+        try:
+            if int(float(drive)) & 15 in (4, 5, 6):
+                return "self-timer"
+        except (TypeError, ValueError):
+            pass
+        if str(read("d006")) == "8":
+            return "movie"
+        if LONG_LABELS.get(read("shutterspeed")):
+            return "long exposure"
+        try:
+            return "focus stacking" if self._stacking_on() else ""
+        except Exception:
+            return ""
+
+    def _fast_picture(self):
+        """After a full release: fetch the shot's JPEG (PTP 0x9485) so it can be shown before the card lists it.
+
+        Only the own PTP layer has the call; on libgphoto2 or on any error/empty answer nothing happens
+        and the card path stays the only source.
+        """
+        self._fast_note = ""
+        fetch = getattr(self._c, "omd_get_image", None)
+        if not fetch or not self.on_fast_jpeg:
+            return
+        skip = self._no_fast_picture()
+        if skip:
+            self._fast_note = "skipped: %s" % skip
+            return
+        # after two empty answers in a row (RAW only, no card) only probe briefly, so shots are not held back
+        wait = 1.2 if self._fast_empty < 2 else 0.2
+        try:
+            data = self._call(fetch, wait)
+        except Exception as e:
+            self._fast_note = "error: %s" % e
+            return
+        if data and data[:2] == b"\xff\xd8":
+            self._fast_empty = 0
+            self._fast_note = "delivered"
+            self.on_fast_jpeg(data)
+        else:
+            self._fast_empty += 1
+            self._fast_note = "empty (wait %.1f s)" % wait
+
     def take_new_files(self):
         new = list(dict.fromkeys(self._new_files))
         self._new_files = []
@@ -1216,6 +1276,8 @@ class UsbCamera:
                 self.stage = 0
                 # half press only while zoomed: release without a shot, as OM Capture does (step 6 untested there)
                 self._shutter(OP_RELEASE_NOSHOT if self.loupe_on and not full else OP_RELEASE)
+            if full:
+                self._fast_picture()
             self._events(2.0 if full else 0.2, "quiet" if full else None)
 
     def _read_focus_position(self):
@@ -1291,6 +1353,8 @@ class UsbCamera:
             self._shutter(OP_FULL)
             self._shutter(OP_RELEASE)
             marks.append(("released", time.monotonic() - t0))
+            self._fast_picture()
+            marks.append(("fast picture [%s]" % self._fast_note, time.monotonic() - t0))
             self.af_failed = False
             self._event_log = []
             self._events(SHOT_TIMEOUT, "quiet")
