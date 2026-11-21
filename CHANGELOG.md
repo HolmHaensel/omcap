@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Shoot without a card over USB (REQ-F61): when the camera has no card it offers the picture itself (PTP 0x9495/0x9493 after event 0xC004); the app saves ORF and JPG to the captures folder as `E-M1_YYYYMMDD-HHMMSS.ORF/.JPG`, shows the JPG as last shot and no longer fails after 21 s. With a card nothing changes. Own USB layer only; not camera-tested yet. Wi-Fi already saves to the computer.
 - Fast picture after a shot over USB (REQ-F60): the camera's own JPEG (PTP 0x9485) is shown as the last-shot thumbnail about a second after the release, before the card lists the file; the card file takes over and stays the truth. Camera-tested once without a card (JPEG 0.9 s after the release); with card, RAW-only and held button pending. Own USB layer only (libgphoto2 keeps the card path); independent of the Rec View setting (E-M1 manual p.91); not for self-timer, Focus Stacking, Bulb/Time/Live Composite or movie. Wi-Fi already has this (`getrecview`/`getlastjpg`).
 
 ## 0.7.8 – 2026-11-21

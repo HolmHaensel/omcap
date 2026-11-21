@@ -176,6 +176,7 @@ def connect(kind):
     elif kind == "usb":
         c = usb_camera.UsbCamera(allow_write=options["allow_write"], backend=options["usb_backend"])
         c.on_fast_jpeg = remember_fast_shot
+        c.on_direct_file = save_direct
         cam, live = c, c.live
         start_index(c)
     else:
@@ -604,6 +605,50 @@ def save_capture(path, size=None):
     return dest
 
 
+direct_shot = {"base": None, "t": 0.0, "exts": set()}  # base name of the shot being saved without a card
+
+
+def direct_name(ext, now=None):
+    """Camera-like base name for a picture that comes without a card (E-M1_YYYYMMDD-HHMMSS). ORF and JPG of one
+    shot share it: a new base starts when the extension was seen already or the last file is older than 15 s."""
+    now = time.time() if now is None else now
+    ext = ext.upper()
+    d = direct_shot
+    if d["base"] is None or ext in d["exts"] or now - d["t"] > 15:
+        d.update(base=time.strftime("E-M1_%Y%m%d-%H%M%S", time.localtime(now)), exts=set())
+    d["exts"].add(ext)
+    d["t"] = now
+    return d["base"] + ext
+
+
+def save_direct(data, ext):
+    """USB without a card: store a picture the camera handed over (REQ-F61). Same folder and prefix scheme as
+    save_capture, written to a temp file and renamed; never overwrites. Returns the path."""
+    ext = ext if re.fullmatch(r"\.[A-Za-z0-9]{1,4}", ext or "") else ".BIN"
+    folder = captures_dir()
+    os.makedirs(folder, exist_ok=True)
+    name = direct_name(ext)
+    if save_cfg["scheme"] == "prefix" and save_cfg["prefix"]:
+        name = save_cfg["prefix"] + name  # "datetime" adds nothing: the name has the time already
+    stem, ext = os.path.splitext(name)
+    dest, n = os.path.join(folder, stem + ext), 0
+    while os.path.exists(dest):
+        n += 1
+        dest = os.path.join(folder, "%s-%d%s" % (stem, n, ext))
+    tmp = dest + ".part"
+    with open(tmp, "wb") as f:
+        f.write(data)
+    os.replace(tmp, dest)
+    if hsl_auto["enabled"] and ext.lower() in (".jpg", ".jpeg", ".orf"):
+        hsl_auto_run(dest)
+    if ext.lower() in (".jpg", ".jpeg"):
+        remember_fast_shot(data)  # shown as the last shot; there is no card copy to take over
+        state["latest"] = os.path.basename(dest)
+    elif state["latest"] is None or not state["latest"].lower().endswith((".jpg", ".jpeg")):
+        state["latest"] = os.path.basename(dest)
+    return dest
+
+
 def card_snapshot():
     if state["transfer"] != "both" or conn_type == "usb":
         return None
@@ -631,6 +676,8 @@ def shot(seen):
     new = cam.shoot()
     invalidate_device()  # card space has changed
     if conn_type == "usb":  # USB reports the new files directly
+        if not new:
+            return cam.take_direct_files()  # no card: saved to the computer already (REQ-F61)
         remember_shot(new)
         if state["transfer"] == "both":
             state["transfer_error"] = None
@@ -1303,6 +1350,9 @@ class Handler(BaseHTTPRequestHandler):
             state["resume_live"] = False
             if stage == 0:
                 new = cam.take_new_files()
+                saved = cam.take_direct_files()  # no card: pictures saved straight to the computer (REQ-F61)
+                if saved:
+                    return {"saved": saved}
                 remember_shot(new)
                 if state["transfer"] == "both":
                     for p in jpg_last(new):
@@ -1390,7 +1440,9 @@ class Handler(BaseHTTPRequestHandler):
         elif path == "/api/shoot":
             ensure_idle()
             with capture():
-                shot(card_snapshot())
+                saved = shot(card_snapshot())
+            if saved:
+                return {"saved": saved}
         elif path == "/api/shutter":
             state["pressing"] = True
             try:

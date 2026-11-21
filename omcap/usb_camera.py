@@ -93,6 +93,11 @@ DIAL_QUIET = 2 * DIAL_EVERY
 FOCUS_WAIT = 2.0
 FOCUS_POSITION_WAIT = 1.5
 SHOT_TIMEOUT = 20
+# Direct store (no card): after a shot the camera sends 0xC004 (DirectStoreImage) and property d0de changes;
+# then the picture is read with PTP 0x9495/0x9493 (REQ-F61). Events as the own PTP layer words them.
+DIRECT_EVENT = re.compile(r"PTP Event c004\b|PTP Property d0de changed", re.I)
+DIRECT_GRACE = 0.5  # after the event: a card file may still be announced (then the card path stays the truth)
+DIRECT_NEXT_WAIT = 2.0  # seconds without a new event after a file: no further file (ORF then JPG follow at once)
 
 
 def _gp():
@@ -359,6 +364,7 @@ class UsbCamera:
     last_press = 0.0  # time of the last shutter command or written setting (see __init__)
     saf_shot = False  # S-AF during the running shot: no focus means no release
     _fast_note = ""  # what the last fast picture attempt did (shown in the shot log line)
+    _direct_hit = _direct_wait = False  # 0xC004 seen / waiting for it (direct store, REQ-F61)
     _fast_empty = 0  # empty 0x9485 answers in a row (RAW only, no card): then only a short probe
     loupe_on = False  # Zoom AF (camera magnification) switched on by the app
     loupe_ratio = 5  # magnification last sent (x)
@@ -393,6 +399,8 @@ class UsbCamera:
         self.allow_write = allow_write
         self.stage = 0
         self._new_files = []
+        self.on_direct_file = None  # server callback(bytes, ext) -> saved path: picture read without a card (REQ-F61)
+        self.direct_paths = []  # paths saved for the shot just taken
         self.on_fast_jpeg = None  # server callback(bytes): JPEG of a shot before the card lists it (REQ-F60)
         self.last_jpg = None  # JPG last reported by the camera
         self.last_press = 0.0  # time of the last shutter command (AF also sends 0xC003)
@@ -1163,6 +1171,8 @@ class UsbCamera:
             self._pending.append(path)
         elif kind == self.gp.GP_EVENT_UNKNOWN:
             self._event_log.append(str(data))
+            if shot and DIRECT_EVENT.search(str(data)):
+                self._direct_hit = True
 
     def _events(self, seconds, stop=None):
         """Collect events without blocking the camera in between."""
@@ -1175,6 +1185,8 @@ class UsbCamera:
                 return True
             if self._new_files and kind == self.gp.GP_EVENT_TIMEOUT and stop == "quiet":
                 return True
+            if stop == "quiet" and self._direct_wait and self._direct_hit and not self._new_files:
+                return True  # no card: the camera offers the picture itself
             if stop == "quiet" and self.saf_shot and not self._new_files and kind == self.gp.GP_EVENT_UNKNOWN \
                     and parse_af_result(str(data)) == (False, None):
                 # no focus in S-AF: the camera does not release (Release Priority S is off by default); C-AF
@@ -1240,6 +1252,59 @@ class UsbCamera:
             self._fast_empty += 1
             self._fast_note = "empty (wait %.1f s)" % wait
 
+    def _direct_capable(self):
+        """The server wants direct files and the backend can read them (own PTP layer, not libgphoto2)."""
+        return bool(self.on_direct_file and getattr(self._c, "omd_direct_info", None))
+
+    def _card_present(self):
+        """True when the camera lists a storage with a size (a card). Unknown counts as no card, so a lost
+        answer cannot suppress the direct store; it only costs a duplicate if a card file shows up as well."""
+        try:
+            return free_kbytes(self._call(self._c.get_storageinfo)) is not None
+        except Exception:
+            return False
+
+    def _direct_store(self):
+        """No card file came but the camera announced the picture: read it (ORF, then JPG) and hand each file
+        to `on_direct_file`. Own PTP layer only. Raises CameraError on a failed read (what was saved stays)."""
+        self._direct_wait = False
+        if not (self._direct_hit and self._direct_capable()):
+            return
+        self._events(DIRECT_GRACE)  # a card file announced right after 0xC004 means the card is the truth
+        if self._new_files or self._card_present():
+            return
+        try:
+            while True:
+                self._drain_events()  # events of the file in hand (c004, d0de) must not count as "next file"
+                info = self._call(self._c.omd_direct_info)
+                if not info:
+                    break
+                t0 = time.monotonic()
+                data = self._call(self._c.omd_direct_fetch, info)
+                self._direct_hit = False
+                self.direct_paths.append(self.on_direct_file(data, info["ext"]))
+                print("USB direct store: %s %.1f MB in %.1f s" % (info["ext"], len(data) / 1e6, time.monotonic() - t0),
+                      flush=True)
+                if not self._events(DIRECT_NEXT_WAIT, DIRECT_EVENT):
+                    break  # no further file announced
+        except (CameraError, OSError) as e:
+            if not self.direct_paths:  # nothing saved: a clean failure for the caller
+                raise CameraError("Picture could not be read from the camera (no card): %s" % e)
+            print("USB direct store: stopped after %d file(s): %s" % (len(self.direct_paths), e), flush=True)
+        self._direct_hit = False
+
+    def _drain_events(self):
+        """Take every event that is already waiting (own layer: cheap, about 40 ms when idle)."""
+        for _ in range(20):
+            kind, data = self._call(self._c.wait_for_event, 40)
+            self._on_event(kind, data)
+            if kind == self.gp.GP_EVENT_TIMEOUT:
+                return
+
+    def take_direct_files(self):
+        done, self.direct_paths = self.direct_paths, []
+        return done
+
     def take_new_files(self):
         new = list(dict.fromkeys(self._new_files))
         self._new_files = []
@@ -1278,7 +1343,17 @@ class UsbCamera:
                 self._shutter(OP_RELEASE_NOSHOT if self.loupe_on and not full else OP_RELEASE)
             if full:
                 self._fast_picture()
+                self.direct_paths, self._direct_hit, self._direct_wait = [], False, True
             self._events(2.0 if full else 0.2, "quiet" if full else None)
+            if full:
+                self._hold_add(1)  # no live view frames between the pieces of a picture
+                try:
+                    if not (self._new_files or self._direct_hit) and self._direct_capable() and not self._card_present():
+                        self._events(SHOT_TIMEOUT - 2.0, "quiet")  # no card: the camera takes longer than 2 s
+                    self._direct_store()
+                finally:
+                    self._direct_wait = False
+                    self._hold_add(-1)
 
     def _read_focus_position(self):
         """Focus position in the 1280x960 grid, valid only during half press.
@@ -1357,10 +1432,12 @@ class UsbCamera:
             marks.append(("fast picture [%s]" % self._fast_note, time.monotonic() - t0))
             self.af_failed = False
             self._event_log = []
+            self.direct_paths, self._direct_hit, self._direct_wait = [], False, True
             self._events(SHOT_TIMEOUT, "quiet")
+            self._direct_store()
             if stacking:  # 8 frames (16 files) come first, the merged picture last
                 self._events(max(0.0, STACK_WAIT - (time.monotonic() - t0)))
-            marks.append(("files", time.monotonic() - t0))
+            marks.append(("files" if not self.direct_paths else "direct store", time.monotonic() - t0))
             if self._new_files:
                 self._events(1.5)  # the second format (ORF or JPG) follows shortly after
         finally:
@@ -1368,8 +1445,10 @@ class UsbCamera:
             self.shooting = False
             marks.append(("done", time.monotonic() - t0))
             print("USB shot: " + ", ".join("%s %.1f s" % m for m in marks)
-                  + ("" if self._new_files else ", events " + ("; ".join(self._event_log[-6:]) or "none")), flush=True)
+                  + ("" if self._new_files or self.direct_paths else ", events " + ("; ".join(self._event_log[-6:]) or "none")), flush=True)
         new = self.take_new_files()
+        if not new and self.direct_paths:
+            return []  # saved by the direct store: the caller reads take_direct_files()
         if not new:
             if getattr(self, "af_failed", False):
                 raise CameraError("Camera did not release: no focus found (S-AF releases only in focus)")
