@@ -1214,7 +1214,8 @@ class UsbCamera:
                     self._shutter(OP_SECOND_BACK)
             finally:
                 self.stage = 0
-                self._shutter(OP_RELEASE)
+                # half press only while zoomed: release without a shot, as OM Capture does (step 6 untested there)
+                self._shutter(OP_RELEASE_NOSHOT if self.loupe_on and not full else OP_RELEASE)
             self._events(2.0 if full else 0.2, "quiet" if full else None)
 
     def _read_focus_position(self):
