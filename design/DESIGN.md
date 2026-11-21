@@ -140,6 +140,8 @@ recording a movie, read only, Wi-Fi drop-out (last good frame kept, "No signal f
   (LV super control panel, self-timer, Take picture 76 px, Press halfway, last shot).
 - **Portrait:** header, image (full width), value chips, one value editor (scale), self-timer,
   LV super control panel button; bottom row last shot · Take picture 84 px · Press halfway.
+- **Phone header (≤ 700 px):** Playback, ⋯ and Turn off camera; ⋯ opens Reset camera, Disconnect and
+  Quit E-M1 Capture (user 2026-11-21: reachable, but out of the way).
 
 ## Playback and picture info
 
