@@ -1278,9 +1278,10 @@ class UsbCamera:
         try:
             return free_kbytes(self._call(self._c.get_storageinfo)) is not None
         except Exception as e:
-            # no card: the camera still lists its slot, but every request to it answers 0x2013 StoreNotAvailable
-            # (card index, no-card test 2026-11-21); that is "no card", not "unknown"
-            return False if "0x2013" in str(e) else None
+            # no card: the camera still lists a slot (id 0x10000) but every request to it is refused: 0x2008
+            # InvalidStorageID (GetStorageInfo / GetObjectHandles) or 0x2013 StoreNotAvailable (no-card test
+            # 2026-11-21); that is "no card", not "unknown"
+            return False if any(c in str(e) for c in ("0x2008", "0x2013")) else None
 
     def _pre_release(self, stacking=None):
         """Decide ONCE, while the camera is idle, whether this shot comes without a card (then `_direct_wait`
