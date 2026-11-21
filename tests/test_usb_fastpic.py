@@ -133,17 +133,93 @@ class Server(unittest.TestCase):
             server.save_capture = old
         self.assertEqual(saved, [])
 
-    def test_wifi_state_unaffected(self):
-        old = server.conn_type
-        server.conn_type = "wifi"
+    def test_wifi_state_has_no_fast_picture(self):
+        class Stub:
+            stage = 0
+            lvqty = "0320x0240"
+
+            def __getattr__(self, n):
+                return None
+
+        class Live:
+            running, age = False, 0
+        old = (server.cam, server.live, server.conn_type)
+        server.cam, server.live, server.conn_type = Stub(), Live(), "wifi"
         try:
-            server.state["last_shot_jpeg"] = JPEG
-            server.state["fast_n"] = 3
-            self.assertNotIn("usb", server.conn_type)
-            # public_state reports a fast picture only over USB
-            self.assertEqual(server.state["fast_n"] if server.conn_type == "usb" else 0, 0)
+            server.state["last_shot_jpeg"], server.state["fast_n"] = JPEG, 3
+            self.assertEqual(server.public_state()["fast_n"], 0)
+            server.conn_type = "usb"
+            self.assertEqual(server.public_state()["fast_n"], 3)
         finally:
-            server.conn_type = old
+            server.cam, server.live, server.conn_type = old
+
+    def test_disconnect_clears_picture(self):
+        class Stub:
+            def __getattr__(self, n):
+                return lambda *a, **k: None
+
+        class L:
+            running = False
+
+            def stop(self):
+                pass
+        old = (server.cam, server.live, server.conn_type)
+        server.cam, server.live, server.conn_type = Stub(), L(), "usb"
+        server.state["last_shot_jpeg"] = JPEG
+        try:
+            server.disconnect()
+            self.assertIsNone(server.state["last_shot_jpeg"])
+        finally:
+            server.cam, server.live, server.conn_type = old
+
+
+class Guards(unittest.TestCase):
+    def cam(self, **values):
+        cam, got = cam_with(FastPtp())
+        vals = {"drivemode": "1", "d006": "3", "shutterspeed": "1/250", "d0cb": "0", "d0ce": "2", **values}
+
+        def value(n):
+            if vals[n] == "ERR":
+                raise usb_camera.CameraError("x")
+            return vals[n]
+        cam._value = value
+        return cam, got
+
+    def test_normal_shot_delivers(self):
+        cam, got = self.cam()
+        cam._fast_picture()
+        self.assertEqual(got, [JPEG])
+
+    def test_unreadable_value_does_not_skip(self):
+        cam, got = self.cam(drivemode="ERR", d006="ERR", shutterspeed="ERR")
+        cam._fast_picture()
+        self.assertEqual(got, [JPEG])
+
+    def test_skipped_cases(self):
+        for name, v in (("drivemode", "4"), ("drivemode", "5"), ("drivemode", "6"), ("drivemode", "20"),
+                        ("d006", "8"), ("shutterspeed", "Bulb"), ("shutterspeed", "Time"),
+                        ("shutterspeed", "Composite")):
+            cam, got = self.cam(**{name: v})
+            cam._fast_picture()
+            self.assertEqual(got, [], (name, v))
+
+    def test_stacking_skipped(self):
+        cam, got = self.cam(d0cb="1", d0ce="1")
+        cam._fast_picture()
+        self.assertEqual(got, [])
+
+    def test_af_failed_skipped(self):
+        cam, got = self.cam()
+        cam.af_failed = True
+        cam._fast_picture()
+        self.assertEqual(got, [])
+
+    def test_no_camera_call_when_skipped(self):
+        fake = FastPtp()
+        fake.get_image = lambda: self.fail("must not ask")
+        cam, got = cam_with(fake)
+        cam._value = lambda n: "4" if n == "drivemode" else "1"
+        cam._fast_picture()
 
 
 if __name__ == "__main__":

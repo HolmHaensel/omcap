@@ -125,7 +125,7 @@ More in [Start and stop](#start-and-stop).
 | HSL color profiles (HSL button, before/after) | ✅ | 🟡 | |
 | Share Order: show, save all, reset | ✅ | – | no USB counterpart known |
 | Erase selected pictures from the card (Select → Erase, JPG and ORF together, asks first) | – | ✅ | no Wi-Fi command; protected pictures are refused by the camera and kept; tested with the own USB layer, libgphoto2 not tested |
-| Fast last-shot picture right after the release (REQ-F60) | already (`getrecview`/`getlastjpg`) | 🟡 | PTP 0x9485 OMD_GetImage, shown before the card lists the file; built, not camera-tested; own USB layer only |
+| Fast last-shot picture right after the release (REQ-F60) | ✅ | 🟡 | Wi-Fi: `getrecview`/`getlastjpg`. USB: PTP 0x9485 OMD_GetImage, shown before the card lists the file; camera-tested once without a card: JPEG 0.9 s after the release; with card, RAW-only, held button pending; own USB layer only (libgphoto2 keeps the card path); independent of the Rec View setting (E-M1 manual p.91); not for self-timer, Focus Stacking, Bulb/Time/Live Composite, movie |
 | Movie length in the single-frame view | ✅ | – | not built for USB |
 
 ### Phone, second monitor and webcam

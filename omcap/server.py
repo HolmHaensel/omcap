@@ -165,6 +165,7 @@ def connections():
 def connect(kind):
     global cam, live, conn_type
     disconnect()
+    state["last_shot_jpeg"] = None  # never show a picture of an earlier session
     if kind == "wifi":
         c = Camera(options["host"], allow_write=options["allow_write"])
         c.features = WIFI_FEATURES
@@ -218,7 +219,8 @@ def disconnect():
     movtime_cache.clear()
     state.update(play=None, indexing=False)
     state.update(transfer="sd", latest=None, transfer_error=None, take=None, movie=None,
-                 resume_live=False, seen=None, wifi_field=41, wifi_af=None, last_shot=None)
+                 resume_live=False, seen=None, wifi_field=41, wifi_af=None, last_shot=None,
+                 last_shot_jpeg=None)
 
 
 def af_area():

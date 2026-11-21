@@ -1181,6 +1181,32 @@ class UsbCamera:
                 end = min(end, time.monotonic() + 1.0)
         return False
 
+    def _no_fast_picture(self):
+        """True when 0x9485 could hand back the wrong picture: the previous shot's JPEG or one of many frames.
+
+        Self-timer (the camera exposes seconds later), Focus Stacking (one of 8 source frames), movie,
+        Bulb/Time/Composite, and S-AF without focus (no release). An unreadable value does not skip by itself.
+        """
+        if getattr(self, "af_failed", False):
+            return True
+        def read(name):
+            try:
+                return self._value(name)
+            except Exception:
+                return None
+        drive = read("drivemode")
+        try:
+            if int(float(drive)) & 15 in (4, 5, 6):
+                return True
+        except (TypeError, ValueError):
+            pass
+        if str(read("d006")) == "8" or LONG_LABELS.get(read("shutterspeed")):
+            return True
+        try:
+            return self._stacking_on()
+        except Exception:
+            return False
+
     def _fast_picture(self):
         """After a full release: fetch the shot's JPEG (PTP 0x9485) so it can be shown before the card lists it.
 
@@ -1188,7 +1214,7 @@ class UsbCamera:
         and the card path stays the only source.
         """
         fetch = getattr(self._c, "omd_get_image", None)
-        if not fetch or not self.on_fast_jpeg:
+        if not fetch or not self.on_fast_jpeg or self._no_fast_picture():
             return
         try:
             data = self._call(fetch)

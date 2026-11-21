@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- Fast picture after a shot over USB (REQ-F60): the camera's own JPEG (PTP 0x9485) is shown as the last-shot thumbnail about a second after the release, before the card lists the file; the card file takes over and stays the truth. Not camera-tested. Wi-Fi already has this (`getrecview`/`getlastjpg`).
+- Fast picture after a shot over USB (REQ-F60): the camera's own JPEG (PTP 0x9485) is shown as the last-shot thumbnail about a second after the release, before the card lists the file; the card file takes over and stays the truth. Camera-tested once without a card (JPEG 0.9 s after the release); with card, RAW-only and held button pending. Own USB layer only (libgphoto2 keeps the card path); independent of the Rec View setting (E-M1 manual p.91); not for self-timer, Focus Stacking, Bulb/Time/Live Composite or movie. Wi-Fi already has this (`getrecview`/`getlastjpg`).
 
 ## 0.7.8 – 2026-11-21
 

@@ -419,7 +419,7 @@ class PtpCamera:
                 n = (length - 12) // 4
                 return payload, struct.unpack_from("<%dI" % n, pkt, 12) if n else ()
 
-    def get_image(self, wait=1.0):
+    def get_image(self, wait=0.3):
         """JPEG of the last shot (0x9485, param 1), or b"" when the camera has none (RAW only, no card, not ready).
 
         The camera answers busy or empty for a moment after the release, so retry for `wait` seconds.

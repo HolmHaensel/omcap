@@ -1089,7 +1089,7 @@ $('#popPhoto').onclick=()=>popup('photo');
 
 /* State */
 let leavingPlay=false, wasIndexing=false;
-let fastSeen=0; // USB: last fast picture number shown
+let fastSeen; // USB: last fast picture number shown
 let modeAt; // USB: last mode dial turn seen (state.mode_at); undefined until the first tick
 /* USB reports iAUTO, ART, SCN and PHOTO STORY as P (d006 = 2, tested 2026-11-12); they are shown as P
    (maintainer decision). Only the EXIF of the newest shot tells iAUTO apart (ExposureProgram 5) */
@@ -1157,7 +1157,8 @@ async function tick(){
   if(!st.live&&lvl){lvl=null;lvlShown=null;drawLevel()} // live view stopped: clear the level gauge
   if(modeAt===undefined) modeAt=st.mode_at||null; // first tick after loading: no message for an old turn
   else if(st.mode_at&&st.mode_at!==modeAt){modeAt=st.mode_at;usbShotMode=null;props();msg(tr('msg.modeDial'))} // USB: mode dial turned
-  if(isUsb&&st.fast_n&&st.fast_n!==fastSeen){fastSeen=st.fast_n;showFast()} // REQ-F60: JPEG of the shot before the card lists it
+  if(fastSeen===undefined) fastSeen=st.fast_n||0; // first tick after loading: an old shot is not new
+  else if(isUsb&&st.fast_n&&st.fast_n!==fastSeen){fastSeen=st.fast_n;showFast()} // REQ-F60: JPEG of the shot before the card lists it
   $('#half').classList.toggle('on',st.stage>=1); $('#half').setAttribute('aria-pressed',st.stage>=1?'true':'false');
   $('#empty').hidden=st.live;
   if(st.live&&!wzLivePrev&&!usbZoom) wzSizeSoon(); wzLivePrev=!!st.live; // live view (re)started: check the zoomed size again (REQ-F55)
