@@ -1545,8 +1545,9 @@ class Handler(BaseHTTPRequestHandler):
             ensure_idle()
             with capture():
                 saved = shot(card_snapshot())
-            if saved:
-                return {"saved": saved}
+            note = "stackOne" if conn_type == "usb" and getattr(cam, "stack_note", None) else None
+            if saved or note:
+                return {"saved": saved or [], "note": note}
         elif path == "/api/shutter":
             state["pressing"] = True
             try:

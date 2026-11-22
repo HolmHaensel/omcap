@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- USB Focus Stacking: sets and restores Bracketing (d0a6); one-frame shot ends early with a note (REQ-F69). USB-tested.
+
 ## 0.7.9 – 2026-11-22
 
 - Save to: click the Folder field for the folder dialog; one "Copy to computer" switch; short path; HSL hint (REQ-F62). USB-tested.
