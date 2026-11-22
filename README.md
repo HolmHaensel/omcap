@@ -99,7 +99,7 @@ More in [Start and stop](#start-and-stop).
 | M mode quick select: BULB, LIVE TIME, LIVECOMP | ✅ | ✅ | |
 | Movie: Start/Stop recording, movie shooting mode P/A/S/M | ✅ | ✅ | Wi-Fi switches to Movie mode (movie record mode cannot be changed over Wi-Fi); USB works like the REC button (not in PHOTO STORY and some SCN modes); movie settings over USB not built |
 | Time lapse, AE BKT | 🟡 | ✅ | |
-| Switch "Copy to computer" (the camera always writes to the card); save folder and file names | ✅ | 🟡 | not tested over USB. "Choose folder ..." opens the system folder dialog (both connections, on the computer only, REQ-F62). USB without a card: no switch, note "No card: photos go to the computer" (REQ-F62, not camera-tested). Wi-Fi: always the switch (the camera always needs a card). Files stored without a card are named `E-M1_<time>`: the prefix scheme applies, "datetime" adds nothing, the original name does not exist |
+| Switch "Copy to computer" (the camera always writes to the card); save folder and file names | ✅ | ✅ | USB-tested 2026-11-22 (card: copy; no card: direct store; card change). A click into the Folder field opens the system folder dialog (on the computer only; a phone over `--lan` types the path; Windows/Linux untried, REQ-F62). USB without a card: no switch, note "No card: photos go to the computer". Wi-Fi: always the switch (the camera always needs a card). Files stored without a card are named `E-M1_<time>`: the prefix scheme applies, "datetime" adds nothing, the original name does not exist |
 
 ### Camera settings
 

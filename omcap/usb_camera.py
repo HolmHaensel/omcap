@@ -474,7 +474,9 @@ class UsbCamera:
     def reopen(self, reason="?"):
         """Rebuild the session; True if the camera answered again."""
         with self._lock:
-            return self._reopen_locked(reason)
+            ok = self._reopen_locked(reason)
+        self._settle_card()
+        return ok
 
     def reopen_if_idle(self, reason):
         """Rebuild the session unless a shot or card read started meanwhile (checked under the lock)."""
@@ -482,7 +484,8 @@ class UsbCamera:
             if self.hold or self.stage:
                 return False
             self._reopen_locked(reason)
-            return True
+        self._settle_card()
+        return True
 
     def _reopen_locked(self, reason):
         # logged: a rebuilt session drops live view for ~9 s and loses libgphoto2's file index
@@ -497,7 +500,7 @@ class UsbCamera:
             self._loupe_off_locked()  # a magnified view outlives the session; the page shows it off
             self._apply_lv_size_locked()  # keep the chosen size after a rebuilt session
             self._resync_files_locked()
-            self.card = self._card_state_settled()  # a card may have been put in or taken out meanwhile
+            self._card_due = True  # a card may have been put in or taken out: read after the lock (_settle_card)
             self.gone = False  # also after reload (refresh) or a rebuild without live view
             return True
         except (CameraError, self.gp.GPhoto2Error):
@@ -685,7 +688,7 @@ class UsbCamera:
 
     def free_bytes(self):
         """Free card space; also keeps the card flag current: right after a connect the camera can answer
-        0x2013 for a moment although a card is in (USB test 2026-11-23), and that must not stick."""
+        0x2013 for a moment although a card is in (USB test 2026-11-22), and that must not stick."""
         try:
             kb = free_kbytes(self._call(self._c.get_storageinfo))
         except Exception as e:
@@ -1309,6 +1312,14 @@ class UsbCamera:
             time.sleep(pause)
             state = self._card_state()
         return state
+
+    _card_due = False
+
+    def _settle_card(self):
+        """After a rebuilt session, outside the camera lock: the tries may sleep up to 3 s without a card."""
+        if self._card_due:
+            self._card_due = False
+            self.card = self._card_state_settled()
 
     def refresh_card(self):
         """Read the card state once and keep it: the page asks often, the camera must not be polled for it.

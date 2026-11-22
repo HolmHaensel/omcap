@@ -168,11 +168,7 @@ button:disabled{color:var(--disabled);opacity:.6;cursor:not-allowed}
 #roProps{margin-top:var(--s2)}
 #panels .row label:has(input[type=text]),#panels .row label:has(select#svScheme){flex:1;min-width:0}
 #panels input[type=text]{width:100%;min-width:0}
-#svPrefix{width:8em;align-self:flex-end}
-/* field label: small grey text above the input, like "Self-timer" and the LV super control panel (user 2026-11-23) */
-.row .field,.field{display:flex;flex-direction:column;align-items:flex-start;text-align:left;gap:var(--s1)}
-.field>input{align-self:stretch}
-.field>span:first-child{font-size:var(--fs-label);color:var(--muted)}
+#svPrefix{width:8em}
 #svInfo{font-size:var(--fs-label);margin-bottom:var(--s2);overflow-wrap:anywhere}
 .na{border:1px dashed var(--line-strong)!important;color:var(--disabled)!important;background:transparent!important;cursor:not-allowed}
 .na *{color:var(--disabled)!important;cursor:not-allowed}
@@ -558,10 +554,10 @@ body.webcam{cursor:none;display:flex;align-items:center;justify-content:center}
     </div>
     <div class="mut hint" id="trNoCardNote" data-i18n="transfer.noCardNote" hidden>No card: photos go to the computer</div>
     <div class="row">
-      <label class="field"><span data-i18n="save.folder">Folder</span><input id="svDir" type="text" size="34" placeholder="~/Pictures/omcap"></label>
+      <label><span data-i18n="save.folder">Folder</span> <input id="svDir" type="text" size="34" placeholder="~/Pictures/omcap"></label>
     </div>
     <div class="row">
-      <label class="field"><span data-i18n="save.scheme">Names</span>
+      <label><span data-i18n="save.scheme">Names</span>
         <select id="svScheme">
           <option value="original" data-i18n="save.original">Original name</option>
           <option value="datetime" data-i18n="save.datetime">Date + time + name</option>
@@ -1196,7 +1192,7 @@ async function tick(){
   $('#jobRow').hidden=!j.name; $('#jobStop').hidden=!j.running;
   $('#takeInfo').textContent=st.take!=null?clock(st.take):'';
   const rec=st.movie!=null;
-  $('#movStart').hidden=rec; $('#movStop').hidden=!rec;
+  $('#movStart').hidden=rec||trNoCard; $('#movStop').hidden=!rec; // a movie needs a card (USB without one: hidden)
   $('#movTime').textContent=rec?tr('movie.time',{t:clock(st.movie)}):'';
   $('#trErr').textContent=st.transfer_error||st.hsl_error||'';
   applyTransferView(st);
@@ -1256,7 +1252,7 @@ const FEATURES={
   aspect:{show:inMode('P','A','S','M')}, stabilizer:{show:inMode('P','A','S','M')},
   facepriority:{show:inMode('P','A','S','M')},
   // Focus Stacking (USB d0cb, FW 4.x): Bracketing is only in P/A/S/M (manual p.82, 174)
-  focusstacking:{show:inMode('P','A','S','M')},
+  focusstacking:{show:p=>inMode('P','A','S','M')(p)&&!trNoCard}, // the camera merges on the card (refused without one)
   colorphase:{show:p=>p.takemode.value==='ART'?p.artfilter.value==='partcolor':['P','A','S','M'].includes(p.takemode.value)&&p.colortone.value==='partcolor'},
 };
 let lastProps=null,propsFailed=false;
@@ -3380,7 +3376,7 @@ function showSaveCfg(c){
 function transferView(usb,card,pref){
   return {noCard:usb&&card===false,checked:pref==='both'};
 }
-let trNoCard=false;
+var trNoCard=false; // var: read by updates that can run before this line
 function applyTransferView(st){
   const v=transferView(isUsb,st.card,st.transfer); trNoCard=v.noCard;
   $('#trCopyLbl').hidden=v.noCard; $('#trNoCardNote').hidden=!v.noCard;
@@ -3400,7 +3396,8 @@ if(isLocalPage()){
     try{const j=await api('/api/pickfolder',{});
       if(!j.dir) return; // cancelled
       setDir(j.dir); d.blur(); svSave()}
-    catch(e){msg(e.message,true)}
+    catch(e){msg(e.message,true); // no dialog on this computer (e.g. Linux without zenity): type the path instead
+      d.readOnly=false; d.style.cursor=''; d.onclick=null; d.value=d.dataset.full||d.value; d.onchange=svSave; d.focus()}
   };
 }else $('#svDir').onchange=svSave;
 $('#svScheme').onchange=()=>{const pre=$('#svScheme').value==='prefix'; $('#svPrefix').hidden=!pre;

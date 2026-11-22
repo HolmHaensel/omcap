@@ -3,6 +3,7 @@ import json
 import os
 import shutil
 import subprocess
+import threading
 import unittest
 from pathlib import Path
 from email.message import Message
@@ -351,13 +352,12 @@ class HintSize(unittest.TestCase):
 
 
 class FieldLabels(unittest.TestCase):
-    def test_folder_and_names_labels_sit_above_in_grey(self):
-        # user 2026-11-23: labels like everywhere in the app – small, grey, above the field
+    def test_folder_and_names_labels_like_the_rest(self):
+        # user 2026-11-22: labels as everywhere else – normal size and colour, in front of the field
         h = Path(HTML).read_text(encoding="utf-8")
-        self.assertIn('<label class="field"><span data-i18n="save.folder">Folder</span>', h)
-        self.assertIn('<label class="field"><span data-i18n="save.scheme">Names</span>', h)
-        self.assertIn(".field>span:first-child{font-size:var(--fs-label);color:var(--muted)}", h)
-
+        self.assertIn('<label><span data-i18n="save.folder">Folder</span> <input id="svDir"', h)
+        self.assertIn('<label><span data-i18n="save.scheme">Names</span>', h)
+        self.assertNotIn(".field>span:first-child", h)
 
 class CardSettle(unittest.TestCase):
     def cam(self, states):
@@ -380,3 +380,34 @@ class CardSettle(unittest.TestCase):
         c = self.cam([True])
         self.assertIs(c._card_state_settled(), True)
         c._card_state.assert_called_once()
+
+
+class CardReviewFixes(unittest.TestCase):
+    def test_settle_runs_after_the_lock(self):
+        c = usb_camera.UsbCamera.__new__(usb_camera.UsbCamera)
+        c._lock = threading.Lock()
+        seen = []
+        c._card_state_settled = lambda: seen.append(c._lock.locked()) or True
+
+        def reopen_locked(reason):
+            c._card_due = True
+            return True
+        c._reopen_locked = reopen_locked
+        self.assertTrue(c.reopen("test"))
+        self.assertEqual(seen, [False])  # read without holding the camera lock
+        self.assertIs(c.card, True)
+
+    def test_failed_release_clears_the_card_read(self):
+        saved = (server.cam, server.conn_type)
+        self.addCleanup(lambda: setattr(server, "cam", saved[0]) or setattr(server, "conn_type", saved[1]))
+        server.conn_type = "usb"
+        server.cam = mock.Mock(shoot=mock.Mock(side_effect=usb_camera.CameraError("x")), _card_read=True)
+        with self.assertRaises(usb_camera.CameraError):
+            server.shot(None)
+        self.assertIs(server.cam._card_read, False)
+
+    def test_no_card_hides_focus_stacking_and_rec(self):
+        h = Path(HTML).read_text(encoding="utf-8")
+        self.assertIn("focusstacking:{show:p=>inMode('P','A','S','M')(p)&&!trNoCard}", h)
+        self.assertIn("$('#movStart').hidden=rec||trNoCard;", h)
+        self.assertIn("d.readOnly=false; d.style.cursor=''; d.onclick=null;", h)
