@@ -164,7 +164,8 @@ button:disabled{color:var(--disabled);opacity:.6;cursor:not-allowed}
 #modeBox .seg button{flex:1;width:auto;min-width:0;padding:0 2px;height:38px;font-family:var(--font-value);font-size:13px}
 .hrow{display:flex;align-items:center;justify-content:space-between}
 .mini{font-size:11px;padding:1px 8px;background:transparent;color:var(--muted);font-weight:400;letter-spacing:0}
-#roProps{margin-top:var(--s2);font-size:var(--fs-label);color:var(--muted)}
+.hint,#roProps{font-size:var(--fs-label);color:var(--muted)} /* small grey hints, one size everywhere (user 2026-11-23) */
+#roProps{margin-top:var(--s2)}
 #panels .row label:has(input[type=text]),#panels .row label:has(select#svScheme){flex:1;min-width:0}
 #panels input[type=text]{width:100%;min-width:0}
 #svPrefix{width:8em}
@@ -548,28 +549,28 @@ body.webcam{cursor:none;display:flex;align-items:center;justify-content:center}
   <section data-id="transfer" data-label="Save to" data-i18n-label="panel.transfer">
     <h2 data-i18n="panel.transfer">Save to</h2>
     <div class="row">
-      <label><input type="radio" name="tr" value="sd" checked> <span data-i18n="transfer.sd">Card only</span></label>
-      <label><input type="radio" name="tr" value="both"> <span data-i18n="transfer.both">Card and computer</span></label>
-      <button id="popPhoto" data-i18n="transfer.popPhoto">Picture on second monitor</button>
+      <label id="trCopyLbl"><input type="checkbox" id="trCopy"> <span data-i18n="transfer.copy">Copy to computer</span></label>
+      <button id="popPhoto" data-i18n="transfer.popPhoto">Photo on 2nd monitor</button>
+    </div>
+    <div class="mut hint" id="trNoCardNote" data-i18n="transfer.noCardNote" hidden>No card: photos go to the computer</div>
+    <div class="row">
+      <label><span data-i18n="save.folder">Folder</span> <input id="svDir" type="text" size="34" placeholder="~/Pictures/omcap"></label>
     </div>
     <div class="row">
-      <label><span data-i18n="save.folder">Folder on the computer</span> <input id="svDir" type="text" size="34" placeholder="~/Pictures/omcap"></label>
-    </div>
-    <div class="row">
-      <label><span data-i18n="save.scheme">File naming</span>
+      <label><span data-i18n="save.scheme">Names</span>
         <select id="svScheme">
           <option value="original" data-i18n="save.original">Original name</option>
-          <option value="datetime" data-i18n="save.datetime">Date_time_original name</option>
-          <option value="prefix" data-i18n="save.prefix">Prefix + original name</option>
+          <option value="datetime" data-i18n="save.datetime">Date + time + name</option>
+          <option value="prefix" data-i18n="save.prefix">Prefix + name</option>
         </select></label>
       <input id="svPrefix" type="text" size="12" data-i18n-ph="save.prefixPh" placeholder="Prefix" hidden>
-      <button id="svApply" data-i18n="save.apply">Apply</button>
     </div>
     <div id="svInfo" class="mut"></div>
     <div class="row">
-      <label><input type="checkbox" id="hslAuto"> <span data-i18n="hsl.auto">Apply HSL profile when saving to computer</span></label>
+      <label><input type="checkbox" id="hslAuto"> <span data-i18n="hsl.auto">Also save an HSL copy (PEN-F colours)</span></label>
       <select id="hslAutoPreset"></select>
     </div>
+    <div class="mut hint" data-i18n="hsl.autoHint">HSL is the colour profile of the PEN-F camera. It makes a copy of your photo with other colours. Your original stays as it is. The copy is saved as ..._hsl.jpg in the folder out/hsl.</div>
     <div id="trErr" class="warn"></div>
   </section>
   <section data-id="card" data-label="Playback" data-i18n-label="panel.card" data-feat="playback">
@@ -775,13 +776,13 @@ const I18N={en:{
   "lv.autoReduced": "Live view adjusted to {size} for a smoother signal",
   "lv.second": "Second monitor",
   "lv.webcam": "Webcam (OBS)",
-  "save.folder": "Folder on the computer",
-  "save.scheme": "File naming",
+  "save.folder": "Folder",
+  "save.scheme": "Names",
   "save.original": "Original name",
-  "save.datetime": "Date_time_original name",
-  "save.prefix": "Prefix + original name",
+  "save.datetime": "Date + time + name",
+  "save.prefix": "Prefix + name",
   "save.prefixPh": "Prefix",
-  "save.apply": "Apply",
+  "save.pickTitle": "Click to choose a folder",
   "save.now": "Saving to {dir}",
   "save.example": "e.g. {name}",
   "msg.saveCfg": "Save settings applied",
@@ -954,9 +955,9 @@ const I18N={en:{
   "prog.running": " running",
   "prog.error": " Error: {e}",
   "panel.transfer": "Save to",
-  "transfer.sd": "Card only",
-  "transfer.both": "Card and computer",
-  "transfer.popPhoto": "Picture on second monitor",
+  "transfer.copy": "Copy to computer",
+  "transfer.noCardNote": "No card: photos go to the computer",
+  "transfer.popPhoto": "Photo on 2nd monitor",
   "panel.card": "Playback",
   "card.index": "Index display",
   "card.reload": "Reload",
@@ -1016,7 +1017,8 @@ const I18N={en:{
   "hsl.after": "After",
   "hsl.compare": "Before and after comparison, drag or use the arrow keys",
   "hsl.close": "Close",
-  "hsl.auto": "Apply HSL profile when saving to computer",
+  "hsl.auto": "Also save an HSL copy (PEN-F colours)",
+  "hsl.autoHint": "HSL is the colour profile of the PEN-F camera. It makes a copy of your photo with other colours. Your original stays as it is. The copy is saved as ..._hsl.jpg in the folder out/hsl.",
   "hsl.notLocal": "Save the picture to the computer first",
   "layout.panels": "Panels",
   "layout.settings": "Settings",
@@ -1190,7 +1192,8 @@ async function tick(){
   $('#jobRow').hidden=!j.name; $('#jobStop').hidden=!j.running;
   $('#takeInfo').textContent=st.take!=null?clock(st.take):'';
   const rec=st.movie!=null;
-  $('#movStart').hidden=rec; $('#movStop').hidden=!rec;
+  applyTransferView(st);  // sets trNoCard, used right below
+  $('#movStart').hidden=rec||trNoCard; $('#movStop').hidden=!rec; // a movie needs a card (USB without one: hidden)
   $('#movTime').textContent=rec?tr('movie.time',{t:clock(st.movie)}):'';
   $('#trErr').textContent=st.transfer_error||st.hsl_error||'';
   $('#recChip').hidden=!rec; $('#viewport').classList.toggle('rec',rec);
@@ -1249,7 +1252,7 @@ const FEATURES={
   aspect:{show:inMode('P','A','S','M')}, stabilizer:{show:inMode('P','A','S','M')},
   facepriority:{show:inMode('P','A','S','M')},
   // Focus Stacking (USB d0cb, FW 4.x): Bracketing is only in P/A/S/M (manual p.82, 174)
-  focusstacking:{show:inMode('P','A','S','M')},
+  focusstacking:{show:p=>inMode('P','A','S','M')(p)&&!trNoCard}, // the camera merges on the card (refused without one)
   colorphase:{show:p=>p.takemode.value==='ART'?p.artfilter.value==='partcolor':['P','A','S','M'].includes(p.takemode.value)&&p.colortone.value==='partcolor'},
 };
 let lastProps=null,propsFailed=false;
@@ -3346,20 +3349,62 @@ $('#takeStop').onclick=async()=>{
 $('#movStart').onclick=()=>act(tr('msg.movieStarted'),'/api/movie',{action:'start'});
 $('#movStop').onclick=async()=>{await act(tr('msg.movieStopped'),'/api/movie',{action:'stop'});
   if(!isUsb) setTimeout(()=>gallery(),4000)};
+// REQ-F62: show the end of a long folder path (the last folder name matters): ~ for home, first segment,
+// "…", last two segments. The page does not know the home folder, so it is recognised by its usual shape.
+function shortPath(p){
+  const m=/^(\/Users\/[^\/]+|\/home\/[^\/]+)(\/.*)?$/.exec(p||'');
+  const head=m?'~':'', parts=(m?(m[2]||''):(p||'')).split('/').filter(Boolean);
+  return head+(parts.length?'/':'')+(parts.length>3?[parts[0],'…',parts[parts.length-2],parts[parts.length-1]]:parts).join('/');
+}
+// show the end of the path in the folder field unless the user is typing in it
+function scrollDirEnd(){const e=$('#svDir'); if(document.activeElement!==e) e.scrollLeft=e.scrollWidth}
+$('#svDir').onblur=scrollDirEnd;
+// on the computer the field is read-only (a click opens the dialog): it shows the shortened path, so the last folder
+// name is always visible; the full path is kept in data-full (sent to the server) and shown on hover
+function setDir(dir){const d=$('#svDir'); if(d.readOnly){d.dataset.full=dir||''; d.value=shortPath(dir); d.title=dir?dir+' – '+tr('save.pickTitle'):tr('save.pickTitle')} else d.value=dir||''; scrollDirEnd()}
+function dirValue(){const d=$('#svDir'); return d.readOnly?(d.dataset.full||''):d.value}
 function showSaveCfg(c){
-  $('#svDir').value=c.dir; $('#svScheme').value=c.scheme; $('#svPrefix').value=c.prefix;
+  setDir(c.dir); $('#svScheme').value=c.scheme; $('#svPrefix').value=c.prefix;
   $('#svPrefix').hidden=c.scheme!=='prefix';
   const ex=c.scheme==='datetime'?'20261109_091412_PB092179.JPG':c.scheme==='prefix'?(c.prefix||'')+'PB092179.JPG':'PB092179.JPG';
-  $('#svInfo').textContent=tr('save.now',{dir:c.effective_dir})+' ('+tr('save.example',{name:ex})+')';
+  $('#svInfo').title=c.effective_dir;
+  $('#svInfo').textContent=tr('save.now',{dir:shortPath(c.effective_dir)})+' ('+tr('save.example',{name:ex})+')';
 }
-$('#svScheme').onchange=()=>{$('#svPrefix').hidden=$('#svScheme').value!=='prefix'};
-$('#svApply').onclick=async()=>{
-  try{const j=await api('/api/savecfg',{dir:$('#svDir').value,scheme:$('#svScheme').value,prefix:$('#svPrefix').value});
+// REQ-F62: the camera always writes to the card; the switch only says whether the app also copies the new
+// photo to the computer. Without a card (USB) there is no switch (photos go to the computer anyway, REQ-F61);
+// the remembered choice (st.transfer) is not overwritten and comes back with a card.
+function transferView(usb,card,pref){
+  return {noCard:usb&&card===false,checked:pref==='both'};
+}
+var trNoCard=false; // var: read by updates that can run before this line
+function applyTransferView(st){
+  const v=transferView(isUsb,st.card,st.transfer); trNoCard=v.noCard;
+  $('#trCopyLbl').hidden=v.noCard; $('#trNoCardNote').hidden=!v.noCard;
+  if(document.activeElement!==$('#trCopy')) $('#trCopy').checked=v.checked;
+}
+// Every change applies at once (no Apply button, user 2026-11-23)
+async function svSave(){
+  try{const j=await api('/api/savecfg',{dir:dirValue(),scheme:$('#svScheme').value,prefix:$('#svPrefix').value});
     showSaveCfg(j.cfg);msg(tr('msg.saveCfg'));local()}
   catch(e){msg(e.message,true)}
-};
+}
+// REQ-F62: on the computer a click into the folder field opens the folder dialog (it opens on the computer the
+// server runs on); elsewhere (phone over --lan) the path is typed
+if(isLocalPage()){
+  const d=$('#svDir'); d.readOnly=true; d.style.cursor='pointer'; d.title=tr('save.pickTitle'); setDir(d.dataset.full||d.value);
+  d.onclick=async()=>{
+    try{const j=await api('/api/pickfolder',{});
+      if(!j.dir) return; // cancelled
+      setDir(j.dir); d.blur(); svSave()}
+    catch(e){msg(e.message,true); // no dialog on this computer (e.g. Linux without zenity): type the path instead
+      d.readOnly=false; d.style.cursor=''; d.onclick=null; d.value=d.dataset.full||d.value; d.onchange=svSave; d.focus()}
+  };
+}else $('#svDir').onchange=svSave;
+$('#svScheme').onchange=()=>{const pre=$('#svScheme').value==='prefix'; $('#svPrefix').hidden=!pre;
+  if(!pre||$('#svPrefix').value.trim()) svSave(); else $('#svPrefix').focus()}; // prefix: saved once it is typed
+$('#svPrefix').onchange=svSave;
 api('/api/savecfg').then(showSaveCfg).catch(()=>{});
-document.querySelectorAll('[name=tr]').forEach(r=>r.onchange=()=>act(tr('msg.saveTo'),'/api/transfer',{target:r.value}));
+$('#trCopy').onchange=()=>act(tr('msg.saveTo'),'/api/transfer',{target:$('#trCopy').checked?'both':'sd'});
 $('#reload').onclick=gallery;
 $('#propsReload').onclick=async()=>{
   if(!isUsb){props();return}

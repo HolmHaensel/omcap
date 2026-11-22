@@ -230,9 +230,12 @@ def af_area():
     if conn_type == "usb":
         return {**cam.af_area(), "modes": True}
     f = cam.touch_frame()
+    bw, bh = f["base_w"], f["base_h"]
+    g = usb_camera.AF_GRID  # the camera's real 9x9 grid; the touch frame (where taps are taken) is smaller
     return {"mode": 33025, "field": state["wifi_field"], "modes": False, "last_af": state["wifi_af"],
-            "area": {"x0": f["x"], "x1": f["x"] + f["w"], "y0": f["y"], "y1": f["y"] + f["h"],
-                     "w": f["base_w"], "h": f["base_h"]}}
+            "area": {"x0": round(g[0] * bw), "x1": bw - round(g[0] * bw), "y0": round(g[2] * bh),
+                     "y1": bh - round(g[2] * bh), "w": bw, "h": bh},
+            "touch": {"x0": f["x"], "x1": f["x"] + f["w"], "y0": f["y"], "y1": f["y"] + f["h"]}}
 
 
 def set_af_area(mode, field):
@@ -248,12 +251,17 @@ def set_af_area(mode, field):
     field = int(field)
     if not 1 <= field <= 81:
         raise CameraError("AF point must be between 1 and 81")
-    a = af_area()["area"]
+    info = af_area()
+    a, t = info["area"], info["touch"]
     row, col = divmod(field - 1, 9)
     state["wifi_af"] = None
-    res = cam.af_focus((a["x0"] + (col + .5) / 9 * (a["x1"] - a["x0"])) / a["w"],
-                       (a["y0"] + (row + .5) / 9 * (a["y1"] - a["y0"])) / a["h"])
-    state["wifi_field"] = field
+    # outer fields lie outside the touch frame: focus at the nearest point the camera takes
+    x = min(max(a["x0"] + (col + .5) / 9 * (a["x1"] - a["x0"]), t["x0"]), t["x1"])
+    y = min(max(a["y0"] + (row + .5) / 9 * (a["y1"] - a["y0"]), t["y0"]), t["y1"])
+    res = cam.af_focus(x / a["w"], y / a["h"])
+    # the field the camera really used (an outer field moves inward), so the target and the green field agree
+    state["wifi_field"] = 9 * min(int((y - a["y0"]) * 9 / (a["y1"] - a["y0"])), 8) \
+        + min(int((x - a["x0"]) * 9 / (a["x1"] - a["x0"])), 8) + 1
     # Report the frame centre only for affocus=ok; the UI then colours the field green
     if res["ok"] and res["x"] is not None:
         state["wifi_af"] = {"x": res["x"], "y": res["y"]}
@@ -569,6 +577,48 @@ def load_save_cfg():
         pass
 
 
+_dialog_lock = threading.Lock()
+_DIALOG_PROMPT = "Choose the folder for the pictures"
+
+
+class Forbidden(Exception):
+    """Request refused for who asks (not for what failed): answered with 403, never 502."""
+
+
+def pick_folder_dialog():
+    """Open the OS folder dialog on the machine the server runs on; returns the path, "" on cancel.
+
+    Fixed argument lists only, nothing from the page reaches a shell. Raises ValueError when no dialog is
+    possible (the typed field keeps working)."""
+    if sys.platform == "darwin":
+        # activate first: a dialog started from a background process opens behind the browser
+        cmd = ["osascript", "-e", 'tell application "System Events" to activate',
+               "-e", 'POSIX path of (choose folder with prompt "%s")' % _DIALOG_PROMPT]
+    elif sys.platform.startswith("win"):
+        cmd = ["powershell", "-NoProfile", "-STA", "-Command",
+               "[Console]::OutputEncoding=[Text.Encoding]::UTF8; "
+               "Add-Type -AssemblyName System.Windows.Forms; "
+               "$d = New-Object System.Windows.Forms.FolderBrowserDialog; "
+               "if ($d.ShowDialog() -eq 'OK') { $d.SelectedPath }"]
+    elif shutil.which("zenity"):
+        cmd = ["zenity", "--file-selection", "--directory", "--title=" + _DIALOG_PROMPT]
+    else:
+        raise ValueError("No folder dialog on this system (install zenity); type the folder instead")
+    if not _dialog_lock.acquire(blocking=False):
+        raise ValueError("A folder dialog is already open")
+    try:
+        r = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", timeout=600)
+    except (OSError, subprocess.SubprocessError) as e:
+        raise ValueError("Folder dialog failed: %s; type the folder instead" % e)
+    finally:
+        _dialog_lock.release()
+    if r.returncode == 1 and (sys.platform != "darwin" or "-128" in r.stderr):
+        return ""  # cancel (osascript "User canceled" -128, zenity 1) is not an error
+    if r.returncode != 0:
+        raise ValueError("Folder dialog failed: %s" % (r.stderr.strip() or r.returncode))
+    return r.stdout.strip()  # PowerShell prints nothing on cancel; validate_save_dir normalises the path
+
+
 def public_save_cfg():
     return {**save_cfg, "effective_dir": captures_dir()}
 
@@ -721,6 +771,7 @@ def shot(seen):
     new = cam.shoot()
     invalidate_device()  # card space has changed
     if conn_type == "usb":  # USB reports the new files directly
+        cam.refresh_card()  # the card may have been taken out or put in; cached for the state
         if not new:
             return cam.take_direct_files()  # no card: saved to the computer already (REQ-F61)
         remember_shot(new)
@@ -1098,6 +1149,8 @@ def public_state():
         "stage": cam.stage, "busy": busy.locked() or state["pressing"], "indexing": state["indexing"], "live": live.running, "lv_age": live.age, "lvqty": cam.lvqty, "gone": bool(getattr(cam, "gone", False)) or (conn_type == "wifi" and wifi_watch["lost"]),
         "lvperf": getattr(live, "performance", lambda: None)(), "job": job,
         "transfer": state["transfer"], "latest": state["latest"], "play": state["play"] is not None,
+        # USB: True card, False none, None unknown (cached, not read on every tick); Wi-Fi: always None
+        "card": getattr(cam, "card", None) if conn_type == "usb" else None,
         "transfer_error": state["transfer_error"], "hsl_error": hsl_auto["error"],
         "take": now - state["take"] if state["take"] else None,
         "movie": now - state["movie"]["since"] if state["movie"] else None,
@@ -1378,7 +1431,7 @@ class Handler(BaseHTTPRequestHandler):
             if extra is False:
                 return self._send({"error": "not found"}, code=404)
             self._send({"ok": True, **(extra or {})})
-        except WriteBlocked as e:
+        except (WriteBlocked, Forbidden) as e:
             self._send({"error": str(e)}, code=403)
         except (CameraError, KeyError, OSError, ValueError, TypeError,
                 ET.ParseError, subprocess.SubprocessError) as e:
@@ -1394,6 +1447,7 @@ class Handler(BaseHTTPRequestHandler):
         if conn_type == "usb":  # over USB the live view simply keeps running
             state["resume_live"] = False
             if stage == 0:
+                cam.refresh_card()  # released after a shot or a half press: the card may have changed
                 new = cam.take_new_files()
                 saved = cam.take_direct_files()  # no card: pictures saved straight to the computer (REQ-F61)
                 if saved:
@@ -1439,6 +1493,10 @@ class Handler(BaseHTTPRequestHandler):
             return None
         if path == "/api/savecfg":
             return {"cfg": set_save_cfg(b)}
+        if path == "/api/pickfolder":
+            if not self._local():  # a phone over --lan must not open dialogs on the computer
+                raise Forbidden("The folder dialog only opens from the computer itself")
+            return {"dir": pick_folder_dialog()}
         if path == "/api/open":
             subprocess.run(["open", "-a", "OM Workspace", capture_path(b["name"])], check=True)
             return None
@@ -1534,6 +1592,7 @@ class Handler(BaseHTTPRequestHandler):
                 finally:
                     state["take"] = None
                 if conn_type == "usb":
+                    cam.refresh_card()
                     saved = cam.take_direct_files()  # no card: saved straight to the computer (REQ-F61)
                     return {"saved": saved} if saved else None
         elif path == "/api/movie" and conn_type == "usb":

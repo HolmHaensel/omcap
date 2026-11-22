@@ -77,14 +77,25 @@ FOCUS_EVENT = re.compile(r"c003, Param1 0*([12])\b(?:, Param2 ([0-9a-f]{8}))?", 
 AF_SINGLE = 2  # d003 value of S-AF
 
 
+# The 9x9 AF grid as fractions of the picture (x0, x1, y0, y1), read on the camera 2026-11-22 (single target,
+# fields 1/41/81 from the AF event; matches the camera monitor, user): wider than the Wi-Fi touch frame (~60 %).
+AF_GRID = (0.046, 0.955, 0.107, 0.894)
+# The AF event 0xC003 gives positions in a ~920x696 space (field 41 = 460/348), not 1280x960 like d05d/d05e
+# (measured once, live view 1024x768 or 1280x960; other live view sizes unchecked)
+AF_EVENT_SPACE = (920, 696)
+
+
 def parse_af_result(text):
-    """(in focus, position or None) from a c003 AF event text, None if it is no AF result."""
+    """(in focus, position or None) from a c003 AF event text, None if it is no AF result.
+    The position is returned in the 1280x960 grid of d05d/d05e."""
     m = FOCUS_EVENT.search(text or "")
     if not m:
         return None
     pos = int(m.group(2), 16) if m.group(2) else 0
     ok = m.group(1) == "1"
-    return ok, ({"x": pos >> 16, "y": pos & 0xFFFF} if ok and pos else None)
+    if not (ok and pos):
+        return ok, None
+    return ok, {"x": round((pos >> 16) * 1280 / AF_EVENT_SPACE[0]), "y": round((pos & 0xFFFF) * 960 / AF_EVENT_SPACE[1])}
 DIAL_EVERY = 3.0  # seconds between event checks; each costs ~0.3 s of live view (measured 2026-11-12)
 # seconds after a shutter command, written setting or live view start in which 0xC003/3 is not the dial.
 # Two check intervals: the camera also sends it a little after a shot, and it is only read every DIAL_EVERY s
@@ -230,6 +241,12 @@ def parse_battery(value):
     return int(m.group(1)) if m and int(m.group(1)) <= 100 else None
 
 
+def _no_card_error(e):
+    """Without a card the camera still lists a slot but refuses it: 0x2008 InvalidStorageID or 0x2013
+    StoreNotAvailable (no-card test 2026-11-21). A card just put in also answers 0x2013 for 1-2 s."""
+    return any(c in str(e) for c in ("0x2008", "0x2013"))
+
+
 def free_kbytes(infos):
     """Sum of the free space (KB) from get_storageinfo(), None if not given."""
     total = None
@@ -355,6 +372,9 @@ class UsbCamera:
     usb = True
     host = "USB"
     stage = 0
+    card = None  # cached card flag for the page (True / False / None unknown), see refresh_card
+    _card_read = False  # _pre_release just read the card: the next refresh_card reuses it
+    _card_due = False  # a rebuilt session must read the card again (_settle_card, outside the lock)
     gone = False  # set by the live view loop while the camera is missing from USB
     lvqty = None
     features = FEATURES
@@ -421,6 +441,7 @@ class UsbCamera:
         if hasattr(self._c, "get_prop_value"):  # PTP backend: live tilt (REQ-F23)
             self.features = self.features + ["level"]
         self.live = UsbLive(self)
+        self.card = self._card_state_settled()
 
     def _connect(self, backend):
         if backend not in ("ptp", "gphoto2", "auto"):
@@ -471,7 +492,9 @@ class UsbCamera:
     def reopen(self, reason="?"):
         """Rebuild the session; True if the camera answered again."""
         with self._lock:
-            return self._reopen_locked(reason)
+            ok = self._reopen_locked(reason)
+        self._settle_card()
+        return ok
 
     def reopen_if_idle(self, reason):
         """Rebuild the session unless a shot or card read started meanwhile (checked under the lock)."""
@@ -479,7 +502,8 @@ class UsbCamera:
             if self.hold or self.stage:
                 return False
             self._reopen_locked(reason)
-            return True
+        self._settle_card()
+        return True
 
     def _reopen_locked(self, reason):
         # logged: a rebuilt session drops live view for ~9 s and loses libgphoto2's file index
@@ -494,6 +518,7 @@ class UsbCamera:
             self._loupe_off_locked()  # a magnified view outlives the session; the page shows it off
             self._apply_lv_size_locked()  # keep the chosen size after a rebuilt session
             self._resync_files_locked()
+            self._card_due = True  # a card may have been put in or taken out: read after the lock (_settle_card)
             self.gone = False  # also after reload (refresh) or a rebuild without live view
             return True
         except (CameraError, self.gp.GPhoto2Error):
@@ -680,7 +705,15 @@ class UsbCamera:
         return out
 
     def free_bytes(self):
-        kb = free_kbytes(self._call(self._c.get_storageinfo))
+        """Free card space; also keeps the card flag current: right after a connect the camera can answer
+        0x2013 for a moment although a card is in (USB test 2026-11-22), and that must not stick."""
+        try:
+            kb = free_kbytes(self._call(self._c.get_storageinfo))
+        except Exception as e:
+            if _no_card_error(e):
+                self.card = False
+            raise
+        self.card = kb is not None
         return kb * 1024 if kb is not None else None
 
     def battery(self):
@@ -714,11 +747,10 @@ class UsbCamera:
             return int(self._call(self._c.get_prop_value, int(name, 16)))
         return int(self._value(name))
 
-    # The AF area of the E-M1 is fixed (Wi-Fi touchactiveframe at 800x600: x 135-662, y 100-497 = 0.169-0.828 and
-    # 0.167-0.828). d05a/d05b/d071/d072 are NOT this area: they are the Zoom AF frame-centre limits for the current
-    # zoom ratio d0cf, [0.1+0.5/r, 0.9-0.5/r] of the picture (measured 2026-11-18); at the camera's default x7 they
-    # happen to equal the AF area, which is why they looked right until Zoom AF was used.
-    AF_AREA = {"x0": 216, "x1": 1060, "y0": 160, "y1": 796, "w": 1280, "h": 960}
+    # The AF area of the E-M1 is fixed: AF_GRID (read on the camera 2026-11-22), centred in 1280x960.
+    # d05a/d05b/d071/d072 are NOT this area: they are the Zoom AF frame-centre limits for the current
+    # zoom ratio d0cf, [0.1+0.5/r, 0.9-0.5/r] of the picture (measured 2026-11-18).
+    AF_AREA = {"x0": 59, "x1": 1221, "y0": 103, "y1": 857, "w": 1280, "h": 960}
 
     def af_area(self):
         area = dict(self.AF_AREA)  # centred, so its grid is (x0+x1) x (y0+y1) as with Wi-Fi
@@ -932,6 +964,7 @@ class UsbCamera:
     def start_liveview(self, port):
         self._need_write()
         self._loupe_off()  # a magnified view can be left over from an earlier session (OM Capture, crash)
+        self.refresh_card()  # the card may have changed since the connect
 
     def stop_liveview(self):
         self._loupe_off()
@@ -1281,14 +1314,46 @@ class UsbCamera:
             # no card: the camera still lists a slot (id 0x10000) but every request to it is refused: 0x2008
             # InvalidStorageID (GetStorageInfo / GetObjectHandles) or 0x2013 StoreNotAvailable (no-card test
             # 2026-11-21); that is "no card", not "unknown"
-            return False if any(c in str(e) for c in ("0x2008", "0x2013")) else None
+            return False if _no_card_error(e) else None
+
+    CARD_SETTLE = (1.0, 1.0, 1.0)  # pauses: right after a (re)connect a card answers 0x2013 for 1-2 s
+
+    def _card_state_settled(self):
+        """Card state after a connect or a rebuilt session (e.g. after a card change): "no card" is only
+        believed after a few tries, because a card that was just put in answers 0x2013 for a moment
+        (USB test 2026-11-22). Costs up to 3 s only when there really is no card."""
+        state = self._card_state()
+        for pause in self.CARD_SETTLE:
+            if state is not False:
+                break
+            time.sleep(pause)
+            state = self._card_state()
+        return state
+
+    def _settle_card(self):
+        """After a rebuilt session, outside the camera lock: the tries may sleep up to 3 s without a card."""
+        if self._card_due:
+            self._card_due = False
+            self.card = self._card_state_settled()
+
+    def refresh_card(self):
+        """Read the card state once and keep it: the page asks often, the camera must not be polled for it.
+        Right after a release that already read it (_pre_release) the stored value is kept: no second read."""
+        if self._card_read:
+            self._card_read = False
+            return self.card
+        self.card = self._card_state()
+        return self.card
 
     def _pre_release(self, stacking=None):
         """Decide ONCE, while the camera is idle, whether this shot comes without a card (then `_direct_wait`
         makes the wait end at the camera's own offer). Also saves a picture the camera still holds from an
         earlier shot, so it cannot show up under this shot's name. Focus Stacking needs a card."""
         self._direct_wait = False
-        if not self._direct_capable() or self._card_state() is not False:
+        if not self._direct_capable():
+            return
+        self.card, self._card_read = self._card_state(), True
+        if self.card is not False:
             return
         if self._stacking_on() if stacking is None else stacking:
             raise CameraError("Focus Stacking needs a card: the camera keeps the merged picture on the card")
@@ -1385,6 +1450,7 @@ class UsbCamera:
             if stage == 2:
                 self.direct_paths, self._direct_hit = [], False
                 self._pre_release()
+            self._event_log = []  # _read_focus_position looks for this half press's AF event
             self._shutter(OP_FIRST)
             self.stage = 1
             if stage == 1:
@@ -1437,6 +1503,14 @@ class UsbCamera:
         end = time.monotonic() + FOCUS_POSITION_WAIT
         while time.monotonic() < end:
             self._events(0.1)
+            # own PTP layer: the AF event 0xC003 carries the exact position at once (d05d/d05e read through
+            # 0x1014 can keep an old value for the whole session, USB test 2026-11-22)
+            for text in reversed(self._event_log):
+                result = parse_af_result(text)
+                if result and (result[1] or not result[0]):  # libgphoto2 events carry no position: read below
+                    self.focus_ok = bool(result[0])
+                    self.last_af = result[1] or {"x": 0, "y": 0}
+                    return
             x, y = int(float(self._value("d05d"))), int(float(self._value("d05e")))
             if (x or y) and (x, y) != prev:
                 break
@@ -1481,6 +1555,13 @@ class UsbCamera:
 
     def shoot(self):
         """Release once. Returns the new file paths (JPG and ORF)."""
+        try:
+            return self._shoot()
+        except Exception:
+            self._card_read = False  # the card read of a failed release must not stand in for a fresh one
+            raise
+
+    def _shoot(self):
         self._new_files = []
         self.shooting = True  # the live view keeps running even if the camera does not release
         t0 = time.monotonic()
