@@ -91,3 +91,12 @@ class HalfHeld(unittest.TestCase):
         body = h[h.index("async function setAf(b){"):h.index("async function setAf(b){") + 400]
         self.assertIn("!isUsb&&st.stage>=1", body)
         self.assertIn('"msg.halfHeld"', h)
+
+
+class HalfPaused(unittest.TestCase):
+    def test_paused_text_instead_of_no_signal(self):
+        with open(os.path.join(os.path.dirname(__file__), "..", "omcap", "web", "index.html"), encoding="utf-8") as f:
+            h = f.read()
+        self.assertIn("paused=!isUsb&&st.live&&st.stage>=1", h)
+        self.assertIn("stale=st.live&&st.lv_age>3&&!paused", h)
+        self.assertIn('"lv.halfPaused"', h)

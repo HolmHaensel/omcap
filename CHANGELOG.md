@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Wi-Fi: while "Press halfway" is held the status line says "Live view paused while Press halfway is held" instead of the red "No signal for N s" (the camera pauses the live view by itself in that state; REQ-F59).
 - Wi-Fi: a tap for AF while "Press halfway" is held now says "Release Press halfway first" instead of failing with `HTTP 520` (the camera is in mode shutter and takes no AF frame then; REQ-F59/F55, Wi-Fi test 2026-11-22).
 - Wi-Fi zoom: "Press halfway" no longer changes the live view size on release (only a tap AF brings the sharp size): the size change raced with the release's own live view restart and the camera answered `HTTP 520` (found in the Wi-Fi test 2026-11-22, REQ-F55).
 - Wi-Fi zoom focus and size select (REQ-F55): a focus action (tap AF, half press) while zoomed above 1.5× always brings the highest size 1280×960 for 5 s, also in the middle range, then returns to the size of the zoom; with Auto the Size select shows the size really in use. Wi-Fi only. Not camera-tested.

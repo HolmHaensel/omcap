@@ -797,6 +797,7 @@ const I18N={en:{
   "lv.overlay": "Overlay",
   "lv.overlayRemove": "Remove",
   "lv.noSignal": "No signal for {s} s",
+  "lv.halfPaused": "Live view paused while Press halfway is held",
   "lv.cameraGone": "Camera not found. Is the cable plugged in?",
   "lv.wifiGone": "Camera not found. Is the computer in the camera's Wi-Fi?",
   "lv.receiving": "receiving {w}×{h}",
@@ -1172,7 +1173,7 @@ async function tick(){
   $('#live').style.visibility=st.live?'':'hidden'; // live view off: dark picture area, not the last frame
   $('#lvStart').hidden=st.live||!canWrite; $('#lvStop').hidden=!st.live;
   renderStrip();
-  const w=$('#live').naturalWidth, stale=st.live&&st.lv_age>3;
+  const w=$('#live').naturalWidth, paused=!isUsb&&st.live&&st.stage>=1, stale=st.live&&st.lv_age>3&&!paused; // Wi-Fi: Press halfway held = mode shutter, the live view pauses by itself (not a lost signal)
   if(st.live) reduceAutoLiveSize();
   if(st.live&&st.lvqty&&autoLvEnabled()&&!autoLvBusy&&Date.now()-autoLvLastChange>8000&&$('#lvqty').value!==st.lvqty) $('#lvqty').value=st.lvqty; // Auto: show what the camera really sends
   const off=st.live&&w&&st.lvqty&&w!==parseInt(st.lvqty,10);
@@ -1180,7 +1181,7 @@ async function tick(){
   // frames shown per second over the last 3 s (REQ-F51), and the USB fallback layer, which keeps 1024×768 and is slower
   const now=performance.now(), recent=lvShown.filter(t=>t>now-3000), fps=recent.length>1?(recent.length-1)/((recent.at(-1)-recent[0])/1000):0;
   const extra=(fps?tr('lv.fps',{fps:fps.toFixed(1)}):'')+(isUsb&&usbBackend==='gphoto2'?tr('lv.gphoto2'):'');
-  $('#lvSize').textContent=gone||(stale?tr('lv.noSignal',{s:Math.round(st.lv_age)}):st.live&&w?tr('lv.receiving',{w,h:$('#live').naturalHeight})+extra:'');
+  $('#lvSize').textContent=gone||(paused?tr('lv.halfPaused'):stale?tr('lv.noSignal',{s:Math.round(st.lv_age)}):st.live&&w?tr('lv.receiving',{w,h:$('#live').naturalHeight})+extra:'');
   $('#lvSize').className=off||stale?'warn':'mut';
   const j=st.job;
   $('#jobInfo').textContent=j.name?tr('prog.job',{name:j.name,done:j.done,total:j.total})+(j.running?tr('prog.running'):'')+(j.error?tr('prog.error',{e:j.error}):''):'';
