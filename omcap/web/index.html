@@ -771,7 +771,7 @@ const I18N={en:{
   "lv.start": "Start live view",
   "lv.stop": "Stop live view",
   "lv.size": "Size", "lv.autoSize": "Auto",
-  "lv.auto": "Auto · {size}", "lv.autoFocus": "Auto · {size} · sharp on focus",
+  "lv.auto": "Auto · {size}", "lv.autoFocus": "Auto · {size} · sharp on focus", "lv.sizeFocus": "{size} · sharp on focus",
   "lv.autoReduced": "Live view adjusted to {size} for a smoother signal",
   "lv.second": "Second monitor",
   "lv.webcam": "Webcam (OBS)",
@@ -1112,13 +1112,14 @@ const MOBILE_LIVE=matchMedia('(max-width:700px), (orientation:landscape) and (ma
 const AUTO_LV_SIZES=['0640x0480','0800x0600','1024x0768','1280x0960'];
 let autoLvBusy=false,autoLvLastChange=0,autoLvSlowSince=0;
 const AUTO_LV_SLOW_MS=4000; // slowness must last this long: a short dip right after connecting is no reason (camera test 2026-11-14)
-const autoLvEnabled=()=>(MOBILE_LIVE.matches||$('#lvAuto').checked)&&!isUsb&&canWrite&&features.has('lvsize');
+const wzSizingEnabled=()=>!isUsb&&canWrite&&features.has('lvsize'); // the live view size may be changed (zoom sizing, REQ-F55), whatever the Auto box says
+const autoLvEnabled=()=>(MOBILE_LIVE.matches||$('#lvAuto').checked)&&wzSizingEnabled(); // the adaptive size at 1x
 const lvSizeText=size=>size.replace(/^0+/,'').replace('x0','×');
 function autoLvLabel(size){
-  const el=$('#autoLvStatus'), on=autoLvEnabled();
-  el.hidden=!on; document.body.classList.toggle('autoLv',on&&MOBILE_LIVE.matches); // the size choice hides on the phone only
-  if(on&&size) $('#lvqty').value=size; // Auto: the select shows the size in use, not an old pick
-  if(size) el.textContent=tr(wzFocusOnly?'lv.autoFocus':'lv.auto',{size:lvSizeText(size)}); // wzFocusOnly: sharp only on focus while zoomed (REQ-F55)
+  const el=$('#autoLvStatus'), on=autoLvEnabled(), sizing=wzSizingEnabled();
+  el.hidden=!(on||(sizing&&wzFocusOnly)); // an explicit size shows the chip only in the "sharp on focus" fallback document.body.classList.toggle('autoLv',on&&MOBILE_LIVE.matches); // the size choice hides on the phone only
+  if(sizing&&size) $('#lvqty').value=size; // the select shows the size in use, not an old pick
+  if(size) el.textContent=tr(wzFocusOnly?(on?'lv.autoFocus':'lv.sizeFocus'):'lv.auto',{size:lvSizeText(size)}); // wzFocusOnly: sharp only on focus while zoomed (REQ-F55)
 }
 function idealMobileLvSize(){
   // at most 800×600: a phone screen with 3× pixels asked for 1280×960, which the camera sends over Wi-Fi at only
@@ -1138,7 +1139,7 @@ function lvSlowNow(){ // too few frames, too many lost, or stalled
   return stale||(perf.sample_seconds>=4&&((perf.fps!=null&&perf.fps<12)||(perf.drop_ratio!=null&&perf.drop_ratio>.18)));
 }
 async function reduceAutoLiveSize(){
-  if(autoLvBusy||!autoLvEnabled()||Date.now()-autoLvLastChange<8000||(wzSharp()&&(!wzSharpOn||wzFocusOnly))) return; // zoomed: no step down for slowness (REQ-F55); the sharp size falls back below
+  if(autoLvBusy||!wzSizingEnabled()||(!autoLvEnabled()&&!wzSharp())||Date.now()-autoLvLastChange<8000||(wzSharp()&&(!wzSharpOn||wzFocusOnly))) return; // an explicit size is never stepped down, only the sharp zoom size falls back // zoomed: no step down for slowness (REQ-F55); the sharp size falls back below
   if(st.stage>0||st.busy||st.indexing||st.movie!=null||st.take!=null||(st.job&&st.job.running)) return;
   const current=st.lvqty||$('#lvqty').value, i=AUTO_LV_SIZES.indexOf(current);
   if(i<=0) return;
@@ -2225,7 +2226,7 @@ let z=1,px=0,py=0,drag=null;
 const vp=$('#viewport'),layer=$('#zoomLayer');
 // Wi-Fi screen zoom (REQ-F55): the live view is at most 1280x960, so beyond 4x it only gets blurrier
 const WZ_MAX=4,WZ_TAP_PX=4,WZ_MAP_MS=600;
-// Wi-Fi, automatic size (phone, or computer with Auto ticked): while the zoom rests above WZ_SHARP_Z the live view gets a bigger size (4x of 640 px leaves 160 px), REQ-F55
+// Wi-Fi, any size choice: while the zoom rests above WZ_SHARP_Z the live view gets a bigger size (4x of 640 px leaves 160 px), REQ-F55
 const WZ_SHARP_Z=1.5,WZ_SHARP_MID_Z=2.5,WZ_REST_MS=600,WZ_SIZE_GAP_MS=3000;
 let wzSizeT=0,wzSharpOn=false,wzBase=null,wzFocusOnly=false,wzFocusUntil=0; // wzSharpOn: the sharp size is on; wzBase: the size to return to
 const WZ_FOCUS_HOLD_MS=5000; // sharp-on-focus mode: how long the sharp size stays after the last focus action
@@ -2233,18 +2234,18 @@ const wzSharp=()=>z>WZ_SHARP_Z;
 // null: the normal adaptive size; during the focus hold always the highest size, also in the middle range
 const wzSizeFor=zv=>zv<=WZ_SHARP_Z?null:zv<=WZ_SHARP_MID_Z&&Date.now()>=wzFocusUntil?'1024x0768':'1280x0960';
 let wzLivePrev=false;
-function wzSizeSoon(ms=WZ_REST_MS){clearTimeout(wzSizeT); if(autoLvEnabled()||wzSharpOn) wzSizeT=setTimeout(wzSizeCheck,ms)}
+function wzSizeSoon(ms=WZ_REST_MS){clearTimeout(wzSizeT); if(wzSizingEnabled()||wzSharpOn) wzSizeT=setTimeout(wzSizeCheck,ms)}
 // A focus action (tap AF, half press) in "sharp on focus" mode brings the sharp size for a moment. Called after the focus
 // request is on its way: the size change runs from a timer, so the focus never waits for the live view restart.
 function wzFocusAction(){
-  if(usbZoom||!wzSharp()||!autoLvEnabled()) return;
+  if(usbZoom||!wzSharp()||!wzSizingEnabled()) return;
   wzFocusUntil=Date.now()+WZ_FOCUS_HOLD_MS; wzSizeSoon(0);
 }
 async function wzSizeCheck(){
-  if(!autoLvEnabled()){wzSharpOn=wzFocusOnly=false; return}
+  if(!wzSizingEnabled()){wzSharpOn=wzFocusOnly=false; return}
   const now=Date.now(),target=wzSizeFor(z),holding=!!target&&now<wzFocusUntil,sharp=target&&(!wzFocusOnly||holding)?target:null,cur=st.lvqty||$('#lvqty').value;
   if(!target&&!wzSharpOn){if(wzFocusOnly){wzFocusOnly=false; autoLvLabel(cur)} return} // back at 1x and the normal size is on: the mode ends
-  const want=sharp||(wzSharpOn?wzBase||idealMobileLvSize():null);
+  const want=sharp||(wzSharpOn?wzBase||(autoLvEnabled()?idealMobileLvSize():null):null); // wzBase: the explicit or adaptive size from before the zoom
   if(!want) return; // focus mode, idle: the normal size stays
   if(want===cur){
     wzSharpOn=!!sharp; if(!target) wzFocusOnly=false;
@@ -2256,7 +2257,7 @@ async function wzSizeCheck(){
   // Never while half-pressed either: the size change is a mode switch play -> rec and would release the press.
   if(!st.live) return; // live view off: starting it or the next zoom change looks again
   if(wzPtr.size||wzMapId!==null||autoLvBusy||st.stage>0||st.busy||st.indexing||st.movie!=null||st.take!=null||(st.job&&st.job.running)||now-autoLvLastChange<WZ_SIZE_GAP_MS){wzSizeSoon(1000); return}
-  if(sharp&&!wzSharpOn) wzBase=cur; // remember the adaptive size to return to
+  if(sharp&&!wzSharpOn) wzBase=cur; // remember the size to return to (a picked one is never replaced by the adaptive one)
   wzSharpOn=!!sharp; if(!target) wzFocusOnly=false;
   autoLvBusy=true; autoLvLastChange=now; autoLvSlowSince=0;
   $('#lvqty').value=want; lvPicked=true; autoLvLabel(want);
@@ -3162,10 +3163,10 @@ $('#layoutReset').onclick=()=>{layout={};commit()};
 /* Buttons */
 $('#lvStart').onclick=async()=>{
   try{await api('/api/liveview',{action:'start',lvqty:isUsb&&!lvPicked?null:$('#lvqty').value});startLiveLoop();msg(tr('msg.lvRunning'));await tick();if(features.has('af_area'))loadAf();setTimeout(props,1500)}catch(e){msg(e.message,true)}};
-$('#lvqty').onchange=()=>{$('#lvAuto').checked=false;wzSharpOn=wzFocusOnly=false;autoLvLabel();lvPicked=true;if(st.live)$('#lvStart').click()}; // a size picked by hand ends Auto
+$('#lvqty').onchange=()=>{$('#lvAuto').checked=false;wzSharpOn=wzFocusOnly=false;autoLvLabel();lvPicked=true;if(st.live)$('#lvStart').click();wzSizeSoon()}; // a size picked by hand ends Auto, the zoom still goes sharp
 $('#lvAuto').onchange=()=>{
   if($('#lvAuto').checked){prepareAutoLiveSize();wzSizeSoon(); if(st.live&&st.lvqty!==$('#lvqty').value) $('#lvStart').click()}
-  else{wzSharpOn=wzFocusOnly=false;autoLvLabel()} // the size stays as it is now
+  else{wzSharpOn=wzFocusOnly=false;autoLvLabel();wzSizeSoon()} // the size stays as it is now
 };
 MOBILE_LIVE.addEventListener('change',()=>{if(autoLvEnabled())prepareAutoLiveSize();else autoLvLabel();if(!$('#galOv').hidden&&gv.mode==='cal')renderGal()});
 $('#lvStop').onclick=()=>act(tr('msg.lvStopped'),'/api/liveview',{action:'stop'});
