@@ -221,9 +221,9 @@ USB_TABLES = {
              "32771": "Face & R. Eye Priority On", "32772": "Face & L. Eye Priority On"},  # 32771 inferred
     "d0cb": {"1": "On", "2": "Off"},  # Focus BKT (user's firmware: d0ce is Focus Stacking, mapped 2026-11-16)
 }
-# Bracketing kind d020: 2 = Off, 3 = Focus BKT (mapped 2026-11-13). Focus Stacking needs Focus BKT; the camera then
-# switches by itself to Silent Sequential H, electronic shutter (1/16000 … 1/8 s) and flash off (E-M1 manual, p.174).
-BKT_OFF, BKT_FOCUS = 2, 3
+# Focus Stacking = Bracketing On + Focus BKT + stacking flag; the camera then switches by itself to Silent Sequential H,
+# electronic shutter (1/16000 … 1/8 s) and flash off (E-M1 manual, p.174). d020 is NOT the bracketing kind but the
+# RC flash Group A mode (OM Capture trace round C, 2026-11-22): never written for stacking.
 BKT_MAIN = "d0a6"  # Bracketing On (1) / Off (2), the main switch of Shooting Menu 2 (found 2026-11-22 by diff)
 STACK_FRAMES_WAIT = 6.0  # the 8 frames are on the card ~3.5 s after the release; then decide whether to wait on
 STACK_WAIT = 16.0  # 8 frames (16 files with JPG+ORF) in ~3.5 s, the merged JPG ~13.6 s after the release (2026-11-13)
@@ -1054,31 +1054,24 @@ class UsbCamera:
         if on:
             if LONG_LABELS.get(self._value("shutterspeed")):  # the camera stacks with the electronic shutter only
                 raise CameraError("Focus Stacking: choose a normal shutter speed first (not BULB, LIVE TIME, LIVECOMP)")
-            kind = int(float(self._value("d020")))
-            if kind != BKT_FOCUS:  # first switch-on: remember what to restore (lost after a reconnect: Off then)
-                self._bkt_before = kind
-                self._bkt_main_before = None
+            first = not self._stacking_on()  # a second On (retry, stale page) keeps what to restore
             try:
                 before = self._set_bkt_main(1)  # Bracketing On: else the camera takes one picture (2026-11-22)
-                if kind != BKT_FOCUS:
-                    self._bkt_main_before = before
-                self._set("d020", BKT_FOCUS)
+                if first:
+                    self._bkt_main_before = before  # lost after a reconnect: Off then sets Bracketing Off
                 self._set("d0cb", 1)  # Focus BKT on
                 try:
                     self._set_stack_flag(1)  # d0ce: merge the series in the camera (Focus Stacking)
                 except CameraError:
                     self._set("d0cb", 2)  # not a plain series left behind
                     raise
-            except CameraError:
-                self._set("d020", getattr(self, "_bkt_before", BKT_OFF))  # e.g. a lens without Focus BKT (p.173)
+            except CameraError:  # e.g. a lens without Focus BKT (p.173): leave Bracketing as it was
                 self._set_bkt_main(getattr(self, "_bkt_main_before", None) or 2)
                 raise
         else:
             self._set_stack_flag(2)
             self._set("d0cb", 2)
-            if int(float(self._value("d020"))) == BKT_FOCUS:  # leave another bracketing kind alone
-                self._set("d020", getattr(self, "_bkt_before", BKT_OFF))
-                self._set_bkt_main(getattr(self, "_bkt_main_before", None) or 2)  # as it was (default Off)
+            self._set_bkt_main(getattr(self, "_bkt_main_before", None) or 2)  # as it was (default Off)
         self.refresh()  # drive mode, shutter limits and flash change with it; they arrive with a new session
 
     def _set_stack_flag(self, value):

@@ -289,7 +289,7 @@ class MovieServer(unittest.TestCase):
 
 
 class FocusStacking(unittest.TestCase):
-    def test_on_sets_focus_bkt_and_off_restores_kind(self):
+    def test_on_sets_bracketing_and_focus_bkt_and_off_restores(self):
         cam = usb_camera.UsbCamera.__new__(usb_camera.UsbCamera)
         fake = FakePtp()
         fake.props[0xD020] = {"type": 2, "writable": True, "value": 1, "enum": [2, 1, 3, 0]}
@@ -299,7 +299,7 @@ class FocusStacking(unittest.TestCase):
         cam.gp, cam._c, cam._lock, cam.allow_write = pg, camera(fake), threading.Lock(), True
         cam.refresh = mock.Mock()
         cam.set_prop("focusstacking", "1")
-        self.assertEqual((fake.props[0xD020]["value"], fake.props[0xD0CB]["value"], fake.props[0xD0CE]["value"]), (3, 1, 1))
+        self.assertEqual((fake.props[0xD020]["value"], fake.props[0xD0CB]["value"], fake.props[0xD0CE]["value"]), (1, 1, 1))  # d020 = RC Group A: untouched
         self.assertEqual(fake.props[0xD0A6]["value"], 1)  # Bracketing On
         self.assertTrue(cam._stacking_on())
         only = {"focusstacking": ("d0cb", None)}

@@ -3536,7 +3536,10 @@ async function enterApp(){
   }catch(e){$('#status').className='warn';$('#status').textContent=e.message;$('#connChip').hidden=true}
   local(); applyLayout();
 }
-if(!view){init();setInterval(tick,1500)}
+// the poll skips while the last one still waits (a slow /api/state must not pile up); explicit tick() calls still run
+let tickBusy=false;
+function tickPoll(){if(tickBusy) return; tickBusy=true; tick().finally(()=>{tickBusy=false})}
+if(!view){init();setInterval(tickPoll,1500)}
 </script>
 </body>
 </html>

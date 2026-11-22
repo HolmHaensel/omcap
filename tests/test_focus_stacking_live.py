@@ -37,7 +37,7 @@ class Switch(unittest.TestCase):
     """The app switch sets Bracketing d0a6 with Focus BKT and restores what was there before."""
 
     def cam(self):
-        state = {"d0a6": "2", "d020": "1", "d0cb": "2", "d0ce": "2", "shutterspeed": "1/60"}
+        state = {"d0a6": "2", "d020": "1", "d0cb": "2", "d0ce": "2", "shutterspeed": "1/60"}  # d020 = RC Group A
         c = usb_camera.UsbCamera.__new__(usb_camera.UsbCamera)
         c._need_write = lambda: None
         c._value = lambda code: state[code]
@@ -50,7 +50,8 @@ class Switch(unittest.TestCase):
         c, state = self.cam()
         c._set_focus_stacking(True)
         c._set_focus_stacking(True)  # a second On (retry, stale page) must not forget the old state
-        self.assertEqual((state["d0a6"], state["d020"], state["d0ce"]), ("1", "3", "1"))
+        self.assertEqual((state["d0a6"], state["d0cb"], state["d0ce"]), ("1", "1", "1"))
+        self.assertEqual(state["d020"], "1")  # RC flash Group A untouched
         c._set_focus_stacking(False)
         self.assertEqual((state["d0a6"], state["d020"], state["d0cb"], state["d0ce"]), ("2", "1", "2", "2"))
 
