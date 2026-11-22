@@ -1627,9 +1627,11 @@ class UsbCamera:
             self.af_failed = False
             self._event_log = []
             t_ev = time.monotonic()
-            self._events(SHOT_TIMEOUT, "quiet")
-            self._direct_store(t_ev + SHOT_TIMEOUT)
-            if stacking:  # 8 frames (16 files) come first, the merged picture last
+            if not stacking:
+                self._events(SHOT_TIMEOUT, "quiet")
+                self._direct_store(t_ev + SHOT_TIMEOUT)
+            else:  # 8 frames (16 files) come first, the merged picture last; the camera may go silent while
+                # merging from a few seconds after the release (USB test 2026-11-23: read failed at 8.1 s)
                 self._stack_events(t0 + STACK_FRAMES_WAIT, marks, t0)
                 if len(set(self._new_files)) <= 2:  # one frame (JPG+ORF): the camera did not stack
                     self.stack_note = True
