@@ -219,7 +219,7 @@ class Page(unittest.TestCase):
 
     def test_markup_and_text(self):
         for frag in ('id="svPick"', 'id="trCopy"', 'data-i18n="hsl.autoHint"',
-                     '"transfer.copy": "Copy new photos to the computer"',
+                     '"transfer.copy": "Copy to computer"',
                      '"save.pick": "Choose …"'):
             self.assertIn(frag, self.h)
 
