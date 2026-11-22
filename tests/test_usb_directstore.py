@@ -309,6 +309,31 @@ class Shoot(unittest.TestCase):
         self.assertEqual(saved, [(".ORF_late", b"OLDORF"), (".JPG", b"NEWJ")])
         self.assertEqual(cam.take_direct_files(), ["/x/.JPG"])  # the leftover is not part of this shot
 
+    def test_leftover_same_file_twice_is_saved_once(self):
+        class Deaf(Fake):  # ignores clear=1: the same picture is offered again
+            def omd_direct_fetch(self, info):
+                data = self.left[0][1]
+                for i in range(0, len(data), 4):
+                    yield data[i:i + 4]
+        saved = []
+        cam = make_cam(Deaf([], [C004], left=[(".ORF", b"OLDORF")]), saved)
+        cam._save_leftover()
+        self.assertEqual(saved, [(".ORF_late", b"OLDORF")])
+
+    def test_leftover_read_pauses_live_view(self):
+        calls = []
+        cam = make_cam(Fake([], [], left=[(".ORF", b"OLD")]), [])
+        cam._hold_add = calls.append
+        cam._save_leftover()
+        self.assertEqual(calls, [1, -1])
+
+    def test_stops_right_after_the_jpg(self):
+        usb_camera.DIRECT_NEXT_WAIT = 5
+        cam = make_cam(Fake([(".JPG", b"J")], [C004]), [])
+        t0 = time.monotonic()
+        cam.shoot()
+        self.assertLess(time.monotonic() - t0, 2)
+
     def test_leftover_unreadable_does_not_block_the_shot(self):
         class Stuck(Fake):
             def omd_direct_info(self):
@@ -468,6 +493,23 @@ class Saving(unittest.TestCase):
         self.addCleanup(os.remove, rescue)
         self.assertEqual(read(rescue), b"ef")
         self.assertTrue(any(n.endswith(".part") for n in os.listdir(self.tmp.name)))  # first part kept
+
+    def test_rename_failure_names_the_part_file(self):
+        real = os.replace
+
+        def boom(a, b):
+            raise OSError("denied")
+        os.replace = boom
+        try:
+            with self.assertRaises(CameraError) as e:
+                sd(b"abcdef", ".ORF")
+        finally:
+            os.replace = real
+        self.assertIn("the picture is in", str(e.exception))
+        part = [n for n in os.listdir(self.tmp.name) if n.endswith(".part")]
+        self.assertEqual(len(part), 1)
+        self.assertIn(part[0], str(e.exception))
+        self.assertEqual(read(os.path.join(self.tmp.name, part[0])), b"abcdef")
 
     def test_late_name(self):
         self.assertIn("_late.ORF", os.path.basename(sd(b"old", ".ORF", late=True)))

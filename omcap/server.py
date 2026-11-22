@@ -675,7 +675,11 @@ def save_direct(ext, size, pieces, late=False):
                         g.write(piece)
                     raise CameraError("Last piece could not be written (%s); it is in %s and the first part in %s"
                                       % (e, rescue, tmp))
-        os.replace(tmp, dest)
+        try:
+            os.replace(tmp, dest)
+        except OSError as e:
+            # the camera has dropped its copy already: the .part file is the only one
+            raise CameraError("Picture could not be renamed (%s); the picture is in %s" % (e, tmp))
         ok = True
     finally:
         if not ok and os.path.exists(tmp) and got < size:

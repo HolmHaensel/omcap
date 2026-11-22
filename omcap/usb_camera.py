@@ -97,7 +97,7 @@ SHOT_TIMEOUT = 20
 # then the picture is read with PTP 0x9495/0x9493 (REQ-F61). Events as the own PTP layer words them.
 DIRECT_EVENT = re.compile(r"PTP Event c004\b|PTP Property d0de changed", re.I)
 DIRECT_GRACE = 0.5  # after the event: a card file may still be announced (then the card path stays the truth)
-DIRECT_NEXT_WAIT = 2.0  # seconds without a new event after a file: no further file (ORF then JPG follow at once)
+DIRECT_NEXT_WAIT = 1.0  # seconds without a new event after a non-JPG file (ORF): no JPG follows; after a JPG we stop at once
 
 
 def _gp():
@@ -1297,15 +1297,22 @@ class UsbCamera:
 
     def _save_leftover(self):
         """A picture still offered before the release belongs to an earlier shot: save it as `_late`."""
+        last = None
+        self._hold_add(1)  # no live view frame may slip between the pieces
         try:
             for _ in range(4):
                 info = self._call(self._c.omd_direct_info)
                 if not info:
                     return
+                if (info["ext"], info["size"]) == last:
+                    return  # same file again: the camera ignored clear=1, do not save it repeatedly
+                last = (info["ext"], info["size"])
                 path = self.on_direct_file(info["ext"], info["size"], self._pieces(info), True)
                 print("USB direct store: saved a leftover picture first: %s" % path, flush=True)
         except (CameraError, OSError) as e:
             print("USB direct store: leftover picture not read: %s" % e, flush=True)
+        finally:
+            self._hold_add(-1)
 
     def _pieces(self, info):
         """The pieces of one picture, read lazily from the camera (the sink writes each to disk as it arrives)."""
@@ -1340,6 +1347,8 @@ class UsbCamera:
                 self.direct_paths.append(path)
                 print("USB direct store: %s %.1f MB in %.1f s" % (info["ext"], info["size"] / 1e6, time.monotonic() - t0),
                       flush=True)
+                if str(info["ext"]).lower() in (".jpg", ".jpeg"):
+                    break  # the camera sends ORF first, the JPG is last (by extension: the info kind differs)
                 if not self._events(DIRECT_NEXT_WAIT, DIRECT_EVENT):
                     break  # no further file announced
         except (CameraError, OSError) as e:
