@@ -66,7 +66,7 @@ More in [Start and stop](#start-and-stop).
 |---|---|---|---|
 | Live view with zoom, Displayed Grid and overlay | ✅ | ✅ | |
 | Zoom (USB): 1× and ×3–×14 are the camera's own Zoom AF and replace the screen zoom; click = focus, drag = move, wheel/pinch = smooth zoom that snaps to the camera's ratios at rest and turns sharp (Wi-Fi has its own screen zoom, next row) | – | 🟡 | no Wi-Fi command (`exec_takemisc ctrlzoom` is the lens power zoom); AF in the zoomed view uses the screen centre, and the camera has no AF with Four Thirds lenses while zoomed (manual p.56, untested); USB both layers; camera-checked by hand 2026-11-16 (on/off, ratios, arrows); smooth zoom (drag, wheel, overview map, pinch on the phone) tried with the camera 2026-11-18; click focus (half press 1, release 5) not camera-tested (REQ-F54) |
-| Zoom (Wi-Fi): smooth screen zoom 1×–4× in the app (wheel, trackpad, pinch about the pointer; drag pans; 1×/2×/4× buttons; overview map; click = AF target, also zoomed) | ✅ | – | picture zoom only, no camera command (the live view is at most 1280×960); on the phone the live view size goes up while zoomed (1024×768 up to 2.5×, 1280×960 above) and back at 1× (if too slow: sharp only while focusing); tried over Wi-Fi with the camera 2026-11-18 (wheel, drag, overview map, phone pinch); read-only USB not tested |
+| Zoom (Wi-Fi): smooth screen zoom 1×–4× in the app (wheel, trackpad, pinch about the pointer; drag pans; 1×/2×/4× buttons; overview map; click = AF target, also zoomed) | ✅ | – | picture zoom only, no camera command (the live view is at most 1280×960); on the phone, and on the computer (also with a size picked by hand: that size is the 1× size, "Auto" next to Size only adds the adaptive size at 1×), the live view size goes up while zoomed (1024×768 up to 2.5×, 1280×960 above) and back at 1× (if too slow: sharp only while focusing); tried over Wi-Fi with the camera 2026-11-18 (wheel, drag, overview map, phone pinch); read-only USB not tested; a focus action while zoomed above 1.5× brings 1280×960 for 5 s, the Size select shows the size in use with Auto; tried over Wi-Fi 2026-11-22 (2×/4×, explicit size, tap AF, Halfway): a tap AF is refused ("Release Press halfway first") while Halfway is held, and Halfway does not change the size; on the computer the Size select is hidden while Auto is ticked (untick Auto to pick a size) |
 | Live view size (up to 1280×960) | ✅ | ✅ | USB: with the app's own USB layer (macOS default); with libgphoto2 see [Larger USB live view](#larger-usb-live-view-libgphoto2) |
 | Histogram, Highlight&Shadow, Peaking | ✅ | ✅ | Peaking follows the focus best at a live view size of 640×480 or more |
 | Frames per second shown next to the live view size (and "libgphoto2" when USB uses the slower fallback) | ✅ | 🟡 | same page code; not yet looked at over USB |
@@ -81,10 +81,11 @@ More in [Start and stop](#start-and-stop).
 |---|---|---|---|
 | Tap the 9×9 AF grid to focus, AF target in green | ✅ | ✅ | |
 | AF frame on tap (white focusing, green in focus, red no focus) | ✅ | ✅ | |
+| Focus tone in the app after a tap focus (high = in focus, low = no focus; switch "Focus tone", off by default) | ✅ | – | over USB the camera beeps itself on the half press (menu "Beep"), so no app tone; over Wi-Fi a tap sets the AF frame without a camera beep, a half press would need mode "shutter" and pause the live view; tried over Wi-Fi 2026-11-22 (user: works) (REQ-F59) |
 | "In focus" / "No focus" chip | ✅ | ✅ | Wi-Fi after a tap; USB also after Press halfway and Take picture. With S-AF the camera only releases in focus |
 | AF Area (All Targets, Single Target, Small Target, Group Target) | – | ✅ | no Wi-Fi command |
 | Focus ring (MF): Near/Far in three step sizes | – | ✅ | AF mode MF or S-AF+MF; no Wi-Fi command |
-| Focus Stacking On/Off (8 frames, merged in the camera, P/A/S/M) | – | ✅ | no Wi-Fi command |
+| Focus Stacking On/Off (8 frames, merged in the camera, P/A/S/M) | – | ✅ | no Wi-Fi command; USB: needs a card, hidden without one |
 
 ### Shooting
 
@@ -96,9 +97,9 @@ More in [Start and stop](#start-and-stop).
 | New picture in the corner and in the Index display right after the shot | ✅ | ✅ | Wi-Fi about 8 s (7 s of it is the camera's shot), USB 5–6 s after the click |
 | The corner picture fades out after 6 s | 🟡 | 🟡 | |
 | M mode quick select: BULB, LIVE TIME, LIVECOMP | ✅ | ✅ | |
-| Movie: Start/Stop recording, movie shooting mode P/A/S/M | ✅ | ✅ | Wi-Fi switches to Movie mode (movie record mode cannot be changed over Wi-Fi); USB works like the REC button (not in PHOTO STORY and some SCN modes); movie settings over USB not built |
+| Movie: Start/Stop recording, movie shooting mode P/A/S/M | ✅ | ✅ | Wi-Fi switches to Movie mode (movie record mode cannot be changed over Wi-Fi); USB works like the REC button (not in PHOTO STORY and some SCN modes); movie settings over USB not built; needs a card: REC hidden over USB without one |
 | Time lapse, AE BKT | 🟡 | ✅ | |
-| Save to card only, or to card and computer; save folder and file names | ✅ | 🟡 | not tested over USB |
+| Switch "Copy to computer" (the camera always writes to the card); save folder and file names | ✅ | ✅ | USB-tested 2026-11-22 (card: copy; no card: direct store; card change). A click into the Folder field opens the system folder dialog (on the computer only; a phone over `--lan` types the path; Windows/Linux untried, REQ-F62). USB without a card: no switch, note "No card: photos go to the computer". Wi-Fi: always the switch (the camera always needs a card). Files stored without a card are named `E-M1_<time>`: the prefix scheme applies, "datetime" adds nothing, the original name does not exist |
 
 ### Camera settings
 
@@ -125,6 +126,8 @@ More in [Start and stop](#start-and-stop).
 | HSL color profiles (HSL button, before/after) | ✅ | 🟡 | |
 | Share Order: show, save all, reset | ✅ | – | no USB counterpart known |
 | Erase selected pictures from the card (Select → Erase, JPG and ORF together, asks first) | – | ✅ | no Wi-Fi command; protected pictures are refused by the camera and kept; tested with the own USB layer, libgphoto2 not tested |
+| Fast last-shot picture right after the release (REQ-F60) | ✅ | 🟡 | Wi-Fi: `getrecview`/`getlastjpg`. USB: PTP 0x9485 OMD_GetImage, shown before the card lists the file; camera-tested once without a card: JPEG 0.9 s after the release; with card, RAW-only, held button pending; own USB layer only (libgphoto2 keeps the card path); independent of the Rec View setting (E-M1 manual p.91); not for self-timer, Focus Stacking, Bulb/Time/Live Composite, movie |
+| Shoot without a card: pictures go straight to the computer (REQ-F61) | ✅ | 🟡 | Wi-Fi saves to the computer already. USB: PTP 0x9495 info and 0x9493 pieces after event 0xC004, ORF then JPG saved as `E-M1_YYYYMMDD-HHMMSS`; own USB layer only (libgphoto2 keeps the card path); with a card nothing changes; works for single shots, Bulb/Time/Live Composite and held button (no more failure after 21 s); Focus Stacking is refused without a card; camera-tested without a card (JPG only, RAW+JPEG) and with a card (unchanged); untested: RAW only, self-timer, Bulb/Time/Live Composite stop, interval, held button, sequential L/H, locked card (counts as a card, direct store skipped), movie (needs a card) |
 | Movie length in the single-frame view | ✅ | – | not built for USB |
 
 ### Phone, second monitor and webcam
@@ -169,6 +172,9 @@ Measured with the E-M1 Mark I (firmware 4.6), a Mac and about 2950 pictures on t
 | Live view 1280×960 | about 8 fps | 15 fps |
 | Focus by tap | about 0.4 s | 0.4–0.6 s |
 | Take picture | 1.2–1.5 s | about 4.5 s, new files in the list at once |
+| Connect without a card | – (Wi-Fi needs a card) | up to 3 s longer, also after each mode dial turn (the app checks for a card that is still waking up; 2026-11-22) |
+| Shot without a card | – | 2.7 s, straight to the computer (2026-11-22) |
+| Shot with card, copy to computer | – | 11.7 s (ORF + JPG, 2026-11-22) |
 
 - 30 fps is the camera's own live view rate; at 1280×960 it sends half of that.
 - Of the 5 s for a USB connect, about 4.7 s is the camera itself switching to computer control.

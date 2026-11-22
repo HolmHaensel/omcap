@@ -26,9 +26,9 @@ var zMeasure=function(){return vp.getBoundingClientRect()},zBox=zMeasure;
 
 STUBS_FULL = """
 var AUTO_LV_SLOW_MS=4000,AUTO_LV_SIZES=['0640x0480','0800x0600','1024x0768','1280x0960'],timers=[],picks=0,loupeOn=false,zBlock=false,lvPicked=false,autoLvBusy=false,autoLvLastChange=0,autoLvSlowSince=0,
-  st={live:true,lvqty:'0640x0480',job:{}},enabled=true,ideal='0800x0600',labels=[],msgs=[],
+  st={live:true,lvqty:'0640x0480',job:{}},enabled=true,sizing=true,ideal='0800x0600',labels=[],msgs=[],
   tr=function(k){return k},msg=function(m){msgs.push(m)},
-  autoLvEnabled=function(){return enabled},idealMobileLvSize=function(){return ideal},autoLvLabel=function(s){labels.push(s)},
+  autoLvEnabled=function(){return enabled},wzSizingEnabled=function(){return sizing},idealMobileLvSize=function(){return ideal},autoLvLabel=function(s){labels.push(s)},
   loupePtrEnd=function(){return false},pickField=function(){picks++},
   setTimeout=function(f,ms){timers.push([f,ms]);return timers.length},clearTimeout=function(){};
 Q('#lvStart').onclick=function(){calls.push('start '+Q('#lvqty').value)};
@@ -224,9 +224,28 @@ class SharpSizeAndPointers(unittest.TestCase):
         self.assertEqual(r["calls"], ["start 1280x0960", "start 0640x0480"])  # back after the hold
         self.assertTrue(r["focus"])  # stays until 1x
 
-    def test_focus_action_changes_nothing_outside_the_mode_and_not_in_a_gesture(self):
-        r = self.run_js("z=3; wzFocusAction(); var a=timers.length; wzFocusOnly=true; wzPtr.set(1,{x:0,y:0}); wzFocusAction(); wzSizeCheck(); JSON.stringify({a:a,c:calls.length})")
-        self.assertEqual((r["a"], r["c"]), (0, 0))
+    def test_focus_action_changes_nothing_in_a_gesture(self):
+        r = self.run_js("z=3; st.lvqty='1024x0768'; wzPtr.set(1,{x:0,y:0}); wzFocusAction(); wzSizeCheck(); JSON.stringify({c:calls.length})")
+        self.assertEqual(r["c"], 0)
+
+    def test_focus_in_the_middle_range_brings_the_highest_size_then_back(self):
+        r = self.run_js("""
+        z=2; st.lvqty='1024x0768'; wzSharpOn=true; wzBase='0800x0600'; wzFocusAction(); wzSizeCheck(); var a=calls.slice();
+        st.lvqty='1280x0960'; autoLvBusy=false; autoLvLastChange=0; wzFocusUntil=Date.now()-1; wzSizeCheck();
+        JSON.stringify({a:a,calls:calls,fn:wzSizeFor(2)})""")
+        self.assertEqual(r["a"], ["start 1280x0960"])
+        self.assertEqual(r["calls"], ["start 1280x0960", "start 1024x0768"])  # the size that belongs to 2x
+        self.assertEqual(r["fn"], "1024x0768")
+
+    def test_focus_at_or_below_1_5x_changes_nothing(self):
+        self.assertEqual(self.run_js("z=1.5; st.lvqty='0800x0600'; wzFocusAction(); wzSizeCheck(); JSON.stringify(calls)"), [])
+
+    def test_select_shows_the_size_in_use_in_auto(self):
+        with open(HTML, encoding="utf-8") as f:
+            h = f.read()
+        body = h[h.index("function autoLvLabel"):h.index("function idealMobileLvSize")]
+        self.assertIn("if(sizing&&size) $('#lvqty').value=size", body)
+        self.assertIn("Auto: show what the camera really sends", h)
 
     def test_no_size_change_while_half_pressed_even_inside_the_hold(self):
         r = self.run_js("""
@@ -237,20 +256,70 @@ class SharpSizeAndPointers(unittest.TestCase):
         self.assertEqual(r["retry"], 1000)
         self.assertEqual(r["after"], ["start 1280x0960"])
 
-    def test_half_press_asks_for_the_size_only_on_release(self):
+    def test_half_press_does_not_change_the_size(self):
+        # Wi-Fi test 2026-11-22: a size change right after the Halfway release raced with the release's own live
+        # view restart (mode shutter -> rec) and exec_takemotion answered 520: only a tap AF brings the sharp size
         with open(HTML, encoding="utf-8") as f:
             h = f.read()
         body = h[h.index("$('#half').onclick="):h.index("$('#reset').onclick=")]
-        self.assertEqual(body.count("wzFocusAction()"), 1)
-        self.assertLess(body.index("await act("), body.index("wzFocusAction()"))
-        self.assertIn("if(!pressing) wzFocusAction()", body)
+        self.assertNotIn("wzFocusAction()", body)
 
     def test_focus_mode_ends_at_1x(self):
         r = self.run_js("z=1; wzFocusOnly=true; wzSizeCheck(); JSON.stringify({f:wzFocusOnly,c:calls.length})")
         self.assertEqual((r["f"], r["c"]), (False, 0))
 
-    def test_desktop_is_left_alone(self):
-        self.assertEqual(self.run_js("enabled=false; z=4; wzSizeCheck(); JSON.stringify(calls)"), [])
+    def test_usb_or_read_only_is_left_alone(self):
+        self.assertEqual(self.run_js("enabled=false; sizing=false; z=4; wzSizeCheck(); JSON.stringify(calls)"), [])
+        self.assertEqual(self.run_js("enabled=true; sizing=false; z=2; wzFocusAction(); wzSizeCheck(); JSON.stringify(calls)"), [])
+
+    def test_explicit_size_goes_sharp_in_the_zoom_and_back_at_1x(self):
+        # user 2026-11-22: 800x600 picked by hand, then 4x stayed at 800x600
+        r = self.run_js("""
+        enabled=false; st.lvqty='0800x0600'; z=4; wzSizeCheck(); var a=calls.slice();
+        st.lvqty='1280x0960'; autoLvBusy=false; autoLvLastChange=0; z=1; calls.length=0; wzSizeCheck();
+        JSON.stringify({a:a,b:calls,base:wzBase,on:wzSharpOn})""")
+        self.assertEqual(r["a"], ["start 1280x0960"])
+        self.assertEqual(r["b"], ["start 0800x0600"])  # the explicit size
+        self.assertFalse(r["on"])
+
+    def test_explicit_size_is_not_replaced_by_the_adaptive_one(self):
+        r = self.run_js("""
+        enabled=false; ideal='0640x0480'; st.lvqty='1024x0768'; z=4; wzSizeCheck();
+        st.lvqty='1280x0960'; autoLvBusy=false; autoLvLastChange=0; z=1; calls.length=0; wzSizeCheck();
+        JSON.stringify(calls)""")
+        self.assertEqual(r, ["start 1024x0768"])
+
+    def test_size_picked_while_zoomed_is_the_one_to_return_to(self):
+        # the pick runs before st.lvqty shows it: the stale camera size must not become the 1x size
+        with open(HTML, encoding="utf-8") as f:
+            line = next(l for l in f.read().splitlines() if l.startswith("$('#lvqty').onchange="))
+        r = self.run_js("""
+        enabled=false; st.lvqty='0640x0480'; z=3;
+        Q('#lvStart').click=function(){}; 
+        %s
+        Q('#lvqty').value='1024x0768'; Q('#lvqty').onchange(); wzSizeCheck(); var a=calls.slice();
+        st.lvqty='1280x0960'; autoLvBusy=false; autoLvLastChange=0; z=1; calls.length=0; wzSizeCheck();
+        JSON.stringify({a:a,b:calls,base:wzBase})""" % line.replace("$(", "Q("))
+        self.assertEqual(r["a"], ["start 1280x0960"])
+        self.assertEqual(r["b"], ["start 1024x0768"])
+
+    def test_explicit_size_focus_action_at_2x_then_back(self):
+        r = self.run_js("""
+        enabled=false; z=2; st.lvqty='0800x0600'; wzFocusAction(); wzSizeCheck(); var a=calls.slice();
+        st.lvqty='1280x0960'; autoLvBusy=false; autoLvLastChange=0; wzFocusUntil=Date.now()-1; wzSizeCheck();
+        JSON.stringify({a:a,calls:calls})""")
+        self.assertEqual(r["a"], ["start 1280x0960"])
+        self.assertEqual(r["calls"], ["start 1280x0960", "start 1024x0768"])  # the middle size that belongs to 2x
+
+    def test_explicit_size_is_never_stepped_down_at_1x_but_the_sharp_size_falls_back(self):
+        slow = "st.lvperf={sample_seconds:5,fps:5};st.lv_age=0;autoLvLastChange=0;enabled=false;"
+        r = self.run_js(slow + "st.lvqty='1024x0768'; z=1; reduceAutoLiveSize(); JSON.stringify({s:autoLvSlowSince,c:calls.length})")
+        self.assertEqual((r["s"], r["c"]), (0, 0))
+        r = self.run_js(slow + """z=3; wzSizeCheck(); st.lvqty='1280x0960'; autoLvBusy=false; autoLvLastChange=0;
+        reduceAutoLiveSize(); autoLvSlowSince=Date.now()-5000; reduceAutoLiveSize(); calls.length=0; autoLvLastChange=0; wzSizeCheck();
+        JSON.stringify({f:wzFocusOnly,c:calls,l:labels.at(-1)})""")
+        self.assertTrue(r["f"])
+        self.assertEqual(r["c"], ["start 0640x0480"])  # the size from before
 
     def test_no_step_down_for_slowness_while_zoomed(self):
         slow = "st.lvperf={sample_seconds:5,fps:5};st.lvqty='1280x0960';st.lv_age=0;"
@@ -277,6 +346,41 @@ class SharpSizeAndPointers(unittest.TestCase):
         self.assertEqual(r["picks"], 0)
         self.assertTrue(r["zoomed"])
         self.assertTrue(r["moved"])
+
+
+@unittest.skipUnless(HAVE_JS, "needs the JavaScript engine of macOS (osascript)")
+class AutoSizeOnTheComputer(unittest.TestCase):
+    """The sharp size also works on the computer, but only while the size choice is Auto (REQ-F55)."""
+
+    def setUp(self):
+        with open(HTML, encoding="utf-8") as f:
+            self.h = f.read()
+
+    def enabled(self, mobile, auto, usb=False, write=True):
+        line = re.search(r"const wzSizingEnabled=[^\n]*\n", self.h).group(0) + re.search(r"const autoLvEnabled=[^\n]*\n", self.h).group(0)
+        code = ("var MOBILE_LIVE={matches:%s},isUsb=%s,canWrite=%s,features=new Set(['lvsize']),"
+                "Q=function(){return {checked:%s}};%s JSON.stringify(autoLvEnabled())"
+                % (str(mobile).lower(), str(usb).lower(), str(write).lower(), str(auto).lower(), line.replace("$(", "Q(")))
+        out = subprocess.run(["osascript", "-l", "JavaScript", "-e", code], capture_output=True, text=True, timeout=30)
+        self.assertEqual(out.returncode, 0, out.stderr)
+        return json.loads(out.stdout.strip())
+
+    def test_computer_with_auto_ticked_is_enabled_and_a_picked_size_is_not(self):
+        self.assertTrue(self.enabled(False, True))
+        self.assertFalse(self.enabled(False, False))  # a size picked by hand: no adaptive size at 1x
+        self.assertTrue(self.enabled(True, False))  # the phone is always automatic
+        self.assertFalse(self.enabled(False, True, usb=True))  # USB: camera Zoom AF, manual size
+        self.assertFalse(self.enabled(False, True, write=False))
+
+    def test_markup_and_handlers(self):
+        self.assertIn('id="lvAuto" checked', self.h)
+        self.assertIn('data-i18n="lv.autoSize"', self.h)
+        self.assertIn('"lv.autoSize": "Auto"', self.h)
+        self.assertIn("$('#lvAuto').checked=false", self.h)  # picking a size ends Auto
+        self.assertIn("$('#lvAutoLab').hidden=isUsb", self.h)  # Wi-Fi only
+        self.assertIn("wzSizeSoon()}; // a size picked by hand ends Auto, the zoom still goes sharp", self.h)
+        self.assertIn('"lv.sizeFocus"', self.h)
+        self.assertIn("on&&MOBILE_LIVE.matches", self.h)  # the size choice hides on the phone only
 
 
 if __name__ == "__main__":

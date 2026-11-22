@@ -14,6 +14,7 @@ import json
 import os
 import re
 import secrets
+import shutil
 import signal
 import socket
 import subprocess
@@ -48,7 +49,7 @@ LV_PORT = 5555
 MIN_INTERVAL = 5  # one shot takes about 4 s (focus, release, save)
 
 WIFI_FEATURES = ["liveview", "lvsize", "af_area", "stages", "scp", "time_lapse", "ae_bkt", "movie",
-                 "long", "playback", "transfer", "share_order", "poweroff"]
+                 "long", "playback", "transfer", "share_order", "poweroff", "focus_tone"]
 
 cam = None   # active connection, None before the choice on the start screen
 live = None
@@ -114,7 +115,7 @@ job = {"name": None, "running": False, "done": 0, "total": 0, "error": None}
 state = {"transfer": "sd", "latest": None, "transfer_error": None,
          "take": None, "movie": None, "resume_live": False, "seen": None, "wifi_field": 41,
          "wifi_af": None, "pressing": False, "indexing": False, "play": None,
-         "last_shot": None}
+         "last_shot": None, "last_shot_jpeg": None, "fast_n": 0}
 
 
 DEVICE_TTL = 30  # seconds; do not query card space and battery on every tick
@@ -165,6 +166,7 @@ def connections():
 def connect(kind):
     global cam, live, conn_type
     disconnect()
+    state["last_shot_jpeg"] = None  # never show a picture of an earlier session
     if kind == "wifi":
         c = Camera(options["host"], allow_write=options["allow_write"])
         c.features = WIFI_FEATURES
@@ -174,6 +176,8 @@ def connect(kind):
         threading.Thread(target=wifi_watchdog, args=(c, wifi_watch["gen"]), daemon=True).start()
     elif kind == "usb":
         c = usb_camera.UsbCamera(allow_write=options["allow_write"], backend=options["usb_backend"])
+        c.on_fast_jpeg = remember_fast_shot
+        c.on_direct_file = save_direct
         cam, live = c, c.live
         start_index(c)
     else:
@@ -217,7 +221,8 @@ def disconnect():
     movtime_cache.clear()
     state.update(play=None, indexing=False)
     state.update(transfer="sd", latest=None, transfer_error=None, take=None, movie=None,
-                 resume_live=False, seen=None, wifi_field=41, wifi_af=None, last_shot=None)
+                 resume_live=False, seen=None, wifi_field=41, wifi_af=None, last_shot=None,
+                 last_shot_jpeg=None)
 
 
 def af_area():
@@ -225,9 +230,12 @@ def af_area():
     if conn_type == "usb":
         return {**cam.af_area(), "modes": True}
     f = cam.touch_frame()
+    bw, bh = f["base_w"], f["base_h"]
+    g = usb_camera.AF_GRID  # the camera's real 9x9 grid; the touch frame (where taps are taken) is smaller
     return {"mode": 33025, "field": state["wifi_field"], "modes": False, "last_af": state["wifi_af"],
-            "area": {"x0": f["x"], "x1": f["x"] + f["w"], "y0": f["y"], "y1": f["y"] + f["h"],
-                     "w": f["base_w"], "h": f["base_h"]}}
+            "area": {"x0": round(g[0] * bw), "x1": bw - round(g[0] * bw), "y0": round(g[2] * bh),
+                     "y1": bh - round(g[2] * bh), "w": bw, "h": bh},
+            "touch": {"x0": f["x"], "x1": f["x"] + f["w"], "y0": f["y"], "y1": f["y"] + f["h"]}}
 
 
 def set_af_area(mode, field):
@@ -243,12 +251,17 @@ def set_af_area(mode, field):
     field = int(field)
     if not 1 <= field <= 81:
         raise CameraError("AF point must be between 1 and 81")
-    a = af_area()["area"]
+    info = af_area()
+    a, t = info["area"], info["touch"]
     row, col = divmod(field - 1, 9)
     state["wifi_af"] = None
-    res = cam.af_focus((a["x0"] + (col + .5) / 9 * (a["x1"] - a["x0"])) / a["w"],
-                       (a["y0"] + (row + .5) / 9 * (a["y1"] - a["y0"])) / a["h"])
-    state["wifi_field"] = field
+    # outer fields lie outside the touch frame: focus at the nearest point the camera takes
+    x = min(max(a["x0"] + (col + .5) / 9 * (a["x1"] - a["x0"]), t["x0"]), t["x1"])
+    y = min(max(a["y0"] + (row + .5) / 9 * (a["y1"] - a["y0"]), t["y0"]), t["y1"])
+    res = cam.af_focus(x / a["w"], y / a["h"])
+    # the field the camera really used (an outer field moves inward), so the target and the green field agree
+    state["wifi_field"] = 9 * min(int((y - a["y0"]) * 9 / (a["y1"] - a["y0"])), 8) \
+        + min(int((x - a["x0"]) * 9 / (a["x1"] - a["x0"])), 8) + 1
     # Report the frame centre only for affocus=ok; the UI then colours the field green
     if res["ok"] and res["x"] is not None:
         state["wifi_af"] = {"x": res["x"], "y": res["y"]}
@@ -468,6 +481,14 @@ def remember_shot(paths):
     p = newest_jpg(paths)
     if p:
         state["last_shot"] = p
+        state["last_shot_jpeg"] = None  # the card copy takes over from the fast one
+
+
+def remember_fast_shot(data):
+    """USB: JPEG straight from the camera (0x9485), shown at once; shown only, never saved (the card copy is)."""
+    state["last_shot_jpeg"] = data
+    state["last_shot"] = None  # the old card path belongs to the previous shot
+    state["fast_n"] = state.get("fast_n", 0) + 1
 
 
 def captures_dir():
@@ -556,6 +577,48 @@ def load_save_cfg():
         pass
 
 
+_dialog_lock = threading.Lock()
+_DIALOG_PROMPT = "Choose the folder for the pictures"
+
+
+class Forbidden(Exception):
+    """Request refused for who asks (not for what failed): answered with 403, never 502."""
+
+
+def pick_folder_dialog():
+    """Open the OS folder dialog on the machine the server runs on; returns the path, "" on cancel.
+
+    Fixed argument lists only, nothing from the page reaches a shell. Raises ValueError when no dialog is
+    possible (the typed field keeps working)."""
+    if sys.platform == "darwin":
+        # activate first: a dialog started from a background process opens behind the browser
+        cmd = ["osascript", "-e", 'tell application "System Events" to activate',
+               "-e", 'POSIX path of (choose folder with prompt "%s")' % _DIALOG_PROMPT]
+    elif sys.platform.startswith("win"):
+        cmd = ["powershell", "-NoProfile", "-STA", "-Command",
+               "[Console]::OutputEncoding=[Text.Encoding]::UTF8; "
+               "Add-Type -AssemblyName System.Windows.Forms; "
+               "$d = New-Object System.Windows.Forms.FolderBrowserDialog; "
+               "if ($d.ShowDialog() -eq 'OK') { $d.SelectedPath }"]
+    elif shutil.which("zenity"):
+        cmd = ["zenity", "--file-selection", "--directory", "--title=" + _DIALOG_PROMPT]
+    else:
+        raise ValueError("No folder dialog on this system (install zenity); type the folder instead")
+    if not _dialog_lock.acquire(blocking=False):
+        raise ValueError("A folder dialog is already open")
+    try:
+        r = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", timeout=600)
+    except (OSError, subprocess.SubprocessError) as e:
+        raise ValueError("Folder dialog failed: %s; type the folder instead" % e)
+    finally:
+        _dialog_lock.release()
+    if r.returncode == 1 and (sys.platform != "darwin" or "-128" in r.stderr):
+        return ""  # cancel (osascript "User canceled" -128, zenity 1) is not an error
+    if r.returncode != 0:
+        raise ValueError("Folder dialog failed: %s" % (r.stderr.strip() or r.returncode))
+    return r.stdout.strip()  # PowerShell prints nothing on cancel; validate_save_dir normalises the path
+
+
 def public_save_cfg():
     return {**save_cfg, "effective_dir": captures_dir()}
 
@@ -593,6 +656,94 @@ def save_capture(path, size=None):
     return dest
 
 
+direct_shot = {"base": None, "t": 0.0, "exts": set()}  # base name of the shot being saved without a card
+
+
+def direct_name(ext, now=None, late=False):
+    """Camera-like base name for a picture that comes without a card (E-M1_YYYYMMDD-HHMMSS, the time it is
+    saved). ORF and JPG of one shot share it: a new base starts when the extension was seen already or the
+    last file is older than 15 s. `late`: a picture left over from an earlier shot, marked `_late`."""
+    now = time.time() if now is None else now
+    ext = ext.upper()
+    if late:
+        return time.strftime("E-M1_%Y%m%d-%H%M%S", time.localtime(now)) + "_late" + ext
+    d = direct_shot
+    if d["base"] is None or ext in d["exts"] or now - d["t"] > 15:
+        d.update(base=time.strftime("E-M1_%Y%m%d-%H%M%S", time.localtime(now)), exts=set())
+    d["exts"].add(ext)
+    d["t"] = now
+    return d["base"] + ext
+
+
+DIRECT_MARGIN = 64 << 20  # free space kept beyond the picture size
+
+
+def save_direct(ext, size, pieces, late=False):
+    """USB without a card: store a picture the camera hands over in pieces (REQ-F61). Same folder and prefix
+    scheme as save_capture. The pieces go to `name.part` as they arrive; the last one is requested from the
+    camera with clear=1 (the camera then drops its copy), so folder, space and the .part file are checked
+    BEFORE the first piece: a failure there leaves the picture in the camera. If only the final write fails,
+    the bytes go to the temp folder and the error names that path. Never overwrites. Returns the path."""
+    ext = ext if re.fullmatch(r"\.[A-Za-z0-9]{1,4}", ext or "") else ".BIN"
+    folder = captures_dir()
+    try:
+        os.makedirs(folder, exist_ok=True)
+        free = shutil.disk_usage(folder).free
+        if free < size + DIRECT_MARGIN:
+            raise OSError("only %d MB free in %s, the picture needs %d MB" % (free >> 20, folder, size >> 20))
+        name = direct_name(ext, late=late)
+        if save_cfg["scheme"] == "prefix" and save_cfg["prefix"]:
+            name = save_cfg["prefix"] + name  # "datetime" adds nothing: the name has the time already
+        stem, ext = os.path.splitext(name)
+        dest, n = os.path.join(folder, stem + ext), 0
+        while os.path.exists(dest):
+            n += 1
+            dest = os.path.join(folder, "%s-%d%s" % (stem, n, ext))
+        tmp = dest + ".part"
+        f = open(tmp, "wb")
+    except OSError as e:
+        raise CameraError("Picture stays in the camera, not saved: %s" % e)
+    jpeg, got, ok = bytearray(), 0, False
+    try:
+        with f:
+            for piece in pieces:
+                got += len(piece)
+                final = got >= size
+                if ext.lower() in (".jpg", ".jpeg"):
+                    jpeg += piece
+                try:
+                    f.write(piece)
+                    f.flush()
+                    if final:
+                        os.fsync(f.fileno())
+                except OSError as e:
+                    if not final:
+                        raise
+                    # the camera has dropped its copy already: keep the bytes somewhere
+                    fd, rescue = tempfile.mkstemp(prefix="omcap-", suffix=ext)
+                    with os.fdopen(fd, "wb") as g:
+                        g.write(piece)
+                    raise CameraError("Last piece could not be written (%s); it is in %s and the first part in %s"
+                                      % (e, rescue, tmp))
+        try:
+            os.replace(tmp, dest)
+        except OSError as e:
+            # the camera has dropped its copy already: the .part file is the only one
+            raise CameraError("Picture could not be renamed (%s); the picture is in %s" % (e, tmp))
+        ok = True
+    finally:
+        if not ok and os.path.exists(tmp) and got < size:
+            os.remove(tmp)  # the camera still has the file: nothing worth keeping
+    if hsl_auto["enabled"] and ext.lower() in (".jpg", ".jpeg", ".orf"):
+        hsl_auto_run(dest)
+    if ext.lower() in (".jpg", ".jpeg"):
+        remember_fast_shot(bytes(jpeg))  # shown as the last shot; there is no card copy to take over
+        state["latest"] = os.path.basename(dest)
+    elif state["latest"] is None or not state["latest"].lower().endswith((".jpg", ".jpeg")):
+        state["latest"] = os.path.basename(dest)
+    return dest
+
+
 def card_snapshot():
     if state["transfer"] != "both" or conn_type == "usb":
         return None
@@ -620,6 +771,9 @@ def shot(seen):
     new = cam.shoot()
     invalidate_device()  # card space has changed
     if conn_type == "usb":  # USB reports the new files directly
+        cam.refresh_card()  # the card may have been taken out or put in; cached for the state
+        if not new:
+            return cam.take_direct_files()  # no card: saved to the computer already (REQ-F61)
         remember_shot(new)
         if state["transfer"] == "both":
             state["transfer_error"] = None
@@ -995,6 +1149,8 @@ def public_state():
         "stage": cam.stage, "busy": busy.locked() or state["pressing"], "indexing": state["indexing"], "live": live.running, "lv_age": live.age, "lvqty": cam.lvqty, "gone": bool(getattr(cam, "gone", False)) or (conn_type == "wifi" and wifi_watch["lost"]),
         "lvperf": getattr(live, "performance", lambda: None)(), "job": job,
         "transfer": state["transfer"], "latest": state["latest"], "play": state["play"] is not None,
+        # USB: True card, False none, None unknown (cached, not read on every tick); Wi-Fi: always None
+        "card": getattr(cam, "card", None) if conn_type == "usb" else None,
         "transfer_error": state["transfer_error"], "hsl_error": hsl_auto["error"],
         "take": now - state["take"] if state["take"] else None,
         "movie": now - state["movie"]["since"] if state["movie"] else None,
@@ -1002,6 +1158,7 @@ def public_state():
         "lvinfo": live.live_values() if hasattr(live, "live_values") else None,
         # USB: time the mode dial was last turned (the session was rebuilt, values are new)
         "mode_at": getattr(cam, "mode_changed_at", None),
+        "fast_n": state["fast_n"] if conn_type == "usb" and state["last_shot_jpeg"] else 0,
         "loupe": bool(getattr(cam, "loupe_on", False)),  # USB Zoom AF (camera magnification) on
         "loupe_ratio": getattr(cam, "loupe_ratio", 5),
         "loupe_x": getattr(cam, "loupe_x", None), "loupe_y": getattr(cam, "loupe_y", None),  # wanted centre, for pages that follow
@@ -1201,7 +1358,13 @@ class Handler(BaseHTTPRequestHandler):
                 return self.wfile.write(hit[1])
             if u.path == "/api/lastshot":
                 # USB: the camera reports the new files of a shot (Wi-Fi uses /api/newshot)
-                return self._send({"path": state["last_shot"] if conn_type == "usb" else None})
+                usb = conn_type == "usb"
+                return self._send({"path": state["last_shot"] if usb else None,
+                                   "fast": state["fast_n"] if usb and state["last_shot_jpeg"] else None})
+            if u.path == "/api/lastfast":  # USB: the JPEG of the last shot from memory, until the card path is known
+                if conn_type != "usb" or not state["last_shot_jpeg"]:
+                    return self._send({"error": "not found"}, code=404)
+                return self._image(state["last_shot_jpeg"], q)
             if u.path == "/api/exif":
                 return self._send({"exif": picture_info(q["path"])})
             if u.path == "/api/lens":
@@ -1268,7 +1431,7 @@ class Handler(BaseHTTPRequestHandler):
             if extra is False:
                 return self._send({"error": "not found"}, code=404)
             self._send({"ok": True, **(extra or {})})
-        except WriteBlocked as e:
+        except (WriteBlocked, Forbidden) as e:
             self._send({"error": str(e)}, code=403)
         except (CameraError, KeyError, OSError, ValueError, TypeError,
                 ET.ParseError, subprocess.SubprocessError) as e:
@@ -1284,7 +1447,11 @@ class Handler(BaseHTTPRequestHandler):
         if conn_type == "usb":  # over USB the live view simply keeps running
             state["resume_live"] = False
             if stage == 0:
+                cam.refresh_card()  # released after a shot or a half press: the card may have changed
                 new = cam.take_new_files()
+                saved = cam.take_direct_files()  # no card: pictures saved straight to the computer (REQ-F61)
+                if saved:
+                    return {"saved": saved}
                 remember_shot(new)
                 if state["transfer"] == "both":
                     for p in jpg_last(new):
@@ -1294,7 +1461,8 @@ class Handler(BaseHTTPRequestHandler):
                 return {"last_af": cam.af_area()["last_af"]}
         elif stage == 0:
             if state["seen"] is not None:
-                pull_new(state["seen"])
+                if cam.released_full:  # a half press without a shot must stay silent
+                    pull_new(state["seen"])
                 state["seen"] = None
             if state["resume_live"]:
                 state["resume_live"] = False
@@ -1325,6 +1493,10 @@ class Handler(BaseHTTPRequestHandler):
             return None
         if path == "/api/savecfg":
             return {"cfg": set_save_cfg(b)}
+        if path == "/api/pickfolder":
+            if not self._local():  # a phone over --lan must not open dialogs on the computer
+                raise Forbidden("The folder dialog only opens from the computer itself")
+            return {"dir": pick_folder_dialog()}
         if path == "/api/open":
             subprocess.run(["open", "-a", "OM Workspace", capture_path(b["name"])], check=True)
             return None
@@ -1372,7 +1544,9 @@ class Handler(BaseHTTPRequestHandler):
         elif path == "/api/shoot":
             ensure_idle()
             with capture():
-                shot(card_snapshot())
+                saved = shot(card_snapshot())
+            if saved:
+                return {"saved": saved}
         elif path == "/api/shutter":
             state["pressing"] = True
             try:
@@ -1417,6 +1591,10 @@ class Handler(BaseHTTPRequestHandler):
                     cam.take_stop()
                 finally:
                     state["take"] = None
+                if conn_type == "usb":
+                    cam.refresh_card()
+                    saved = cam.take_direct_files()  # no card: saved straight to the computer (REQ-F61)
+                    return {"saved": saved} if saved else None
         elif path == "/api/movie" and conn_type == "usb":
             # USB: the movie button records in every shooting mode (manual p.26), no mode switch
             # the REC button toggles: never press it for Stop when the app did not start a recording

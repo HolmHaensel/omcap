@@ -123,6 +123,7 @@ class Camera:
         self.timeout = timeout
         self.allow_write = allow_write
         self.stage = 0      # shutter: 0 open, 1 half, 2 full
+        self.released_full = False  # last release came from the full press (a shot was taken)
         self.lvqty = None   # last chosen live view size
         self._lock = threading.Lock()
         self._commands = None
@@ -386,6 +387,7 @@ class Camera:
 
     def _release(self):
         full = self.stage == 2
+        self.released_full = full
         error = None
         for step in (["2nd1strelease"] if full else []) + ["1strelease"]:
             try:

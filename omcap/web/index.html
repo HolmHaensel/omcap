@@ -173,7 +173,8 @@ button:disabled{color:var(--disabled);opacity:.6;cursor:not-allowed}
 #modeBox .seg button{flex:1;width:auto;min-width:0;padding:0 2px;height:38px;font-family:var(--font-value);font-size:13px}
 .hrow{display:flex;align-items:center;justify-content:space-between}
 .mini{font-size:11px;padding:1px 8px;background:transparent;color:var(--muted);font-weight:400;letter-spacing:0}
-#roProps{margin-top:var(--s2);font-size:var(--fs-label);color:var(--muted)}
+.hint,#roProps{font-size:var(--fs-label);color:var(--muted)} /* small grey hints, one size everywhere (user 2026-11-23) */
+#roProps{margin-top:var(--s2)}
 #panels .row label:has(input[type=text]),#panels .row label:has(select#svScheme){flex:1;min-width:0}
 #panels input[type=text]{width:100%;min-width:0}
 #svPrefix{width:8em}
@@ -186,7 +187,7 @@ button:disabled{color:var(--disabled);opacity:.6;cursor:not-allowed}
 @media(prefers-reduced-motion:reduce){#recChip .dot{animation:none}}
 /* Wi-Fi on phone width: the live view size follows the screen and the signal (REQ-F45), the manual choice is hidden */
 /* only while the automatic size is on (Wi-Fi, write enabled); on a phone the choice is hidden anyway (REQ-F49, below) */
-body.autoLv label[data-feat=lvsize]{display:none!important}
+body.autoLv label[data-feat=lvsize],body.autoPhone #lvAutoLab{display:none!important}
 /* Phone, upright or turned (REQ-F49): the app picks the live view size itself (Wi-Fi: adaptive, USB: 1024×768),
    and second-monitor windows and the OBS webcam window make no sense on a phone */
 @media(max-width:700px),(orientation:landscape) and (max-height:520px) and (max-width:1100px){
@@ -622,6 +623,7 @@ section h2{margin-bottom:10px;color:#b9bec4;font-size:var(--fs-label);font-weigh
     <label class="lab" data-feat="lvsize"><span data-i18n="lv.size">Size</span> <select id="lvqty">
       <option>0320x0240</option><option>0640x0480</option><option selected>0800x0600</option><option>1024x0768</option><option>1280x0960</option>
     </select></label>
+    <label class="lab" id="lvAutoLab" hidden><input type="checkbox" id="lvAuto" checked> <span data-i18n="lv.autoSize">Auto</span></label>
     <span id="autoLvStatus" class="chip" hidden data-feat="lvsize"></span>
     <span class="vsep"></span>
     <span id="lvTools" hidden>
@@ -636,6 +638,7 @@ section h2{margin-bottom:10px;color:#b9bec4;font-size:var(--fs-label);font-weigh
         <label class="tog"><input type="checkbox" id="lvlSound"> <span data-i18n="lv.sound">Sound</span></label>
       </span></span>
       <span id="lvlInfo" class="mut" data-feat="level"></span>
+      <label class="tog" data-feat="focus_tone" data-i18n-title="lv.focusToneHint" title="App tone after a tap focus; the camera beep stays as set in the menu"><input type="checkbox" id="focusTone"> <span data-i18n="lv.focusTone">Focus tone</span></label>
       <label class="tog"><span data-i18n="lv.grid">Displayed Grid</span> <select id="gridType"><option value="" data-i18n="lv.gridOff">Off</option><option value="thirds" data-i18n="lv.gridThirds">Rule of thirds</option><option value="cross" data-i18n="lv.gridCross">Crosshair</option><option value="mesh" data-i18n="lv.gridMesh">Grid</option></select></label>
       <label class="gridAdj" hidden>X <input type="range" id="gridX" min="-50" max="50" value="0"></label>
       <label class="gridAdj" hidden>Y <input type="range" id="gridY" min="-50" max="50" value="0"></label>
@@ -749,28 +752,28 @@ section h2{margin-bottom:10px;color:#b9bec4;font-size:var(--fs-label);font-weigh
   <section data-id="transfer" data-pane="files" data-label="Save to" data-i18n-label="panel.transfer">
     <h2 data-i18n="panel.transfer">Save to</h2>
     <div class="row">
-      <label><input type="radio" name="tr" value="sd" checked> <span data-i18n="transfer.sd">Card only</span></label>
-      <label><input type="radio" name="tr" value="both"> <span data-i18n="transfer.both">Card and computer</span></label>
-      <button id="popPhoto" data-i18n="transfer.popPhoto">Picture on second monitor</button>
+      <label id="trCopyLbl"><input type="checkbox" id="trCopy"> <span data-i18n="transfer.copy">Copy to computer</span></label>
+      <button id="popPhoto" data-i18n="transfer.popPhoto">Photo on 2nd monitor</button>
+    </div>
+    <div class="mut hint" id="trNoCardNote" data-i18n="transfer.noCardNote" hidden>No card: photos go to the computer</div>
+    <div class="row">
+      <label><span data-i18n="save.folder">Folder</span> <input id="svDir" type="text" size="34" placeholder="~/Pictures/omcap"></label>
     </div>
     <div class="row">
-      <label><span data-i18n="save.folder">Folder on the computer</span> <input id="svDir" type="text" size="34" placeholder="~/Pictures/omcap"></label>
-    </div>
-    <div class="row">
-      <label><span data-i18n="save.scheme">File naming</span>
+      <label><span data-i18n="save.scheme">Names</span>
         <select id="svScheme">
           <option value="original" data-i18n="save.original">Original name</option>
-          <option value="datetime" data-i18n="save.datetime">Date_time_original name</option>
-          <option value="prefix" data-i18n="save.prefix">Prefix + original name</option>
+          <option value="datetime" data-i18n="save.datetime">Date + time + name</option>
+          <option value="prefix" data-i18n="save.prefix">Prefix + name</option>
         </select></label>
       <input id="svPrefix" type="text" size="12" data-i18n-ph="save.prefixPh" placeholder="Prefix" hidden>
-      <button id="svApply" data-i18n="save.apply">Apply</button>
     </div>
     <div id="svInfo" class="mut"></div>
     <div class="row">
-      <label><input type="checkbox" id="hslAuto"> <span data-i18n="hsl.auto">Apply HSL profile when saving to computer</span></label>
+      <label><input type="checkbox" id="hslAuto"> <span data-i18n="hsl.auto">Also save an HSL copy (PEN-F colours)</span></label>
       <select id="hslAutoPreset"></select>
     </div>
+    <div class="mut hint" data-i18n="hsl.autoHint">HSL is the colour profile of the PEN-F camera. It makes a copy of your photo with other colours. Your original stays as it is. The copy is saved as ..._hsl.jpg in the folder out/hsl.</div>
     <div id="trErr" class="warn"></div>
   </section>
   <section data-id="card" data-pane="files" data-label="Playback" data-i18n-label="panel.card" data-feat="playback">
@@ -979,18 +982,18 @@ const I18N={en:{
   "app.readOnly": "Read only",
   "lv.start": "Start live view",
   "lv.stop": "Stop live view",
-  "lv.size": "Size",
-  "lv.auto": "Auto · {size}", "lv.autoFocus": "Auto · {size} · sharp on focus",
+  "lv.size": "Size", "lv.autoSize": "Auto",
+  "lv.auto": "Auto · {size}", "lv.autoFocus": "Auto · {size} · sharp on focus", "lv.sizeFocus": "{size} · sharp on focus",
   "lv.autoReduced": "Live view adjusted to {size} for a smoother signal",
   "lv.second": "Second monitor",
   "lv.webcam": "Webcam (OBS)",
-  "save.folder": "Folder on the computer",
-  "save.scheme": "File naming",
+  "save.folder": "Folder",
+  "save.scheme": "Names",
   "save.original": "Original name",
-  "save.datetime": "Date_time_original name",
-  "save.prefix": "Prefix + original name",
+  "save.datetime": "Date + time + name",
+  "save.prefix": "Prefix + name",
   "save.prefixPh": "Prefix",
-  "save.apply": "Apply",
+  "save.pickTitle": "Click to choose a folder",
   "save.now": "Saving to {dir}",
   "save.example": "e.g. {name}",
   "msg.saveCfg": "Save settings applied",
@@ -1006,6 +1009,7 @@ const I18N={en:{
   "lv.overlay": "Overlay",
   "lv.overlayRemove": "Remove",
   "lv.noSignal": "No signal for {s} s",
+  "lv.halfPaused": "Live view paused while Press halfway is held",
   "lv.cameraGone": "Camera not found. Is the cable plugged in?",
   "lv.wifiGone": "Camera not found. Is the computer in the camera's Wi-Fi?",
   "lv.receiving": "receiving {w}×{h}",
@@ -1026,7 +1030,8 @@ const I18N={en:{
   "lv.zoomUsbGroup": "Zoom (camera Zoom AF)", "lv.loupeLabel": "Zoom AF ×{n}", "lv.loupeMove": "Move the zoom frame", "lv.zoomMap": "Zoom overview: click or drag to move the zoom frame",
   "lv.left": "Left", "lv.up": "Up", "lv.down": "Down", "lv.right": "Right",
   "msg.loupeMove": "Zoom frame moved", "msg.zoomStuck": "The camera zoom did not answer in time; showing what the camera does",
-  "lv.hold": "Hold angle", "lv.clear": "Clear angle", "lv.sound": "Sound",
+  "lv.hold": "Hold angle", "lv.clear": "Clear angle", "lv.sound": "Sound", "lv.focusTone": "Focus tone",
+  "lv.focusToneHint": "Plays a high tone in the app for in focus and a low tone for no focus after a tap AF. The camera itself only beeps on a half press; its Beep sound setting in the camera menu stays as set (E-M1 manual, p.96).",
   "lv.levelOk": "Level", "lv.angleOk": "Angle matched",
   "msg.angleHeld": "Angle held: Horizon {a}° · Tilt {b}°",
   "msg.noLevel": "No level reading yet: start live view with the Level gauge on",
@@ -1040,9 +1045,11 @@ const I18N={en:{
   "msg.inFocus": "In focus",
   "msg.noFocus": "No AF target reported",
   "msg.outsideAf": "Outside the AF Area",
+  "msg.halfHeld": "Release Press halfway first: while it is held the camera takes no AF target over Wi-Fi",
   "msg.overlaySet": "Overlay set",
   "msg.shooting": "Taking picture …",
   "msg.taken": "Picture taken",
+  "msg.savedNoCard": "Saved to the computer (no card): {n}",
   "msg.shutter": "Shutter button",
   "msg.reset": "Reset done",
   "msg.rereading": "Re-reading the camera …",
@@ -1159,9 +1166,9 @@ const I18N={en:{
   "prog.running": " running",
   "prog.error": " Error: {e}",
   "panel.transfer": "Save to",
-  "transfer.sd": "Card only",
-  "transfer.both": "Card and computer",
-  "transfer.popPhoto": "Picture on second monitor",
+  "transfer.copy": "Copy to computer",
+  "transfer.noCardNote": "No card: photos go to the computer",
+  "transfer.popPhoto": "Photo on 2nd monitor",
   "panel.card": "Playback",
   "card.index": "Index display",
   "card.reload": "Reload",
@@ -1221,7 +1228,8 @@ const I18N={en:{
   "hsl.after": "After",
   "hsl.compare": "Before and after comparison, drag or use the arrow keys",
   "hsl.close": "Close",
-  "hsl.auto": "Apply HSL profile when saving to computer",
+  "hsl.auto": "Also save an HSL copy (PEN-F colours)",
+  "hsl.autoHint": "HSL is the colour profile of the PEN-F camera. It makes a copy of your photo with other colours. Your original stays as it is. The copy is saved as ..._hsl.jpg in the folder out/hsl.",
   "hsl.notLocal": "Save the picture to the computer first",
   "layout.panels": "Panels",
   "layout.settings": "Settings",
@@ -1325,6 +1333,7 @@ $('#popPhoto').onclick=()=>popup('photo');
 
 /* State */
 let leavingPlay=false, wasIndexing=false;
+let fastSeen; // USB: last fast picture number shown
 let modeAt; // USB: last mode dial turn seen (state.mode_at); undefined until the first tick
 /* USB reports iAUTO, ART, SCN and PHOTO STORY as P (d006 = 2, tested 2026-11-12); they are shown as P
    (maintainer decision). Only the EXIF of the newest shot tells iAUTO apart (ExposureProgram 5) */
@@ -1336,19 +1345,23 @@ function shotMode(path){
 let isUsb=false, usbBackend=null; // connection type and USB layer (ptp or gphoto2) from /api/status
 let st={stage:0,job:{}},canWrite=false,wasBusy=false,connected=false,features=new Set(),af=null;
 let quitting=false;
-/* Adaptive live view size over Wi-Fi on phone width (REQ-F45, from the redesign, user 2026-11-14): start with the
+/* Adaptive live view size over Wi-Fi (REQ-F45, from the redesign, user 2026-11-14; computer too with "Auto" ticked, REQ-F55): start with the
    size that fits the screen and step down when frames come too slowly (<12 fps or >18 % lost over 4 s) or stall
-   (>1.5 s), and only when that lasts 4 s; at most every 8 s and never during a shot, job, movie or card read. Desktop and USB keep the manual size. */
+   (>1.5 s), and only when that lasts 4 s; at most every 8 s and never during a shot, job, movie or card read. On the phone it is always on; on the computer only while "Auto" is ticked (a size picked by hand stays); USB keeps the manual size. */
 const MOBILE_LIVE=matchMedia('(max-width:700px), (orientation:landscape) and (max-height:520px) and (max-width:1100px)'); // a phone, upright or turned (REQ-F49)
 const AUTO_LV_SIZES=['0640x0480','0800x0600','1024x0768','1280x0960'];
 let autoLvBusy=false,autoLvLastChange=0,autoLvSlowSince=0;
 const AUTO_LV_SLOW_MS=4000; // slowness must last this long: a short dip right after connecting is no reason (camera test 2026-11-14)
-const autoLvEnabled=()=>MOBILE_LIVE.matches&&!isUsb&&canWrite&&features.has('lvsize');
+const wzSizingEnabled=()=>!isUsb&&canWrite&&features.has('lvsize'); // the live view size may be changed (zoom sizing, REQ-F55), whatever the Auto box says
+const autoLvEnabled=()=>(MOBILE_LIVE.matches||$('#lvAuto').checked)&&wzSizingEnabled(); // the adaptive size at 1x
 const lvSizeText=size=>size.replace(/^0+/,'').replace('x0','×');
 function autoLvLabel(size){
-  const el=$('#autoLvStatus'), on=autoLvEnabled();
-  el.hidden=!on; document.body.classList.toggle('autoLv',on);
-  if(size) el.textContent=tr(wzFocusOnly?'lv.autoFocus':'lv.auto',{size:lvSizeText(size)}); // wzFocusOnly: sharp only on focus while zoomed (REQ-F55)
+  const el=$('#autoLvStatus'), on=autoLvEnabled(), sizing=wzSizingEnabled();
+  el.hidden=!(on||(sizing&&wzFocusOnly)); // an explicit size shows the chip only in the "sharp on focus" fallback
+  document.body.classList.toggle('autoLv',on); // Auto on: the chip shows the size, the Size select hides (untick Auto to get it back)
+  document.body.classList.toggle('autoPhone',on&&MOBILE_LIVE.matches); // the phone has no choice: the Auto box hides too
+  if(sizing&&size) $('#lvqty').value=size; // the select shows the size in use, not an old pick
+  if(size) el.textContent=tr(wzFocusOnly?(on?'lv.autoFocus':'lv.sizeFocus'):'lv.auto',{size:lvSizeText(size)}); // wzFocusOnly: sharp only on focus while zoomed (REQ-F55)
 }
 function idealMobileLvSize(){
   // at most 800×600: a phone screen with 3× pixels asked for 1280×960, which the camera sends over Wi-Fi at only
@@ -1368,7 +1381,7 @@ function lvSlowNow(){ // too few frames, too many lost, or stalled
   return stale||(perf.sample_seconds>=4&&((perf.fps!=null&&perf.fps<12)||(perf.drop_ratio!=null&&perf.drop_ratio>.18)));
 }
 async function reduceAutoLiveSize(){
-  if(autoLvBusy||!autoLvEnabled()||Date.now()-autoLvLastChange<8000||(wzSharp()&&(!wzSharpOn||wzFocusOnly))) return; // zoomed: no step down for slowness (REQ-F55); the sharp size falls back below
+  if(autoLvBusy||!wzSizingEnabled()||(!autoLvEnabled()&&!wzSharp())||Date.now()-autoLvLastChange<8000||(wzSharp()&&(!wzSharpOn||wzFocusOnly))) return; // an explicit size is never stepped down, only the sharp zoom size falls back // zoomed: no step down for slowness (REQ-F55); the sharp size falls back below
   if(st.stage>0||st.busy||st.indexing||st.movie!=null||st.take!=null||(st.job&&st.job.running)) return;
   const current=st.lvqty||$('#lvqty').value, i=AUTO_LV_SIZES.indexOf(current);
   if(i<=0) return;
@@ -1392,27 +1405,31 @@ async function tick(){
   if(!st.live&&lvl){lvl=null;lvlShown=null;drawLevel()} // live view stopped: clear the level gauge
   if(modeAt===undefined) modeAt=st.mode_at||null; // first tick after loading: no message for an old turn
   else if(st.mode_at&&st.mode_at!==modeAt){modeAt=st.mode_at;usbShotMode=null;props();msg(tr('msg.modeDial'))} // USB: mode dial turned
+  if(fastSeen===undefined) fastSeen=st.fast_n||0; // first tick after loading: an old shot is not new
+  else if(isUsb&&st.fast_n&&st.fast_n!==fastSeen){fastSeen=st.fast_n;showFast()} // REQ-F60: JPEG of the shot before the card lists it
   $('#half').classList.toggle('on',st.stage>=1); $('#half').setAttribute('aria-pressed',st.stage>=1?'true':'false');
   $('#empty').hidden=st.live;
   if(st.live&&!wzLivePrev&&!usbZoom) wzSizeSoon(); wzLivePrev=!!st.live; // live view (re)started: check the zoomed size again (REQ-F55)
   $('#live').style.visibility=st.live?'':'hidden'; // live view off: dark picture area, not the last frame
   $('#lvStart').hidden=st.live||!canWrite; $('#lvStop').hidden=!st.live;
   renderStrip();
-  const w=$('#live').naturalWidth, stale=st.live&&st.lv_age>3;
+  const w=$('#live').naturalWidth, paused=!isUsb&&st.live&&st.stage>=1, stale=st.live&&st.lv_age>3&&!paused; // Wi-Fi: Press halfway held = mode shutter, the live view pauses by itself (not a lost signal)
   if(st.live) reduceAutoLiveSize();
+  if(st.live&&st.lvqty&&autoLvEnabled()&&!autoLvBusy&&Date.now()-autoLvLastChange>8000&&$('#lvqty').value!==st.lvqty) $('#lvqty').value=st.lvqty; // Auto: show what the camera really sends
   const off=st.live&&w&&st.lvqty&&w!==parseInt(st.lvqty,10);
   const gone=st.gone?tr(isUsb?'lv.cameraGone':'lv.wifiGone'):''; // the app waits for the camera and goes on by itself
   // frames shown per second over the last 3 s (REQ-F51), and the USB fallback layer, which keeps 1024×768 and is slower
   const now=performance.now(), recent=lvShown.filter(t=>t>now-3000), fps=recent.length>1?(recent.length-1)/((recent.at(-1)-recent[0])/1000):0;
   const extra=(fps?tr('lv.fps',{fps:fps.toFixed(1)}):'')+(isUsb&&usbBackend==='gphoto2'?tr('lv.gphoto2'):'');
-  $('#lvSize').textContent=gone||(stale?tr('lv.noSignal',{s:Math.round(st.lv_age)}):st.live&&w?tr('lv.receiving',{w,h:$('#live').naturalHeight})+extra:'');
+  $('#lvSize').textContent=gone||(paused?tr('lv.halfPaused'):stale?tr('lv.noSignal',{s:Math.round(st.lv_age)}):st.live&&w?tr('lv.receiving',{w,h:$('#live').naturalHeight})+extra:'');
   $('#lvSize').className=off||stale?'warn':'mut';
   const j=st.job;
   $('#jobInfo').textContent=j.name?tr('prog.job',{name:j.name,done:j.done,total:j.total})+(j.running?tr('prog.running'):'')+(j.error?tr('prog.error',{e:j.error}):''):'';
   $('#jobRow').hidden=!j.name; $('#jobStop').hidden=!j.running;
   $('#takeInfo').textContent=st.take!=null?clock(st.take):'';
   const rec=st.movie!=null;
-  $('#movStart').hidden=rec; $('#movStop').hidden=!rec;
+  applyTransferView(st);  // sets trNoCard, used right below
+  $('#movStart').hidden=rec||trNoCard; $('#movStop').hidden=!rec; // a movie needs a card (USB without one: hidden)
   $('#movTime').textContent=rec?tr('movie.time',{t:clock(st.movie)}):'';
   $('#trErr').textContent=st.transfer_error||st.hsl_error||'';
   $('#recChip').hidden=!rec; $('#viewport').classList.toggle('rec',rec);
@@ -1471,7 +1488,7 @@ const FEATURES={
   aspect:{show:inMode('P','A','S','M')}, stabilizer:{show:inMode('P','A','S','M')},
   facepriority:{show:inMode('P','A','S','M')},
   // Focus Stacking (USB d0cb, FW 4.x): Bracketing is only in P/A/S/M (manual p.82, 174)
-  focusstacking:{show:inMode('P','A','S','M')},
+  focusstacking:{show:p=>inMode('P','A','S','M')(p)&&!trNoCard}, // the camera merges on the card (refused without one)
   colorphase:{show:p=>p.takemode.value==='ART'?p.artfilter.value==='partcolor':['P','A','S','M'].includes(p.takemode.value)&&p.colortone.value==='partcolor'},
 };
 let lastProps=null,propsFailed=false;
@@ -2505,25 +2522,26 @@ let z=1,px=0,py=0,drag=null;
 const vp=$('#viewport'),layer=$('#zoomLayer');
 // Wi-Fi screen zoom (REQ-F55): the live view is at most 1280x960, so beyond 4x it only gets blurrier
 const WZ_MAX=4,WZ_TAP_PX=4,WZ_MAP_MS=600;
-// Phone over Wi-Fi: while the zoom rests above WZ_SHARP_Z the live view gets a bigger size (4x of 640 px leaves 160 px), REQ-F55
+// Wi-Fi, any size choice: while the zoom rests above WZ_SHARP_Z the live view gets a bigger size (4x of 640 px leaves 160 px), REQ-F55
 const WZ_SHARP_Z=1.5,WZ_SHARP_MID_Z=2.5,WZ_REST_MS=600,WZ_SIZE_GAP_MS=3000;
-let wzSizeT=0,wzSharpOn=false,wzBase=null,wzFocusOnly=false,wzFocusUntil=0; // wzSharpOn: the sharp size is on; wzBase: the size to return to
+let wzSizeT=0,wzSharpOn=false,wzBase=null,wzPick=null,wzFocusOnly=false,wzFocusUntil=0; // wzSharpOn: the sharp size is on; wzBase: the size to return to; wzPick: a size picked by hand, newer than st.lvqty
 const WZ_FOCUS_HOLD_MS=5000; // sharp-on-focus mode: how long the sharp size stays after the last focus action
 const wzSharp=()=>z>WZ_SHARP_Z;
-const wzSizeFor=zv=>zv<=WZ_SHARP_Z?null:zv<=WZ_SHARP_MID_Z?'1024x0768':'1280x0960'; // null: the normal adaptive size
+// null: the normal adaptive size; during the focus hold always the highest size, also in the middle range
+const wzSizeFor=zv=>zv<=WZ_SHARP_Z?null:zv<=WZ_SHARP_MID_Z&&Date.now()>=wzFocusUntil?'1024x0768':'1280x0960';
 let wzLivePrev=false;
-function wzSizeSoon(ms=WZ_REST_MS){clearTimeout(wzSizeT); if(autoLvEnabled()||wzSharpOn) wzSizeT=setTimeout(wzSizeCheck,ms)}
+function wzSizeSoon(ms=WZ_REST_MS){clearTimeout(wzSizeT); if(wzSizingEnabled()||wzSharpOn) wzSizeT=setTimeout(wzSizeCheck,ms)}
 // A focus action (tap AF, half press) in "sharp on focus" mode brings the sharp size for a moment. Called after the focus
 // request is on its way: the size change runs from a timer, so the focus never waits for the live view restart.
 function wzFocusAction(){
-  if(usbZoom||!wzFocusOnly||!wzSharp()||!autoLvEnabled()) return;
+  if(usbZoom||!wzSharp()||!wzSizingEnabled()) return;
   wzFocusUntil=Date.now()+WZ_FOCUS_HOLD_MS; wzSizeSoon(0);
 }
 async function wzSizeCheck(){
-  if(!autoLvEnabled()){wzSharpOn=wzFocusOnly=false; return}
-  const now=Date.now(),target=wzSizeFor(z),holding=wzFocusOnly&&now<wzFocusUntil,sharp=target&&(!wzFocusOnly||holding)?target:null,cur=st.lvqty||$('#lvqty').value;
+  if(!wzSizingEnabled()){wzSharpOn=wzFocusOnly=false; return}
+  const now=Date.now(),target=wzSizeFor(z),holding=!!target&&now<wzFocusUntil,sharp=target&&(!wzFocusOnly||holding)?target:null,cur=st.lvqty||$('#lvqty').value;
   if(!target&&!wzSharpOn){if(wzFocusOnly){wzFocusOnly=false; autoLvLabel(cur)} return} // back at 1x and the normal size is on: the mode ends
-  const want=sharp||(wzSharpOn?wzBase||idealMobileLvSize():null);
+  const want=sharp||(wzSharpOn?wzBase||(autoLvEnabled()?idealMobileLvSize():null):null); // wzBase: the explicit or adaptive size from before the zoom
   if(!want) return; // focus mode, idle: the normal size stays
   if(want===cur){
     wzSharpOn=!!sharp; if(!target) wzFocusOnly=false;
@@ -2535,7 +2553,7 @@ async function wzSizeCheck(){
   // Never while half-pressed either: the size change is a mode switch play -> rec and would release the press.
   if(!st.live) return; // live view off: starting it or the next zoom change looks again
   if(wzPtr.size||wzMapId!==null||autoLvBusy||st.stage>0||st.busy||st.indexing||st.movie!=null||st.take!=null||(st.job&&st.job.running)||now-autoLvLastChange<WZ_SIZE_GAP_MS){wzSizeSoon(1000); return}
-  if(sharp&&!wzSharpOn) wzBase=cur; // remember the adaptive size to return to
+  if(sharp&&!wzSharpOn) wzBase=wzPick||cur; wzPick=null; // remember the size to return to (a picked one is never replaced by the adaptive one)
   wzSharpOn=!!sharp; if(!target) wzFocusOnly=false;
   autoLvBusy=true; autoLvLastChange=now; autoLvSlowSince=0;
   $('#lvqty').value=want; lvPicked=true; autoLvLabel(want);
@@ -3087,10 +3105,15 @@ const lvlFmt=v=>(v>0?'+':'')+v.toFixed(1);
 function lvlAudioInit(){  // create and unlock audio on a click (browsers block sound started from timers)
   try{lvlAudio=lvlAudio||new (window.AudioContext||window.webkitAudioContext)();if(lvlAudio.state==='suspended')lvlAudio.resume()}catch{}
 }
-function lvlBeep(){
+function lvlBeep(freq=1320,len=.08,wave='sine'){
   try{lvlAudioInit();
     const o=lvlAudio.createOscillator(),g=lvlAudio.createGain();
-    o.frequency.value=1320;g.gain.value=.08;o.connect(g).connect(lvlAudio.destination);o.start();o.stop(lvlAudio.currentTime+.08)}catch{}
+    o.type=wave;o.frequency.value=freq;g.gain.value=.08;o.connect(g).connect(lvlAudio.destination);o.start();o.stop(lvlAudio.currentTime+len)}catch{}
+}
+// Focus tone (REQ-F59): over Wi-Fi a tap focus gives no camera beep, so the app plays one: high = in focus, low = no focus
+function focusTone(ok){
+  if(!features.has('focus_tone')||!$('#focusTone').checked) return;
+  if(ok) lvlBeep(1760,.12); else lvlBeep(330,.3,'square');
 }
 function lvlFeedback(ok){
   $('#levelChip').hidden=!ok;
@@ -3131,7 +3154,8 @@ function drawLevel(){
 }
 $('#lvlOn').onchange=()=>{aidSave();if(!$('#lvlOn').checked){lvl=null;lvlShown=null}drawLevel()};
 $('#lvlSound').addEventListener('change',()=>{if($('#lvlSound').checked)lvlAudioInit()});
-document.addEventListener('pointerdown',()=>{if($('#lvlSound').checked)lvlAudioInit()},{once:true}); // restored switch: unlock on the first click
+$('#focusTone').addEventListener('change',()=>{if($('#focusTone').checked)lvlAudioInit()});
+document.addEventListener('pointerdown',()=>{if($('#lvlSound').checked||$('#focusTone').checked)lvlAudioInit()},{once:true}); // restored switch: unlock on the first click
 $('#lvlHold').onclick=()=>{
   if(!lvl){msg(tr('msg.noLevel'),true);return}
   lvlTarget={a:+lvl.a.toFixed(1),b:+lvl.b.toFixed(1)};
@@ -3146,6 +3170,7 @@ let focusing=false; // discard clicks while focusing, otherwise they pile up
 let afTapShow=0; // until when the tapped frame shows without the AF grid (REQ-F41)
 async function setAf(b){
   const f=b.field||b.focus;
+  if(f&&!isUsb&&st.stage>=1){msg(tr('msg.halfHeld'),true);return} // Wi-Fi: while Halfway is held the camera is in mode "shutter" and refuses the AF frame (HTTP 520)
   if(f&&focusing) return;
   if(f) wzFocusAction(); // zoomed, sharp-on-focus mode: the size change runs from a timer, after this request has started
   if(f){focusing=true;focusMiss=0;afTapShow=Date.now()+FOCUS_SHOW+3000;msg(tr('msg.focusing'));focusChipUpdate()} // frame shows while focusing
@@ -3157,6 +3182,7 @@ async function setAf(b){
     focusHit=f&&hit?{field:hit,until:Date.now()+FOCUS_SHOW}:null;
     showAf();
     if(f) msg(hit?tr('msg.inFocus'):tr('msg.noFocus'),!hit);
+    if(f) focusTone(!!hit);
     if(f&&!hit) showNoFocus();
     if(f){afTapShow=Date.now()+FOCUS_SHOW;drawAf();setTimeout(drawAf,FOCUS_SHOW+50)}
   }
@@ -3314,7 +3340,7 @@ function edgeThreshold(mag,top,floor){ // threshold such that about the fraction
   return Math.max(floor,b/k);
 }
 // lvlOn: Level gauge switch, off by default and remembered like the other live view aids (user 2026-11-14)
-const AID_KEY='omcap.aids', AID_IDS=['aidHist','aidRgb','aidClip','aidPeak','lvlOn','lvlSound'];
+const AID_KEY='omcap.aids', AID_IDS=['aidHist','aidRgb','aidClip','aidPeak','lvlOn','lvlSound','focusTone'];
 const aidOff=document.createElement('canvas'), aidCtx=aidOff.getContext('2d',{willReadFrequently:true});
 const PEAK_RGB={white:[255,255,255],black:[0,0,0],red:[255,40,40],yellow:[255,230,0]};
 function aidSave(){try{const o={col:$('#aidPeakCol').value};AID_IDS.forEach(i=>o[i]=$('#'+i).checked);localStorage.setItem(AID_KEY,JSON.stringify(o))}catch{}}
@@ -3447,7 +3473,11 @@ $('#layoutReset').onclick=()=>{layout={};commit()};
 /* Buttons */
 $('#lvStart').onclick=async()=>{
   try{await api('/api/liveview',{action:'start',lvqty:isUsb&&!lvPicked?null:$('#lvqty').value});startLiveLoop();msg(tr('msg.lvRunning'));await tick();if(features.has('af_area'))loadAf();setTimeout(props,1500)}catch(e){msg(e.message,true)}};
-$('#lvqty').onchange=()=>{lvPicked=true;if(st.live)$('#lvStart').click()};
+$('#lvqty').onchange=()=>{$('#lvAuto').checked=false;wzSharpOn=wzFocusOnly=false;wzPick=$('#lvqty').value;autoLvLabel();lvPicked=true;if(st.live)$('#lvStart').click();wzSizeSoon()}; // a size picked by hand ends Auto, the zoom still goes sharp
+$('#lvAuto').onchange=()=>{
+  if($('#lvAuto').checked){wzPick=null;prepareAutoLiveSize();wzSizeSoon(); if(st.live&&st.lvqty!==$('#lvqty').value) $('#lvStart').click()}
+  else{wzSharpOn=wzFocusOnly=false;autoLvLabel();wzSizeSoon()} // the size stays as it is now
+};
 MOBILE_LIVE.addEventListener('change',()=>{if(autoLvEnabled())prepareAutoLiveSize();else autoLvLabel();if(!$('#galOv').hidden&&gv.mode==='cal')renderGal()});
 $('#lvStop').onclick=()=>act(tr('msg.lvStopped'),'/api/liveview',{action:'stop'});
 /* Shooting: the whole sequence. If Halfway is just holding focus, press through from there and release,
@@ -3520,6 +3550,13 @@ async function showLast(before,retry,before2){
   let tries=0; img.onerror=()=>{if(++tries<4) setTimeout(()=>{img.src=src+(src.includes('?')?'&':'?')+'r='+tries},3000)};
   img.src=src;
 }
+async function showFast(){ // USB: thumbnail from the camera's own JPEG; showLast replaces it with the card file
+  let r; try{r=await fetch('/api/lastfast?n='+fastSeen)}catch{return}
+  if(!r.ok) return;
+  const img=$('#lastShot'), url=URL.createObjectURL(await r.blob()), old=img.src;
+  lastOpen=null; img.onerror=null; img.src=url; img.hidden=false; lastShotFade();
+  if(old.startsWith('blob:')) URL.revokeObjectURL(old);
+}
 $('#lastShot').onclick=()=>{
   if(lastOpen) openViewer([lastOpen],0);
   else window.open($('#lastShot').src,'_blank');
@@ -3566,12 +3603,18 @@ $('#shoot').onclick=async()=>{
   const sec=+$('#timerSel').value;
   if(sec&&!await timerStart(sec)) return;
   msg(tr('msg.shooting'));
+  let saved=null;
   const latestBefore=st.latest, newestBefore=lastOpen&&lastOpen.preview.path||(cardLive&&cardShots&&(cardShots.find(x=>isJpg(x.preview))||{preview:{}}).preview.path)||null; // not from the saved list: the card may have changed
   shutterBlackout();
   if(st.stage>=1){
     if(!await act(tr('msg.shutter'),'/api/shutter',{stage:2})) return;
-    await act(tr('msg.taken'),'/api/shutter',{stage:0});
-  }else if(!await act(tr('msg.taken'),'/api/shoot',{})){if(/no focus/i.test(actErr||''))showNoFocus();return}
+    saved=(await act(tr('msg.taken'),'/api/shutter',{stage:0}))?.saved;
+  }else{
+    const j=await act(tr('msg.taken'),'/api/shoot',{});
+    if(!j){if(/no focus/i.test(actErr||''))showNoFocus();return}
+    saved=j.saved;
+  }
+  if(saved&&saved.length) msg(tr('msg.savedNoCard',{n:saved.map(p=>p.split(/[\\/]/).pop()).join(', ')})); // USB without a card (REQ-F61)
   showLast(latestBefore,0,newestBefore); // Wi-Fi: refreshes the card list until the new shot is there
   local();
   if(isUsb){gallery();loadLens()} // USB: lens from the new JPG
@@ -3583,7 +3626,8 @@ document.querySelectorAll('#timerSeg [data-t]').forEach(b=>b.onclick=()=>{
 $('#half').onclick=async()=>{
   const pressing=st.stage<1;
   const j=await act(tr('msg.shutter'),'/api/shutter',{stage:st.stage>=1?0:1});
-  if(!pressing) wzFocusAction(); // released: now the sharp size may come, held from this moment (REQ-F55)
+  // no size change after Halfway (REQ-F55): the release already restarts the live view (mode shutter -> rec) and a second
+  // restart right behind it raced with it: exec_takemotion answered 520 (Wi-Fi test 2026-11-22). Only a tap AF brings the sharp size.
   if(!pressing||!j||!af||af.mode!==33024) return;
   // All Targets: show the focused field as long as Halfway is held
   af={...af,last_af:j.last_af};
@@ -3601,25 +3645,70 @@ $('#brStart').onclick=()=>act(tr('msg.bktStarted'),'/api/bracket',{frames:+$('#b
 $('#jobStop').onclick=()=>act(tr('msg.stopping'),'/api/job/stop',{});
 $('#takePrep').onclick=()=>act(tr('msg.lcPrepared'),'/api/take',{action:'prepare'});
 $('#takeStart').onclick=()=>act(tr('msg.started',{name:$('#longName').textContent}),'/api/take',{action:'start'});
-$('#takeStop').onclick=()=>act(tr('msg.stopped',{name:$('#longName').textContent}),'/api/take',{action:'stop'});
+$('#takeStop').onclick=async()=>{
+  const j=await act(tr('msg.stopped',{name:$('#longName').textContent}),'/api/take',{action:'stop'});
+  if(j&&j.saved&&j.saved.length){msg(tr('msg.savedNoCard',{n:j.saved.map(p=>p.split(/[\\/]/).pop()).join(', ')}));local();if(isUsb)gallery()} // USB without a card (REQ-F61)
+};
 /* Movie: start/stop like the R button (manual p.22); the app briefly switches to Movie mode for it */
 $('#movStart').onclick=()=>act(tr('msg.movieStarted'),'/api/movie',{action:'start'});
 $('#movStop').onclick=async()=>{await act(tr('msg.movieStopped'),'/api/movie',{action:'stop'});
   if(!isUsb) setTimeout(()=>gallery(),4000)};
+// REQ-F62: show the end of a long folder path (the last folder name matters): ~ for home, first segment,
+// "…", last two segments. The page does not know the home folder, so it is recognised by its usual shape.
+function shortPath(p){
+  const m=/^(\/Users\/[^\/]+|\/home\/[^\/]+)(\/.*)?$/.exec(p||'');
+  const head=m?'~':'', parts=(m?(m[2]||''):(p||'')).split('/').filter(Boolean);
+  return head+(parts.length?'/':'')+(parts.length>3?[parts[0],'…',parts[parts.length-2],parts[parts.length-1]]:parts).join('/');
+}
+// show the end of the path in the folder field unless the user is typing in it
+function scrollDirEnd(){const e=$('#svDir'); if(document.activeElement!==e) e.scrollLeft=e.scrollWidth}
+$('#svDir').onblur=scrollDirEnd;
+// on the computer the field is read-only (a click opens the dialog): it shows the shortened path, so the last folder
+// name is always visible; the full path is kept in data-full (sent to the server) and shown on hover
+function setDir(dir){const d=$('#svDir'); if(d.readOnly){d.dataset.full=dir||''; d.value=shortPath(dir); d.title=dir?dir+' – '+tr('save.pickTitle'):tr('save.pickTitle')} else d.value=dir||''; scrollDirEnd()}
+function dirValue(){const d=$('#svDir'); return d.readOnly?(d.dataset.full||''):d.value}
 function showSaveCfg(c){
-  $('#svDir').value=c.dir; $('#svScheme').value=c.scheme; $('#svPrefix').value=c.prefix;
+  setDir(c.dir); $('#svScheme').value=c.scheme; $('#svPrefix').value=c.prefix;
   $('#svPrefix').hidden=c.scheme!=='prefix';
   const ex=c.scheme==='datetime'?'20261109_091412_PB092179.JPG':c.scheme==='prefix'?(c.prefix||'')+'PB092179.JPG':'PB092179.JPG';
-  $('#svInfo').textContent=tr('save.now',{dir:c.effective_dir})+' ('+tr('save.example',{name:ex})+')';
+  $('#svInfo').title=c.effective_dir;
+  $('#svInfo').textContent=tr('save.now',{dir:shortPath(c.effective_dir)})+' ('+tr('save.example',{name:ex})+')';
 }
-$('#svScheme').onchange=()=>{$('#svPrefix').hidden=$('#svScheme').value!=='prefix'};
-$('#svApply').onclick=async()=>{
-  try{const j=await api('/api/savecfg',{dir:$('#svDir').value,scheme:$('#svScheme').value,prefix:$('#svPrefix').value});
+// REQ-F62: the camera always writes to the card; the switch only says whether the app also copies the new
+// photo to the computer. Without a card (USB) there is no switch (photos go to the computer anyway, REQ-F61);
+// the remembered choice (st.transfer) is not overwritten and comes back with a card.
+function transferView(usb,card,pref){
+  return {noCard:usb&&card===false,checked:pref==='both'};
+}
+var trNoCard=false; // var: read by updates that can run before this line
+function applyTransferView(st){
+  const v=transferView(isUsb,st.card,st.transfer); trNoCard=v.noCard;
+  $('#trCopyLbl').hidden=v.noCard; $('#trNoCardNote').hidden=!v.noCard;
+  if(document.activeElement!==$('#trCopy')) $('#trCopy').checked=v.checked;
+}
+// Every change applies at once (no Apply button, user 2026-11-23)
+async function svSave(){
+  try{const j=await api('/api/savecfg',{dir:dirValue(),scheme:$('#svScheme').value,prefix:$('#svPrefix').value});
     showSaveCfg(j.cfg);msg(tr('msg.saveCfg'));local()}
   catch(e){msg(e.message,true)}
-};
+}
+// REQ-F62: on the computer a click into the folder field opens the folder dialog (it opens on the computer the
+// server runs on); elsewhere (phone over --lan) the path is typed
+if(isLocalPage()){
+  const d=$('#svDir'); d.readOnly=true; d.style.cursor='pointer'; d.title=tr('save.pickTitle'); setDir(d.dataset.full||d.value);
+  d.onclick=async()=>{
+    try{const j=await api('/api/pickfolder',{});
+      if(!j.dir) return; // cancelled
+      setDir(j.dir); d.blur(); svSave()}
+    catch(e){msg(e.message,true); // no dialog on this computer (e.g. Linux without zenity): type the path instead
+      d.readOnly=false; d.style.cursor=''; d.onclick=null; d.value=d.dataset.full||d.value; d.onchange=svSave; d.focus()}
+  };
+}else $('#svDir').onchange=svSave;
+$('#svScheme').onchange=()=>{const pre=$('#svScheme').value==='prefix'; $('#svPrefix').hidden=!pre;
+  if(!pre||$('#svPrefix').value.trim()) svSave(); else $('#svPrefix').focus()}; // prefix: saved once it is typed
+$('#svPrefix').onchange=svSave;
 api('/api/savecfg').then(showSaveCfg).catch(()=>{});
-document.querySelectorAll('[name=tr]').forEach(r=>r.onchange=()=>act(tr('msg.saveTo'),'/api/transfer',{target:r.value}));
+$('#trCopy').onchange=()=>act(tr('msg.saveTo'),'/api/transfer',{target:$('#trCopy').checked?'both':'sd'});
 $('#reload').onclick=gallery;
 $('#propsReload').onclick=async()=>{
   if(!isUsb){props();return}
@@ -3726,6 +3815,7 @@ async function enterApp(){
     $('#vWs').hidden=!s.om_workspace; // only when OM Workspace is installed on this computer
     features=new Set(s.features); isUsb=s.type==='usb'; usbBackend=s.usb_backend;
     applyFeatures();
+    $('#lvAutoLab').hidden=isUsb||!features.has('lvsize'); // Wi-Fi only; the phone has no choice
     statusBase={model:s.model,conn:s.type==='usb'?'USB':'Wi-Fi',rights:canWrite?tr('app.write'):tr('app.readOnly')};
     showStatus();
     if(!canWrite) document.querySelectorAll('button.w').forEach(b=>{b.disabled=true;b.classList.add('na');b.title=tr('na.readOnly')});
