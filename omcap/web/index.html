@@ -832,6 +832,7 @@ const I18N={en:{
   "msg.inFocus": "In focus",
   "msg.noFocus": "No AF target reported",
   "msg.outsideAf": "Outside the AF Area",
+  "msg.halfHeld": "Release Press halfway first: while it is held the camera takes no AF frame over Wi-Fi",
   "msg.overlaySet": "Overlay set",
   "msg.shooting": "Taking picture …",
   "msg.taken": "Picture taken",
@@ -2874,6 +2875,7 @@ let focusing=false; // discard clicks while focusing, otherwise they pile up
 let afTapShow=0; // until when the tapped frame shows without the AF grid (REQ-F41)
 async function setAf(b){
   const f=b.field||b.focus;
+  if(f&&!isUsb&&st.stage>=1){msg(tr('msg.halfHeld'),true);return} // Wi-Fi: while Halfway is held the camera is in mode "shutter" and refuses the AF frame (HTTP 520)
   if(f&&focusing) return;
   if(f) wzFocusAction(); // zoomed, sharp-on-focus mode: the size change runs from a timer, after this request has started
   if(f){focusing=true;focusMiss=0;afTapShow=Date.now()+FOCUS_SHOW+3000;msg(tr('msg.focusing'));focusChipUpdate()} // frame shows while focusing

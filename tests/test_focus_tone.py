@@ -81,3 +81,13 @@ class HalfPress(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class HalfHeld(unittest.TestCase):
+    def test_tap_while_halfway_is_held_is_refused_over_wifi(self):
+        # Wi-Fi test 2026-11-22: a tap while Press halfway was held answered HTTP 520 (camera in mode shutter)
+        with open(os.path.join(os.path.dirname(__file__), "..", "omcap", "web", "index.html"), encoding="utf-8") as f:
+            h = f.read()
+        body = h[h.index("async function setAf(b){"):h.index("async function setAf(b){") + 400]
+        self.assertIn("!isUsb&&st.stage>=1", body)
+        self.assertIn('"msg.halfHeld"', h)

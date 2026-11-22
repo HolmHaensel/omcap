@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Wi-Fi: a tap for AF while "Press halfway" is held now says "Release Press halfway first" instead of failing with `HTTP 520` (the camera is in mode shutter and takes no AF frame then; REQ-F59/F55, Wi-Fi test 2026-11-22).
 - Wi-Fi zoom: "Press halfway" no longer changes the live view size on release (only a tap AF brings the sharp size): the size change raced with the release's own live view restart and the camera answered `HTTP 520` (found in the Wi-Fi test 2026-11-22, REQ-F55).
 - Wi-Fi zoom focus and size select (REQ-F55): a focus action (tap AF, half press) while zoomed above 1.5× always brings the highest size 1280×960 for 5 s, also in the middle range, then returns to the size of the zoom; with Auto the Size select shows the size really in use. Wi-Fi only. Not camera-tested.
 - Wi-Fi zoom on the computer (REQ-F55): the sharper live view size while zoomed (1024×768 up to 2.5×, 1280×960 above, back to the normal size at 1×, "sharp on focus" if too slow) now also works on the computer, like on the phone, with the new "Auto" box next to Size (default on) giving only the adaptive size at 1×. A size picked by hand (unticks Auto) is just the 1× size: the zoom still goes sharp and returns to that size (focus action and "sharp on focus" fallback too). Wi-Fi only. Not camera-tested.
