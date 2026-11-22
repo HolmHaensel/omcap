@@ -554,18 +554,16 @@ body.webcam{cursor:none;display:flex;align-items:center;justify-content:center}
     </div>
     <div class="mut hint" id="trNoCardNote" data-i18n="transfer.noCardNote" hidden>No card: photos go to the computer</div>
     <div class="row">
-      <button id="svPick" hidden data-i18n="save.folder" data-i18n-title="save.pickTitle" title="Choose a folder">Folder</button>
-      <label><span id="svDirText" data-i18n="save.folder">Folder</span> <input id="svDir" type="text" size="34" placeholder="~/Pictures/omcap" data-i18n-aria="save.folder" aria-label="Folder"></label>
+      <label><span data-i18n="save.folder">Folder</span> <input id="svDir" type="text" size="34" placeholder="~/Pictures/omcap"></label>
     </div>
     <div class="row">
-      <label>
-        <select id="svScheme" data-i18n-aria="save.scheme" aria-label="Names">
+      <label><span data-i18n="save.scheme">Names</span>
+        <select id="svScheme">
           <option value="original" data-i18n="save.original">Original name</option>
           <option value="datetime" data-i18n="save.datetime">Date + time + name</option>
           <option value="prefix" data-i18n="save.prefix">Prefix + name</option>
         </select></label>
       <input id="svPrefix" type="text" size="12" data-i18n-ph="save.prefixPh" placeholder="Prefix" hidden>
-      <button id="svApply" data-i18n="save.apply">Apply</button>
     </div>
     <div id="svInfo" class="mut"></div>
     <div class="row">
@@ -784,8 +782,7 @@ const I18N={en:{
   "save.datetime": "Date + time + name",
   "save.prefix": "Prefix + name",
   "save.prefixPh": "Prefix",
-  "save.apply": "Apply",
-  "save.pickTitle": "Choose a folder",
+  "save.pickTitle": "Click to choose a folder",
   "save.now": "Saving to {dir}",
   "save.example": "e.g. {name}",
   "msg.saveCfg": "Save settings applied",
@@ -3362,8 +3359,12 @@ function shortPath(p){
 // show the end of the path in the folder field unless the user is typing in it
 function scrollDirEnd(){const e=$('#svDir'); if(document.activeElement!==e) e.scrollLeft=e.scrollWidth}
 $('#svDir').onblur=scrollDirEnd;
+// on the computer the field is read-only (a click opens the dialog): it shows the shortened path, so the last folder
+// name is always visible; the full path is kept in data-full (sent to the server) and shown on hover
+function setDir(dir){const d=$('#svDir'); if(d.readOnly){d.dataset.full=dir||''; d.value=shortPath(dir); d.title=dir?dir+' – '+tr('save.pickTitle'):tr('save.pickTitle')} else d.value=dir||''; scrollDirEnd()}
+function dirValue(){const d=$('#svDir'); return d.readOnly?(d.dataset.full||''):d.value}
 function showSaveCfg(c){
-  $('#svDir').value=c.dir; scrollDirEnd(); $('#svScheme').value=c.scheme; $('#svPrefix').value=c.prefix;
+  setDir(c.dir); $('#svScheme').value=c.scheme; $('#svPrefix').value=c.prefix;
   $('#svPrefix').hidden=c.scheme!=='prefix';
   const ex=c.scheme==='datetime'?'20261109_091412_PB092179.JPG':c.scheme==='prefix'?(c.prefix||'')+'PB092179.JPG':'PB092179.JPG';
   $('#svInfo').title=c.effective_dir;
@@ -3382,19 +3383,25 @@ function applyTransferView(st){
   if(document.activeElement!==$('#trCopy')) $('#trCopy').checked=v.checked;
 }
 // REQ-F62: the folder dialog opens on the computer the server runs on, so only a page on that computer shows it
-$('#svPick').hidden=!isLocalPage(); $('#svDirText').hidden=isLocalPage(); // on the computer "Folder" itself is the button that opens the folder dialog
-$('#svPick').onclick=async()=>{
-  try{const j=await api('/api/pickfolder',{});
-    if(!j.dir) return; // cancelled
-    $('#svDir').value=j.dir; scrollDirEnd(); $('#svApply').onclick()}
-  catch(e){msg(e.message,true)}
-};
-$('#svScheme').onchange=()=>{$('#svPrefix').hidden=$('#svScheme').value!=='prefix'};
-$('#svApply').onclick=async()=>{
-  try{const j=await api('/api/savecfg',{dir:$('#svDir').value,scheme:$('#svScheme').value,prefix:$('#svPrefix').value});
+// Every change applies at once (no Apply button, user 2026-11-23)
+async function svSave(){
+  try{const j=await api('/api/savecfg',{dir:dirValue(),scheme:$('#svScheme').value,prefix:$('#svPrefix').value});
     showSaveCfg(j.cfg);msg(tr('msg.saveCfg'));local()}
   catch(e){msg(e.message,true)}
-};
+}
+// On the computer a click into the folder field opens the folder dialog; elsewhere (phone over --lan) the path is typed
+if(isLocalPage()){
+  const d=$('#svDir'); d.readOnly=true; d.style.cursor='pointer'; d.title=tr('save.pickTitle'); setDir(d.dataset.full||d.value);
+  d.onclick=async()=>{
+    try{const j=await api('/api/pickfolder',{});
+      if(!j.dir) return; // cancelled
+      setDir(j.dir); d.blur(); svSave()}
+    catch(e){msg(e.message,true)}
+  };
+}else $('#svDir').onchange=svSave;
+$('#svScheme').onchange=()=>{const pre=$('#svScheme').value==='prefix'; $('#svPrefix').hidden=!pre;
+  if(!pre||$('#svPrefix').value.trim()) svSave(); else $('#svPrefix').focus()}; // prefix: saved once it is typed
+$('#svPrefix').onchange=svSave;
 api('/api/savecfg').then(showSaveCfg).catch(()=>{});
 $('#trCopy').onchange=()=>trNoCard?0:act(tr('msg.saveTo'),'/api/transfer',{target:$('#trCopy').checked?'both':'sd'});
 $('#reload').onclick=gallery;

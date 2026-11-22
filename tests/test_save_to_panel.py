@@ -218,9 +218,9 @@ class Page(unittest.TestCase):
         self.h = Path(HTML).read_text(encoding="utf-8")
 
     def test_markup_and_text(self):
-        for frag in ('id="svPick"', 'id="trCopy"', 'data-i18n="hsl.autoHint"',
+        for frag in ('id="svDir"', 'id="trCopy"', 'data-i18n="hsl.autoHint"',
                      '"transfer.copy": "Copy to computer"',
-                     '"save.pickTitle": "Choose a folder"'):
+                     '"save.pickTitle": "Click to choose a folder"'):
             self.assertIn(frag, self.h)
 
     def test_hsl_hint_matches_the_server(self):
@@ -230,8 +230,15 @@ class Page(unittest.TestCase):
         self.assertIn('hsl_apply(os.path.basename(dest), hsl_auto["preset"])', Path(server.__file__).read_text())
 
     def test_button_only_on_the_local_page(self):
-        self.assertIn("$('#svPick').hidden=!isLocalPage(); $('#svDirText').hidden=isLocalPage();", self.h)
-        self.assertIn('<button id="svPick" hidden data-i18n="save.folder"', self.h)  # "Folder" itself is the button (user 2026-11-23)
+        # user 2026-11-23: on the computer a click into the folder field opens the dialog; no Choose/Apply buttons
+        self.assertIn("if(isLocalPage()){", self.h)
+        self.assertIn("d.readOnly=true", self.h)
+        self.assertIn("$('#svDir').onchange=svSave;", self.h)
+        self.assertNotIn('id="svApply"', self.h)
+        self.assertNotIn('id="svPick"', self.h)
+        # the read-only field shows the shortened path (last folder name visible), the full path goes to the server
+        self.assertIn("d.value=shortPath(dir)", self.h)
+        self.assertIn("dir:dirValue()", self.h)
 
     def test_switch_ignored_while_no_card(self):
         self.assertIn("trNoCard?0:act(tr('msg.saveTo')", self.h)
