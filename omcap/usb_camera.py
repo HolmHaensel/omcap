@@ -108,6 +108,7 @@ SHOT_TIMEOUT = 20
 # then the picture is read with PTP 0x9495/0x9493 (REQ-F61). Events as the own PTP layer words them.
 DIRECT_EVENT = re.compile(r"PTP Event c004\b|PTP Property d0de changed", re.I)
 DIRECT_GRACE = 0.5  # after the event: a card file may still be announced (then the card path stays the truth)
+SECOND_FORMAT_WAIT = 1.5  # s to wait for the second format (ORF or JPG) of a card shot
 DIRECT_NEXT_WAIT = 1.0  # seconds without a new event after a non-JPG file (ORF): no JPG follows; after a JPG we stop at once
 
 
@@ -1644,7 +1645,7 @@ class UsbCamera:
                     self._stack_events(t0 + STACK_WAIT, marks, t0)
             marks.append(("files" if not self.direct_paths else "direct store", time.monotonic() - t0))
             if self._new_files:
-                self._events(1.5)  # the second format (ORF or JPG) follows shortly after
+                self._events(SECOND_FORMAT_WAIT)  # the second format (ORF or JPG) follows shortly after
         except Exception as e:
             marks.append(("error [%s]" % e, time.monotonic() - t0))
             raise

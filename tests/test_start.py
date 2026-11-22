@@ -22,7 +22,7 @@ class StartTest(unittest.TestCase):
         port = free_port()
         server.allowed_hosts.add("127.0.0.1:%d" % port)
         httpd = ThreadingHTTPServer(("127.0.0.1", port), server.Handler)
-        threading.Thread(target=httpd.serve_forever, daemon=True).start()
+        threading.Thread(target=httpd.serve_forever, kwargs={"poll_interval": 0.01}, daemon=True).start()
         try:
             info = server.running_app(port)
             self.assertEqual(info["app"], server.APP_ID)
