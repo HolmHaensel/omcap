@@ -357,3 +357,26 @@ class FieldLabels(unittest.TestCase):
         self.assertIn('<label class="field"><span data-i18n="save.folder">Folder</span>', h)
         self.assertIn('<label class="field"><span data-i18n="save.scheme">Names</span>', h)
         self.assertIn(".field>span:first-child{font-size:var(--fs-label);color:var(--muted)}", h)
+
+
+class CardSettle(unittest.TestCase):
+    def cam(self, states):
+        c = usb_camera.UsbCamera.__new__(usb_camera.UsbCamera)
+        c.CARD_SETTLE = (0, 0, 0)
+        c._card_state = mock.Mock(side_effect=states)
+        return c
+
+    def test_card_that_is_not_ready_yet_counts_as_card(self):
+        # USB test 2026-11-22: after a card change the camera answered 0x2013 although the card was in
+        c = self.cam([False, False, True])
+        self.assertIs(c._card_state_settled(), True)
+
+    def test_no_card_after_all_tries(self):
+        c = self.cam([False] * 4)
+        self.assertIs(c._card_state_settled(), False)
+        self.assertEqual(c._card_state.call_count, 4)
+
+    def test_card_present_reads_once(self):
+        c = self.cam([True])
+        self.assertIs(c._card_state_settled(), True)
+        c._card_state.assert_called_once()

@@ -423,7 +423,7 @@ class UsbCamera:
             self.features = self.features + ["level"]
         self.live = UsbLive(self)
         self.card = None  # cached card flag for the page (True / False / None unknown), see refresh_card
-        self.refresh_card()
+        self.card = self._card_state_settled()
 
     def _connect(self, backend):
         if backend not in ("ptp", "gphoto2", "auto"):
@@ -497,6 +497,7 @@ class UsbCamera:
             self._loupe_off_locked()  # a magnified view outlives the session; the page shows it off
             self._apply_lv_size_locked()  # keep the chosen size after a rebuilt session
             self._resync_files_locked()
+            self.card = self._card_state_settled()  # a card may have been put in or taken out meanwhile
             self.gone = False  # also after reload (refresh) or a rebuild without live view
             return True
         except (CameraError, self.gp.GPhoto2Error):
@@ -1294,6 +1295,20 @@ class UsbCamera:
             # InvalidStorageID (GetStorageInfo / GetObjectHandles) or 0x2013 StoreNotAvailable (no-card test
             # 2026-11-21); that is "no card", not "unknown"
             return False if any(c in str(e) for c in ("0x2008", "0x2013")) else None
+
+    CARD_SETTLE = (1.0, 1.0, 1.0)  # pauses: right after a (re)connect a card answers 0x2013 for 1-2 s
+
+    def _card_state_settled(self):
+        """Card state after a connect or a rebuilt session (e.g. after a card change): "no card" is only
+        believed after a few tries, because a card that was just put in answers 0x2013 for a moment
+        (USB test 2026-11-22). Costs up to 3 s only when there really is no card."""
+        state = self._card_state()
+        for pause in self.CARD_SETTLE:
+            if state is not False:
+                break
+            time.sleep(pause)
+            state = self._card_state()
+        return state
 
     def refresh_card(self):
         """Read the card state once and keep it: the page asks often, the camera must not be polled for it.
