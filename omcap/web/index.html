@@ -177,7 +177,7 @@ button:disabled{color:var(--disabled);opacity:.6;cursor:not-allowed}
 @media(prefers-reduced-motion:reduce){#recChip .dot{animation:none}}
 /* Wi-Fi on phone width: the live view size follows the screen and the signal (REQ-F45), the manual choice is hidden */
 /* only while the automatic size is on (Wi-Fi, write enabled); on a phone the choice is hidden anyway (REQ-F49, below) */
-body.autoLv label[data-feat=lvsize],body.autoLv #lvAutoLab{display:none!important}
+body.autoLv label[data-feat=lvsize],body.autoPhone #lvAutoLab{display:none!important}
 /* Phone, upright or turned (REQ-F49): the app picks the live view size itself (Wi-Fi: adaptive, USB: 1024×768),
    and second-monitor windows and the OBS webcam window make no sense on a phone */
 @media(max-width:700px),(orientation:landscape) and (max-height:520px) and (max-width:1100px){
@@ -1120,7 +1120,8 @@ const lvSizeText=size=>size.replace(/^0+/,'').replace('x0','×');
 function autoLvLabel(size){
   const el=$('#autoLvStatus'), on=autoLvEnabled(), sizing=wzSizingEnabled();
   el.hidden=!(on||(sizing&&wzFocusOnly)); // an explicit size shows the chip only in the "sharp on focus" fallback
-  document.body.classList.toggle('autoLv',on&&MOBILE_LIVE.matches); // the size choice and the Auto box hide on the phone only
+  document.body.classList.toggle('autoLv',on); // Auto on: the chip shows the size, the Size select hides (untick Auto to get it back)
+  document.body.classList.toggle('autoPhone',on&&MOBILE_LIVE.matches); // the phone has no choice: the Auto box hides too
   if(sizing&&size) $('#lvqty').value=size; // the select shows the size in use, not an old pick
   if(size) el.textContent=tr(wzFocusOnly?(on?'lv.autoFocus':'lv.sizeFocus'):'lv.auto',{size:lvSizeText(size)}); // wzFocusOnly: sharp only on focus while zoomed (REQ-F55)
 }

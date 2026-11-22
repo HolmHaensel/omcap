@@ -121,11 +121,11 @@ class HalfPress(unittest.TestCase):
 class Behaviour(unittest.TestCase):
     """The page functions run with stubbed camera and page; these fail when the code is changed back."""
 
-    def label(self, mobile, usb=False, size="0800x0600"):
+    def label(self, mobile, usb=False, size="0800x0600", auto=True):
         return run_js(
-            "MOBILE_LIVE.matches=%s; isUsb=%s; $('#lvAuto').checked=true; autoLvLabel('%s');"
-            "JSON.stringify({cls:body.cl.autoLv,sel:$('#lvqty').value,chip:$('#autoLvStatus').hidden})"
-            % (str(mobile).lower(), str(usb).lower(), size),
+            "MOBILE_LIVE.matches=%s; isUsb=%s; $('#lvAuto').checked=%s; autoLvLabel('%s');"
+            "JSON.stringify({cls:body.cl.autoLv,phone:body.cl.autoPhone,sel:$('#lvqty').value,chip:$('#autoLvStatus').hidden})"
+            % (str(mobile).lower(), str(usb).lower(), str(auto).lower(), size),
             ["autoLvLabel"],
             "var autoLvEnabled=function(){return (MOBILE_LIVE.matches||$('#lvAuto').checked)&&wzSizingEnabled()},"
             "lvSizeText=function(s){return s};",
@@ -133,12 +133,25 @@ class Behaviour(unittest.TestCase):
 
     def test_phone_hides_the_size_choice(self):
         r = self.label(True)
-        self.assertTrue(r["cls"])  # body.autoLv hides the Size select and the Auto box in CSS
+        self.assertTrue(r["cls"])  # body.autoLv hides the Size select, body.autoPhone the Auto box
+        self.assertTrue(r["phone"])
         self.assertEqual(r["sel"], "0800x0600")
         self.assertFalse(r["chip"])
 
-    def test_computer_keeps_the_size_choice(self):
-        self.assertFalse(self.label(False)["cls"])
+    def test_computer_auto_hides_size_but_keeps_the_auto_box(self):
+        r = self.label(False)
+        self.assertTrue(r["cls"])  # Size hidden while Auto is ticked
+        self.assertFalse(r["phone"])  # the Auto box stays, that is how Size comes back
+
+    def test_computer_unticked_auto_shows_size(self):
+        r = self.label(False, auto=False)
+        self.assertFalse(r["cls"])
+        self.assertFalse(r["phone"])
+        self.assertEqual(r["sel"], "0800x0600")  # the select shows the size in use
+
+    def test_usb_never_hides_size_by_auto(self):
+        self.assertFalse(self.label(False, usb=True)["cls"])
+        self.assertFalse(self.label(True, usb=True)["phone"])
 
     def test_tap_af_refused_while_halfway_is_held_over_wifi(self):
         r = run_js("st.stage=1; setAf({field:5}); JSON.stringify({calls:calls,msgs:msgs})", ["setAf"])
