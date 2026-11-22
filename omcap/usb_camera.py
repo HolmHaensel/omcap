@@ -29,7 +29,7 @@ EXPOSURE_PROGRAM = {"1": "M", "2": "P", "3": "A", "4": "S", "8": "movie", "11": 
 WB_NAMES = ["AUTO", "5300K", "7500K", "6000K", "3000K", "4000K", "Underwater", "5500K Flash",
             "One-touch 1", "One-touch 2", "One-touch 3", "One-touch 4", "CWB"]
 FEATURES = ["liveview", "af_area", "af_modes", "stages", "scp", "time_lapse", "ae_bkt",
-            "playback", "transfer", "long", "mf_drive", "movie", "erase", "loupe"]
+            "playback", "transfer", "long", "mf_drive", "movie", "erase", "loupe", "star_af"]
 
 # Movie button, PTP 0x948C (Olympus OM-D MovieRecButton): 1 press, 0 release; each press toggles recording.
 # The camera records in all shooting modes except PHOTO STORY, not during BULB / LIVE TIME / LIVECOMP,
@@ -1232,6 +1232,10 @@ class UsbCamera:
             self.shooting = False
             self.last_press = time.monotonic() + 5  # writing the file ends with events like the mode dial
         self._new_files = []  # the movie is no "new shot" of the shutter: card list only
+
+    def focus_mode(self):
+        """Current AF mode code as string ('1' = MF, '32769' = S-AF+MF, '2' = S-AF, '32770' = C-AF)."""
+        return self._prop_now("d003")
 
     def mf_drive(self, direction, step):
         """Move the focus like turning the focus ring (MF, S-AF+MF): direction "near"/"far", step 1-3."""

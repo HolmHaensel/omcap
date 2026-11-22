@@ -451,12 +451,21 @@ body.webcam{cursor:none;display:flex;align-items:center;justify-content:center}
       <label class="tog"><input type="checkbox" id="aidClip"> <span data-i18n="lv.clip">Highlight&amp;Shadow</span></label>
       <label class="tog"><input type="checkbox" id="aidPeak"> <span data-i18n="lv.peak">Peaking</span></label>
       <label class="tog"><span data-i18n="lv.peakColor">Peaking Settings</span> <select id="aidPeakCol"><option value="white" data-i18n="lv.peakWhite">White</option><option value="black" data-i18n="lv.peakBlack">Black</option><option value="red" data-i18n="lv.peakRed">Red</option><option value="yellow" data-i18n="lv.peakYellow">Yellow</option></select></label>
+      <label class="tog" data-feat="star_af"><input type="checkbox" id="starAfOn"> <span data-i18n="lv.starAf">Star AF</span></label>
     </span>
     <span class="sp"></span>
     <button id="popLive" data-i18n="lv.second">Second monitor</button>
     <button id="popCam" data-i18n="lv.webcam">Webcam (OBS)</button>
     <button class="w" id="lvStart" data-i18n="lv.start">Start live view</button>
     <button id="lvStop" data-i18n="lv.stop">Stop live view</button>
+  </div>
+  <div class="tb" id="starRow" hidden>
+    <span id="starHfr" class="chip" role="status"></span>
+    <span id="starBest" class="mut"></span>
+    <button id="starReset" class="mini" data-i18n="star.reset">Reset</button>
+    <span class="sp"></span>
+    <span id="starMsg" class="mut"></span>
+    <button class="w" id="starAuto" data-feat="mf_drive" data-i18n="star.auto">Auto Star AF</button>
   </div>
   <div class="tb" id="ovlRow" hidden>
     <label class="lab"><span data-i18n="lv.overlay">Overlay</span> <input type="range" id="ovlOp" min="0" max="100" value="50"></label>
@@ -813,6 +822,14 @@ const I18N={en:{
   "lv.peakBlack": "Black",
   "lv.peakRed": "Red",
   "lv.peakYellow": "Yellow",
+  "lv.starAf": "Star AF",
+  "star.auto": "Auto Star AF",
+  "star.stop": "Stop Star AF",
+  "star.hfr": "HFR {v} px",
+  "star.best": "Best {v} px",
+  "star.noStar": "No star",
+  "star.reset": "Reset",
+  "star.manualHint": "Turn the focus ring to minimise HFR",
   "lv.roll": "Horizon {a}° · Tilt {b}°",
   "lv.delta": "Δ Horizon {a}° · Δ Tilt {b}° to the held angle",
   "lv.loupeTitle": "The camera's own magnified live view (USB only; Zoom frame AF/zoom AF in the manual). Click = focus, drag = move, wheel or pinch = zoom smoothly; at rest it snaps to the camera's ratios and turns sharp. Starts at the AF target. No AF with Four Thirds lenses while zoomed (manual p.56).",
@@ -1202,11 +1219,13 @@ async function tick(){
   const dc=$('#dropChip'); dc.hidden=!stale&&!gone; if(stale||gone) dc.textContent=gone||tr('lv.noSignal',{s:Math.round(st.lv_age)});
   $('#lvTools').hidden=!st.live;
   // Zoom AF is not offered while the camera is busy (the server refuses it then, like other commands)
-  zBlock=st.stage>0||st.indexing||st.movie!=null||st.take!=null||!!(st.job&&st.job.running)||st.play;
+  const starRun=!!(st.star_af&&st.star_af.running);
+  zBlock=st.stage>0||st.indexing||st.movie!=null||st.take!=null||!!(st.job&&st.job.running)||starRun||st.play;
   if(usbZoom){
     $('#zoomUsb').hidden=zBlock; $('#loupeTools').style.display=zBlock?'none':''; $('#zoomMap').style.visibility=zBlock?'hidden':''; // busy camera: the map would not react
     loupePoll(ans0);
   }
+  updateStarAfUi();
   $('#reset').hidden=!(features.has('stages')&&(st.stage>0||propsFailed));
   applyContext();
   if(st.stage===0&&focusHit&&focusHit.held) focusHit=null;
@@ -3052,7 +3071,7 @@ function edgeThreshold(mag,top,floor){ // threshold such that about the fraction
   return Math.max(floor,b/k);
 }
 // lvlOn: Level gauge switch, off by default and remembered like the other live view aids (user 2026-11-14)
-const AID_KEY='omcap.aids', AID_IDS=['aidHist','aidRgb','aidClip','aidPeak','lvlOn','lvlSound','focusTone'];
+const AID_KEY='omcap.aids', AID_IDS=['aidHist','aidRgb','aidClip','aidPeak','lvlOn','lvlSound','focusTone','starAfOn'];
 const aidOff=document.createElement('canvas'), aidCtx=aidOff.getContext('2d',{willReadFrequently:true});
 const PEAK_RGB={white:[255,255,255],black:[0,0,0],red:[255,40,40],yellow:[255,230,0]};
 function aidSave(){try{const o={col:$('#aidPeakCol').value};AID_IDS.forEach(i=>o[i]=$('#'+i).checked);localStorage.setItem(AID_KEY,JSON.stringify(o))}catch{}}
@@ -3073,12 +3092,64 @@ function drawHist(data){
   g.fillStyle='rgba(255,255,255,.55)';
   for(let i=0;i<256;i++){const hh=Math.min(1,l[i]/mx)*(H-3);g.fillRect(i/255*(W-1),H-hh,Math.max(1,W/256),hh)}
 }
+let starBestHfr=null;
+function measureStarHfr(gray,w,h){
+  // Search around the frame centre; 3x3 mean suppresses single-pixel hot pixels (REQ-F24)
+  const half=Math.max(12,Math.min(96,w>>1,h>>1));
+  const x0=Math.max(0,(w>>1)-half),x1=Math.min(w,(w>>1)+half),y0=Math.max(0,(h>>1)-half),y1=Math.min(h,(h>>1)+half);
+  const rw=x1-x0,rh=y1-y0; if(rw<7||rh<7) return null;
+  const hist=new Uint32Array(256);
+  for(let y=y0;y<y1;y++) for(let x=x0;x<x1;x++) hist[gray[y*w+x]]++;
+  const mid=(rw*rh)>>1; let acc=0,bg=0;
+  for(let i=0;i<256;i++){acc+=hist[i];if(acc>=mid){bg=i;break}}
+  let best=0,bx=-1,by=-1;
+  for(let y=y0+1;y<y1-1;y++) for(let x=x0+1;x<x1-1;x++){
+    const s=(gray[(y-1)*w+x-1]+gray[(y-1)*w+x]+gray[(y-1)*w+x+1]+gray[y*w+x-1]+gray[y*w+x]+gray[y*w+x+1]+gray[(y+1)*w+x-1]+gray[(y+1)*w+x]+gray[(y+1)*w+x+1])/9;
+    if(s>best){best=s;bx=x;by=y}
+  }
+  if(bx<0||best-bg<8||gray[by*w+bx]-bg<12) return null;
+  const ap=Math.max(4,Math.min(18,bx-x0,by-y0,x1-1-bx,y1-1-by));
+  if(ap<3) return null;
+  let sum=0,sx=0,sy=0;
+  for(let dy=-ap;dy<=ap;dy++) for(let dx=-ap;dx<=ap;dx++){
+    const v=gray[(by+dy)*w+(bx+dx)]-bg; if(v>0){sum+=v;sx+=v*dx;sy+=v*dy}
+  }
+  if(sum<=1) return null;
+  const cx=sx/sum,cy=sy/sum; let rsum=0;
+  for(let dy=-ap;dy<=ap;dy++) for(let dx=-ap;dx<=ap;dx++){
+    const v=gray[(by+dy)*w+(bx+dx)]-bg; if(v>0) rsum+=v*Math.hypot(dx-cx,dy-cy);
+  }
+  return {hfr:rsum/sum,x:bx+cx,y:by+cy,ap};
+}
+function updateStarAfUi(){
+  const on=!!(st&&st.live&&$('#starAfOn').checked);
+  const sa=(st&&st.star_af)||{}, run=!!sa.running;
+  $('#starRow').hidden=!(on||run);
+  const btn=$('#starAuto');
+  btn.textContent=tr(run?'star.stop':'star.auto');
+  btn.classList.toggle('rec',run);
+  btn.disabled=!canWrite||(!run&&zBlock);
+  const m=sa.message||(features.has('mf_drive')?'':tr('star.manualHint'));
+  $('#starMsg').textContent=m;
+  $('#starMsg').className=sa.error?'warn':'mut';
+}
+$('#starReset').onclick=()=>{starBestHfr=null;$('#starBest').textContent=''};
+$('#starAuto').onclick=async()=>{
+  const run=!!(st&&st.star_af&&st.star_af.running);
+  try{
+    if(run){await api('/api/staraf',{action:'stop'});return}
+    const p=loupePoint();
+    await api('/api/staraf',{action:'start',x:p.x,y:p.y,zoom:true});
+    tick();
+  }catch(e){msg(e.message,true)}
+};
 function aidTick(){
   if(quitting) return;
-  const wantH=$('#aidHist').checked,wantC=$('#aidClip').checked,wantP=$('#aidPeak').checked;
+  const wantH=$('#aidHist').checked,wantC=$('#aidClip').checked,wantP=$('#aidPeak').checked,wantS=$('#starAfOn').checked;
   const hc=$('#histCv'),oc=$('#aidCv'),img=$('#live'),nw=img.naturalWidth,nh=img.naturalHeight;
   hc.hidden=!(wantH&&st.live);
-  if(!st.live||document.hidden||!(wantH||wantC||wantP)||!nw||!nh){
+  updateStarAfUi();
+  if(!st.live||document.hidden||!(wantH||wantC||wantP||wantS)||!nw||!nh){
     if(oc.width) oc.getContext('2d').clearRect(0,0,oc.width,oc.height);
     return;
   }
@@ -3090,19 +3161,36 @@ function aidTick(){
   if(wantH) drawHist(data);
   if(oc.width!==w||oc.height!==h){oc.width=w;oc.height=h}
   const og=oc.getContext('2d');
-  if(!wantC&&!wantP){og.clearRect(0,0,w,h);return}
-  const out=og.createImageData(w,h),o=out.data;
-  if(wantC){
-    const m=clipMask(data,250,5);
-    for(let j=0;j<m.length;j++) if(m[j]){const k=j*4;o[k]=m[j]===1?255:30;o[k+1]=m[j]===1?30:80;o[k+2]=m[j]===1?30:255;o[k+3]=200}
+  const gray=(wantP||wantS)?grayOf(data):null;
+  if(wantC||wantP){
+    const out=og.createImageData(w,h),o=out.data;
+    if(wantC){
+      const m=clipMask(data,250,5);
+      for(let j=0;j<m.length;j++) if(m[j]){const k=j*4;o[k]=m[j]===1?255:30;o[k+1]=m[j]===1?30:80;o[k+2]=m[j]===1?30:255;o[k+3]=200}
+    }
+    if(wantP){
+      // fixed floor 150: only really sharp edges light up, so turning the focus ring away makes them go out (a relative
+      // threshold marked the strongest 3 % in any picture, sharp or not); at most 6 % of the picture in very detailed scenes
+      const mag=edgeMagnitude(gray,w,h),t=edgeThreshold(mag,.06,150),c=PEAK_RGB[$('#aidPeakCol').value]||PEAK_RGB.white;
+      for(let j=0;j<mag.length;j++) if(mag[j]>=t){const k=j*4;o[k]=c[0];o[k+1]=c[1];o[k+2]=c[2];o[k+3]=255}
+    }
+    og.putImageData(out,0,0);
+  }else{
+    og.clearRect(0,0,w,h);
   }
-  if(wantP){
-    // fixed floor 150: only really sharp edges light up, so turning the focus ring away makes them go out (a relative
-    // threshold marked the strongest 3 % in any picture, sharp or not); at most 6 % of the picture in very detailed scenes
-    const mag=edgeMagnitude(grayOf(data),w,h),t=edgeThreshold(mag,.06,150),c=PEAK_RGB[$('#aidPeakCol').value]||PEAK_RGB.white;
-    for(let j=0;j<mag.length;j++) if(mag[j]>=t){const k=j*4;o[k]=c[0];o[k+1]=c[1];o[k+2]=c[2];o[k+3]=255}
+  if(wantS){
+    const res=measureStarHfr(gray,w,h),chip=$('#starHfr');
+    if(res){
+      if(starBestHfr===null||res.hfr<starBestHfr) starBestHfr=res.hfr;
+      chip.textContent=tr('star.hfr',{v:res.hfr.toFixed(2)});
+      chip.classList.toggle('ok',res.hfr<=starBestHfr*1.1);
+      $('#starBest').textContent=tr('star.best',{v:starBestHfr.toFixed(2)});
+      og.strokeStyle='#3DDC84'; og.lineWidth=1.5;
+      og.beginPath(); og.arc(res.x,res.y,Math.max(8,res.hfr*2.5),0,Math.PI*2); og.stroke();
+    }else{
+      chip.textContent=tr('star.noStar'); chip.classList.remove('ok');
+    }
   }
-  og.putImageData(out,0,0);
 }
 AID_IDS.filter(i=>i!=='lvlOn').concat('aidPeakCol').forEach(i=>$('#'+i).onchange=()=>{aidSave();aidTick()});  // lvlOn has its own handler
 setInterval(aidTick,250); // 4 frames/s are enough and keep the CPU low

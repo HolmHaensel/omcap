@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Star AF (`REQ-F24`): live star sharpness (HFR) aid in the live view (USB and Wi-Fi, computer and phone) plus automatic two-pass V-curve Star AF over USB (`OMD_MFDrive` 0x9487 + Zoom AF ×10, triggerable from a phone over `--lan`). Offline-tested.
 - USB Focus Stacking: sets and restores Bracketing (d0a6); one-frame shot ends early with a note (REQ-F69). USB-tested.
 
 ## 0.7.9 – 2026-11-22
