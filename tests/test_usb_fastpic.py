@@ -192,7 +192,7 @@ class Server(unittest.TestCase):
 class Guards(unittest.TestCase):
     def cam(self, **values):
         cam, got = cam_with(FastPtp())
-        vals = {"drivemode": "1", "d006": "3", "shutterspeed": "1/250", "d0cb": "0", "d0ce": "2", **values}
+        vals = {"drivemode": "1", "d006": "3", "shutterspeed": "1/250", "d0cb": "0", "d0ce": "2", "d0a6": "2", **values}
 
         def value(n):
             if vals[n] == "ERR":
@@ -220,7 +220,7 @@ class Guards(unittest.TestCase):
             self.assertEqual(got, [], (name, v))
 
     def test_stacking_skipped(self):
-        cam, got = self.cam(d0cb="1", d0ce="1")
+        cam, got = self.cam(d0cb="1", d0ce="1", d0a6="1")
         cam._fast_picture()
         self.assertEqual(got, [])
 

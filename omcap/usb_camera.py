@@ -223,6 +223,7 @@ USB_TABLES = {
 # Bracketing kind d020: 2 = Off, 3 = Focus BKT (mapped 2026-11-13). Focus Stacking needs Focus BKT; the camera then
 # switches by itself to Silent Sequential H, electronic shutter (1/16000 … 1/8 s) and flash off (E-M1 manual, p.174).
 BKT_OFF, BKT_FOCUS = 2, 3
+BKT_MAIN = "d0a6"  # Bracketing On (1) / Off (2), the main switch of Shooting Menu 2 (found 2026-11-22 by diff)
 STACK_FRAMES_WAIT = 6.0  # the 8 frames are on the card ~3.5 s after the release; then decide whether to wait on
 STACK_WAIT = 16.0  # 8 frames (16 files with JPG+ORF) in ~3.5 s, the merged JPG ~13.6 s after the release (2026-11-13)
 
@@ -1057,6 +1058,7 @@ class UsbCamera:
             kind = int(float(self._value("d020")))
             if kind != BKT_FOCUS:
                 self._bkt_before = kind  # lost after a reconnect: Off then sets Bracketing Off
+            self._bkt_main_before = self._set_bkt_main(1)  # Bracketing On: else the camera takes one picture
             self._set("d020", BKT_FOCUS)
             try:
                 self._set("d0cb", 1)  # Focus BKT on
@@ -1067,12 +1069,14 @@ class UsbCamera:
                     raise
             except CameraError:
                 self._set("d020", getattr(self, "_bkt_before", BKT_OFF))  # e.g. a lens without Focus BKT (p.173)
+                self._set_bkt_main(getattr(self, "_bkt_main_before", None) or 2)
                 raise
         else:
             self._set_stack_flag(2)
             self._set("d0cb", 2)
             if int(float(self._value("d020"))) == BKT_FOCUS:  # leave another bracketing kind alone
                 self._set("d020", getattr(self, "_bkt_before", BKT_OFF))
+                self._set_bkt_main(getattr(self, "_bkt_main_before", None) or 2)  # as it was (default Off)
         self.refresh()  # drive mode, shutter limits and flash change with it; they arrive with a new session
 
     def _set_stack_flag(self, value):
@@ -1092,6 +1096,21 @@ class UsbCamera:
         except Exception:  # no live read (libgphoto2, test fakes): the descriptor value
             return str(self._value(code))
 
+    def _set_bkt_main(self, value):
+        """Bracketing main switch d0a6 (USB test 2026-11-22); returns the value before, None on a body without it."""
+        try:
+            before = self._prop_now(BKT_MAIN)
+        except CameraError:
+            return None
+        self._set(BKT_MAIN, value)
+        return before
+
+    def _bkt_main_off(self):
+        try:
+            return self._prop_now(BKT_MAIN) == "2"
+        except CameraError:
+            return False  # a body without the switch
+
     def _stack_flag_on(self):
         try:
             return self._prop_now("d0ce") == "1"  # Focus BKT alone is a plain series, not stacking
@@ -1100,7 +1119,7 @@ class UsbCamera:
 
     def _stacking_on(self):
         try:
-            if self._prop_now("d0cb") != "1":
+            if self._bkt_main_off() or self._prop_now("d0cb") != "1":
                 return False
         except CameraError:
             return False

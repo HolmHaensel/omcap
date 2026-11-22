@@ -14,16 +14,22 @@ def cam(live=None, desc=None):
 
 class LiveState(unittest.TestCase):
     def test_live_value_wins_over_the_session_start(self):
-        c = cam(live={"d0cb": 2, "d0ce": 2}, desc={"d0cb": "1", "d0ce": "1"})
+        c = cam(live={"d0a6": 1, "d0cb": 2, "d0ce": 2}, desc={"d0a6": "1", "d0cb": "1", "d0ce": "1"})
         self.assertFalse(c._stacking_on())  # switched off in the camera menu after the connect
 
     def test_live_on(self):
-        self.assertTrue(cam(live={"d0cb": 1, "d0ce": 1})._stacking_on())
+        self.assertTrue(cam(live={"d0a6": 1, "d0cb": 1, "d0ce": 1})._stacking_on())
 
     def test_falls_back_to_the_descriptor(self):
-        c = cam(desc={"d0cb": "1", "d0ce": "1"})
+        c = cam(desc={"d0a6": "1", "d0cb": "1", "d0ce": "1"})
         c._live_int = mock.Mock(side_effect=usb_camera.CameraError("libgphoto2"))
         self.assertTrue(c._stacking_on())
+
+
+class BracketingMainSwitch(unittest.TestCase):
+    def test_bracketing_off_means_no_stacking(self):
+        # USB test 2026-11-22: Focus BKT and stacking on, Bracketing Off -> the camera took one picture
+        self.assertFalse(cam(live={"d0a6": 2, "d0cb": 1, "d0ce": 1})._stacking_on())
 
 
 class OneFrame(unittest.TestCase):
