@@ -49,7 +49,7 @@ LV_PORT = 5555
 MIN_INTERVAL = 5  # one shot takes about 4 s (focus, release, save)
 
 WIFI_FEATURES = ["liveview", "lvsize", "af_area", "stages", "scp", "time_lapse", "ae_bkt", "movie",
-                 "long", "playback", "transfer", "share_order", "poweroff"]
+                 "long", "playback", "transfer", "share_order", "poweroff", "focus_tone"]
 
 cam = None   # active connection, None before the choice on the start screen
 live = None
@@ -1407,7 +1407,8 @@ class Handler(BaseHTTPRequestHandler):
                 return {"last_af": cam.af_area()["last_af"]}
         elif stage == 0:
             if state["seen"] is not None:
-                pull_new(state["seen"])
+                if cam.released_full:  # a half press without a shot must stay silent
+                    pull_new(state["seen"])
                 state["seen"] = None
             if state["resume_live"]:
                 state["resume_live"] = False
