@@ -225,7 +225,7 @@ class Page(unittest.TestCase):
 
     def test_hsl_hint_matches_the_server(self):
         # hsl_apply writes <stem>_<EXT>_hsl.jpg into out/hsl; the automatic step never asks for the TIFF
-        self.assertIn("a JPEG named ..._hsl.jpg in the app's folder out/hsl, not in your save folder", self.h)
+        self.assertIn("The copy is saved as ..._hsl.jpg in the folder out/hsl.", self.h)
         self.assertNotIn("TIFF", self.h[self.h.index('"hsl.autoHint"'):][:600])
         self.assertIn('hsl_apply(os.path.basename(dest), hsl_auto["preset"])', Path(server.__file__).read_text())
 
