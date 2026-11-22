@@ -12,7 +12,7 @@ from omcap import ptp, server, usb_camera
 from omcap.camera import CameraError
 from tests.test_usb_loupe import make
 
-from web_path import HTML_PATH as HTML
+from tests.web_path import HTML_PATH as HTML
 
 
 class Revision(unittest.TestCase):

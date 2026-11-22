@@ -242,12 +242,12 @@ class Shoot(unittest.TestCase):
     def test_card_with_busy_event_and_late_file_is_the_card_path(self):
         # d0de also changes with a card: it must not end the wait and raise "did not release" (review finding)
         usb_camera.SHOT_TIMEOUT = 1
-        fake = Fake([(".ORF", b"ORF")], [C004, D0DE], card=True, timed=[(0.15, CARD_FILE)])
+        fake = Fake([(".ORF", b"ORF")], [C004, D0DE], card=True, timed=[(0.3, CARD_FILE)])  # after DIRECT_NEXT_WAIT
         saved = []
         cam = make_cam(fake, saved)
         t0 = time.monotonic()
         self.assertEqual(cam.shoot(), ["/d/P1.JPG"])
-        self.assertGreaterEqual(time.monotonic() - t0, 0.15)
+        self.assertGreaterEqual(time.monotonic() - t0, 0.3)
         self.assertEqual((saved, fake.fetched), ([], []))
 
     def test_locked_card_counts_as_a_card(self):
@@ -285,7 +285,7 @@ class Shoot(unittest.TestCase):
                 calls.append(1)
                 self.card = 1 if len(calls) > 1 else 0
                 return super().get_storageinfo()
-        fake = Late([(".ORF", b"ORF")], [C004], timed=[(0.15, CARD_FILE)])
+        fake = Late([(".ORF", b"ORF")], [C004], timed=[(0.3, CARD_FILE)])  # after DIRECT_NEXT_WAIT
         self.assertEqual(make_cam(fake, []).shoot(), ["/d/P1.JPG"])
         self.assertEqual(fake.fetched, [])
 

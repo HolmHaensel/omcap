@@ -7,7 +7,7 @@ import unittest
 
 from omcap import camera, server, usb_camera
 
-from web_path import HTML_PATH as WEB
+from tests.web_path import HTML_PATH as WEB
 HAVE_JS = shutil.which("osascript")
 
 STUBS = """
@@ -68,6 +68,7 @@ class Page(unittest.TestCase):
 
     def test_tone_after_tap_focus_only(self):
         self.assertIn("if(f) focusTone(!!hit);", self.html)
+        self.assertEqual(self.html.count("focusTone("), 2)  # definition + the tap-focus call, nothing else
         self.assertIn("features.has('focus_tone')", self.html)
 
     def test_wifi_only(self):

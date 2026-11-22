@@ -12,7 +12,7 @@ from unittest import mock
 
 from omcap import server, usb_camera
 
-from web_path import HTML_PATH as HTML
+from tests.web_path import HTML_PATH as HTML
 HAVE_JS = shutil.which("osascript")
 
 

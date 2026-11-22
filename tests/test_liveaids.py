@@ -2,7 +2,7 @@
 import re
 import unittest
 
-from web_path import HTML_PATH
+from tests.web_path import HTML_PATH
 
 HTML = HTML_PATH.read_text(encoding="utf-8")
 KEYS = ["lv.hist", "lv.histRgb", "lv.clip", "lv.peak", "lv.peakColor",

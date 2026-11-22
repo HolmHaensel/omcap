@@ -8,7 +8,7 @@ import shutil
 import subprocess
 import unittest
 
-from web_path import HTML_PATH as HTML
+from tests.web_path import HTML_PATH as HTML
 HAVE_JS = shutil.which("osascript")
 
 STUBS = """

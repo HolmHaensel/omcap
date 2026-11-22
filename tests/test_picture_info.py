@@ -8,7 +8,7 @@ import urllib.request
 from http.server import ThreadingHTTPServer
 
 from omcap import exif, server
-from web_path import HTML_PATH
+from tests.web_path import HTML_PATH
 from omcap.camera import CameraError
 
 
