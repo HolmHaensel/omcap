@@ -353,6 +353,19 @@ class Camera:
         return self._cam().get_image() if wait is None else self._cam().get_image(wait=wait)
 
     @_wrap
+    def omd_direct_info(self):
+        """Info of the next picture offered without a card (PTP 0x9495) or None. Own layer only (libgphoto2 has none)."""
+        return self._cam().direct_store_info()
+
+    def omd_direct_fetch(self, info):
+        """The picture described by `info` as an iterator of pieces (PTP 0x9493); the camera is read lazily,
+        so the caller can write each piece before the last one (clear=1) is requested."""
+        try:
+            yield from self._cam().direct_store_read(info["id"], info["size"])
+        except ptp.PtpError as e:
+            raise GPhoto2Error("PTP: %s" % e, GP_ERROR_IO)
+
+    @_wrap
     def get_prop_value(self, code):
         """Live raw value of a property (not a gphoto2 method): GetDevicePropValue with the descriptor's type;
         the caller interprets it (e.g. the E-M1 tilt is unsigned 16 bit holding a signed value)."""

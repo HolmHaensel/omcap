@@ -35,6 +35,10 @@ OP_DELETE_OBJECT = 0x100B
 OP_PROP_DESC, OP_GET_PROP, OP_SET_PROP = 0x1014, 0x1015, 0x1016
 DPC_LV_SIZE, LV_SIZE_DEFAULT = 0xD06D, 0x04000300  # live view size (w << 16 | h); 0 = live view off
 OP_SHUTTER, OP_LIVEVIEW = 0x9481, 0x9484
+# Direct store (no card): the camera keeps the shot in memory and hands it over in pieces (traced from OM Capture,
+# out/research/omcapture_trace_codes.md "Round B"): 0x9495 gives the info of the next file, 0x9493 reads it.
+OP_DS_INFO, OP_DS_PART = 0x9495, 0x9493
+DS_CHUNK = 0x200000  # piece size OM Capture used
 OP_GET_IMAGE = 0x9485  # OMD_GetImage: JPEG of the shot just taken, before the card lists it (traced from OM Capture)
 DPC_CONTROL_MODE = 0xD052  # 1 = PC control, 2 = camera
 
@@ -376,6 +380,30 @@ class UsbTransport:
             self.ctx = ctypes.c_void_p()
 
 
+DS_KINDS = {2: ".ORF", 5: ".JPG"}
+
+
+def parse_ds_info(buf):
+    """Answer of 0x9495, 20 bytes (traced 2026-11-16, ORF and JPG), all little endian:
+
+    0..3  u32 kind: 2 = ORF, 5 = JPG
+    4..7  extension reversed ("FRO." = ".ORF", "GPJ." = ".JPG")
+    8..11 u32 size in bytes (ORF 0x00ED4268, JPG 0x002C474B)
+    12..15 zero
+    16..19 u32 id for 0x9493 (0x7F02 in both answers)
+    Returns None for an empty or all-zero answer (no file waiting).
+    """
+    if not buf or len(buf) < 20:
+        return None
+    kind, ext, size, _zero, ident = struct.unpack_from("<I4sIII", buf, 0)
+    if not size:
+        return None
+    ext = ext[::-1].decode("ascii", "replace").upper()
+    if not ext.startswith(".") or not ext[1:].isalnum():
+        ext = DS_KINDS.get(kind, ".BIN")
+    return {"kind": kind, "ext": ext, "size": size, "id": ident}
+
+
 # --- PTP session -----------------------------------------------------------------------------------
 class PtpCamera:
     """One PTP session. All calls are blocking; the caller serialises them (one at a time)."""
@@ -429,7 +457,7 @@ class PtpCamera:
         end = time.monotonic() + wait
         while True:
             try:
-                data = self.transact(OP_GET_IMAGE, (1,), want_data=True, timeout=1500)[0]
+                data = self._retry_busy(OP_GET_IMAGE, (1,), True, 0, timeout=1500)
                 if data and data[:2] == b"\xff\xd8":
                     return data
             except PtpError as e:
@@ -438,6 +466,40 @@ class PtpCamera:
             if time.monotonic() >= end:
                 return b""
             time.sleep(0.1)
+
+    def _retry_busy(self, code, params, want_data, wait, timeout=5000):
+        """transact() that retries a busy answer for `wait` seconds."""
+        end = time.monotonic() + wait
+        while True:
+            try:
+                return self.transact(code, params, want_data=want_data, timeout=timeout)[0]
+            except PtpError as e:
+                if e.code != RC_BUSY or time.monotonic() >= end:
+                    raise
+            time.sleep(0.05)
+
+    def direct_store_info(self, wait=1.0):
+        """Info of the next picture the camera offers without a card (0x9495, no parameters), or None when none.
+
+        Dict kind (2 = ORF, 5 = JPG), ext (".ORF"/".JPG"), size, id. Raises PtpError on a refusal.
+        """
+        return parse_ds_info(self._retry_busy(OP_DS_INFO, (), True, wait))
+
+    def direct_store_read(self, id, size, chunk=DS_CHUNK, wait=2.0):
+        """Yield the file in pieces of `chunk` bytes (0x9493 id, offset, length, clear).
+
+        Exactly as OM Capture: clear = 0 on every piece but the last, clear = 1 on the last one of each file
+        (it lets the camera drop its copy). Raises PtpError on a refusal or a short piece.
+        """
+        offset = 0
+        while offset < size:
+            length = min(chunk, size - offset)
+            last = 1 if offset + length >= size else 0
+            data = self._retry_busy(OP_DS_PART, (id, offset, length, last), True, wait, timeout=15000)
+            if not data or len(data) != length:
+                raise PtpError("direct store piece at %d: %d of %d bytes" % (offset, len(data or b""), length))
+            yield data
+            offset += length
 
     def drain(self):
         """Throw away data left in the pipe by an earlier program or aborted transaction."""
@@ -514,7 +576,16 @@ class PtpCamera:
         want = 1 if on else 2
         # libgphoto2 waits up to 20 s (its port timeout) for this answer; the E-M1 needs longer than 5 s
         t0 = time.monotonic()
-        self.set_prop(DPC_CONTROL_MODE, want, 4, timeout=20000)
+        while True:
+            try:
+                self.set_prop(DPC_CONTROL_MODE, want, 4, timeout=20000)
+                break
+            except PtpError as e:
+                # a camera just switched on (or after an earlier session) answers "busy" for a few seconds: OM Capture
+                # got DeviceBusy once and succeeded on the retry (trace 2026-11-16); without this the app fell back to libgphoto2
+                if e.code != RC_BUSY or time.monotonic() - t0 > 8:
+                    raise
+                time.sleep(0.5)
         self.pc_answer_s = time.monotonic() - t0  # how long the camera took to answer (connect log)
         end = time.monotonic() + wait
         while time.monotonic() < end:

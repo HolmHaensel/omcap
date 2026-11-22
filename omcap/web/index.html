@@ -832,6 +832,7 @@ const I18N={en:{
   "msg.overlaySet": "Overlay set",
   "msg.shooting": "Taking picture …",
   "msg.taken": "Picture taken",
+  "msg.savedNoCard": "Saved to the computer (no card): {n}",
   "msg.shutter": "Shutter button",
   "msg.reset": "Reset done",
   "msg.rereading": "Re-reading the camera …",
@@ -3274,12 +3275,18 @@ $('#shoot').onclick=async()=>{
   const sec=+$('#timerSel').value;
   if(sec&&!await timerStart(sec)) return;
   msg(tr('msg.shooting'));
+  let saved=null;
   const latestBefore=st.latest, newestBefore=lastOpen&&lastOpen.preview.path||(cardLive&&cardShots&&(cardShots.find(x=>isJpg(x.preview))||{preview:{}}).preview.path)||null; // not from the saved list: the card may have changed
   shutterBlackout();
   if(st.stage>=1){
     if(!await act(tr('msg.shutter'),'/api/shutter',{stage:2})) return;
-    await act(tr('msg.taken'),'/api/shutter',{stage:0});
-  }else if(!await act(tr('msg.taken'),'/api/shoot',{})){if(/no focus/i.test(actErr||''))showNoFocus();return}
+    saved=(await act(tr('msg.taken'),'/api/shutter',{stage:0}))?.saved;
+  }else{
+    const j=await act(tr('msg.taken'),'/api/shoot',{});
+    if(!j){if(/no focus/i.test(actErr||''))showNoFocus();return}
+    saved=j.saved;
+  }
+  if(saved&&saved.length) msg(tr('msg.savedNoCard',{n:saved.map(p=>p.split(/[\\/]/).pop()).join(', ')})); // USB without a card (REQ-F61)
   showLast(latestBefore,0,newestBefore); // Wi-Fi: refreshes the card list until the new shot is there
   local();
   if(isUsb){gallery();loadLens()} // USB: lens from the new JPG
@@ -3307,7 +3314,10 @@ $('#brStart').onclick=()=>act(tr('msg.bktStarted'),'/api/bracket',{frames:+$('#b
 $('#jobStop').onclick=()=>act(tr('msg.stopping'),'/api/job/stop',{});
 $('#takePrep').onclick=()=>act(tr('msg.lcPrepared'),'/api/take',{action:'prepare'});
 $('#takeStart').onclick=()=>act(tr('msg.started',{name:$('#longName').textContent}),'/api/take',{action:'start'});
-$('#takeStop').onclick=()=>act(tr('msg.stopped',{name:$('#longName').textContent}),'/api/take',{action:'stop'});
+$('#takeStop').onclick=async()=>{
+  const j=await act(tr('msg.stopped',{name:$('#longName').textContent}),'/api/take',{action:'stop'});
+  if(j&&j.saved&&j.saved.length){msg(tr('msg.savedNoCard',{n:j.saved.map(p=>p.split(/[\\/]/).pop()).join(', ')}));local();if(isUsb)gallery()} // USB without a card (REQ-F61)
+};
 /* Movie: start/stop like the R button (manual p.22); the app briefly switches to Movie mode for it */
 $('#movStart').onclick=()=>act(tr('msg.movieStarted'),'/api/movie',{action:'start'});
 $('#movStop').onclick=async()=>{await act(tr('msg.movieStopped'),'/api/movie',{action:'stop'});
