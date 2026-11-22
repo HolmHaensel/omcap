@@ -177,7 +177,7 @@ button:disabled{color:var(--disabled);opacity:.6;cursor:not-allowed}
 @media(prefers-reduced-motion:reduce){#recChip .dot{animation:none}}
 /* Wi-Fi on phone width: the live view size follows the screen and the signal (REQ-F45), the manual choice is hidden */
 /* only while the automatic size is on (Wi-Fi, write enabled); on a phone the choice is hidden anyway (REQ-F49, below) */
-body.autoLv label[data-feat=lvsize]{display:none!important}
+body.autoLv label[data-feat=lvsize],body.autoLv #lvAutoLab{display:none!important}
 /* Phone, upright or turned (REQ-F49): the app picks the live view size itself (Wi-Fi: adaptive, USB: 1024×768),
    and second-monitor windows and the OBS webcam window make no sense on a phone */
 @media(max-width:700px),(orientation:landscape) and (max-height:520px) and (max-width:1100px){
@@ -819,7 +819,7 @@ const I18N={en:{
   "lv.left": "Left", "lv.up": "Up", "lv.down": "Down", "lv.right": "Right",
   "msg.loupeMove": "Zoom frame moved", "msg.zoomStuck": "The camera zoom did not answer in time; showing what the camera does",
   "lv.hold": "Hold angle", "lv.clear": "Clear angle", "lv.sound": "Sound", "lv.focusTone": "Focus tone",
-  "lv.focusToneHint": "Plays a high tone in the app for in focus and a low tone for no focus after a tap focus. The camera itself only beeps on a half press; its Beep setting in the camera menu stays as set.",
+  "lv.focusToneHint": "Plays a high tone in the app for in focus and a low tone for no focus after a tap AF. The camera itself only beeps on a half press; its Beep sound setting in the camera menu stays as set (E-M1 manual, p.96).",
   "lv.levelOk": "Level", "lv.angleOk": "Angle matched",
   "msg.angleHeld": "Angle held: Horizon {a}° · Tilt {b}°",
   "msg.noLevel": "No level reading yet: start live view with the Level gauge on",
@@ -833,7 +833,7 @@ const I18N={en:{
   "msg.inFocus": "In focus",
   "msg.noFocus": "No AF target reported",
   "msg.outsideAf": "Outside the AF Area",
-  "msg.halfHeld": "Release Press halfway first: while it is held the camera takes no AF frame over Wi-Fi",
+  "msg.halfHeld": "Release Press halfway first: while it is held the camera takes no AF target over Wi-Fi",
   "msg.overlaySet": "Overlay set",
   "msg.shooting": "Taking picture …",
   "msg.taken": "Picture taken",
@@ -1119,7 +1119,8 @@ const autoLvEnabled=()=>(MOBILE_LIVE.matches||$('#lvAuto').checked)&&wzSizingEna
 const lvSizeText=size=>size.replace(/^0+/,'').replace('x0','×');
 function autoLvLabel(size){
   const el=$('#autoLvStatus'), on=autoLvEnabled(), sizing=wzSizingEnabled();
-  el.hidden=!(on||(sizing&&wzFocusOnly)); // an explicit size shows the chip only in the "sharp on focus" fallback document.body.classList.toggle('autoLv',on&&MOBILE_LIVE.matches); // the size choice hides on the phone only
+  el.hidden=!(on||(sizing&&wzFocusOnly)); // an explicit size shows the chip only in the "sharp on focus" fallback
+  document.body.classList.toggle('autoLv',on&&MOBILE_LIVE.matches); // the size choice and the Auto box hide on the phone only
   if(sizing&&size) $('#lvqty').value=size; // the select shows the size in use, not an old pick
   if(size) el.textContent=tr(wzFocusOnly?(on?'lv.autoFocus':'lv.sizeFocus'):'lv.auto',{size:lvSizeText(size)}); // wzFocusOnly: sharp only on focus while zoomed (REQ-F55)
 }
@@ -2230,7 +2231,7 @@ const vp=$('#viewport'),layer=$('#zoomLayer');
 const WZ_MAX=4,WZ_TAP_PX=4,WZ_MAP_MS=600;
 // Wi-Fi, any size choice: while the zoom rests above WZ_SHARP_Z the live view gets a bigger size (4x of 640 px leaves 160 px), REQ-F55
 const WZ_SHARP_Z=1.5,WZ_SHARP_MID_Z=2.5,WZ_REST_MS=600,WZ_SIZE_GAP_MS=3000;
-let wzSizeT=0,wzSharpOn=false,wzBase=null,wzFocusOnly=false,wzFocusUntil=0; // wzSharpOn: the sharp size is on; wzBase: the size to return to
+let wzSizeT=0,wzSharpOn=false,wzBase=null,wzPick=null,wzFocusOnly=false,wzFocusUntil=0; // wzSharpOn: the sharp size is on; wzBase: the size to return to; wzPick: a size picked by hand, newer than st.lvqty
 const WZ_FOCUS_HOLD_MS=5000; // sharp-on-focus mode: how long the sharp size stays after the last focus action
 const wzSharp=()=>z>WZ_SHARP_Z;
 // null: the normal adaptive size; during the focus hold always the highest size, also in the middle range
@@ -2259,7 +2260,7 @@ async function wzSizeCheck(){
   // Never while half-pressed either: the size change is a mode switch play -> rec and would release the press.
   if(!st.live) return; // live view off: starting it or the next zoom change looks again
   if(wzPtr.size||wzMapId!==null||autoLvBusy||st.stage>0||st.busy||st.indexing||st.movie!=null||st.take!=null||(st.job&&st.job.running)||now-autoLvLastChange<WZ_SIZE_GAP_MS){wzSizeSoon(1000); return}
-  if(sharp&&!wzSharpOn) wzBase=cur; // remember the size to return to (a picked one is never replaced by the adaptive one)
+  if(sharp&&!wzSharpOn) wzBase=wzPick||cur; wzPick=null; // remember the size to return to (a picked one is never replaced by the adaptive one)
   wzSharpOn=!!sharp; if(!target) wzFocusOnly=false;
   autoLvBusy=true; autoLvLastChange=now; autoLvSlowSince=0;
   $('#lvqty').value=want; lvPicked=true; autoLvLabel(want);
@@ -3166,9 +3167,9 @@ $('#layoutReset').onclick=()=>{layout={};commit()};
 /* Buttons */
 $('#lvStart').onclick=async()=>{
   try{await api('/api/liveview',{action:'start',lvqty:isUsb&&!lvPicked?null:$('#lvqty').value});startLiveLoop();msg(tr('msg.lvRunning'));await tick();if(features.has('af_area'))loadAf();setTimeout(props,1500)}catch(e){msg(e.message,true)}};
-$('#lvqty').onchange=()=>{$('#lvAuto').checked=false;wzSharpOn=wzFocusOnly=false;autoLvLabel();lvPicked=true;if(st.live)$('#lvStart').click();wzSizeSoon()}; // a size picked by hand ends Auto, the zoom still goes sharp
+$('#lvqty').onchange=()=>{$('#lvAuto').checked=false;wzSharpOn=wzFocusOnly=false;wzPick=$('#lvqty').value;autoLvLabel();lvPicked=true;if(st.live)$('#lvStart').click();wzSizeSoon()}; // a size picked by hand ends Auto, the zoom still goes sharp
 $('#lvAuto').onchange=()=>{
-  if($('#lvAuto').checked){prepareAutoLiveSize();wzSizeSoon(); if(st.live&&st.lvqty!==$('#lvqty').value) $('#lvStart').click()}
+  if($('#lvAuto').checked){wzPick=null;prepareAutoLiveSize();wzSizeSoon(); if(st.live&&st.lvqty!==$('#lvqty').value) $('#lvStart').click()}
   else{wzSharpOn=wzFocusOnly=false;autoLvLabel();wzSizeSoon()} // the size stays as it is now
 };
 MOBILE_LIVE.addEventListener('change',()=>{if(autoLvEnabled())prepareAutoLiveSize();else autoLvLabel();if(!$('#galOv').hidden&&gv.mode==='cal')renderGal()});

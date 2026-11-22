@@ -289,6 +289,20 @@ class SharpSizeAndPointers(unittest.TestCase):
         JSON.stringify(calls)""")
         self.assertEqual(r, ["start 1024x0768"])
 
+    def test_size_picked_while_zoomed_is_the_one_to_return_to(self):
+        # the pick runs before st.lvqty shows it: the stale camera size must not become the 1x size
+        with open(HTML, encoding="utf-8") as f:
+            line = next(l for l in f.read().splitlines() if l.startswith("$('#lvqty').onchange="))
+        r = self.run_js("""
+        enabled=false; st.lvqty='0640x0480'; z=3;
+        Q('#lvStart').click=function(){}; 
+        %s
+        Q('#lvqty').value='1024x0768'; Q('#lvqty').onchange(); wzSizeCheck(); var a=calls.slice();
+        st.lvqty='1280x0960'; autoLvBusy=false; autoLvLastChange=0; z=1; calls.length=0; wzSizeCheck();
+        JSON.stringify({a:a,b:calls,base:wzBase})""" % line.replace("$(", "Q("))
+        self.assertEqual(r["a"], ["start 1280x0960"])
+        self.assertEqual(r["b"], ["start 1024x0768"])
+
     def test_explicit_size_focus_action_at_2x_then_back(self):
         r = self.run_js("""
         enabled=false; z=2; st.lvqty='0800x0600'; wzFocusAction(); wzSizeCheck(); var a=calls.slice();
