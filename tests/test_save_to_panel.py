@@ -220,7 +220,7 @@ class Page(unittest.TestCase):
     def test_markup_and_text(self):
         for frag in ('id="svPick"', 'id="trCopy"', 'data-i18n="hsl.autoHint"',
                      '"transfer.copy": "Copy to computer"',
-                     '"save.pick": "Choose …"'):
+                     '"save.pickTitle": "Choose a folder"'):
             self.assertIn(frag, self.h)
 
     def test_hsl_hint_matches_the_server(self):
@@ -230,7 +230,8 @@ class Page(unittest.TestCase):
         self.assertIn('hsl_apply(os.path.basename(dest), hsl_auto["preset"])', Path(server.__file__).read_text())
 
     def test_button_only_on_the_local_page(self):
-        self.assertIn("$('#svPick').hidden=!isLocalPage();", self.h)
+        self.assertIn("$('#svPick').hidden=!isLocalPage(); $('#svDirText').hidden=isLocalPage();", self.h)
+        self.assertIn('<button id="svPick" hidden data-i18n="save.folder"', self.h)  # "Folder" itself is the button (user 2026-11-23)
 
     def test_switch_ignored_while_no_card(self):
         self.assertIn("trNoCard?0:act(tr('msg.saveTo')", self.h)

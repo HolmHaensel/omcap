@@ -554,8 +554,8 @@ body.webcam{cursor:none;display:flex;align-items:center;justify-content:center}
     </div>
     <div class="mut hint" id="trNoCardNote" data-i18n="transfer.noCardNote" hidden>No card: photos go to the computer</div>
     <div class="row">
-      <label><span data-i18n="save.folder">Folder</span> <input id="svDir" type="text" size="34" placeholder="~/Pictures/omcap"></label>
-      <button id="svPick" hidden data-i18n="save.pick">Choose …</button>
+      <button id="svPick" hidden data-i18n="save.folder" data-i18n-title="save.pickTitle" title="Choose a folder">Folder</button>
+      <label><span id="svDirText" data-i18n="save.folder">Folder</span> <input id="svDir" type="text" size="34" placeholder="~/Pictures/omcap" data-i18n-aria="save.folder" aria-label="Folder"></label>
     </div>
     <div class="row">
       <label><span data-i18n="save.scheme">Names</span>
@@ -785,7 +785,7 @@ const I18N={en:{
   "save.prefix": "Prefix + name",
   "save.prefixPh": "Prefix",
   "save.apply": "Apply",
-  "save.pick": "Choose …",
+  "save.pickTitle": "Choose a folder",
   "save.now": "Saving to {dir}",
   "save.example": "e.g. {name}",
   "msg.saveCfg": "Save settings applied",
@@ -3382,7 +3382,7 @@ function applyTransferView(st){
   if(document.activeElement!==$('#trCopy')) $('#trCopy').checked=v.checked;
 }
 // REQ-F62: the folder dialog opens on the computer the server runs on, so only a page on that computer shows it
-$('#svPick').hidden=!isLocalPage();
+$('#svPick').hidden=!isLocalPage(); $('#svDirText').hidden=isLocalPage(); // on the computer "Folder" itself is the button that opens the folder dialog
 $('#svPick').onclick=async()=>{
   try{const j=await api('/api/pickfolder',{});
     if(!j.dir) return; // cancelled
