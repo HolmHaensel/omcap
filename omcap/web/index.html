@@ -912,6 +912,7 @@ const I18N={en:{
   "prop.stabilizer": "Image stabilizer",
   "prop.facepriority": "Face priority",
   "prop.focusstacking": "Focus Stacking",
+  "msg.stackOne": "Only one picture. The camera did not stack.",
   "prop.colortone": "Picture Mode",
   "prop.artfilter": "Art filter",
   "prop.colorphase": "Partial Color",
@@ -3311,6 +3312,7 @@ $('#shoot').onclick=async()=>{
     const j=await act(tr('msg.taken'),'/api/shoot',{});
     if(!j){if(/no focus/i.test(actErr||''))showNoFocus();return}
     saved=j.saved;
+    if(j.note) msg(tr('msg.stackOne'),true); // USB: Focus Stacking was on, but the camera took one picture (REQ-F69)
   }
   if(saved&&saved.length) msg(tr('msg.savedNoCard',{n:saved.map(p=>p.split(/[\\/]/).pop()).join(', ')})); // USB without a card (REQ-F61)
   showLast(latestBefore,0,newestBefore); // Wi-Fi: refreshes the card list until the new shot is there

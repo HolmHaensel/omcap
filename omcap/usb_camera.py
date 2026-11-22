@@ -223,6 +223,7 @@ USB_TABLES = {
 # Bracketing kind d020: 2 = Off, 3 = Focus BKT (mapped 2026-11-13). Focus Stacking needs Focus BKT; the camera then
 # switches by itself to Silent Sequential H, electronic shutter (1/16000 … 1/8 s) and flash off (E-M1 manual, p.174).
 BKT_OFF, BKT_FOCUS = 2, 3
+STACK_FRAMES_WAIT = 6.0  # the 8 frames are on the card ~3.5 s after the release; then decide whether to wait on
 STACK_WAIT = 16.0  # 8 frames (16 files with JPG+ORF) in ~3.5 s, the merged JPG ~13.6 s after the release (2026-11-13)
 
 
@@ -687,6 +688,8 @@ class UsbCamera:
                 if key in self.OPTIONAL:
                     continue  # e.g. firmware without Focus Stacking: hide the setting, keep the panel
                 raise
+            if key == "focusstacking":
+                value = self._prop_now("d0cb")  # live: the descriptor keeps the session-start value
             if key == "focusstacking" and str(value) == "1" and not self._stack_flag_on():
                 value = "2"  # Focus BKT alone (d0cb) is a plain series; the switch shows On only with d0ce too
             if key == "artfilter":  # d010 also holds the kind of filter (from 34305)
@@ -1081,15 +1084,23 @@ class UsbCamera:
             return
         self._set("d0ce", value)
 
+    def _prop_now(self, code):
+        """Property value as the camera has it now: live (GetDevicePropValue) on the own PTP layer, because the
+        descriptor keeps the value from the session start (a change in the camera menu would not show)."""
+        try:
+            return str(self._live_int(code))
+        except Exception:  # no live read (libgphoto2, test fakes): the descriptor value
+            return str(self._value(code))
+
     def _stack_flag_on(self):
         try:
-            return str(self._value("d0ce")) == "1"  # Focus BKT alone is a plain series, not stacking
+            return self._prop_now("d0ce") == "1"  # Focus BKT alone is a plain series, not stacking
         except CameraError:
             return True  # a body without d0ce: Focus BKT is the only switch
 
     def _stacking_on(self):
         try:
-            if str(self._value("d0cb")) != "1":
+            if self._prop_now("d0cb") != "1":
                 return False
         except CameraError:
             return False
@@ -1562,6 +1573,7 @@ class UsbCamera:
             raise
 
     def _shoot(self):
+        self.stack_note = None
         self._new_files = []
         self.shooting = True  # the live view keeps running even if the camera does not release
         t0 = time.monotonic()
@@ -1588,7 +1600,12 @@ class UsbCamera:
             self._events(SHOT_TIMEOUT, "quiet")
             self._direct_store(t_ev + SHOT_TIMEOUT)
             if stacking:  # 8 frames (16 files) come first, the merged picture last
-                self._events(max(0.0, STACK_WAIT - (time.monotonic() - t0)))
+                self._events(max(0.0, STACK_FRAMES_WAIT - (time.monotonic() - t0)))
+                if len(set(self._new_files)) <= 2:  # one frame (JPG+ORF): the camera did not stack
+                    self.stack_note = "one picture only"
+                    marks.append(("stacking: 1 frame", time.monotonic() - t0))
+                else:
+                    self._events(max(0.0, STACK_WAIT - (time.monotonic() - t0)))
             marks.append(("files" if not self.direct_paths else "direct store", time.monotonic() - t0))
             if self._new_files:
                 self._events(1.5)  # the second format (ORF or JPG) follows shortly after
