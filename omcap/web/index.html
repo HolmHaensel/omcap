@@ -1117,6 +1117,7 @@ const lvSizeText=size=>size.replace(/^0+/,'').replace('x0','×');
 function autoLvLabel(size){
   const el=$('#autoLvStatus'), on=autoLvEnabled();
   el.hidden=!on; document.body.classList.toggle('autoLv',on&&MOBILE_LIVE.matches); // the size choice hides on the phone only
+  if(on&&size) $('#lvqty').value=size; // Auto: the select shows the size in use, not an old pick
   if(size) el.textContent=tr(wzFocusOnly?'lv.autoFocus':'lv.auto',{size:lvSizeText(size)}); // wzFocusOnly: sharp only on focus while zoomed (REQ-F55)
 }
 function idealMobileLvSize(){
@@ -1171,6 +1172,7 @@ async function tick(){
   renderStrip();
   const w=$('#live').naturalWidth, stale=st.live&&st.lv_age>3;
   if(st.live) reduceAutoLiveSize();
+  if(st.live&&st.lvqty&&autoLvEnabled()&&!autoLvBusy&&Date.now()-autoLvLastChange>8000&&$('#lvqty').value!==st.lvqty) $('#lvqty').value=st.lvqty; // Auto: show what the camera really sends
   const off=st.live&&w&&st.lvqty&&w!==parseInt(st.lvqty,10);
   const gone=st.gone?tr(isUsb?'lv.cameraGone':'lv.wifiGone'):''; // the app waits for the camera and goes on by itself
   // frames shown per second over the last 3 s (REQ-F51), and the USB fallback layer, which keeps 1024×768 and is slower
@@ -2228,18 +2230,19 @@ const WZ_SHARP_Z=1.5,WZ_SHARP_MID_Z=2.5,WZ_REST_MS=600,WZ_SIZE_GAP_MS=3000;
 let wzSizeT=0,wzSharpOn=false,wzBase=null,wzFocusOnly=false,wzFocusUntil=0; // wzSharpOn: the sharp size is on; wzBase: the size to return to
 const WZ_FOCUS_HOLD_MS=5000; // sharp-on-focus mode: how long the sharp size stays after the last focus action
 const wzSharp=()=>z>WZ_SHARP_Z;
-const wzSizeFor=zv=>zv<=WZ_SHARP_Z?null:zv<=WZ_SHARP_MID_Z?'1024x0768':'1280x0960'; // null: the normal adaptive size
+// null: the normal adaptive size; during the focus hold always the highest size, also in the middle range
+const wzSizeFor=zv=>zv<=WZ_SHARP_Z?null:zv<=WZ_SHARP_MID_Z&&Date.now()>=wzFocusUntil?'1024x0768':'1280x0960';
 let wzLivePrev=false;
 function wzSizeSoon(ms=WZ_REST_MS){clearTimeout(wzSizeT); if(autoLvEnabled()||wzSharpOn) wzSizeT=setTimeout(wzSizeCheck,ms)}
 // A focus action (tap AF, half press) in "sharp on focus" mode brings the sharp size for a moment. Called after the focus
 // request is on its way: the size change runs from a timer, so the focus never waits for the live view restart.
 function wzFocusAction(){
-  if(usbZoom||!wzFocusOnly||!wzSharp()||!autoLvEnabled()) return;
+  if(usbZoom||!wzSharp()||!autoLvEnabled()) return;
   wzFocusUntil=Date.now()+WZ_FOCUS_HOLD_MS; wzSizeSoon(0);
 }
 async function wzSizeCheck(){
   if(!autoLvEnabled()){wzSharpOn=wzFocusOnly=false; return}
-  const now=Date.now(),target=wzSizeFor(z),holding=wzFocusOnly&&now<wzFocusUntil,sharp=target&&(!wzFocusOnly||holding)?target:null,cur=st.lvqty||$('#lvqty').value;
+  const now=Date.now(),target=wzSizeFor(z),holding=!!target&&now<wzFocusUntil,sharp=target&&(!wzFocusOnly||holding)?target:null,cur=st.lvqty||$('#lvqty').value;
   if(!target&&!wzSharpOn){if(wzFocusOnly){wzFocusOnly=false; autoLvLabel(cur)} return} // back at 1x and the normal size is on: the mode ends
   const want=sharp||(wzSharpOn?wzBase||idealMobileLvSize():null);
   if(!want) return; // focus mode, idle: the normal size stays

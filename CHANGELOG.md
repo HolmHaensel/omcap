@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Wi-Fi zoom focus and size select (REQ-F55): a focus action (tap AF, half press) while zoomed above 1.5× always brings the highest size 1280×960 for 5 s, also in the middle range, then returns to the size of the zoom; with Auto the Size select shows the size really in use. Wi-Fi only. Not camera-tested.
 - Wi-Fi zoom on the computer (REQ-F55): the sharper live view size while zoomed (1024×768 up to 2.5×, 1280×960 above, back to the normal size at 1×, "sharp on focus" if too slow) now also works on the computer, like on the phone, but only while the new "Auto" box next to Size is ticked (default); picking a size by hand unticks it and that size stays as chosen. Wi-Fi only. Not camera-tested.
 - Focus tone over Wi-Fi (REQ-F59): a tap focus (live view and zoomed view) plays a high tone in the app for in focus and a low tone for no focus, from `affocus` of `assignafframe`; switch "Focus tone" next to the level gauge, off by default, remembered, Wi-Fi only (over USB the camera beeps itself; the camera's Beep setting stays as set). Fix: over Wi-Fi with Save to "Card and computer", releasing "Press halfway" without a shot no longer shows "No new file found on the card". Not camera-tested.
 - USB connect: a camera that was just switched on answers "busy" to the PC control switch for a few seconds; the app now retries for up to 8 s instead of dropping to the slower libgphoto2 layer (found in the no-card test 2026-11-21, REQ-F61).

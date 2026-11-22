@@ -224,9 +224,28 @@ class SharpSizeAndPointers(unittest.TestCase):
         self.assertEqual(r["calls"], ["start 1280x0960", "start 0640x0480"])  # back after the hold
         self.assertTrue(r["focus"])  # stays until 1x
 
-    def test_focus_action_changes_nothing_outside_the_mode_and_not_in_a_gesture(self):
-        r = self.run_js("z=3; wzFocusAction(); var a=timers.length; wzFocusOnly=true; wzPtr.set(1,{x:0,y:0}); wzFocusAction(); wzSizeCheck(); JSON.stringify({a:a,c:calls.length})")
-        self.assertEqual((r["a"], r["c"]), (0, 0))
+    def test_focus_action_changes_nothing_in_a_gesture(self):
+        r = self.run_js("z=3; st.lvqty='1024x0768'; wzPtr.set(1,{x:0,y:0}); wzFocusAction(); wzSizeCheck(); JSON.stringify({c:calls.length})")
+        self.assertEqual(r["c"], 0)
+
+    def test_focus_in_the_middle_range_brings_the_highest_size_then_back(self):
+        r = self.run_js("""
+        z=2; st.lvqty='1024x0768'; wzSharpOn=true; wzBase='0800x0600'; wzFocusAction(); wzSizeCheck(); var a=calls.slice();
+        st.lvqty='1280x0960'; autoLvBusy=false; autoLvLastChange=0; wzFocusUntil=Date.now()-1; wzSizeCheck();
+        JSON.stringify({a:a,calls:calls,fn:wzSizeFor(2)})""")
+        self.assertEqual(r["a"], ["start 1280x0960"])
+        self.assertEqual(r["calls"], ["start 1280x0960", "start 1024x0768"])  # the size that belongs to 2x
+        self.assertEqual(r["fn"], "1024x0768")
+
+    def test_focus_at_or_below_1_5x_changes_nothing(self):
+        self.assertEqual(self.run_js("z=1.5; st.lvqty='0800x0600'; wzFocusAction(); wzSizeCheck(); JSON.stringify(calls)"), [])
+
+    def test_select_shows_the_size_in_use_in_auto(self):
+        with open(HTML, encoding="utf-8") as f:
+            h = f.read()
+        body = h[h.index("function autoLvLabel"):h.index("function idealMobileLvSize")]
+        self.assertIn("if(on&&size) $('#lvqty').value=size", body)
+        self.assertIn("Auto: show what the camera really sends", h)
 
     def test_no_size_change_while_half_pressed_even_inside_the_hold(self):
         r = self.run_js("""
