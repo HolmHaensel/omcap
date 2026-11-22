@@ -81,6 +81,7 @@ AF_SINGLE = 2  # d003 value of S-AF
 # fields 1/41/81 from the AF event; matches the camera monitor, user): wider than the Wi-Fi touch frame (~60 %).
 AF_GRID = (0.046, 0.955, 0.107, 0.894)
 # The AF event 0xC003 gives positions in a ~920x696 space (field 41 = 460/348), not 1280x960 like d05d/d05e
+# (measured once, live view 1024x768 or 1280x960; other live view sizes unchecked)
 AF_EVENT_SPACE = (920, 696)
 
 

@@ -24,7 +24,6 @@ class AfResult(unittest.TestCase):
         self.assertIsNone(usb_camera.parse_af_result("PTP Event c001, Param1 00000001"))
 
 
-
 class EarlyStop(unittest.TestCase):
     """shoot() waits for files; a "no focus" event ends the wait after ~1 s in S-AF only."""
     NO_FOCUS = (1, "PTP Event c003, Param1 00000002, Param2 00000000, Param3 00000000")
@@ -53,10 +52,6 @@ class EarlyStop(unittest.TestCase):
         cam._events(1.5, "quiet")
         self.assertGreaterEqual(time.monotonic() - t0, 1.5)
         self.assertFalse(cam.af_failed)
-
-
-if __name__ == "__main__":
-    unittest.main()
 
 
 class HeldHalfPressPosition(unittest.TestCase):
@@ -100,3 +95,34 @@ class MeasuredGrid(unittest.TestCase):
             cy = a["y0"] + (row + .5) / 9 * (a["y1"] - a["y0"])
             self.assertLess(abs(pos["x"] - cx), 8, field)
             self.assertLess(abs(pos["y"] - cy), 8, field)
+
+
+class WifiOuterFields(unittest.TestCase):
+    """Over Wi-Fi the camera takes taps only inside its touch frame (~60 %); the grid is the real one (~91 x 79 %)."""
+
+    def setUp(self):
+        from omcap import server
+        self.server = server
+        saved = (server.cam, server.conn_type, dict(server.state))
+        self.addCleanup(lambda: (setattr(server, "cam", saved[0]), setattr(server, "conn_type", saved[1]),
+                                 server.state.update(saved[2])))
+        server.conn_type = "wifi"
+        server.cam = mock.Mock(touch_frame=mock.Mock(return_value={
+            "x": 135, "y": 100, "w": 527, "h": 397, "base_w": 797, "base_h": 597}),
+            af_focus=mock.Mock(return_value={"ok": True, "x": None, "y": None}))
+
+    def test_outer_fields_move_into_the_touch_frame(self):
+        for field in (1, 9, 73, 81):
+            self.server.set_af_area(None, field)
+            fx, fy = self.server.cam.af_focus.call_args[0]
+            self.assertTrue(135 / 797 - 1e-9 <= fx <= 662 / 797 + 1e-9, field)
+            self.assertTrue(100 / 597 - 1e-9 <= fy <= 497 / 597 + 1e-9, field)
+            self.assertNotEqual(self.server.state["wifi_field"], field)  # shown where the camera focused
+
+    def test_centre_field_stays(self):
+        self.server.set_af_area(None, 41)
+        self.assertEqual(self.server.state["wifi_field"], 41)
+
+
+if __name__ == "__main__":
+    unittest.main()
