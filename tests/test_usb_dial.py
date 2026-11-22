@@ -17,7 +17,7 @@ class Dial(unittest.TestCase):
         cam = usb_camera.UsbCamera.__new__(usb_camera.UsbCamera)  # no USB session
         import threading
         cam.gp, cam._lock, cam._hold, cam._hold_lock, cam.stage = FakeGp, threading.Lock(), 0, threading.Lock(), 0
-        cam._new_files, cam._pending, cam._event_log, cam.last_jpg, cam.last_press = [], [], [], None, 0.0
+        cam._new_files, cam._pending, cam._event_log, cam.last_jpg, cam.last_press = [], [], [], None, time.monotonic() - 3600  # long ago, whatever the clock origin
         queue = list(events)
 
         class C:

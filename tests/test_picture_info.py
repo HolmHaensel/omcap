@@ -8,6 +8,7 @@ import urllib.request
 from http.server import ThreadingHTTPServer
 
 from omcap import exif, server
+from web_path import HTML_PATH
 from omcap.camera import CameraError
 
 
@@ -153,7 +154,7 @@ class ExifEndpoint(unittest.TestCase):
         self.port = free_port()
         server.allowed_hosts.add("127.0.0.1:%d" % self.port)
         self.httpd = ThreadingHTTPServer(("127.0.0.1", self.port), server.Handler)
-        threading.Thread(target=self.httpd.serve_forever, daemon=True).start()
+        threading.Thread(target=self.httpd.serve_forever, kwargs={"poll_interval": 0.01}, daemon=True).start()
 
     def tearDown(self):
         self.httpd.shutdown()
@@ -210,7 +211,7 @@ class PlaybackPage(unittest.TestCase):
     def test_page(self):
         import re
         from pathlib import Path
-        html = (Path(__file__).resolve().parent.parent / "omcap" / "web" / "index.html").read_text(encoding="utf-8")
+        html = HTML_PATH.read_text(encoding="utf-8")
         for i in ("galExif", "galSelect", "vInfoBtn", "vFit", "vPanel", "vStrip", "vExif"):
             self.assertIn('id="%s"' % i, html)
         for k in ("info.image", "info.simple", "info.overall", "exif.mode", "exif.picture", "card.sizeS"):

@@ -1,9 +1,10 @@
 """Live view aids: functions and texts are present in index.html (no node needed)."""
 import re
 import unittest
-from pathlib import Path
 
-HTML = (Path(__file__).resolve().parent.parent / "omcap" / "web" / "index.html").read_text(encoding="utf-8")
+from web_path import HTML_PATH
+
+HTML = HTML_PATH.read_text(encoding="utf-8")
 KEYS = ["lv.hist", "lv.histRgb", "lv.clip", "lv.peak", "lv.peakColor",
         "lv.peakWhite", "lv.peakBlack", "lv.peakRed", "lv.peakYellow"]
 

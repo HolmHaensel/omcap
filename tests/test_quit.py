@@ -18,7 +18,7 @@ class QuitTest(unittest.TestCase):
         host = "127.0.0.1:%d" % port
         server.allowed_hosts.add(host)
         httpd = ThreadingHTTPServer(("127.0.0.1", port), server.Handler)
-        t = threading.Thread(target=httpd.serve_forever, daemon=True)
+        t = threading.Thread(target=httpd.serve_forever, kwargs={"poll_interval": 0.01}, daemon=True)
         t.start()
         old = server.http_server
         server.http_server = httpd

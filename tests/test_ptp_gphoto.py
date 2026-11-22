@@ -402,6 +402,7 @@ class Level(unittest.TestCase):
 class Backend(unittest.TestCase):
     def test_auto_falls_back_to_libgphoto2(self):
         with mock.patch.object(usb_camera.UsbCamera, "_open") as op, \
+                mock.patch.object(usb_camera.UsbCamera, "CARD_SETTLE", (0.0, 0.0, 0.0)), \
                 mock.patch.object(usb_camera, "_gp") as gp:
             op.side_effect = [usb_camera.CameraError("no PTP"), None, None]
             gp.return_value.Camera.return_value.get_single_config.side_effect = Exception("no widget")
