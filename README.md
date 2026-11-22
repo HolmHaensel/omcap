@@ -85,7 +85,7 @@ More in [Start and stop](#start-and-stop).
 | "In focus" / "No focus" chip | ✅ | ✅ | Wi-Fi after a tap; USB also after Press halfway and Take picture. With S-AF the camera only releases in focus |
 | AF Area (All Targets, Single Target, Small Target, Group Target) | – | ✅ | no Wi-Fi command |
 | Focus ring (MF): Near/Far in three step sizes | – | ✅ | AF mode MF or S-AF+MF; no Wi-Fi command |
-| Focus Stacking On/Off (8 frames, merged in the camera, P/A/S/M) | – | ✅ | no Wi-Fi command |
+| Focus Stacking On/Off (8 frames, merged in the camera, P/A/S/M) | – | ✅ | no Wi-Fi command; USB: needs a card, hidden without one |
 
 ### Shooting
 
@@ -97,7 +97,7 @@ More in [Start and stop](#start-and-stop).
 | New picture in the corner and in the Index display right after the shot | ✅ | ✅ | Wi-Fi about 8 s (7 s of it is the camera's shot), USB 5–6 s after the click |
 | The corner picture fades out after 6 s | 🟡 | 🟡 | |
 | M mode quick select: BULB, LIVE TIME, LIVECOMP | ✅ | ✅ | |
-| Movie: Start/Stop recording, movie shooting mode P/A/S/M | ✅ | ✅ | Wi-Fi switches to Movie mode (movie record mode cannot be changed over Wi-Fi); USB works like the REC button (not in PHOTO STORY and some SCN modes); movie settings over USB not built |
+| Movie: Start/Stop recording, movie shooting mode P/A/S/M | ✅ | ✅ | Wi-Fi switches to Movie mode (movie record mode cannot be changed over Wi-Fi); USB works like the REC button (not in PHOTO STORY and some SCN modes); movie settings over USB not built; needs a card: REC hidden over USB without one |
 | Time lapse, AE BKT | 🟡 | ✅ | |
 | Switch "Copy to computer" (the camera always writes to the card); save folder and file names | ✅ | ✅ | USB-tested 2026-11-22 (card: copy; no card: direct store; card change). A click into the Folder field opens the system folder dialog (on the computer only; a phone over `--lan` types the path; Windows/Linux untried, REQ-F62). USB without a card: no switch, note "No card: photos go to the computer". Wi-Fi: always the switch (the camera always needs a card). Files stored without a card are named `E-M1_<time>`: the prefix scheme applies, "datetime" adds nothing, the original name does not exist |
 
@@ -172,6 +172,9 @@ Measured with the E-M1 Mark I (firmware 4.6), a Mac and about 2950 pictures on t
 | Live view 1280×960 | about 8 fps | 15 fps |
 | Focus by tap | about 0.4 s | 0.4–0.6 s |
 | Take picture | 1.2–1.5 s | about 4.5 s, new files in the list at once |
+| Connect without a card | – (Wi-Fi needs a card) | up to 3 s longer, also after each mode dial turn (the app checks for a card that is still waking up; 2026-11-22) |
+| Shot without a card | – | 2.7 s, straight to the computer (2026-11-22) |
+| Shot with card, copy to computer | – | 11.7 s (ORF + JPG, 2026-11-22) |
 
 - 30 fps is the camera's own live view rate; at 1280×960 it sends half of that.
 - Of the 5 s for a USB connect, about 4.7 s is the camera itself switching to computer control.

@@ -760,12 +760,7 @@ def pull_new(seen):
 
 
 def shot(seen):
-    try:
-        new = cam.shoot()
-    except Exception:
-        if conn_type == "usb":
-            cam._card_read = False  # the card read of the failed release must not stand in for a fresh one
-        raise
+    new = cam.shoot()
     invalidate_device()  # card space has changed
     if conn_type == "usb":  # USB reports the new files directly
         cam.refresh_card()  # the card may have been taken out or put in; cached for the state

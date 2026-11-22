@@ -230,6 +230,12 @@ def parse_battery(value):
     return int(m.group(1)) if m and int(m.group(1)) <= 100 else None
 
 
+def _no_card_error(e):
+    """Without a card the camera still lists a slot but refuses it: 0x2008 InvalidStorageID or 0x2013
+    StoreNotAvailable (no-card test 2026-11-21). A card just put in also answers 0x2013 for 1-2 s."""
+    return any(c in str(e) for c in ("0x2008", "0x2013"))
+
+
 def free_kbytes(infos):
     """Sum of the free space (KB) from get_storageinfo(), None if not given."""
     total = None
@@ -355,7 +361,9 @@ class UsbCamera:
     usb = True
     host = "USB"
     stage = 0
+    card = None  # cached card flag for the page (True / False / None unknown), see refresh_card
     _card_read = False  # _pre_release just read the card: the next refresh_card reuses it
+    _card_due = False  # a rebuilt session must read the card again (_settle_card, outside the lock)
     gone = False  # set by the live view loop while the camera is missing from USB
     lvqty = None
     features = FEATURES
@@ -422,7 +430,6 @@ class UsbCamera:
         if hasattr(self._c, "get_prop_value"):  # PTP backend: live tilt (REQ-F23)
             self.features = self.features + ["level"]
         self.live = UsbLive(self)
-        self.card = None  # cached card flag for the page (True / False / None unknown), see refresh_card
         self.card = self._card_state_settled()
 
     def _connect(self, backend):
@@ -692,7 +699,7 @@ class UsbCamera:
         try:
             kb = free_kbytes(self._call(self._c.get_storageinfo))
         except Exception as e:
-            if any(c in str(e) for c in ("0x2008", "0x2013")):
+            if _no_card_error(e):
                 self.card = False
             raise
         self.card = kb is not None
@@ -1297,7 +1304,7 @@ class UsbCamera:
             # no card: the camera still lists a slot (id 0x10000) but every request to it is refused: 0x2008
             # InvalidStorageID (GetStorageInfo / GetObjectHandles) or 0x2013 StoreNotAvailable (no-card test
             # 2026-11-21); that is "no card", not "unknown"
-            return False if any(c in str(e) for c in ("0x2008", "0x2013")) else None
+            return False if _no_card_error(e) else None
 
     CARD_SETTLE = (1.0, 1.0, 1.0)  # pauses: right after a (re)connect a card answers 0x2013 for 1-2 s
 
@@ -1312,8 +1319,6 @@ class UsbCamera:
             time.sleep(pause)
             state = self._card_state()
         return state
-
-    _card_due = False
 
     def _settle_card(self):
         """After a rebuilt session, outside the camera lock: the tries may sleep up to 3 s without a card."""
@@ -1531,6 +1536,13 @@ class UsbCamera:
 
     def shoot(self):
         """Release once. Returns the new file paths (JPG and ORF)."""
+        try:
+            return self._shoot()
+        except Exception:
+            self._card_read = False  # the card read of a failed release must not stand in for a fresh one
+            raise
+
+    def _shoot(self):
         self._new_files = []
         self.shooting = True  # the live view keeps running even if the camera does not release
         t0 = time.monotonic()

@@ -1192,10 +1192,10 @@ async function tick(){
   $('#jobRow').hidden=!j.name; $('#jobStop').hidden=!j.running;
   $('#takeInfo').textContent=st.take!=null?clock(st.take):'';
   const rec=st.movie!=null;
+  applyTransferView(st);  // sets trNoCard, used right below
   $('#movStart').hidden=rec||trNoCard; $('#movStop').hidden=!rec; // a movie needs a card (USB without one: hidden)
   $('#movTime').textContent=rec?tr('movie.time',{t:clock(st.movie)}):'';
   $('#trErr').textContent=st.transfer_error||st.hsl_error||'';
-  applyTransferView(st);
   $('#recChip').hidden=!rec; $('#viewport').classList.toggle('rec',rec);
   if(rec) $('#recText').textContent=tr('movie.rec',{t:clock(st.movie)});
   const dc=$('#dropChip'); dc.hidden=!stale&&!gone; if(stale||gone) dc.textContent=gone||tr('lv.noSignal',{s:Math.round(st.lv_age)});
@@ -3382,14 +3382,14 @@ function applyTransferView(st){
   $('#trCopyLbl').hidden=v.noCard; $('#trNoCardNote').hidden=!v.noCard;
   if(document.activeElement!==$('#trCopy')) $('#trCopy').checked=v.checked;
 }
-// REQ-F62: the folder dialog opens on the computer the server runs on, so only a page on that computer shows it
 // Every change applies at once (no Apply button, user 2026-11-23)
 async function svSave(){
   try{const j=await api('/api/savecfg',{dir:dirValue(),scheme:$('#svScheme').value,prefix:$('#svPrefix').value});
     showSaveCfg(j.cfg);msg(tr('msg.saveCfg'));local()}
   catch(e){msg(e.message,true)}
 }
-// On the computer a click into the folder field opens the folder dialog; elsewhere (phone over --lan) the path is typed
+// REQ-F62: on the computer a click into the folder field opens the folder dialog (it opens on the computer the
+// server runs on); elsewhere (phone over --lan) the path is typed
 if(isLocalPage()){
   const d=$('#svDir'); d.readOnly=true; d.style.cursor='pointer'; d.title=tr('save.pickTitle'); setDir(d.dataset.full||d.value);
   d.onclick=async()=>{
@@ -3404,7 +3404,7 @@ $('#svScheme').onchange=()=>{const pre=$('#svScheme').value==='prefix'; $('#svPr
   if(!pre||$('#svPrefix').value.trim()) svSave(); else $('#svPrefix').focus()}; // prefix: saved once it is typed
 $('#svPrefix').onchange=svSave;
 api('/api/savecfg').then(showSaveCfg).catch(()=>{});
-$('#trCopy').onchange=()=>trNoCard?0:act(tr('msg.saveTo'),'/api/transfer',{target:$('#trCopy').checked?'both':'sd'});
+$('#trCopy').onchange=()=>act(tr('msg.saveTo'),'/api/transfer',{target:$('#trCopy').checked?'both':'sd'});
 $('#reload').onclick=gallery;
 $('#propsReload').onclick=async()=>{
   if(!isUsb){props();return}

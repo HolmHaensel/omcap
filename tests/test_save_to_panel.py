@@ -181,7 +181,7 @@ class CardFlag(unittest.TestCase):
         self.assertIsNone(c._card_state())
 
     def test_free_space_read_corrects_a_stale_no_card(self):
-        # USB test 2026-11-23: 0x2013 right after the connect left "no card" although a card was in
+        # USB test 2026-11-22: 0x2013 right after the connect left "no card" although a card was in
         c = usb_camera.UsbCamera.__new__(usb_camera.UsbCamera)
         c._call = lambda f, *a: f(*a)
         c.card = False
@@ -260,8 +260,7 @@ class Page(unittest.TestCase):
         self.assertIn("d.value=shortPath(dir)", self.h)
         self.assertIn("dir:dirValue()", self.h)
 
-    def test_switch_ignored_while_no_card(self):
-        self.assertIn("trNoCard?0:act(tr('msg.saveTo')", self.h)
+    def test_switch_sends_the_choice(self):
         self.assertIn("{target:$('#trCopy').checked?'both':'sd'}", self.h)
 
     def test_no_dead_radio_keys(self):
@@ -272,7 +271,7 @@ class Page(unittest.TestCase):
 
 def page_js(scenario):
     h = Path(HTML).read_text(encoding="utf-8")
-    code = h[h.index("function transferView("):h.index("// REQ-F62: the folder dialog")]
+    code = h[h.index("function transferView("):h.index("// Every change applies at once")]
     stubs = """
 var isUsb=true,els={},document={activeElement:null},tr=function(k){return k},
   Q=function(s){return els[s]||(els[s]={checked:false,hidden:false})};
@@ -338,14 +337,11 @@ class ShortPath(unittest.TestCase):
         self.assertIn("$('#svDir').onblur=scrollDirEnd;", h)
 
 
-if __name__ == "__main__":
-    unittest.main()
-
 
 class HintSize(unittest.TestCase):
     def test_hints_share_the_size_of_the_read_only_line(self):
         # user 2026-11-23: hints in the same small grey type as "Camera settings (read only)", both connections
-        h = (Path(server.__file__).parent / "web" / "index.html").read_text(encoding="utf-8")
+        h = Path(HTML).read_text(encoding="utf-8")
         self.assertIn(".hint,#roProps{font-size:var(--fs-label);color:var(--muted)}", h)
         self.assertIn('class="mut hint" id="trNoCardNote"', h)
         self.assertIn('class="mut hint" data-i18n="hsl.autoHint"', h)
@@ -358,6 +354,7 @@ class FieldLabels(unittest.TestCase):
         self.assertIn('<label><span data-i18n="save.folder">Folder</span> <input id="svDir"', h)
         self.assertIn('<label><span data-i18n="save.scheme">Names</span>', h)
         self.assertNotIn(".field>span:first-child", h)
+
 
 class CardSettle(unittest.TestCase):
     def cam(self, states):
@@ -398,16 +395,22 @@ class CardReviewFixes(unittest.TestCase):
         self.assertIs(c.card, True)
 
     def test_failed_release_clears_the_card_read(self):
-        saved = (server.cam, server.conn_type)
-        self.addCleanup(lambda: setattr(server, "cam", saved[0]) or setattr(server, "conn_type", saved[1]))
-        server.conn_type = "usb"
-        server.cam = mock.Mock(shoot=mock.Mock(side_effect=usb_camera.CameraError("x")), _card_read=True)
+        c = usb_camera.UsbCamera.__new__(usb_camera.UsbCamera)
+        c._card_read = True
+        c._shoot = mock.Mock(side_effect=usb_camera.CameraError("x"))
         with self.assertRaises(usb_camera.CameraError):
-            server.shot(None)
-        self.assertIs(server.cam._card_read, False)
+            c.shoot()
+        self.assertIs(c._card_read, False)
 
     def test_no_card_hides_focus_stacking_and_rec(self):
         h = Path(HTML).read_text(encoding="utf-8")
         self.assertIn("focusstacking:{show:p=>inMode('P','A','S','M')(p)&&!trNoCard}", h)
         self.assertIn("$('#movStart').hidden=rec||trNoCard;", h)
+
+    def test_field_typeable_when_no_dialog(self):
+        h = Path(HTML).read_text(encoding="utf-8")
         self.assertIn("d.readOnly=false; d.style.cursor=''; d.onclick=null;", h)
+
+
+if __name__ == "__main__":
+    unittest.main()
