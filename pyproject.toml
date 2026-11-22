@@ -28,6 +28,7 @@ film = ["numpy", "rawpy", "imageio"]
 
 [project.scripts]
 em1-capture = "omcap.server:main"
+em1-capture-mcp = "omcap.mcp_server:main"
 
 [tool.setuptools]
 packages = ["omcap"]

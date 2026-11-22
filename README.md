@@ -343,6 +343,29 @@ ORF gives a 16-bit TIFF, JPG a JPEG, always in `--out` (default `out/hsl/`). `--
 a colour wheel chart. Presets: `omcap/data/hsl_presets.json`. Sector angles and gains are approximations, not the
 camera's values.
 
+## MCP server for AI assistants (read-only)
+
+E-M1 Capture includes a read-only [Model Context Protocol](https://modelcontextprotocol.io/) (MCP) server over stdio so assistants such as Claude Desktop or Claude Code can inspect the camera while E-M1 Capture is running:
+
+- **Five read-only tools:** `camera_status` (model, connection, lens, AF area, card space, USB battery/level), `camera_settings` (LV super control panel values), `live_view_frame` (current live view JPEG), `list_card_images` (card directory), and `last_picture` (EXIF shooting data and JPEG preview).
+- **Safe by design:** talks only over local HTTP (`GET` only, loopback `127.0.0.1` / `localhost`) to the running E-M1 Capture server – never directly to the camera, and cannot change settings, focus or release the shutter.
+- **Works with both USB and Wi-Fi** (standard library only, no extra packages).
+
+Start E-M1 Capture first, then point your MCP client to:
+
+```json
+{
+  "mcpServers": {
+    "em1-capture": {
+      "command": "/path/to/omcap/.venv/bin/python",
+      "args": ["-B", "-m", "omcap.mcp_server"]
+    }
+  }
+}
+```
+
+Use `--url http://127.0.0.1:8766` (or `OMCAP_URL`) if E-M1 Capture runs on another local port.
+
 ## Tests
 
 ```sh
