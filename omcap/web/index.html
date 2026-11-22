@@ -3352,11 +3352,22 @@ $('#takeStop').onclick=async()=>{
 $('#movStart').onclick=()=>act(tr('msg.movieStarted'),'/api/movie',{action:'start'});
 $('#movStop').onclick=async()=>{await act(tr('msg.movieStopped'),'/api/movie',{action:'stop'});
   if(!isUsb) setTimeout(()=>gallery(),4000)};
+// REQ-F62: show the end of a long folder path (the last folder name matters): ~ for home, first segment,
+// "…", last two segments. The page does not know the home folder, so it is recognised by its usual shape.
+function shortPath(p){
+  const m=/^(\/Users\/[^\/]+|\/home\/[^\/]+)(\/.*)?$/.exec(p||'');
+  const head=m?'~':'', parts=(m?(m[2]||''):(p||'')).split('/').filter(Boolean);
+  return head+(parts.length?'/':'')+(parts.length>3?[parts[0],'…',parts[parts.length-2],parts[parts.length-1]]:parts).join('/');
+}
+// show the end of the path in the folder field unless the user is typing in it
+function scrollDirEnd(){const e=$('#svDir'); if(document.activeElement!==e) e.scrollLeft=e.scrollWidth}
+$('#svDir').onblur=scrollDirEnd;
 function showSaveCfg(c){
-  $('#svDir').value=c.dir; $('#svScheme').value=c.scheme; $('#svPrefix').value=c.prefix;
+  $('#svDir').value=c.dir; scrollDirEnd(); $('#svScheme').value=c.scheme; $('#svPrefix').value=c.prefix;
   $('#svPrefix').hidden=c.scheme!=='prefix';
   const ex=c.scheme==='datetime'?'20261109_091412_PB092179.JPG':c.scheme==='prefix'?(c.prefix||'')+'PB092179.JPG':'PB092179.JPG';
-  $('#svInfo').textContent=tr('save.now',{dir:c.effective_dir})+' ('+tr('save.example',{name:ex})+')';
+  $('#svInfo').title=c.effective_dir;
+  $('#svInfo').textContent=tr('save.now',{dir:shortPath(c.effective_dir)})+' ('+tr('save.example',{name:ex})+')';
 }
 // REQ-F62: the camera always writes to the card; the switch only says whether the app also copies the new
 // photo to the computer. Without a card (USB) there is no switch (photos go to the computer anyway, REQ-F61);
@@ -3375,7 +3386,7 @@ $('#svPick').hidden=!isLocalPage();
 $('#svPick').onclick=async()=>{
   try{const j=await api('/api/pickfolder',{});
     if(!j.dir) return; // cancelled
-    $('#svDir').value=j.dir; $('#svApply').onclick()}
+    $('#svDir').value=j.dir; scrollDirEnd(); $('#svApply').onclick()}
   catch(e){msg(e.message,true)}
 };
 $('#svScheme').onchange=()=>{$('#svPrefix').hidden=$('#svScheme').value!=='prefix'};

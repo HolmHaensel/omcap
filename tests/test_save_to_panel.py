@@ -283,6 +283,33 @@ class PageLogic(unittest.TestCase):
         self.assertEqual((r["hiddenSwitch"], r["note"], r["checked"]), (False, True, False))
 
 
+@unittest.skipUnless(HAVE_JS, "needs the JavaScript engine of macOS (osascript)")
+class ShortPath(unittest.TestCase):
+    def sp(self, p):
+        h = Path(HTML).read_text(encoding="utf-8")
+        code = h[h.index("function shortPath("):h.index("// show the end of the path")]
+        out = subprocess.run(["osascript", "-l", "JavaScript", "-e",
+                              code + "JSON.stringify(shortPath(%s))" % json.dumps(p)],
+                             capture_output=True, text=True, timeout=30)
+        assert out.returncode == 0, out.stderr
+        return json.loads(out.stdout.strip())
+
+    def test_cases(self):
+        self.assertEqual(self.sp("/Users/x"), "~")
+        self.assertEqual(self.sp("/Users/x/Pictures/omcap"), "~/Pictures/omcap")
+        self.assertEqual(self.sp("/Users/x/a/b/c"), "~/a/b/c")
+        self.assertEqual(self.sp("/Users/x/Library/CloudStorage/Drive/Personal/PROJ/captures"),
+                         "~/Library/…/PROJ/captures")
+        self.assertEqual(self.sp("/Volumes/Disk/a/b/c/d"), "/Volumes/…/c/d")
+        self.assertEqual(self.sp("/tmp/x"), "/tmp/x")
+
+    def test_wired_up(self):
+        h = Path(HTML).read_text(encoding="utf-8")
+        self.assertIn("tr('save.now',{dir:shortPath(c.effective_dir)})", h)
+        self.assertIn("$('#svInfo').title=c.effective_dir;", h)
+        self.assertIn("$('#svDir').onblur=scrollDirEnd;", h)
+
+
 if __name__ == "__main__":
     unittest.main()
 
