@@ -683,7 +683,15 @@ class UsbCamera:
         return out
 
     def free_bytes(self):
-        kb = free_kbytes(self._call(self._c.get_storageinfo))
+        """Free card space; also keeps the card flag current: right after a connect the camera can answer
+        0x2013 for a moment although a card is in (USB test 2026-11-23), and that must not stick."""
+        try:
+            kb = free_kbytes(self._call(self._c.get_storageinfo))
+        except Exception as e:
+            if any(c in str(e) for c in ("0x2008", "0x2013")):
+                self.card = False
+            raise
+        self.card = kb is not None
         return kb * 1024 if kb is not None else None
 
     def battery(self):

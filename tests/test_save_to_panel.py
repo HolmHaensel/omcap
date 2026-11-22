@@ -179,6 +179,25 @@ class CardFlag(unittest.TestCase):
         c._c = mock.Mock(get_storageinfo=mock.Mock(side_effect=Exception("timeout")))
         self.assertIsNone(c._card_state())
 
+    def test_free_space_read_corrects_a_stale_no_card(self):
+        # USB test 2026-11-23: 0x2013 right after the connect left "no card" although a card was in
+        c = usb_camera.UsbCamera.__new__(usb_camera.UsbCamera)
+        c._call = lambda f, *a: f(*a)
+        c.card = False
+        with mock.patch.object(usb_camera, "free_kbytes", return_value=7579488):
+            c._c = mock.Mock()
+            self.assertEqual(c.free_bytes(), 7579488 * 1024)
+        self.assertIs(c.card, True)
+        c._c = mock.Mock(get_storageinfo=mock.Mock(side_effect=Exception("PTP 0x2013")))
+        with self.assertRaises(Exception):
+            c.free_bytes()
+        self.assertIs(c.card, False)
+        c.card = True
+        c._c = mock.Mock(get_storageinfo=mock.Mock(side_effect=Exception("timeout")))
+        with self.assertRaises(Exception):
+            c.free_bytes()
+        self.assertIs(c.card, True)  # unknown errors keep the flag
+
     def test_refresh_after_each_shot(self):
         server.conn_type = "usb"
         server.cam = mock.Mock(shoot=mock.Mock(return_value=[]), take_direct_files=mock.Mock(return_value=[]))
