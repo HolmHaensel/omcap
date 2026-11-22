@@ -426,6 +426,7 @@ body.webcam{cursor:none;display:flex;align-items:center;justify-content:center}
     <label class="lab" data-feat="lvsize"><span data-i18n="lv.size">Size</span> <select id="lvqty">
       <option>0320x0240</option><option>0640x0480</option><option selected>0800x0600</option><option>1024x0768</option><option>1280x0960</option>
     </select></label>
+    <label class="lab" id="lvAutoLab" hidden><input type="checkbox" id="lvAuto" checked> <span data-i18n="lv.autoSize">Auto</span></label>
     <span id="autoLvStatus" class="chip" hidden data-feat="lvsize"></span>
     <span class="vsep"></span>
     <span id="lvTools" hidden>
@@ -769,7 +770,7 @@ const I18N={en:{
   "app.readOnly": "Read only",
   "lv.start": "Start live view",
   "lv.stop": "Stop live view",
-  "lv.size": "Size",
+  "lv.size": "Size", "lv.autoSize": "Auto",
   "lv.auto": "Auto · {size}", "lv.autoFocus": "Auto · {size} · sharp on focus",
   "lv.autoReduced": "Live view adjusted to {size} for a smoother signal",
   "lv.second": "Second monitor",
@@ -1104,18 +1105,18 @@ function shotMode(path){
 let isUsb=false, usbBackend=null; // connection type and USB layer (ptp or gphoto2) from /api/status
 let st={stage:0,job:{}},canWrite=false,wasBusy=false,connected=false,features=new Set(),af=null;
 let quitting=false;
-/* Adaptive live view size over Wi-Fi on phone width (REQ-F45, from the redesign, user 2026-11-14): start with the
+/* Adaptive live view size over Wi-Fi (REQ-F45, from the redesign, user 2026-11-14; computer too with "Auto" ticked, REQ-F55): start with the
    size that fits the screen and step down when frames come too slowly (<12 fps or >18 % lost over 4 s) or stall
-   (>1.5 s), and only when that lasts 4 s; at most every 8 s and never during a shot, job, movie or card read. Desktop and USB keep the manual size. */
+   (>1.5 s), and only when that lasts 4 s; at most every 8 s and never during a shot, job, movie or card read. On the phone it is always on; on the computer only while "Auto" is ticked (a size picked by hand stays); USB keeps the manual size. */
 const MOBILE_LIVE=matchMedia('(max-width:700px), (orientation:landscape) and (max-height:520px) and (max-width:1100px)'); // a phone, upright or turned (REQ-F49)
 const AUTO_LV_SIZES=['0640x0480','0800x0600','1024x0768','1280x0960'];
 let autoLvBusy=false,autoLvLastChange=0,autoLvSlowSince=0;
 const AUTO_LV_SLOW_MS=4000; // slowness must last this long: a short dip right after connecting is no reason (camera test 2026-11-14)
-const autoLvEnabled=()=>MOBILE_LIVE.matches&&!isUsb&&canWrite&&features.has('lvsize');
+const autoLvEnabled=()=>(MOBILE_LIVE.matches||$('#lvAuto').checked)&&!isUsb&&canWrite&&features.has('lvsize');
 const lvSizeText=size=>size.replace(/^0+/,'').replace('x0','×');
 function autoLvLabel(size){
   const el=$('#autoLvStatus'), on=autoLvEnabled();
-  el.hidden=!on; document.body.classList.toggle('autoLv',on);
+  el.hidden=!on; document.body.classList.toggle('autoLv',on&&MOBILE_LIVE.matches); // the size choice hides on the phone only
   if(size) el.textContent=tr(wzFocusOnly?'lv.autoFocus':'lv.auto',{size:lvSizeText(size)}); // wzFocusOnly: sharp only on focus while zoomed (REQ-F55)
 }
 function idealMobileLvSize(){
@@ -2222,7 +2223,7 @@ let z=1,px=0,py=0,drag=null;
 const vp=$('#viewport'),layer=$('#zoomLayer');
 // Wi-Fi screen zoom (REQ-F55): the live view is at most 1280x960, so beyond 4x it only gets blurrier
 const WZ_MAX=4,WZ_TAP_PX=4,WZ_MAP_MS=600;
-// Phone over Wi-Fi: while the zoom rests above WZ_SHARP_Z the live view gets a bigger size (4x of 640 px leaves 160 px), REQ-F55
+// Wi-Fi, automatic size (phone, or computer with Auto ticked): while the zoom rests above WZ_SHARP_Z the live view gets a bigger size (4x of 640 px leaves 160 px), REQ-F55
 const WZ_SHARP_Z=1.5,WZ_SHARP_MID_Z=2.5,WZ_REST_MS=600,WZ_SIZE_GAP_MS=3000;
 let wzSizeT=0,wzSharpOn=false,wzBase=null,wzFocusOnly=false,wzFocusUntil=0; // wzSharpOn: the sharp size is on; wzBase: the size to return to
 const WZ_FOCUS_HOLD_MS=5000; // sharp-on-focus mode: how long the sharp size stays after the last focus action
@@ -3158,7 +3159,11 @@ $('#layoutReset').onclick=()=>{layout={};commit()};
 /* Buttons */
 $('#lvStart').onclick=async()=>{
   try{await api('/api/liveview',{action:'start',lvqty:isUsb&&!lvPicked?null:$('#lvqty').value});startLiveLoop();msg(tr('msg.lvRunning'));await tick();if(features.has('af_area'))loadAf();setTimeout(props,1500)}catch(e){msg(e.message,true)}};
-$('#lvqty').onchange=()=>{lvPicked=true;if(st.live)$('#lvStart').click()};
+$('#lvqty').onchange=()=>{$('#lvAuto').checked=false;wzSharpOn=wzFocusOnly=false;autoLvLabel();lvPicked=true;if(st.live)$('#lvStart').click()}; // a size picked by hand ends Auto
+$('#lvAuto').onchange=()=>{
+  if($('#lvAuto').checked){prepareAutoLiveSize();wzSizeSoon(); if(st.live&&st.lvqty!==$('#lvqty').value) $('#lvStart').click()}
+  else{wzSharpOn=wzFocusOnly=false;autoLvLabel()} // the size stays as it is now
+};
 MOBILE_LIVE.addEventListener('change',()=>{if(autoLvEnabled())prepareAutoLiveSize();else autoLvLabel();if(!$('#galOv').hidden&&gv.mode==='cal')renderGal()});
 $('#lvStop').onclick=()=>act(tr('msg.lvStopped'),'/api/liveview',{action:'stop'});
 /* Shooting: the whole sequence. If Halfway is just holding focus, press through from there and release,
@@ -3451,6 +3456,7 @@ async function enterApp(){
     $('#vWs').hidden=!s.om_workspace; // only when OM Workspace is installed on this computer
     features=new Set(s.features); isUsb=s.type==='usb'; usbBackend=s.usb_backend;
     applyFeatures();
+    $('#lvAutoLab').hidden=isUsb||!features.has('lvsize'); // Wi-Fi only; the phone has no choice
     statusBase={model:s.model,conn:s.type==='usb'?'USB':'Wi-Fi',rights:canWrite?tr('app.write'):tr('app.readOnly')};
     showStatus();
     if(!canWrite) document.querySelectorAll('button.w').forEach(b=>{b.disabled=true;b.classList.add('na');b.title=tr('na.readOnly')});

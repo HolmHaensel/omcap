@@ -279,5 +279,38 @@ class SharpSizeAndPointers(unittest.TestCase):
         self.assertTrue(r["moved"])
 
 
+@unittest.skipUnless(HAVE_JS, "needs the JavaScript engine of macOS (osascript)")
+class AutoSizeOnTheComputer(unittest.TestCase):
+    """The sharp size also works on the computer, but only while the size choice is Auto (REQ-F55)."""
+
+    def setUp(self):
+        with open(HTML, encoding="utf-8") as f:
+            self.h = f.read()
+
+    def enabled(self, mobile, auto, usb=False, write=True):
+        line = re.search(r"const autoLvEnabled=.*?;\n", self.h).group(0)
+        code = ("var MOBILE_LIVE={matches:%s},isUsb=%s,canWrite=%s,features=new Set(['lvsize']),"
+                "Q=function(){return {checked:%s}};%s JSON.stringify(autoLvEnabled())"
+                % (str(mobile).lower(), str(usb).lower(), str(write).lower(), str(auto).lower(), line.replace("$(", "Q(")))
+        out = subprocess.run(["osascript", "-l", "JavaScript", "-e", code], capture_output=True, text=True, timeout=30)
+        self.assertEqual(out.returncode, 0, out.stderr)
+        return json.loads(out.stdout.strip())
+
+    def test_computer_with_auto_ticked_is_enabled_and_a_picked_size_is_not(self):
+        self.assertTrue(self.enabled(False, True))
+        self.assertFalse(self.enabled(False, False))  # a size picked by hand stays
+        self.assertTrue(self.enabled(True, False))  # the phone is always automatic
+        self.assertFalse(self.enabled(False, True, usb=True))  # USB: camera Zoom AF, manual size
+        self.assertFalse(self.enabled(False, True, write=False))
+
+    def test_markup_and_handlers(self):
+        self.assertIn('id="lvAuto" checked', self.h)
+        self.assertIn('data-i18n="lv.autoSize"', self.h)
+        self.assertIn('"lv.autoSize": "Auto"', self.h)
+        self.assertIn("$('#lvAuto').checked=false", self.h)  # picking a size ends Auto
+        self.assertIn("$('#lvAutoLab').hidden=isUsb", self.h)  # Wi-Fi only
+        self.assertIn("on&&MOBILE_LIVE.matches", self.h)  # the size choice hides on the phone only
+
+
 if __name__ == "__main__":
     unittest.main()
