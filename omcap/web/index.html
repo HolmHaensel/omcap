@@ -549,8 +549,7 @@ body.webcam{cursor:none;display:flex;align-items:center;justify-content:center}
   <section data-id="transfer" data-label="Save to" data-i18n-label="panel.transfer">
     <h2 data-i18n="panel.transfer">Save to</h2>
     <div class="row">
-      <label id="trSdLbl"><input type="radio" name="tr" id="trSd" value="sd" checked> <span data-i18n="transfer.sd">Card only</span></label>
-      <label><input type="radio" name="tr" id="trBoth" value="both"> <span id="trBothText" data-i18n="transfer.both">Card + computer</span></label>
+      <label id="trCopyLbl"><input type="checkbox" id="trCopy"> <span data-i18n="transfer.copy">Copy new photos to the computer</span></label>
       <button id="popPhoto" data-i18n="transfer.popPhoto">Photo on 2nd monitor</button>
     </div>
     <div class="mut hint" id="trNoCardNote" data-i18n="transfer.noCardNote" hidden>No card: photos go to the computer</div>
@@ -959,12 +958,8 @@ const I18N={en:{
   "prog.running": " running",
   "prog.error": " Error: {e}",
   "panel.transfer": "Save to",
-  "transfer.sd": "Card only",
-  "transfer.both": "Card + computer",
-  "transfer.computerOnly": "Computer (no card)",
-  "transfer.noCard": "No card in the camera",
+  "transfer.copy": "Copy new photos to the computer",
   "transfer.noCardNote": "No card: photos go to the computer",
-  "transfer.bothWifi": "Card + computer copy",
   "transfer.popPhoto": "Photo on 2nd monitor",
   "panel.card": "Playback",
   "card.index": "Index display",
@@ -3363,18 +3358,17 @@ function showSaveCfg(c){
   const ex=c.scheme==='datetime'?'20261109_091412_PB092179.JPG':c.scheme==='prefix'?(c.prefix||'')+'PB092179.JPG':'PB092179.JPG';
   $('#svInfo').textContent=tr('save.now',{dir:c.effective_dir})+' ('+tr('save.example',{name:ex})+')';
 }
-// REQ-F62: without a card (USB) "Card only" is off and the second option is the only one; the remembered
-// choice (st.transfer) is not overwritten and comes back with a card.
+// REQ-F62: the camera always writes to the card; the switch only says whether the app also copies the new
+// photo to the computer. Without a card (USB) there is no switch (photos go to the computer anyway, REQ-F61);
+// the remembered choice (st.transfer) is not overwritten and comes back with a card.
 function transferView(usb,card,pref){
-  const noCard=usb&&card===false;
-  return {sdOff:noCard,bothKey:noCard?'transfer.computerOnly':usb?'transfer.both':'transfer.bothWifi',value:noCard||pref==='both'?'both':'sd'};
+  return {noCard:usb&&card===false,checked:pref==='both'};
 }
 let trNoCard=false;
 function applyTransferView(st){
-  const v=transferView(isUsb,st.card,st.transfer); trNoCard=v.sdOff;
-  $('#trSd').disabled=v.sdOff; $('#trSdLbl').title=v.sdOff?tr('transfer.noCard'):''; $('#trNoCardNote').hidden=!v.sdOff;
-  const t=$('#trBothText'); t.dataset.i18n=v.bothKey; t.textContent=tr(v.bothKey);
-  if(!(document.activeElement&&document.activeElement.name==='tr')) $('#'+(v.value==='both'?'trBoth':'trSd')).checked=true;
+  const v=transferView(isUsb,st.card,st.transfer); trNoCard=v.noCard;
+  $('#trCopyLbl').hidden=v.noCard; $('#trNoCardNote').hidden=!v.noCard;
+  if(document.activeElement!==$('#trCopy')) $('#trCopy').checked=v.checked;
 }
 // REQ-F62: the folder dialog opens on the computer the server runs on, so only a page on that computer shows it
 $('#svPick').hidden=!isLocalPage();
@@ -3391,7 +3385,7 @@ $('#svApply').onclick=async()=>{
   catch(e){msg(e.message,true)}
 };
 api('/api/savecfg').then(showSaveCfg).catch(()=>{});
-document.querySelectorAll('[name=tr]').forEach(r=>r.onchange=()=>trNoCard?0:act(tr('msg.saveTo'),'/api/transfer',{target:r.value}));
+$('#trCopy').onchange=()=>trNoCard?0:act(tr('msg.saveTo'),'/api/transfer',{target:$('#trCopy').checked?'both':'sd'});
 $('#reload').onclick=gallery;
 $('#propsReload').onclick=async()=>{
   if(!isUsb){props();return}

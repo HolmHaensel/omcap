@@ -218,8 +218,8 @@ class Page(unittest.TestCase):
         self.h = Path(HTML).read_text(encoding="utf-8")
 
     def test_markup_and_text(self):
-        for frag in ('id="svPick"', 'id="trSd"', 'id="trBothText"', 'data-i18n="hsl.autoHint"',
-                     '"transfer.computerOnly": "Computer (no card)"', '"transfer.noCard": "No card in the camera"',
+        for frag in ('id="svPick"', 'id="trCopy"', 'data-i18n="hsl.autoHint"',
+                     '"transfer.copy": "Copy new photos to the computer"',
                      '"save.pick": "Choose …"'):
             self.assertIn(frag, self.h)
 
@@ -232,8 +232,14 @@ class Page(unittest.TestCase):
     def test_button_only_on_the_local_page(self):
         self.assertIn("$('#svPick').hidden=!isLocalPage();", self.h)
 
-    def test_radio_ignored_while_no_card(self):
+    def test_switch_ignored_while_no_card(self):
         self.assertIn("trNoCard?0:act(tr('msg.saveTo')", self.h)
+        self.assertIn("{target:$('#trCopy').checked?'both':'sd'}", self.h)
+
+    def test_no_dead_radio_keys(self):
+        for dead in ('transfer.sd"', 'transfer.both"', 'transfer.bothWifi', 'transfer.computerOnly',
+                     'transfer.noCard"', 'trSd', 'trBoth'):
+            self.assertNotIn(dead, self.h)
 
 
 def page_js(scenario):
@@ -241,8 +247,8 @@ def page_js(scenario):
     code = h[h.index("function transferView("):h.index("// REQ-F62: the folder dialog")]
     stubs = """
 var isUsb=true,els={},document={activeElement:null},tr=function(k){return k},
-  Q=function(s){return els[s]||(els[s]={checked:false,disabled:false,title:'',textContent:'',dataset:{}})};
-['#trSd','#trBoth','#trSdLbl','#trBothText','#trNoCardNote'].forEach(Q);
+  Q=function(s){return els[s]||(els[s]={checked:false,hidden:false})};
+['#trCopy','#trCopyLbl','#trNoCardNote'].forEach(Q);
 """
     out = subprocess.run(["osascript", "-l", "JavaScript", "-e",
                           stubs + code.replace("$(", "Q(") + scenario],
@@ -255,30 +261,26 @@ var isUsb=true,els={},document={activeElement:null},tr=function(k){return k},
 class PageLogic(unittest.TestCase):
     def view(self, usb, card, pref):
         return page_js("isUsb=%s; var st={card:%s,transfer:'%s'}; applyTransferView(st);"
-                       "JSON.stringify({sdOff:els['#trSd'].disabled,sd:els['#trSd'].checked,both:els['#trBoth'].checked,"
-                       "label:els['#trBothText'].textContent,title:els['#trSdLbl'].title,block:trNoCard,"
-                       "note:els['#trNoCardNote'].hidden})"
+                       "JSON.stringify({checked:els['#trCopy'].checked,hiddenSwitch:els['#trCopyLbl'].hidden,"
+                       "block:trNoCard,note:els['#trNoCardNote'].hidden})"
                        % (str(usb).lower(), json.dumps(card), pref))
 
     def test_usb_without_card(self):
-        r = self.view(True, False, "sd")  # the saved choice stays "sd", only the view changes
-        self.assertEqual((r["sdOff"], r["sd"], r["both"], r["block"]), (True, False, True, True))
-        self.assertEqual((r["label"], r["title"], r["note"]), ("transfer.computerOnly", "transfer.noCard", False))
+        r = self.view(True, False, "both")  # no switch, only the note; the saved choice stays
+        self.assertEqual((r["hiddenSwitch"], r["note"], r["block"], r["checked"]), (True, False, True, True))
 
     def test_usb_with_card_keeps_the_choice(self):
         r = self.view(True, True, "sd")
-        self.assertEqual((r["sdOff"], r["sd"], r["both"], r["label"], r["block"]),
-                         (False, True, False, "transfer.both", False))
-        r = self.view(True, True, "both")
-        self.assertEqual((r["sd"], r["both"]), (False, True))
+        self.assertEqual((r["hiddenSwitch"], r["note"], r["block"], r["checked"]), (False, True, False, False))
+        self.assertTrue(self.view(True, True, "both")["checked"])
 
     def test_unknown_card_state_is_like_a_card(self):
-        r = self.view(True, None, "sd")
-        self.assertEqual((r["sdOff"], r["label"]), (False, "transfer.both"))
+        r = self.view(True, None, "both")
+        self.assertEqual((r["hiddenSwitch"], r["note"], r["checked"]), (False, True, True))
 
     def test_wifi_never_changes(self):
         r = self.view(False, False, "sd")  # a stray flag over Wi-Fi is ignored
-        self.assertEqual((r["sdOff"], r["label"], r["sd"], r["note"]), (False, "transfer.bothWifi", True, True))
+        self.assertEqual((r["hiddenSwitch"], r["note"], r["checked"]), (False, True, False))
 
 
 if __name__ == "__main__":
