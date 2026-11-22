@@ -3315,7 +3315,8 @@ document.querySelectorAll('#timerSeg [data-t]').forEach(b=>b.onclick=()=>{
 $('#half').onclick=async()=>{
   const pressing=st.stage<1;
   const j=await act(tr('msg.shutter'),'/api/shutter',{stage:st.stage>=1?0:1});
-  if(!pressing) wzFocusAction(); // released: now the sharp size may come, held from this moment (REQ-F55)
+  // no size change after Halfway (REQ-F55): the release already restarts the live view (mode shutter -> rec) and a second
+  // restart right behind it raced with it: exec_takemotion answered 520 (Wi-Fi test 2026-11-22). Only a tap AF brings the sharp size.
   if(!pressing||!j||!af||af.mode!==33024) return;
   // All Targets: show the focused field as long as Halfway is held
   af={...af,last_af:j.last_af};

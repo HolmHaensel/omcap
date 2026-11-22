@@ -256,13 +256,13 @@ class SharpSizeAndPointers(unittest.TestCase):
         self.assertEqual(r["retry"], 1000)
         self.assertEqual(r["after"], ["start 1280x0960"])
 
-    def test_half_press_asks_for_the_size_only_on_release(self):
+    def test_half_press_does_not_change_the_size(self):
+        # Wi-Fi test 2026-11-22: a size change right after the Halfway release raced with the release's own live
+        # view restart (mode shutter -> rec) and exec_takemotion answered 520: only a tap AF brings the sharp size
         with open(HTML, encoding="utf-8") as f:
             h = f.read()
         body = h[h.index("$('#half').onclick="):h.index("$('#reset').onclick=")]
-        self.assertEqual(body.count("wzFocusAction()"), 1)
-        self.assertLess(body.index("await act("), body.index("wzFocusAction()"))
-        self.assertIn("if(!pressing) wzFocusAction()", body)
+        self.assertNotIn("wzFocusAction()", body)
 
     def test_focus_mode_ends_at_1x(self):
         r = self.run_js("z=1; wzFocusOnly=true; wzSizeCheck(); JSON.stringify({f:wzFocusOnly,c:calls.length})")
