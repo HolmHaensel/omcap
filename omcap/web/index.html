@@ -558,8 +558,8 @@ body.webcam{cursor:none;display:flex;align-items:center;justify-content:center}
       <label><span id="svDirText" data-i18n="save.folder">Folder</span> <input id="svDir" type="text" size="34" placeholder="~/Pictures/omcap" data-i18n-aria="save.folder" aria-label="Folder"></label>
     </div>
     <div class="row">
-      <label><span data-i18n="save.scheme">Names</span>
-        <select id="svScheme">
+      <label>
+        <select id="svScheme" data-i18n-aria="save.scheme" aria-label="Names">
           <option value="original" data-i18n="save.original">Original name</option>
           <option value="datetime" data-i18n="save.datetime">Date + time + name</option>
           <option value="prefix" data-i18n="save.prefix">Prefix + name</option>
