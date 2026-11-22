@@ -59,6 +59,14 @@ class StarMeasurement(unittest.TestCase):
         img = np.full((160, 200), 15.0, dtype=np.float32)
         self.assertFalse(star_af.measure_star(img)["found"])
 
+    def test_bright_edge_pixel_does_not_crash(self):
+        # Regression test: bright edge inside the ROI previously caused negative slicing IndexError
+        img = np.full((180, 240), 10.0, dtype=np.float32)
+        img[0:4, 0:4] = 250.0  # bright patch right on the ROI corner
+        img[:, 0:3] = 240.0    # bright strip along the left edge
+        m = star_af.measure_star(img, cx=0.05, cy=0.05, box=40)
+        self.assertIn("found", m)
+
     def test_jpeg_decode_round_trip(self):
         jpg = to_jpeg(make_star_frame(sigma=1.8, peak=210.0))
         m = star_af.measure_jpeg(jpg)

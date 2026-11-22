@@ -67,14 +67,18 @@ def measure_star(luma, cx=None, cy=None, box=96, aperture=18):
     mad = float(np.median(np.abs(roi - bg)))
     sigma = max(1.4826 * mad, 1.0)
 
-    # 3x3 box mean suppresses isolated 1-pixel hot pixels (~9x drop) while keeping real star PSFs
+    # 3x3 box mean suppresses isolated 1-pixel hot pixels (~9x drop) while keeping real star PSFs.
+    # Search inside an inner margin so the aperture around the peak never underflows the ROI border.
     smooth = (
         roi[:-2, :-2] + roi[:-2, 1:-1] + roi[:-2, 2:]
         + roi[1:-1, :-2] + roi[1:-1, 1:-1] + roi[1:-1, 2:]
         + roi[2:, :-2] + roi[2:, 1:-1] + roi[2:, 2:]
     ) / 9.0
-    idx = int(np.argmax(smooth))
-    sy_rel, sx_rel = divmod(idx, smooth.shape[1])
+    margin = 3 if smooth.shape[0] > 8 and smooth.shape[1] > 8 else 0
+    inner = smooth[margin:smooth.shape[0] - margin, margin:smooth.shape[1] - margin] if margin else smooth
+    idx = int(np.argmax(inner))
+    sy_in, sx_in = divmod(idx, inner.shape[1])
+    sy_rel, sx_rel = sy_in + margin, sx_in + margin
     sx_roi, sy_roi = sx_rel + 1, sy_rel + 1
 
     smooth_peak = float(smooth[sy_rel, sx_rel]) - bg
@@ -83,11 +87,13 @@ def measure_star(luma, cx=None, cy=None, box=96, aperture=18):
     if smooth_peak < 8.0 or raw_peak < 12.0 or snr < 3.5:
         return {"found": False, "bg": round(bg, 1), "noise": round(sigma, 2), "snr": round(snr, 1)}
 
-    ap = max(4, min(int(aperture), sx_roi, sy_roi, roi.shape[1] - 1 - sx_roi, roi.shape[0] - 1 - sy_roi))
+    ap = min(int(aperture), sx_roi, sy_roi, roi.shape[1] - 1 - sx_roi, roi.shape[0] - 1 - sy_roi)
     if ap < 3:
         return {"found": False, "reason": "Star too close to edge"}
 
     patch = roi[sy_roi - ap:sy_roi + ap + 1, sx_roi - ap:sx_roi + ap + 1]
+    if patch.shape[0] < 3 or patch.shape[1] < 3:
+        return {"found": False, "reason": "Star too close to edge"}
     # Local annulus background around the aperture improves HFR accuracy on uneven sky gradients
     border = np.concatenate([patch[0, :], patch[-1, :], patch[1:-1, 0], patch[1:-1, -1]])
     local_bg = float(np.median(border))

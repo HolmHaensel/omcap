@@ -83,6 +83,9 @@ main{display:grid;grid-template-columns:minmax(0,1044px) 340px;justify-content:c
 #lvTools{display:contents}
 #loupeTools{display:inline-flex;gap:6px;align-items:center}
 #viewport.loupe #afGrid,#viewport.loupe #afMark,#viewport.loupe #grid,#viewport.loupe #aidCv,#viewport.loupe #ovl{display:none} /* magnified picture: they would not match, and only the picture should be scaled (REQ-F54) */
+#viewport.loupe.star #aidCv{display:block} /* keep Star AF HFR reticle visible while zoomed (REQ-F24) */
+#starRow{flex-wrap:wrap;overflow-x:visible}
+#starAuto.rec,#starPanelAuto.rec{background:var(--rec);border-color:var(--rec);color:#fff;font-weight:600}
 #statusLine{display:flex;gap:var(--s4);flex-wrap:wrap;font-size:13px;color:var(--muted)}
 #statusLine #msg{margin:0;min-height:0}
 #lvSize{font-family:var(--font-value)}
@@ -317,7 +320,8 @@ body.webcam{cursor:none;display:flex;align-items:center;justify-content:center}
   #lastShot{bottom:46px;width:22%}
   #recChip{bottom:46px}
   .tb{overflow-x:auto;flex-wrap:nowrap;padding-bottom:4px;-webkit-overflow-scrolling:touch}
-  .tb>*{flex-shrink:0}
+  .tb>*,#lvTools>*{flex-shrink:0}
+  #starRow{flex-wrap:wrap;overflow-x:visible}
   #props{grid-template-columns:repeat(2,minmax(0,1fr))}
   #shutterBox{gap:var(--s2)}
   #timerLab{display:none}
@@ -431,6 +435,7 @@ body.webcam{cursor:none;display:flex;align-items:center;justify-content:center}
     <span id="autoLvStatus" class="chip" hidden data-feat="lvsize"></span>
     <span class="vsep"></span>
     <span id="lvTools" hidden>
+      <label class="tog" data-feat="star_af"><input type="checkbox" id="starAfOn"> <span data-i18n="lv.starAf">Star AF</span></label>
       <span data-feat="loupe"><span id="loupeTools">
         <span id="loupeLabel" class="chip" role="status" style="display:none"></span>
         <span id="loupeMove" class="seg" role="group" hidden data-i18n-aria="lv.loupeMove" aria-label="Move the zoom frame"><button class="w" data-lm="left" data-i18n-aria="lv.left" aria-label="Left">◀</button><button class="w" data-lm="up" data-i18n-aria="lv.up" aria-label="Up">▲</button><button class="w" data-lm="down" data-i18n-aria="lv.down" aria-label="Down">▼</button><button class="w" data-lm="right" data-i18n-aria="lv.right" aria-label="Right">▶</button></span>
@@ -451,7 +456,6 @@ body.webcam{cursor:none;display:flex;align-items:center;justify-content:center}
       <label class="tog"><input type="checkbox" id="aidClip"> <span data-i18n="lv.clip">Highlight&amp;Shadow</span></label>
       <label class="tog"><input type="checkbox" id="aidPeak"> <span data-i18n="lv.peak">Peaking</span></label>
       <label class="tog"><span data-i18n="lv.peakColor">Peaking Settings</span> <select id="aidPeakCol"><option value="white" data-i18n="lv.peakWhite">White</option><option value="black" data-i18n="lv.peakBlack">Black</option><option value="red" data-i18n="lv.peakRed">Red</option><option value="yellow" data-i18n="lv.peakYellow">Yellow</option></select></label>
-      <label class="tog" data-feat="star_af"><input type="checkbox" id="starAfOn"> <span data-i18n="lv.starAf">Star AF</span></label>
     </span>
     <span class="sp"></span>
     <button id="popLive" data-i18n="lv.second">Second monitor</button>
@@ -460,12 +464,11 @@ body.webcam{cursor:none;display:flex;align-items:center;justify-content:center}
     <button id="lvStop" data-i18n="lv.stop">Stop live view</button>
   </div>
   <div class="tb" id="starRow" hidden>
+    <button class="w" id="starAuto" data-feat="mf_drive" data-i18n="star.auto">Auto Star AF</button>
     <span id="starHfr" class="chip" role="status"></span>
     <span id="starBest" class="mut"></span>
     <button id="starReset" class="mini" data-i18n="star.reset">Reset</button>
-    <span class="sp"></span>
     <span id="starMsg" class="mut"></span>
-    <button class="w" id="starAuto" data-feat="mf_drive" data-i18n="star.auto">Auto Star AF</button>
   </div>
   <div class="tb" id="ovlRow" hidden>
     <label class="lab"><span data-i18n="lv.overlay">Overlay</span> <input type="range" id="ovlOp" min="0" max="100" value="50"></label>
@@ -497,7 +500,11 @@ body.webcam{cursor:none;display:flex;align-items:center;justify-content:center}
       <button class="w" data-mf="far:2" data-i18n="mf.far2">Far 2</button>
       <button class="w" data-mf="far:3" data-i18n="mf.far3">Far 3</button>
     </div></div>
-    <div class="row">
+    <div class="row" id="rowStar" data-feat="star_af">
+      <button type="button" id="starPanelTog" data-i18n="lv.starAf">Star AF</button>
+      <button type="button" class="w" id="starPanelAuto" data-feat="mf_drive" data-i18n="star.auto">Auto Star AF</button>
+    </div>
+    <div class="row" id="afShowRow">
       <label><input type="checkbox" id="afShow" checked> <span data-i18n="af.show">Show AF targets</span></label>
       <span id="afInfo" class="mut"></span>
     </div>
@@ -1484,6 +1491,10 @@ function applyContext(){
   // MF drive (USB 0x9487): like the focus ring, so only with AF mode MF or S-AF+MF (manual p.75)
   const fm=lastProps&&lastProps.focusmode&&lastProps.focusmode.value;
   $('#rowMf').hidden=!(features.has('mf_drive')&&canWrite&&['1','32769'].includes(fm));
+  // Hide AF Area boxes and target grid toggle in MF mode or while Star AF is active (REQ-F24)
+  const hideAf=fm==='1'||isStarActive();
+  $('#afModes').hidden=hideAf||!features.has('af_modes');
+  $('#afShowRow').hidden=hideAf;
   renderLongSeg(m,sp);
   const sec=$('[data-id=prog]');
   sec.style.display=[...sec.querySelectorAll('.row')].some(r=>!r.hidden)?'':'none';
@@ -2940,6 +2951,14 @@ function showAf(){
   drawAf();
 }
 function pickField(e){
+  if(isStarActive()){
+    const b=layer.getBoundingClientRect();
+    if(b.width>0&&b.height>0){
+      starPt={x:Math.max(.05,Math.min(.95,(e.clientX-b.left)/b.width)),y:Math.max(.05,Math.min(.95,(e.clientY-b.top)/b.height))};
+      starBestHfr=null; $('#starBest').textContent=''; aidTick();
+    }
+    return;
+  }
   if(!af||!canWrite) return;
   const b=layer.getBoundingClientRect(),a=af.area;
   const x=((e.clientX-b.left)/b.width*a.w-a.x0)/(a.x1-a.x0), y=((e.clientY-b.top)/b.height*a.h-a.y0)/(a.y1-a.y0);
@@ -2964,6 +2983,8 @@ function drawAf(){
   if(c.width!==Math.round(b.width*d)||c.height!==Math.round(b.height*d)){c.width=Math.round(b.width*d);c.height=Math.round(b.height*d)}
   const g=c.getContext('2d'); g.clearRect(0,0,c.width,c.height);
   // without the grid ("Show AF targets" off) only the chosen frame shows for a moment after a tap (REQ-F41)
+  const fm=lastProps&&lastProps.focusmode&&lastProps.focusmode.value;
+  if(isStarActive()||fm==='1') return;
   const grid=$('#afShow').checked, tapOnly=!grid&&Date.now()<afTapShow;
   if(!af||!st.live||(!grid&&!tapOnly)) return;
   const a=af.area,X=a.x0/a.w*c.width,Y=a.y0/a.h*c.height,W=(a.x1-a.x0)/a.w*c.width,H=(a.y1-a.y0)/a.h*c.height,cw=W/9,ch=H/9;
@@ -3092,23 +3113,25 @@ function drawHist(data){
   g.fillStyle='rgba(255,255,255,.55)';
   for(let i=0;i<256;i++){const hh=Math.min(1,l[i]/mx)*(H-3);g.fillRect(i/255*(W-1),H-hh,Math.max(1,W/256),hh)}
 }
-let starBestHfr=null;
-function measureStarHfr(gray,w,h){
-  // Search around the frame centre; 3x3 mean suppresses single-pixel hot pixels (REQ-F24)
+let starBestHfr=null, starPt={x:0.5,y:0.5};
+function isStarActive(){return !!($('#starAfOn').checked||(st&&st.star_af&&st.star_af.running))}
+function measureStarHfr(gray,w,h,pt){
+  // Search around the chosen star point (centre when zoomed); 3x3 mean suppresses hot pixels (REQ-F24)
+  const px=Math.round((pt?pt.x:0.5)*(w-1)), py=Math.round((pt?pt.y:0.5)*(h-1));
   const half=Math.max(12,Math.min(96,w>>1,h>>1));
-  const x0=Math.max(0,(w>>1)-half),x1=Math.min(w,(w>>1)+half),y0=Math.max(0,(h>>1)-half),y1=Math.min(h,(h>>1)+half);
-  const rw=x1-x0,rh=y1-y0; if(rw<7||rh<7) return null;
+  const x0=Math.max(0,px-half),x1=Math.min(w,px+half),y0=Math.max(0,py-half),y1=Math.min(h,py+half);
+  const rw=x1-x0,rh=y1-y0; if(rw<11||rh<11) return null;
   const hist=new Uint32Array(256);
   for(let y=y0;y<y1;y++) for(let x=x0;x<x1;x++) hist[gray[y*w+x]]++;
   const mid=(rw*rh)>>1; let acc=0,bg=0;
   for(let i=0;i<256;i++){acc+=hist[i];if(acc>=mid){bg=i;break}}
   let best=0,bx=-1,by=-1;
-  for(let y=y0+1;y<y1-1;y++) for(let x=x0+1;x<x1-1;x++){
+  for(let y=y0+4;y<y1-4;y++) for(let x=x0+4;x<x1-4;x++){
     const s=(gray[(y-1)*w+x-1]+gray[(y-1)*w+x]+gray[(y-1)*w+x+1]+gray[y*w+x-1]+gray[y*w+x]+gray[y*w+x+1]+gray[(y+1)*w+x-1]+gray[(y+1)*w+x]+gray[(y+1)*w+x+1])/9;
     if(s>best){best=s;bx=x;by=y}
   }
   if(bx<0||best-bg<8||gray[by*w+bx]-bg<12) return null;
-  const ap=Math.max(4,Math.min(18,bx-x0,by-y0,x1-1-bx,y1-1-by));
+  const ap=Math.min(18,bx-x0,by-y0,x1-1-bx,y1-1-by);
   if(ap<3) return null;
   let sum=0,sx=0,sy=0;
   for(let dy=-ap;dy<=ap;dy++) for(let dx=-ap;dx<=ap;dx++){
@@ -3124,25 +3147,36 @@ function measureStarHfr(gray,w,h){
 function updateStarAfUi(){
   const on=!!(st&&st.live&&$('#starAfOn').checked);
   const sa=(st&&st.star_af)||{}, run=!!sa.running;
-  $('#starRow').hidden=!(on||run);
-  const btn=$('#starAuto');
-  btn.textContent=tr(run?'star.stop':'star.auto');
-  btn.classList.toggle('rec',run);
-  btn.disabled=!canWrite||(!run&&zBlock);
+  const active=on||run;
+  $('#starRow').hidden=!active;
+  $('#viewport').classList.toggle('star',active);
+  $('#starPanelTog').classList.toggle('on',!!$('#starAfOn').checked);
+  $('#starPanelTog').setAttribute('aria-pressed',$('#starAfOn').checked?'true':'false');
+  const blocked=!canWrite||(!run&&(!st||!st.live||zBlock));
+  for(const btn of [$('#starAuto'),$('#starPanelAuto')]){
+    btn.textContent=tr(run?'star.stop':'star.auto');
+    btn.classList.toggle('rec',run);
+    btn.disabled=blocked;
+  }
   const m=sa.message||(features.has('mf_drive')?'':tr('star.manualHint'));
   $('#starMsg').textContent=m;
   $('#starMsg').className=sa.error?'warn':'mut';
 }
-$('#starReset').onclick=()=>{starBestHfr=null;$('#starBest').textContent=''};
-$('#starAuto').onclick=async()=>{
+async function runStarAuto(){
   const run=!!(st&&st.star_af&&st.star_af.running);
   try{
     if(run){await api('/api/staraf',{action:'stop'});return}
-    const p=loupePoint();
+    if(!$('#starAfOn').checked){$('#starAfOn').checked=true;aidSave();applyContext();drawAf()}
+    const p=loupeOn?{x:0.5,y:0.5}:starPt;
     await api('/api/staraf',{action:'start',x:p.x,y:p.y,zoom:true});
     tick();
   }catch(e){msg(e.message,true)}
-};
+}
+$('#starReset').onclick=()=>{starBestHfr=null;starPt={x:0.5,y:0.5};$('#starBest').textContent=''};
+$('#starAuto').onclick=runStarAuto;
+$('#starPanelAuto').onclick=runStarAuto;
+$('#starPanelTog').onclick=()=>{$('#starAfOn').checked=!$('#starAfOn').checked;aidSave();applyContext();drawAf();aidTick()};
+$('#starAfOn').addEventListener('change',()=>{applyContext();drawAf()});
 function aidTick(){
   if(quitting) return;
   const wantH=$('#aidHist').checked,wantC=$('#aidClip').checked,wantP=$('#aidPeak').checked,wantS=$('#starAfOn').checked;
@@ -3179,7 +3213,7 @@ function aidTick(){
     og.clearRect(0,0,w,h);
   }
   if(wantS){
-    const res=measureStarHfr(gray,w,h),chip=$('#starHfr');
+    const res=measureStarHfr(gray,w,h,loupeOn?{x:0.5,y:0.5}:starPt),chip=$('#starHfr');
     if(res){
       if(starBestHfr===null||res.hfr<starBestHfr) starBestHfr=res.hfr;
       chip.textContent=tr('star.hfr',{v:res.hfr.toFixed(2)});

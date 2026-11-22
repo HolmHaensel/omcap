@@ -918,7 +918,7 @@ def start_star_af(x=0.5, y=0.5, zoom=True):
                 ).run()
                 if res.get("phase") == "error":
                     star_af_state["error"] = res.get("message")
-        except (CameraError, WriteBlocked, OSError, ValueError) as e:
+        except Exception as e:
             star_af_state.update(phase="error", error=str(e), message=str(e))
         finally:
             star_af_state["running"] = False
