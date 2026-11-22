@@ -81,6 +81,7 @@ More in [Start and stop](#start-and-stop).
 |---|---|---|---|
 | Tap the 9×9 AF grid to focus, AF target in green | ✅ | ✅ | |
 | AF frame on tap (white focusing, green in focus, red no focus) | ✅ | ✅ | |
+| Focus tone in the app after a tap focus (high = in focus, low = no focus; switch "Focus tone", off by default) | ✅ | – | over USB the camera beeps itself on the half press (menu "Beep"), so no app tone; over Wi-Fi a tap sets the AF frame without a camera beep, a half press would need mode "shutter" and pause the live view; not camera-tested yet (REQ-F59) |
 | "In focus" / "No focus" chip | ✅ | ✅ | Wi-Fi after a tap; USB also after Press halfway and Take picture. With S-AF the camera only releases in focus |
 | AF Area (All Targets, Single Target, Small Target, Group Target) | – | ✅ | no Wi-Fi command |
 | Focus ring (MF): Near/Far in three step sizes | – | ✅ | AF mode MF or S-AF+MF; no Wi-Fi command |

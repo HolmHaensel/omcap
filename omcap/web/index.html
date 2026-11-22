@@ -440,6 +440,7 @@ body.webcam{cursor:none;display:flex;align-items:center;justify-content:center}
         <label class="tog"><input type="checkbox" id="lvlSound"> <span data-i18n="lv.sound">Sound</span></label>
       </span></span>
       <span id="lvlInfo" class="mut" data-feat="level"></span>
+      <label class="tog" data-feat="focus_tone" data-i18n-title="lv.focusToneHint" title="App tone after a tap focus; the camera beep stays as set in the menu"><input type="checkbox" id="focusTone"> <span data-i18n="lv.focusTone">Focus tone</span></label>
       <label class="tog"><span data-i18n="lv.grid">Displayed Grid</span> <select id="gridType"><option value="" data-i18n="lv.gridOff">Off</option><option value="thirds" data-i18n="lv.gridThirds">Rule of thirds</option><option value="cross" data-i18n="lv.gridCross">Crosshair</option><option value="mesh" data-i18n="lv.gridMesh">Grid</option></select></label>
       <label class="gridAdj" hidden>X <input type="range" id="gridX" min="-50" max="50" value="0"></label>
       <label class="gridAdj" hidden>Y <input type="range" id="gridY" min="-50" max="50" value="0"></label>
@@ -815,7 +816,8 @@ const I18N={en:{
   "lv.zoomUsbGroup": "Zoom (camera Zoom AF)", "lv.loupeLabel": "Zoom AF ×{n}", "lv.loupeMove": "Move the zoom frame", "lv.zoomMap": "Zoom overview: click or drag to move the zoom frame",
   "lv.left": "Left", "lv.up": "Up", "lv.down": "Down", "lv.right": "Right",
   "msg.loupeMove": "Zoom frame moved", "msg.zoomStuck": "The camera zoom did not answer in time; showing what the camera does",
-  "lv.hold": "Hold angle", "lv.clear": "Clear angle", "lv.sound": "Sound",
+  "lv.hold": "Hold angle", "lv.clear": "Clear angle", "lv.sound": "Sound", "lv.focusTone": "Focus tone",
+  "lv.focusToneHint": "Plays a high tone in the app for in focus and a low tone for no focus after a tap focus. The camera itself only beeps on a half press; its Beep setting in the camera menu stays as set.",
   "lv.levelOk": "Level", "lv.angleOk": "Angle matched",
   "msg.angleHeld": "Angle held: Horizon {a}° · Tilt {b}°",
   "msg.noLevel": "No level reading yet: start live view with the Level gauge on",
@@ -2802,10 +2804,15 @@ const lvlFmt=v=>(v>0?'+':'')+v.toFixed(1);
 function lvlAudioInit(){  // create and unlock audio on a click (browsers block sound started from timers)
   try{lvlAudio=lvlAudio||new (window.AudioContext||window.webkitAudioContext)();if(lvlAudio.state==='suspended')lvlAudio.resume()}catch{}
 }
-function lvlBeep(){
+function lvlBeep(freq=1320,len=.08,wave='sine'){
   try{lvlAudioInit();
     const o=lvlAudio.createOscillator(),g=lvlAudio.createGain();
-    o.frequency.value=1320;g.gain.value=.08;o.connect(g).connect(lvlAudio.destination);o.start();o.stop(lvlAudio.currentTime+.08)}catch{}
+    o.type=wave;o.frequency.value=freq;g.gain.value=.08;o.connect(g).connect(lvlAudio.destination);o.start();o.stop(lvlAudio.currentTime+len)}catch{}
+}
+// Focus tone (REQ-F59): over Wi-Fi a tap focus gives no camera beep, so the app plays one: high = in focus, low = no focus
+function focusTone(ok){
+  if(!features.has('focus_tone')||!$('#focusTone').checked) return;
+  if(ok) lvlBeep(1760,.12); else lvlBeep(330,.3,'square');
 }
 function lvlFeedback(ok){
   $('#levelChip').hidden=!ok;
@@ -2846,7 +2853,8 @@ function drawLevel(){
 }
 $('#lvlOn').onchange=()=>{aidSave();if(!$('#lvlOn').checked){lvl=null;lvlShown=null}drawLevel()};
 $('#lvlSound').addEventListener('change',()=>{if($('#lvlSound').checked)lvlAudioInit()});
-document.addEventListener('pointerdown',()=>{if($('#lvlSound').checked)lvlAudioInit()},{once:true}); // restored switch: unlock on the first click
+$('#focusTone').addEventListener('change',()=>{if($('#focusTone').checked)lvlAudioInit()});
+document.addEventListener('pointerdown',()=>{if($('#lvlSound').checked||$('#focusTone').checked)lvlAudioInit()},{once:true}); // restored switch: unlock on the first click
 $('#lvlHold').onclick=()=>{
   if(!lvl){msg(tr('msg.noLevel'),true);return}
   lvlTarget={a:+lvl.a.toFixed(1),b:+lvl.b.toFixed(1)};
@@ -2872,6 +2880,7 @@ async function setAf(b){
     focusHit=f&&hit?{field:hit,until:Date.now()+FOCUS_SHOW}:null;
     showAf();
     if(f) msg(hit?tr('msg.inFocus'):tr('msg.noFocus'),!hit);
+    if(f) focusTone(!!hit);
     if(f&&!hit) showNoFocus();
     if(f){afTapShow=Date.now()+FOCUS_SHOW;drawAf();setTimeout(drawAf,FOCUS_SHOW+50)}
   }
@@ -3029,7 +3038,7 @@ function edgeThreshold(mag,top,floor){ // threshold such that about the fraction
   return Math.max(floor,b/k);
 }
 // lvlOn: Level gauge switch, off by default and remembered like the other live view aids (user 2026-11-14)
-const AID_KEY='omcap.aids', AID_IDS=['aidHist','aidRgb','aidClip','aidPeak','lvlOn','lvlSound'];
+const AID_KEY='omcap.aids', AID_IDS=['aidHist','aidRgb','aidClip','aidPeak','lvlOn','lvlSound','focusTone'];
 const aidOff=document.createElement('canvas'), aidCtx=aidOff.getContext('2d',{willReadFrequently:true});
 const PEAK_RGB={white:[255,255,255],black:[0,0,0],red:[255,40,40],yellow:[255,230,0]};
 function aidSave(){try{const o={col:$('#aidPeakCol').value};AID_IDS.forEach(i=>o[i]=$('#'+i).checked);localStorage.setItem(AID_KEY,JSON.stringify(o))}catch{}}
