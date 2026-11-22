@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- Read-only MCP server (`omcap.mcp_server` / `em1-capture-mcp`) for AI assistants (Claude Desktop, Claude Code): 5 read-only tools (`camera_status`, `camera_settings`, `live_view_frame`, `list_card_images`, `last_picture`) talking only to the local E-M1 Capture HTTP API (REQ-F35). Offline-tested.
+- MCP AI Photo Coach server (`omcap.mcp_server` / `em1-capture-mcp`) for Claude Desktop / Claude Code: read-only by default (5 tools + 3 coach prompts + exposure stats + `--lenses` bag); optional `--allow-write` adds `camera_configure` (dry-run plan by default, applies settings via `/api/set` only with `apply=true`, never shoots/erases) (REQ-F35). Offline-tested.
 - USB Focus Stacking: sets and restores Bracketing (d0a6); one-frame shot ends early with a note (REQ-F69). USB-tested.
 
 ## 0.7.9 – 2026-11-22

@@ -13,12 +13,15 @@ JPEG = b"\xff\xd8\xff\xe0\x00\x10JFIF\x00\x01\xff\xd9"
 
 
 class FakeClient:
-    """In-memory stand-in for mcp_server.HttpClient recording every GET request."""
+    """In-memory stand-in for mcp_server.HttpClient recording every GET and POST request."""
 
-    def __init__(self, json_map=None, bytes_map=None):
+    def __init__(self, json_map=None, bytes_map=None, allow_write=False):
         self.json_map = dict(json_map or {})
         self.bytes_map = dict(bytes_map or {})
+        self.allow_write = allow_write
         self.calls = []
+        self.posts = []
+        self.post_hook = None
 
     def _lookup(self, table, path, query):
         key = (path, tuple(sorted((query or {}).items())))
@@ -43,6 +46,16 @@ class FakeClient:
         if max_bytes is not None and len(data) > max_bytes:
             raise mcp_server.ApiError("Image exceeds limit", status=status)
         return status, data, headers
+
+    def post_json(self, path, payload, timeout=None):
+        if not self.allow_write:
+            raise mcp_server.ApiError("Read-only", status=403)
+        if path not in mcp_server.WRITE_ENDPOINTS:
+            raise mcp_server.ApiError("Not allowed", status=403)
+        self.posts.append((path, dict(payload)))
+        if self.post_hook:
+            return self.post_hook(path, payload)
+        return {"ok": True}
 
 
 class UrlAndSafety(unittest.TestCase):
@@ -175,8 +188,8 @@ class Protocol(unittest.TestCase):
         self.assertEqual(lines[1], {"jsonrpc": "2.0", "id": 7, "result": {}})
 
 
-def _call(client, name, arguments=None):
-    srv = mcp_server.McpServer(client)
+def _call(client, name, arguments=None, allow_write=False, lenses=None):
+    srv = mcp_server.McpServer(client, allow_write=allow_write, lenses=lenses)
     resp = srv.handle_message({
         "jsonrpc": "2.0",
         "id": 1,
@@ -439,6 +452,166 @@ class LastPictureTool(unittest.TestCase):
         res = _call(client, "last_picture")
         self.assertTrue(res["isError"])
         self.assertIn("Not connected", res["content"][0]["text"])
+
+
+class WriteSafetyAndConfigure(unittest.TestCase):
+    USB_PROPS = {
+        "takemode": {"value": "A", "writable": False, "enum": []},
+        "focalvalue": {"value": "4.0", "writable": True, "enum": ["2.8", "4.0", "5.6"]},
+        "isospeedvalue": {"value": "Auto", "writable": True, "enum": ["Auto", "200", "800", "1600"]},
+        "focusmode": {"value": "2", "writable": True, "enum": ["1", "2", "32769"],
+                      "names": {"1": "MF", "2": "S-AF", "32769": "S-AF+MF"}},
+        "stabilizer": {"value": "4", "writable": True, "enum": ["0", "1", "4"],
+                       "names": {"0": "Off", "1": "S-IS 1", "4": "S-IS Auto"}},
+    }
+
+    def test_http_client_blocks_post_without_allow_write_and_blocks_dangerous_endpoints(self):
+        ro = mcp_server.HttpClient("http://127.0.0.1:8765", allow_write=False)
+        with self.assertRaises(mcp_server.ApiError):
+            ro.post_json("/api/set", {"prop": "isospeedvalue", "value": "800"})
+
+        rw = mcp_server.HttpClient("http://127.0.0.1:8765", allow_write=True)
+        for forbidden in ("/api/shoot", "/api/shutter", "/api/erase", "/api/poweroff", "/api/open", "/api/quit"):
+            with self.subTest(endpoint=forbidden):
+                with self.assertRaises(mcp_server.ApiError):
+                    rw.post_json(forbidden, {})
+
+    def test_read_only_server_hides_and_rejects_camera_configure(self):
+        srv = mcp_server.McpServer(FakeClient(), allow_write=False)
+        names = [t["name"] for t in srv.handle_message({"jsonrpc": "2.0", "id": 1, "method": "tools/list"})["result"]["tools"]]
+        self.assertNotIn("camera_configure", names)
+        resp = srv.handle_message({
+            "jsonrpc": "2.0", "id": 2, "method": "tools/call",
+            "params": {"name": "camera_configure", "arguments": {"settings": {"isospeedvalue": "800"}}},
+        })
+        self.assertEqual(resp["error"]["code"], -32602)
+
+    def test_dry_run_resolves_usb_labels_and_reports_manual_mode_dial(self):
+        client = FakeClient(json_map={
+            "/api/status": {"type": "usb", "allow_write": True},
+            "/api/props": self.USB_PROPS,
+        }, allow_write=True)
+        res = _call(client, "camera_configure", {
+            "settings": {"takemode": "M", "focalvalue": "f/2.8", "isospeedvalue": "ISO 1600",
+                         "focusmode": "MF", "stabilizer": "Off"},
+        }, allow_write=True)
+        self.assertFalse(res["isError"])
+        data = _json_payload(res)
+        self.assertTrue(data["dry_run"])
+        self.assertFalse(data["applied"])
+        self.assertEqual(client.posts, [])
+        changed = {c["prop"]: c["target"] for c in data["changes"]}
+        self.assertEqual(changed, {"focalvalue": "2.8", "isospeedvalue": "1600", "focusmode": "1", "stabilizer": "0"})
+        self.assertTrue(any("mode dial" in s for s in data["manual_steps"]))
+
+    def test_apply_sends_posts_and_refuses_when_server_read_only_or_invalid(self):
+        client = FakeClient(json_map={
+            "/api/status": {"type": "usb", "allow_write": True},
+            "/api/props": self.USB_PROPS,
+        }, allow_write=True)
+        res = _call(client, "camera_configure", {
+            "settings": {"focusmode": "MF", "stabilizer": "Off"},
+            "apply": True,
+        }, allow_write=True)
+        self.assertFalse(res["isError"])
+        data = _json_payload(res)
+        self.assertTrue(data["applied"])
+        self.assertEqual(client.posts, [
+            ("/api/set", {"prop": "focusmode", "value": "1"}),
+            ("/api/set", {"prop": "stabilizer", "value": "0"}),
+        ])
+
+        # Server read-only refuses apply
+        ro_srv = FakeClient(json_map={
+            "/api/status": {"type": "usb", "allow_write": False},
+            "/api/props": self.USB_PROPS,
+        }, allow_write=True)
+        res2 = _call(ro_srv, "camera_configure", {"settings": {"focusmode": "MF"}, "apply": True}, allow_write=True)
+        self.assertTrue(res2["isError"])
+        self.assertEqual(ro_srv.posts, [])
+
+        # Invalid value refuses entire apply
+        bad = FakeClient(json_map={
+            "/api/status": {"type": "usb", "allow_write": True},
+            "/api/props": self.USB_PROPS,
+        }, allow_write=True)
+        res3 = _call(bad, "camera_configure", {"settings": {"focusmode": "MF", "focalvalue": "0.95"}, "apply": True},
+                     allow_write=True)
+        self.assertTrue(res3["isError"])
+        self.assertEqual(bad.posts, [])
+
+    def test_wifi_apply_switches_takemode_first_then_rereads_props(self):
+        props_a = {
+            "takemode": {"value": "A", "writable": True, "enum": ["P", "A", "S", "M"]},
+            "shutspeedvalue": {"value": "1/250", "writable": False, "enum": []},
+        }
+        props_m = {
+            "takemode": {"value": "M", "writable": True, "enum": ["P", "A", "S", "M"]},
+            "shutspeedvalue": {"value": "1/250", "writable": True, "enum": ["1/250", "15", "livecomp"]},
+        }
+        client = FakeClient(json_map={
+            "/api/status": {"type": "wifi", "allow_write": True},
+            "/api/props": props_a,
+        }, allow_write=True)
+        def on_post(path, payload):
+            if payload.get("prop") == "takemode" and payload.get("value") == "M":
+                client.json_map["/api/props"] = props_m
+            return {"ok": True}
+        client.post_hook = on_post
+
+        res = _call(client, "camera_configure", {"settings": {"takemode": "M", "shutspeedvalue": "15"}, "apply": True},
+                    allow_write=True)
+        self.assertFalse(res["isError"])
+        self.assertEqual(client.posts, [
+            ("/api/set", {"prop": "takemode", "value": "M"}),
+            ("/api/set", {"prop": "shutspeedvalue", "value": "15"}),
+        ])
+
+
+class PromptsStatsAndLenses(unittest.TestCase):
+    def test_prompts_list_and_get_reflect_write_mode(self):
+        ro = mcp_server.McpServer(FakeClient(), allow_write=False)
+        init = ro.handle_message({"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {}})
+        self.assertIn("prompts", init["result"]["capabilities"])
+        plist = ro.handle_message({"jsonrpc": "2.0", "id": 2, "method": "prompts/list"})["result"]["prompts"]
+        self.assertEqual([p["name"] for p in plist], ["setup_for_scene", "check_composition", "critique_last_shot"])
+
+        p_ro = ro.handle_message({"jsonrpc": "2.0", "id": 3, "method": "prompts/get",
+                                  "params": {"name": "setup_for_scene", "arguments": {"scene": "stars"}}})["result"]
+        self.assertIn("read-only", p_ro["messages"][0]["content"]["text"].lower())
+
+        rw = mcp_server.McpServer(FakeClient(), allow_write=True)
+        p_rw = rw.handle_message({"jsonrpc": "2.0", "id": 4, "method": "prompts/get",
+                                  "params": {"name": "setup_for_scene", "arguments": {"scene": "sunset"}}})["result"]
+        self.assertIn("camera_configure", p_rw["messages"][0]["content"]["text"])
+
+        missing = ro.handle_message({"jsonrpc": "2.0", "id": 5, "method": "prompts/get",
+                                     "params": {"name": "setup_for_scene", "arguments": {}}})
+        self.assertEqual(missing["error"]["code"], -32602)
+
+    def test_image_stats_measures_clipping_and_median(self):
+        import numpy as np
+        from PIL import Image
+        arr = np.full((64, 64), 100, dtype=np.uint8)
+        arr[:8, :] = 255   # 12.5% bright highlights
+        arr[-8:, :] = 0    # 12.5% crushed shadows
+        buf = io.BytesIO()
+        Image.fromarray(arr).save(buf, format="JPEG", quality=95)
+        st = mcp_server.image_stats(buf.getvalue())
+        self.assertIsNotNone(st)
+        self.assertGreater(st["clipped_highlights_pct"], 8.0)
+        self.assertGreater(st["crushed_shadows_pct"], 8.0)
+        self.assertAlmostEqual(st["median_luma"], 100.0, delta=5.0)
+
+    def test_my_lenses_included_in_camera_status(self):
+        client = FakeClient(json_map={
+            "/api/app": {"app": "em1-capture", "version": __version__, "allow_write": False},
+            "/api/status": mcp_server.ApiError("Not connected", status=409),
+            "/api/connections": {"connected": None, "usb": False, "wifi": False},
+        })
+        res = _call(client, "camera_status", lenses=["M.12-40mm F2.8", "M.45mm F1.8"])
+        data = _json_payload(res)
+        self.assertEqual(data["my_lenses"], ["M.12-40mm F2.8", "M.45mm F1.8"])
 
 
 if __name__ == "__main__":

@@ -1,14 +1,22 @@
-"""Read-only MCP server (Model Context Protocol, stdio) for E-M1 Capture (REQ-F35).
+"""MCP server (Model Context Protocol, stdio) for E-M1 Capture (REQ-F35).
 
-Talks only to the running E-M1 Capture web app over local HTTP (GET only) and never accesses
-the camera or card directly. All safety rules and mode checks stay in one place (omcap.server).
+Starts read-only by default (5 read-only tools + 3 Photo Coach prompts).
+With `--allow-write` (and E-M1 Capture also running with `--allow-write`), adds the
+`camera_configure` tool (dry-run by default; applies settings only with `apply=true`
+after explicit user confirmation).
+
+Talks only to the running E-M1 Capture web app over local HTTP (loopback 127.0.0.1 /
+localhost only) and never accesses the camera, firmware or card directly. Never exposes
+shutter release, card erase or power-off.
 
 Usage:
-  .venv/bin/python -B -m omcap.mcp_server
-  .venv/bin/em1-capture-mcp --url http://127.0.0.1:8765
+  .venv/bin/python -B -m omcap.mcp_server                          # read-only (default)
+  .venv/bin/python -B -m omcap.mcp_server --allow-write            # + camera_configure
+  .venv/bin/em1-capture-mcp --url http://127.0.0.1:8765 --lenses "12-40mm f/2.8, 45mm f/1.8"
 """
 import argparse
 import base64
+import io
 import json
 import os
 import sys
@@ -24,11 +32,22 @@ SUPPORTED_PROTOCOLS = ("2024-11-05", "2025-03-26", "2025-06-18")
 LOOPBACK_HOSTS = ("127.0.0.1", "localhost")
 MAX_IMAGE_BYTES = 12 << 20  # 12 MB cap for base64 image responses over stdio
 MAX_LIST_LIMIT = 200
+WRITE_ENDPOINTS = frozenset({"/api/set"})  # strict allowlist: settings only, never shoot/erase/poweroff
 
-INSTRUCTIONS = (
-    "Read-only interface to a running E-M1 Capture server (Olympus OM-D E-M1 Mark I over USB or Wi-Fi). "
-    "Use these tools to inspect camera status, settings, lens, live view frame, card list and recent pictures. "
-    "This server cannot change camera settings, focus or release the shutter."
+INSTRUCTIONS_RO = (
+    "Read-only AI Photo Coach interface to a running E-M1 Capture server (Olympus OM-D E-M1 Mark I "
+    "over USB or Wi-Fi). Use these tools to inspect camera status, settings, lens, live view frame "
+    "(with exposure statistics), card list and recent pictures. This server is read-only and cannot "
+    "change camera settings, focus or release the shutter."
+)
+
+INSTRUCTIONS_RW = (
+    "AI Photo Coach interface to a running E-M1 Capture server (Olympus OM-D E-M1 Mark I over USB "
+    "or Wi-Fi). Inspect status, settings, live view and shots freely. To configure the camera, ALWAYS "
+    "call camera_configure with apply=false first to build a validated plan, present the exact changes "
+    "(and any manual steps such as turning the mode dial over USB) to the user, and call "
+    "camera_configure with apply=true ONLY after the user explicitly confirms. This server never "
+    "releases the shutter, erases card files or touches firmware."
 )
 
 
@@ -63,11 +82,12 @@ class _NoRedirect(urllib.request.HTTPRedirectHandler):
 
 
 class HttpClient:
-    """Thin GET-only client for the local E-M1 Capture HTTP API."""
+    """Thin client for the local E-M1 Capture HTTP API (GET always; allowlisted POST only with allow_write)."""
 
-    def __init__(self, base_url=DEFAULT_URL, timeout=10.0):
+    def __init__(self, base_url=DEFAULT_URL, timeout=10.0, allow_write=False):
         self.base_url = validate_url(base_url)
         self.timeout = timeout
+        self.allow_write = bool(allow_write)
         # Ignore system proxy env vars on loopback and refuse redirects off localhost
         self._opener = urllib.request.build_opener(urllib.request.ProxyHandler({}), _NoRedirect())
 
@@ -79,10 +99,7 @@ class HttpClient:
                 url += "?" + urllib.parse.urlencode(items, safe="/")
         return url
 
-    def get_bytes(self, path, query=None, timeout=None, max_bytes=None):
-        """HTTP GET returning (status, bytes, headers_lower). Never sends POST or non-GET."""
-        url = self._build_url(path, query)
-        req = urllib.request.Request(url, method="GET")
+    def _open(self, req, timeout=None, max_bytes=None):
         try:
             with self._opener.open(req, timeout=timeout or self.timeout) as resp:
                 headers = {k.lower(): v for k, v in resp.headers.items()}
@@ -97,19 +114,44 @@ class HttpClient:
                     data = resp.read()
                 return resp.status, data, headers
         except urllib.error.HTTPError as e:
-            msg = self._extract_error(e)
-            raise ApiError(msg, status=e.code)
+            raise ApiError(self._extract_error(e), status=e.code)
         except (urllib.error.URLError, OSError) as e:
             raise ApiError(
                 "E-M1 Capture is not running at %s (%s). Start it first (e.g. em1-capture)."
                 % (self.base_url, getattr(e, "reason", e))
             )
 
+    def get_bytes(self, path, query=None, timeout=None, max_bytes=None):
+        """HTTP GET returning (status, bytes, headers_lower)."""
+        req = urllib.request.Request(self._build_url(path, query), method="GET")
+        return self._open(req, timeout=timeout, max_bytes=max_bytes)
+
     def get_json(self, path, query=None, timeout=None):
         """HTTP GET returning parsed JSON."""
         status, data, _ = self.get_bytes(path, query=query, timeout=timeout)
         if not data:
             raise ApiError("Empty JSON response from %s (HTTP %s)" % (path, status), status=status)
+        try:
+            return json.loads(data.decode("utf-8"))
+        except (UnicodeDecodeError, ValueError) as e:
+            raise ApiError("Invalid JSON from %s: %s" % (path, e), status=status)
+
+    def post_json(self, path, payload, timeout=None):
+        """HTTP POST strictly gated by allow_write and WRITE_ENDPOINTS allowlist."""
+        if not self.allow_write:
+            raise ApiError("MCP server is read-only. Restart with --allow-write to configure settings.", status=403)
+        if path not in WRITE_ENDPOINTS:
+            raise ApiError("Endpoint %s is not allowed from MCP" % path, status=403)
+        body = json.dumps(payload).encode("utf-8")
+        req = urllib.request.Request(
+            self._build_url(path),
+            data=body,
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        status, data, _ = self._open(req, timeout=timeout)
+        if not data:
+            return {"ok": True}
         try:
             return json.loads(data.decode("utf-8"))
         except (UnicodeDecodeError, ValueError) as e:
@@ -168,9 +210,73 @@ def _format_prop(entry, include_enum=False):
     return out
 
 
-# --- Read-only tools -----------------------------------------------------------------------------
+def image_stats(jpeg_bytes):
+    """Compute objective exposure statistics from JPEG bytes when numpy + Pillow/imageio exist; else None."""
+    if not jpeg_bytes:
+        return None
+    try:
+        import numpy as np
+    except ImportError:
+        return None
+    arr = None
+    try:
+        from PIL import Image
+        with Image.open(io.BytesIO(jpeg_bytes)) as im:
+            im.thumbnail((640, 640))
+            arr = np.asarray(im.convert("L"), dtype=np.uint8)
+    except ImportError:
+        try:
+            import imageio.v2 as imageio
+            raw = np.asarray(imageio.imread(io.BytesIO(jpeg_bytes)))
+            if raw.ndim == 3:
+                arr = (0.299 * raw[..., 0] + 0.587 * raw[..., 1] + 0.114 * raw[..., 2]).astype(np.uint8)
+            else:
+                arr = raw.astype(np.uint8)
+        except Exception:
+            return None
+    except Exception:
+        return None
+    if arr is None or arr.size == 0:
+        return None
+    n = float(arr.size)
+    p5, p50, p95 = np.percentile(arr, [5, 50, 95])
+    return {
+        "median_luma": round(float(p50), 1),
+        "mean_luma": round(float(arr.mean()), 1),
+        "clipped_highlights_pct": round(float((arr >= 250).sum()) / n * 100.0, 2),
+        "crushed_shadows_pct": round(float((arr <= 5).sum()) / n * 100.0, 2),
+        "p5": round(float(p5), 1),
+        "p95": round(float(p95), 1),
+    }
 
-def tool_camera_status(client, args):
+
+def _resolve_setting_value(entry, wanted):
+    """Match a user/AI setting value against a camera property's enum or human-readable names."""
+    choices = [str(c) for c in (entry.get("enum") or ())]
+    names = {str(k): str(v) for k, v in (entry.get("names") or {}).items()}
+    raw = str(wanted).strip()
+    if raw in choices:
+        return raw
+    low = raw.lower()
+    # Direct case-insensitive enum match (e.g. "auto" -> "Auto", "livecomp" -> "livecomp")
+    for c in choices:
+        if c.lower() == low:
+            return c
+    # Strip common prefixes like "f/" or "iso "
+    stripped = low[2:].strip() if low.startswith("f/") else (low[4:].strip() if low.startswith("iso ") else low)
+    for c in choices:
+        if c.lower() == stripped:
+            return c
+    # Match human-readable USB display names (e.g. "MF" -> "1", "S-AF+MF" -> "32769", "Natural" -> "33537")
+    for code, label in names.items():
+        if label.lower() == low and (not choices or code in choices):
+            return code
+    return None
+
+
+# --- Tools ---------------------------------------------------------------------------------------
+
+def tool_camera_status(client, args, ctx):
     fresh_device = bool(args.get("fresh_device", False))
     app = client.get_json("/api/app")
     try:
@@ -178,7 +284,10 @@ def tool_camera_status(client, args):
     except ApiError as e:
         if e.status == 409:
             conns = _optional_json(client, "/api/connections")
-            return _text({"connected": False, "app": app, "connections": conns})
+            out = {"connected": False, "app": app, "connections": conns}
+            if ctx.get("lenses"):
+                out["my_lenses"] = list(ctx["lenses"])
+            return _text(out)
         raise
 
     state = client.get_json("/api/state")
@@ -205,6 +314,7 @@ def tool_camera_status(client, args):
     result = {
         "connected": True,
         "app": app,
+        "mcp_allow_write": bool(ctx.get("allow_write")),
         "connection": {
             "type": status.get("type"),
             "model": status.get("model"),
@@ -223,7 +333,7 @@ def tool_camera_status(client, args):
         },
         "camera_state": {
             "busy": bool(state.get("busy")),
-            "gone": bool(state.get("gone")),
+            "gone": gone,
             "shutter_stage": state.get("stage"),
             "play_mode": bool(state.get("play")),
             "card_present": state.get("card"),
@@ -239,10 +349,12 @@ def tool_camera_status(client, args):
     }
     if level is not None:
         result["level"] = level
+    if ctx.get("lenses"):
+        result["my_lenses"] = list(ctx["lenses"])
     return _text(result)
 
 
-def tool_camera_settings(client, args):
+def tool_camera_settings(client, args, ctx):
     props = client.get_json("/api/props")
     prop = args.get("prop")
     if prop is not None:
@@ -255,10 +367,10 @@ def tool_camera_settings(client, args):
     return _text({k: _format_prop(v, include_enum=False) for k, v in props.items()})
 
 
-def tool_live_view_frame(client, args):
+def tool_live_view_frame(client, args, ctx):
     state = client.get_json("/api/state")
     if not state.get("live"):
-        raise ApiError("Live view is not running. Start Live View in E-M1 Capture first (this MCP server is read-only).")
+        raise ApiError("Live view is not running. Start Live View in E-M1 Capture first.")
     status, data, headers = client.get_bytes("/live.jpg", {"seq": "0"}, timeout=5.0, max_bytes=MAX_IMAGE_BYTES)
     if status == 204 or not data:
         raise ApiError("No live view frame arrived within the timeout.")
@@ -268,11 +380,12 @@ def tool_live_view_frame(client, args):
         "size": state.get("lvqty"),
         "live_values": state.get("lvinfo"),
         "bytes": len(data),
+        "stats": image_stats(data),
     }
     return [_image(data), *_text(meta)]
 
 
-def tool_list_card_images(client, args):
+def tool_list_card_images(client, args, ctx):
     raw_limit = args.get("limit", 20)
     if isinstance(raw_limit, bool) or not isinstance(raw_limit, int):
         raise ValueError("'limit' must be an integer")
@@ -327,7 +440,7 @@ def _resolve_picture(client, path_arg):
     raise ApiError("No picture found on the card or in the current session.")
 
 
-def tool_last_picture(client, args):
+def tool_last_picture(client, args, ctx):
     preview = args.get("preview", "auto")
     if preview not in ("auto", "thumb", "full", "none"):
         raise ValueError("'preview' must be one of: auto, thumb, full, none")
@@ -380,13 +493,201 @@ def tool_last_picture(client, args):
     if preview != "none" and img_bytes is None and exif_data is None:
         raise ApiError("Picture preview is no longer available.")
 
-    meta = {"path": card_path, "local": local_name, "source": source,
-            "bytes": len(img_bytes) if img_bytes else None, "exif": exif_data}
+    meta = {
+        "path": card_path,
+        "local": local_name,
+        "source": source,
+        "bytes": len(img_bytes) if img_bytes else None,
+        "stats": image_stats(img_bytes) if img_bytes else None,
+        "exif": exif_data,
+    }
     if exif_note:
         meta["exif_note"] = exif_note
     content = [_image(img_bytes)] if img_bytes else []
     content.extend(_text(meta))
     return content
+
+
+def _plan_settings(status, props, wanted):
+    """Validate requested settings against live camera props; split into changes, unchanged, manual, invalid."""
+    conn = status.get("type")
+    changes, unchanged, manual_steps, invalid = [], [], [], []
+    # Put takemode first so over Wi-Fi mode changes run before shutter/aperture
+    order = sorted(wanted.keys(), key=lambda k: (0 if k == "takemode" else 1, k))
+    for prop in order:
+        val = wanted[prop]
+        if prop not in props:
+            if conn == "wifi" and prop in ("focusmode", "metering", "flashmode", "recordmode", "aspect",
+                                           "stabilizer", "facepriority", "focusstacking"):
+                manual_steps.append("Set %s to %s on the camera (not available over Wi-Fi)." % (prop, val))
+            else:
+                invalid.append({"prop": prop, "wanted": val, "reason": "Unknown setting on this connection"})
+            continue
+        entry = props[prop]
+        cur = str(entry.get("value"))
+        names = {str(k): str(v) for k, v in (entry.get("names") or {}).items()}
+        if not entry.get("writable"):
+            if prop == "takemode" and conn == "usb":
+                if cur.lower() != str(val).strip().lower():
+                    manual_steps.append("Turn the camera mode dial to %s (USB cannot change the shooting mode)." % val)
+                else:
+                    unchanged.append({"prop": prop, "value": cur})
+            else:
+                manual_steps.append("Set %s to %s on the camera (read-only in current mode/connection)." % (prop, val))
+            continue
+        resolved = _resolve_setting_value(entry, val)
+        if resolved is None:
+            sample = [names.get(str(c), str(c)) for c in (entry.get("enum") or ())[:15]]
+            invalid.append({"prop": prop, "wanted": val, "reason": "Not in allowed values", "allowed_sample": sample})
+            continue
+        if resolved == cur:
+            unchanged.append({"prop": prop, "value": cur, "label": names.get(cur)})
+        else:
+            changes.append({
+                "prop": prop,
+                "current": cur,
+                "current_label": names.get(cur),
+                "target": resolved,
+                "target_label": names.get(resolved),
+            })
+    return changes, unchanged, manual_steps, invalid
+
+
+def tool_camera_configure(client, args, ctx):
+    """Validate (apply=false, default) or apply (apply=true) a set of camera settings via POST /api/set."""
+    settings = args.get("settings")
+    if not isinstance(settings, dict) or not settings:
+        raise ValueError("'settings' must be a non-empty object mapping setting names to target values")
+    apply_now = bool(args.get("apply", False))
+
+    status = client.get_json("/api/status")
+    props = client.get_json("/api/props")
+    changes, unchanged, manual_steps, invalid = _plan_settings(status, props, settings)
+
+    if not apply_now:
+        return _text({
+            "applied": False,
+            "dry_run": True,
+            "connection": status.get("type"),
+            "server_allow_write": bool(status.get("allow_write")),
+            "changes": changes,
+            "unchanged": unchanged,
+            "manual_steps": manual_steps,
+            "invalid": invalid,
+            "next_step": "Show this plan to the user and call camera_configure again with apply=true only after explicit confirmation.",
+        })
+
+    if not status.get("allow_write"):
+        raise ApiError("E-M1 Capture is running read-only. Restart E-M1 Capture with --allow-write first.", status=403)
+    if invalid:
+        raise ApiError("Refused to apply because some settings are invalid: %s" % json.dumps(invalid))
+
+    applied, failed = [], []
+    # Apply takemode first on Wi-Fi, then re-read props because mode changes unlock shutter/aperture
+    if any(c["prop"] == "takemode" for c in changes):
+        tm = next(c for c in changes if c["prop"] == "takemode")
+        client.post_json("/api/set", {"prop": "takemode", "value": tm["target"]})
+        applied.append(tm)
+        rest_wanted = {k: v for k, v in settings.items() if k != "takemode"}
+        if rest_wanted:
+            props = client.get_json("/api/props")
+            changes, unchanged2, manual2, invalid2 = _plan_settings(status, props, rest_wanted)
+            unchanged.extend(unchanged2)
+            manual_steps.extend(manual2)
+            invalid.extend(invalid2)
+        else:
+            changes = []
+
+    for ch in changes:
+        try:
+            client.post_json("/api/set", {"prop": ch["prop"], "value": ch["target"]})
+            applied.append(ch)
+        except ApiError as e:
+            failed.append({**ch, "error": str(e)})
+
+    return _text({
+        "applied": len(failed) == 0,
+        "dry_run": False,
+        "connection": status.get("type"),
+        "applied_changes": applied,
+        "unchanged": unchanged,
+        "manual_steps": manual_steps,
+        "invalid": invalid,
+        "failed": failed,
+    })
+
+
+# --- Photo Coach MCP Prompts ---------------------------------------------------------------------
+
+PROMPTS = {
+    "setup_for_scene": {
+        "description": "AI Photo Coach: inspect the camera and recommend (or configure after confirmation) E-M1 Mark I settings for a scene such as stars, sunset, portrait or macro.",
+        "arguments": [
+            {"name": "scene", "description": "What you want to photograph (e.g. stars, sunset, portrait, macro).", "required": True},
+            {"name": "notes", "description": "Optional context (tripod vs handheld, available lenses, mood).", "required": False},
+        ],
+    },
+    "check_composition": {
+        "description": "AI Photo Coach: inspect the live view frame, exposure clipping stats and USB level gauge to advise on framing, horizon and light.",
+        "arguments": [
+            {"name": "goal", "description": "Optional creative goal for the frame.", "required": False},
+        ],
+    },
+    "critique_last_shot": {
+        "description": "AI Photo Coach: inspect the last picture (full JPG + EXIF + exposure stats) and give concrete advice on sharpness, exposure and next shot.",
+        "arguments": [
+            {"name": "goal", "description": "Optional intent of the shot.", "required": False},
+        ],
+    },
+}
+
+
+def render_prompt(name, args, allow_write):
+    if name == "setup_for_scene":
+        scene = (args.get("scene") or "").strip()
+        if not scene:
+            raise _RpcError(-32602, "Prompt 'setup_for_scene' requires argument 'scene'")
+        notes = (args.get("notes") or "").strip()
+        cfg_step = (
+            "Then call camera_configure with apply=false to prepare a validated change plan, show the exact "
+            "changes and any manual camera steps (like turning the mode dial over USB) to the user, and apply "
+            "with apply=true ONLY after the user explicitly says yes."
+            if allow_write else
+            "Give clear step-by-step settings instructions the user can dial in (this MCP session is read-only)."
+        )
+        text = (
+            "You are an expert Olympus OM-D E-M1 Mark I (Micro Four Thirds, 2x crop) photography coach. "
+            "The user wants to photograph: %s.%s\n\n"
+            "Steps:\n"
+            "1. Call camera_status and camera_settings (and live_view_frame if live view is running).\n"
+            "2. Check the attached lens (and my_lenses if listed) and advise if another lens would suit the scene better.\n"
+            "3. Spot any current camera pitfalls (e.g. S-IS on while on a tripod, JPG-only instead of RAW+JPG, "
+            "exposure compensation left non-zero, shutter too slow/too long for stars per MFT NPF rule, "
+            "overexposed highlights in sunset/twilight, Live Composite for star trails/light painting).\n"
+            "4. Give concise, practical recommendations for mode, aperture, shutter, ISO, WB, AF mode, IS and framing.\n"
+            "5. %s"
+        ) % (scene, (" Extra context: " + notes) if notes else "", cfg_step)
+        return {"description": PROMPTS[name]["description"],
+                "messages": [{"role": "user", "content": {"type": "text", "text": text}}]}
+    if name == "check_composition":
+        goal = (args.get("goal") or "").strip()
+        text = (
+            "Call camera_status and live_view_frame.%s Review the framing, horizon tilt (from USB level gauge if "
+            "present), focal length, foreground/background balance, and the exposure stats (median_luma, "
+            "clipped_highlights_pct, crushed_shadows_pct). Give 3-5 specific, actionable improvements."
+        ) % ((" Creative goal: " + goal + ".") if goal else "")
+        return {"description": PROMPTS[name]["description"],
+                "messages": [{"role": "user", "content": {"type": "text", "text": text}}]}
+    if name == "critique_last_shot":
+        goal = (args.get("goal") or "").strip()
+        text = (
+            "Call last_picture with preview='full' (falling back to 'auto' if needed).%s Inspect sharpness/focus, "
+            "EXIF settings (shutter speed vs focal length, ISO, aperture, EV), clipped highlights / crushed shadows "
+            "from stats, and composition. Give honest, constructive feedback and exact changes for the next shot."
+        ) % ((" Intent: " + goal + ".") if goal else "")
+        return {"description": PROMPTS[name]["description"],
+                "messages": [{"role": "user", "content": {"type": "text", "text": text}}]}
+    raise _RpcError(-32602, "Unknown prompt: %r" % (name,))
 
 
 # --- Tool registry & JSON-RPC dispatch -----------------------------------------------------------
@@ -405,25 +706,36 @@ READ_ONLY_ANNOTATIONS = {
     "openWorldHint": False,
 }
 
-TOOLS = {
+CONFIGURE_ANNOTATIONS = {
+    "readOnlyHint": False,
+    "destructiveHint": False,
+    "idempotentHint": True,
+    "openWorldHint": False,
+}
+
+READ_TOOLS = {
     "camera_status": (
         "Read the E-M1 Capture connection status, camera model, live view state, active lens, "
-        "AF area, free card space, rough body battery (USB) and level gauge (USB live view). "
-        "If no camera is connected yet, returns available USB/Wi-Fi connections.",
+        "user's lens bag (if configured), AF area, free card space, rough body battery (USB) and "
+        "level gauge (USB live view). If no camera is connected yet, returns available connections.",
         _schema({"fresh_device": {"type": "boolean", "description": "Refresh cached card space and battery."}}),
+        READ_ONLY_ANNOTATIONS,
         tool_camera_status,
     ),
     "camera_settings": (
         "Read the camera's LV super control panel settings (mode, shutter speed, aperture, ISO, WB, "
-        "drive, Picture Mode, AF mode, etc.). Omit 'prop' for a compact overview of all settings; pass "
-        "'prop' to also receive its allowed values (enum).",
+        "drive, Picture Mode, AF mode, IS, etc.). Omit 'prop' for a compact overview of all settings; "
+        "pass 'prop' to also receive its allowed values (enum).",
         _schema({"prop": {"type": "string", "description": "Optional setting name, e.g. shutspeedvalue, isospeedvalue."}}),
+        READ_ONLY_ANNOTATIONS,
         tool_camera_settings,
     ),
     "live_view_frame": (
-        "Fetch the current JPEG frame from the running live view together with frame metadata "
-        "(size, zoom state, and Wi-Fi live exposure/focal values). Does not start live view.",
+        "Fetch the current JPEG frame from the running live view together with objective exposure "
+        "statistics (median luma, clipped highlights %, crushed shadows %) and frame metadata. "
+        "Does not start live view.",
         _schema(),
+        READ_ONLY_ANNOTATIONS,
         tool_live_view_frame,
     ),
     "list_card_images": (
@@ -435,27 +747,57 @@ TOOLS = {
             "fresh": {"type": "boolean", "description": "Read the live list from the camera instead of the cache."},
             "dir": {"type": "string", "description": "Card directory to list (default /DCIM)."},
         }),
+        READ_ONLY_ANNOTATIONS,
         tool_list_card_images,
     ),
     "last_picture": (
-        "Inspect the most recent shot (or a specific card path) with EXIF shooting data and an "
-        "optional JPEG preview ('auto' uses the fast shot preview or thumbnail; 'full' loads the full JPG "
-        "for checking sharpness; 'none' returns EXIF metadata only).",
+        "Inspect the most recent shot (or a specific card path) with EXIF shooting data, exposure "
+        "statistics (clipped highlights %, crushed shadows %) and an optional JPEG preview ('auto', "
+        "'thumb', 'full' for checking sharpness, or 'none' for metadata only).",
         _schema({
             "path": {"type": "string", "description": "Optional camera card path, e.g. /DCIM/100OLYMP/PB220001.JPG."},
             "preview": {"type": "string", "enum": ["auto", "thumb", "full", "none"],
                         "description": "Preview size to return (default 'auto')."},
         }),
+        READ_ONLY_ANNOTATIONS,
         tool_last_picture,
+    ),
+}
+
+WRITE_TOOLS = {
+    "camera_configure": (
+        "Validate or apply camera settings for a scene (e.g. stars, sunset, portrait). "
+        "Defaults to apply=false (safe dry-run plan showing exact changes, human-readable labels, "
+        "and any manual steps such as turning the mode dial over USB). Set apply=true ONLY after "
+        "the user has explicitly confirmed the plan. Never releases the shutter or erases files.",
+        _schema({
+            "settings": {
+                "type": "object",
+                "description": "Map of setting names to target values or labels, e.g. {'isospeedvalue': '1600', 'focusmode': 'MF', 'stabilizer': 'Off'}.",
+            },
+            "apply": {
+                "type": "boolean",
+                "description": "False (default) returns a dry-run plan only; true applies validated changes to the camera.",
+            },
+        }, required=["settings"]),
+        CONFIGURE_ANNOTATIONS,
+        tool_camera_configure,
     ),
 }
 
 
 class McpServer:
-    """Stateless JSON-RPC 2.0 handler for the read-only MCP tools."""
+    """Stateless JSON-RPC 2.0 handler for E-M1 Capture MCP tools and Photo Coach prompts."""
 
-    def __init__(self, client):
+    def __init__(self, client, allow_write=False, lenses=None):
         self.client = client
+        self.allow_write = bool(allow_write)
+        self.lenses = [s.strip() for s in (lenses or ()) if str(s).strip()]
+
+    def _tools(self):
+        if self.allow_write:
+            return {**READ_TOOLS, **WRITE_TOOLS}
+        return READ_TOOLS
 
     def handle_message(self, msg):
         """Process one decoded JSON-RPC message. Returns a response dict, or None for notifications."""
@@ -483,9 +825,9 @@ class McpServer:
             ver = req_ver if req_ver in SUPPORTED_PROTOCOLS else PROTOCOL_VERSION
             return {
                 "protocolVersion": ver,
-                "capabilities": {"tools": {}},
+                "capabilities": {"tools": {}, "prompts": {}},
                 "serverInfo": {"name": "em1-capture", "version": __version__},
-                "instructions": INSTRUCTIONS,
+                "instructions": INSTRUCTIONS_RW if self.allow_write else INSTRUCTIONS_RO,
             }
         if method == "ping":
             return {}
@@ -496,29 +838,46 @@ class McpServer:
                         "name": name,
                         "description": desc,
                         "inputSchema": schema,
-                        "annotations": dict(READ_ONLY_ANNOTATIONS),
+                        "annotations": dict(ann),
                     }
-                    for name, (desc, schema, _) in TOOLS.items()
+                    for name, (desc, schema, ann, _) in self._tools().items()
                 ]
             }
         if method == "tools/call":
+            tools = self._tools()
             name = params.get("name")
             args = params.get("arguments")
             if args is None:
                 args = {}
-            if not isinstance(name, str) or name not in TOOLS:
+            if not isinstance(name, str) or name not in tools:
                 raise _RpcError(-32602, "Unknown tool: %r" % (name,))
             if not isinstance(args, dict):
                 raise _RpcError(-32602, "Tool arguments must be an object")
-            allowed = set(TOOLS[name][1]["properties"])
+            allowed = set(tools[name][1]["properties"])
             extra = sorted(set(args) - allowed)
             if extra:
                 raise _RpcError(-32602, "Unexpected argument(s) for %s: %s" % (name, ", ".join(extra)))
+            ctx = {"allow_write": self.allow_write, "lenses": self.lenses}
             try:
-                content = TOOLS[name][2](self.client, args)
+                content = tools[name][3](self.client, args, ctx)
                 return {"content": content, "isError": False}
             except (ApiError, ValueError) as e:
                 return {"content": _text("Error: %s" % e), "isError": True}
+        if method == "prompts/list":
+            return {
+                "prompts": [
+                    {"name": name, "description": spec["description"], "arguments": spec["arguments"]}
+                    for name, spec in PROMPTS.items()
+                ]
+            }
+        if method == "prompts/get":
+            name = params.get("name")
+            args = params.get("arguments") or {}
+            if not isinstance(name, str) or name not in PROMPTS:
+                raise _RpcError(-32602, "Unknown prompt: %r" % (name,))
+            if not isinstance(args, dict):
+                raise _RpcError(-32602, "Prompt arguments must be an object")
+            return render_prompt(name, args, self.allow_write)
         raise _RpcError(-32601, "Method not found: %s" % method)
 
     @staticmethod
@@ -554,19 +913,30 @@ def serve(server, stdin=None, stdout=None):
 def main(argv=None):
     ap = argparse.ArgumentParser(
         prog="em1-capture-mcp",
-        description="Read-only MCP server (stdio) talking to a running local E-M1 Capture web app.",
+        description="MCP server (stdio) talking to a running local E-M1 Capture web app (read-only by default).",
     )
     ap.add_argument(
         "--url",
         default=os.environ.get("OMCAP_URL", DEFAULT_URL),
         help="Local E-M1 Capture URL (default: %s, or OMCAP_URL)" % DEFAULT_URL,
     )
+    ap.add_argument(
+        "--allow-write",
+        action="store_true",
+        help="Enable camera_configure to change camera settings (E-M1 Capture must also run with --allow-write).",
+    )
+    ap.add_argument(
+        "--lenses",
+        default=os.environ.get("OMCAP_LENSES", ""),
+        help="Comma-separated list of lenses you own, for Photo Coach recommendations (or OMCAP_LENSES).",
+    )
     args = ap.parse_args(argv)
     try:
-        client = HttpClient(args.url)
+        client = HttpClient(args.url, allow_write=args.allow_write)
     except ValueError as e:
         ap.error(str(e))
-    serve(McpServer(client))
+    lenses = [s.strip() for s in args.lenses.split(",") if s.strip()]
+    serve(McpServer(client, allow_write=args.allow_write, lenses=lenses))
     return 0
 
 

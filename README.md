@@ -343,13 +343,14 @@ ORF gives a 16-bit TIFF, JPG a JPEG, always in `--out` (default `out/hsl/`). `--
 a colour wheel chart. Presets: `omcap/data/hsl_presets.json`. Sector angles and gains are approximations, not the
 camera's values.
 
-## MCP server for AI assistants (read-only)
+## MCP server for AI assistants (AI Photo Coach)
 
-E-M1 Capture includes a read-only [Model Context Protocol](https://modelcontextprotocol.io/) (MCP) server over stdio so assistants such as Claude Desktop or Claude Code can inspect the camera while E-M1 Capture is running:
+E-M1 Capture includes a [Model Context Protocol](https://modelcontextprotocol.io/) (MCP) server over stdio so assistants such as Claude Desktop or Claude Code can act as an interactive photo coach while E-M1 Capture is running:
 
-- **Five read-only tools:** `camera_status` (model, connection, lens, AF area, card space, USB battery/level), `camera_settings` (LV super control panel values), `live_view_frame` (current live view JPEG), `list_card_images` (card directory), and `last_picture` (EXIF shooting data and JPEG preview).
-- **Safe by design:** talks only over local HTTP (`GET` only, loopback `127.0.0.1` / `localhost`) to the running E-M1 Capture server – never directly to the camera, and cannot change settings, focus or release the shutter.
-- **Works with both USB and Wi-Fi** (standard library only, no extra packages).
+- **Five read-only tools (default):** `camera_status` (model, connection, lens, optional `--lenses` bag, AF area, card space, USB battery/level), `camera_settings` (LV super control panel values), `live_view_frame` (current live view JPEG + exposure clipping stats), `list_card_images` (card directory), and `last_picture` (EXIF shooting data, exposure stats and JPEG preview).
+- **Three Photo Coach prompts:** `setup_for_scene` (e.g. stars, sunset, portrait, macro), `check_composition` (framing, horizon tilt and light) and `critique_last_shot` (sharpness, exposure and next-shot advice).
+- **Optional camera configuration (`--allow-write`):** adds `camera_configure`, which builds a validated dry-run plan by default (`apply: false`, resolving labels and noting manual steps like the USB mode dial) and applies settings via `POST /api/set` only when called with `apply: true` after explicit confirmation (E-M1 Capture must also run with `--allow-write`). Never releases the shutter, erases card files or touches firmware.
+- **Safe by design:** talks only over local loopback HTTP (`127.0.0.1` / `localhost`) to the running E-M1 Capture server – never directly to the camera. Works over both USB and Wi-Fi.
 
 Start E-M1 Capture first, then point your MCP client to:
 
@@ -358,13 +359,17 @@ Start E-M1 Capture first, then point your MCP client to:
   "mcpServers": {
     "em1-capture": {
       "command": "/path/to/omcap/.venv/bin/python",
-      "args": ["-B", "-m", "omcap.mcp_server"]
+      "args": [
+        "-B", "-m", "omcap.mcp_server",
+        "--allow-write",
+        "--lenses", "M.12-40mm F2.8, M.45mm F1.8"
+      ]
     }
   }
 }
 ```
 
-Use `--url http://127.0.0.1:8766` (or `OMCAP_URL`) if E-M1 Capture runs on another local port.
+Omit `--allow-write` to keep the MCP server strictly read-only. Use `--url http://127.0.0.1:8766` (or `OMCAP_URL`) if E-M1 Capture runs on another local port.
 
 ## Tests
 
