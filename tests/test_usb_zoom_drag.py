@@ -90,7 +90,7 @@ class AfAreaFixed(unittest.TestCase):
     def test_fixed_area_and_live_mode_and_field(self):
         cam = self.cam({0xD00C: 33024, 0xD051: 41})
         a = cam.af_area()
-        self.assertEqual({k: a["area"][k] for k in ("x0", "x1", "y0", "y1")}, {"x0": 216, "x1": 1060, "y0": 160, "y1": 796})
+        self.assertEqual({k: a["area"][k] for k in ("x0", "x1", "y0", "y1")}, {"x0": 59, "x1": 1221, "y0": 103, "y1": 857})
         self.assertEqual((a["area"]["w"], a["area"]["h"]), (1280, 960))
         self.assertEqual((a["mode"], a["field"]), (33024, 41))
         self.assertEqual(set(cam._calls), {0xD00C, 0xD051})  # no zoom limits read as the AF area

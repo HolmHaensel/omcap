@@ -230,9 +230,12 @@ def af_area():
     if conn_type == "usb":
         return {**cam.af_area(), "modes": True}
     f = cam.touch_frame()
+    bw, bh = f["base_w"], f["base_h"]
+    g = usb_camera.AF_GRID  # the camera's real 9x9 grid; the touch frame (where taps are taken) is smaller
     return {"mode": 33025, "field": state["wifi_field"], "modes": False, "last_af": state["wifi_af"],
-            "area": {"x0": f["x"], "x1": f["x"] + f["w"], "y0": f["y"], "y1": f["y"] + f["h"],
-                     "w": f["base_w"], "h": f["base_h"]}}
+            "area": {"x0": round(g[0] * bw), "x1": bw - round(g[0] * bw), "y0": round(g[2] * bh),
+                     "y1": bh - round(g[2] * bh), "w": bw, "h": bh},
+            "touch": {"x0": f["x"], "x1": f["x"] + f["w"], "y0": f["y"], "y1": f["y"] + f["h"]}}
 
 
 def set_af_area(mode, field):
@@ -248,11 +251,14 @@ def set_af_area(mode, field):
     field = int(field)
     if not 1 <= field <= 81:
         raise CameraError("AF point must be between 1 and 81")
-    a = af_area()["area"]
+    info = af_area()
+    a, t = info["area"], info["touch"]
     row, col = divmod(field - 1, 9)
     state["wifi_af"] = None
-    res = cam.af_focus((a["x0"] + (col + .5) / 9 * (a["x1"] - a["x0"])) / a["w"],
-                       (a["y0"] + (row + .5) / 9 * (a["y1"] - a["y0"])) / a["h"])
+    # outer fields lie outside the touch frame: focus at the nearest point the camera takes
+    x = min(max(a["x0"] + (col + .5) / 9 * (a["x1"] - a["x0"]), t["x0"]), t["x1"])
+    y = min(max(a["y0"] + (row + .5) / 9 * (a["y1"] - a["y0"]), t["y0"]), t["y1"])
+    res = cam.af_focus(x / a["w"], y / a["h"])
     state["wifi_field"] = field
     # Report the frame centre only for affocus=ok; the UI then colours the field green
     if res["ok"] and res["x"] is not None:

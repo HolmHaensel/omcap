@@ -77,14 +77,24 @@ FOCUS_EVENT = re.compile(r"c003, Param1 0*([12])\b(?:, Param2 ([0-9a-f]{8}))?", 
 AF_SINGLE = 2  # d003 value of S-AF
 
 
+# The 9x9 AF grid as fractions of the picture (x0, x1, y0, y1), read on the camera 2026-11-22 (single target,
+# fields 1/41/81 from the AF event; matches the camera monitor, user): wider than the Wi-Fi touch frame (~60 %).
+AF_GRID = (0.046, 0.955, 0.107, 0.894)
+# The AF event 0xC003 gives positions in a ~920x696 space (field 41 = 460/348), not 1280x960 like d05d/d05e
+AF_EVENT_SPACE = (920, 696)
+
+
 def parse_af_result(text):
-    """(in focus, position or None) from a c003 AF event text, None if it is no AF result."""
+    """(in focus, position or None) from a c003 AF event text, None if it is no AF result.
+    The position is returned in the 1280x960 grid of d05d/d05e."""
     m = FOCUS_EVENT.search(text or "")
     if not m:
         return None
     pos = int(m.group(2), 16) if m.group(2) else 0
     ok = m.group(1) == "1"
-    return ok, ({"x": pos >> 16, "y": pos & 0xFFFF} if ok and pos else None)
+    if not (ok and pos):
+        return ok, None
+    return ok, {"x": round((pos >> 16) * 1280 / AF_EVENT_SPACE[0]), "y": round((pos & 0xFFFF) * 960 / AF_EVENT_SPACE[1])}
 DIAL_EVERY = 3.0  # seconds between event checks; each costs ~0.3 s of live view (measured 2026-11-12)
 # seconds after a shutter command, written setting or live view start in which 0xC003/3 is not the dial.
 # Two check intervals: the camera also sends it a little after a shot, and it is only read every DIAL_EVERY s
@@ -736,11 +746,10 @@ class UsbCamera:
             return int(self._call(self._c.get_prop_value, int(name, 16)))
         return int(self._value(name))
 
-    # The AF area of the E-M1 is fixed (Wi-Fi touchactiveframe at 800x600: x 135-662, y 100-497 = 0.169-0.828 and
-    # 0.167-0.828). d05a/d05b/d071/d072 are NOT this area: they are the Zoom AF frame-centre limits for the current
-    # zoom ratio d0cf, [0.1+0.5/r, 0.9-0.5/r] of the picture (measured 2026-11-18); at the camera's default x7 they
-    # happen to equal the AF area, which is why they looked right until Zoom AF was used.
-    AF_AREA = {"x0": 216, "x1": 1060, "y0": 160, "y1": 796, "w": 1280, "h": 960}
+    # The AF area of the E-M1 is fixed: AF_GRID (read on the camera 2026-11-22), centred in 1280x960.
+    # d05a/d05b/d071/d072 are NOT this area: they are the Zoom AF frame-centre limits for the current
+    # zoom ratio d0cf, [0.1+0.5/r, 0.9-0.5/r] of the picture (measured 2026-11-18).
+    AF_AREA = {"x0": 59, "x1": 1221, "y0": 103, "y1": 857, "w": 1280, "h": 960}
 
     def af_area(self):
         area = dict(self.AF_AREA)  # centred, so its grid is (x0+x1) x (y0+y1) as with Wi-Fi
