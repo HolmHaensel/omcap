@@ -548,12 +548,13 @@ body.webcam{cursor:none;display:flex;align-items:center;justify-content:center}
   <section data-id="transfer" data-label="Save to" data-i18n-label="panel.transfer">
     <h2 data-i18n="panel.transfer">Save to</h2>
     <div class="row">
-      <label><input type="radio" name="tr" value="sd" checked> <span data-i18n="transfer.sd">Card only</span></label>
-      <label><input type="radio" name="tr" value="both"> <span data-i18n="transfer.both">Card and computer</span></label>
+      <label id="trSdLbl"><input type="radio" name="tr" id="trSd" value="sd" checked> <span data-i18n="transfer.sd">Card only</span></label>
+      <label><input type="radio" name="tr" id="trBoth" value="both"> <span id="trBothText" data-i18n="transfer.both">Card and computer</span></label>
       <button id="popPhoto" data-i18n="transfer.popPhoto">Picture on second monitor</button>
     </div>
     <div class="row">
       <label><span data-i18n="save.folder">Folder on the computer</span> <input id="svDir" type="text" size="34" placeholder="~/Pictures/omcap"></label>
+      <button id="svPick" hidden data-i18n="save.pick">Choose folder ...</button>
     </div>
     <div class="row">
       <label><span data-i18n="save.scheme">File naming</span>
@@ -570,6 +571,7 @@ body.webcam{cursor:none;display:flex;align-items:center;justify-content:center}
       <label><input type="checkbox" id="hslAuto"> <span data-i18n="hsl.auto">Apply HSL profile when saving to computer</span></label>
       <select id="hslAutoPreset"></select>
     </div>
+    <div class="mut" data-i18n="hsl.autoHint">HSL colour profile: changes the colours of the copy saved on the computer (hue, saturation and lightness in 12 colour sectors, like the PEN-F's COLOR mode). The original is not changed. The result is an extra JPEG named ..._hsl.jpg (JPG and ORF alike) in the folder out/hsl of the app; a 16-bit TIFF for RAW only comes from the HSL button in Playback.</div>
     <div id="trErr" class="warn"></div>
   </section>
   <section data-id="card" data-label="Playback" data-i18n-label="panel.card" data-feat="playback">
@@ -782,6 +784,7 @@ const I18N={en:{
   "save.prefix": "Prefix + original name",
   "save.prefixPh": "Prefix",
   "save.apply": "Apply",
+  "save.pick": "Choose folder ...",
   "save.now": "Saving to {dir}",
   "save.example": "e.g. {name}",
   "msg.saveCfg": "Save settings applied",
@@ -956,6 +959,8 @@ const I18N={en:{
   "panel.transfer": "Save to",
   "transfer.sd": "Card only",
   "transfer.both": "Card and computer",
+  "transfer.computerOnly": "Computer (no card)",
+  "transfer.noCard": "No card in the camera",
   "transfer.popPhoto": "Picture on second monitor",
   "panel.card": "Playback",
   "card.index": "Index display",
@@ -1017,6 +1022,7 @@ const I18N={en:{
   "hsl.compare": "Before and after comparison, drag or use the arrow keys",
   "hsl.close": "Close",
   "hsl.auto": "Apply HSL profile when saving to computer",
+  "hsl.autoHint": "HSL colour profile: changes the colours of the copy saved on the computer (hue, saturation and lightness in 12 colour sectors, like the PEN-F's COLOR mode). The original is not changed. The result is an extra JPEG named ..._hsl.jpg (JPG and ORF alike) in the folder out/hsl of the app; a 16-bit TIFF for RAW only comes from the HSL button in Playback.",
   "hsl.notLocal": "Save the picture to the computer first",
   "layout.panels": "Panels",
   "layout.settings": "Settings",
@@ -1191,6 +1197,7 @@ async function tick(){
   $('#movStart').hidden=rec; $('#movStop').hidden=!rec;
   $('#movTime').textContent=rec?tr('movie.time',{t:clock(st.movie)}):'';
   $('#trErr').textContent=st.transfer_error||st.hsl_error||'';
+  applyTransferView(st);
   $('#recChip').hidden=!rec; $('#viewport').classList.toggle('rec',rec);
   if(rec) $('#recText').textContent=tr('movie.rec',{t:clock(st.movie)});
   const dc=$('#dropChip'); dc.hidden=!stale&&!gone; if(stale||gone) dc.textContent=gone||tr('lv.noSignal',{s:Math.round(st.lv_age)});
@@ -3350,6 +3357,27 @@ function showSaveCfg(c){
   const ex=c.scheme==='datetime'?'20261109_091412_PB092179.JPG':c.scheme==='prefix'?(c.prefix||'')+'PB092179.JPG':'PB092179.JPG';
   $('#svInfo').textContent=tr('save.now',{dir:c.effective_dir})+' ('+tr('save.example',{name:ex})+')';
 }
+// REQ-F62: without a card (USB) "Card only" is off and the second option is the only one; the remembered
+// choice (st.transfer) is not overwritten and comes back with a card.
+function transferView(usb,card,pref){
+  const noCard=usb&&card===false;
+  return {sdOff:noCard,bothKey:noCard?'transfer.computerOnly':'transfer.both',value:noCard||pref==='both'?'both':'sd'};
+}
+let trNoCard=false;
+function applyTransferView(st){
+  const v=transferView(isUsb,st.card,st.transfer); trNoCard=v.sdOff;
+  $('#trSd').disabled=v.sdOff; $('#trSdLbl').title=v.sdOff?tr('transfer.noCard'):'';
+  const t=$('#trBothText'); t.dataset.i18n=v.bothKey; t.textContent=tr(v.bothKey);
+  if(!(document.activeElement&&document.activeElement.name==='tr')) $('#'+(v.value==='both'?'trBoth':'trSd')).checked=true;
+}
+// REQ-F62: the folder dialog opens on the computer the server runs on, so only a page on that computer shows it
+$('#svPick').hidden=!isLocalPage();
+$('#svPick').onclick=async()=>{
+  try{const j=await api('/api/pickfolder',{});
+    if(!j.dir) return; // cancelled
+    $('#svDir').value=j.dir; $('#svApply').onclick()}
+  catch(e){msg(e.message,true)}
+};
 $('#svScheme').onchange=()=>{$('#svPrefix').hidden=$('#svScheme').value!=='prefix'};
 $('#svApply').onclick=async()=>{
   try{const j=await api('/api/savecfg',{dir:$('#svDir').value,scheme:$('#svScheme').value,prefix:$('#svPrefix').value});
@@ -3357,7 +3385,7 @@ $('#svApply').onclick=async()=>{
   catch(e){msg(e.message,true)}
 };
 api('/api/savecfg').then(showSaveCfg).catch(()=>{});
-document.querySelectorAll('[name=tr]').forEach(r=>r.onchange=()=>act(tr('msg.saveTo'),'/api/transfer',{target:r.value}));
+document.querySelectorAll('[name=tr]').forEach(r=>r.onchange=()=>trNoCard?0:act(tr('msg.saveTo'),'/api/transfer',{target:r.value}));
 $('#reload').onclick=gallery;
 $('#propsReload').onclick=async()=>{
   if(!isUsb){props();return}

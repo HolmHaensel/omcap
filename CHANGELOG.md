@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- "Save to" panel (REQ-F62): button "Choose folder ..." opens the system folder dialog on the computer (macOS `osascript`, Linux `zenity`, Windows PowerShell; only on the computer itself, hidden for a phone; the typed field keeps working); over USB without a card "Card only" is greyed out and the other option reads "Computer (no card)" (the saved choice comes back with a card); the "Apply HSL profile" checkbox has a hint (extra `..._hsl.jpg` in `out/hsl`).
 - Wi-Fi: while "Press halfway" is held the status line says "Live view paused while Press halfway is held" instead of the red "No signal for N s" (the camera pauses the live view by itself in that state; REQ-F59).
 - Wi-Fi: a tap for AF while "Press halfway" is held now says "Release Press halfway first" instead of failing with `HTTP 520` (the camera is in mode shutter and takes no AF frame then; REQ-F59/F55, Wi-Fi test 2026-11-22).
 - Wi-Fi zoom: "Press halfway" no longer changes the live view size on release (only a tap AF brings the sharp size): the size change raced with the release's own live view restart and the camera answered `HTTP 520` (found in the Wi-Fi test 2026-11-22, REQ-F55).

@@ -569,6 +569,42 @@ def load_save_cfg():
         pass
 
 
+_dialog_lock = threading.Lock()
+_DIALOG_PROMPT = "Choose the folder for the pictures"
+
+
+def pick_folder_dialog():
+    """Open the OS folder dialog on the machine the server runs on; returns the path, "" on cancel.
+
+    Fixed argument lists only, nothing from the page reaches a shell. Raises ValueError when no dialog is
+    possible (the typed field keeps working)."""
+    if sys.platform == "darwin":
+        cmd = ["osascript", "-e", 'POSIX path of (choose folder with prompt "%s")' % _DIALOG_PROMPT]
+    elif sys.platform.startswith("win"):
+        cmd = ["powershell", "-NoProfile", "-STA", "-Command",
+               "Add-Type -AssemblyName System.Windows.Forms; "
+               "$d = New-Object System.Windows.Forms.FolderBrowserDialog; "
+               "if ($d.ShowDialog() -eq 'OK') { $d.SelectedPath }"]
+    elif shutil.which("zenity"):
+        cmd = ["zenity", "--file-selection", "--directory", "--title=" + _DIALOG_PROMPT]
+    else:
+        raise ValueError("No folder dialog on this system (install zenity); type the folder instead")
+    if not _dialog_lock.acquire(blocking=False):
+        raise ValueError("A folder dialog is already open")
+    try:
+        r = subprocess.run(cmd, capture_output=True, text=True, timeout=600)
+    except (OSError, subprocess.SubprocessError) as e:
+        raise ValueError("Folder dialog failed: %s; type the folder instead" % e)
+    finally:
+        _dialog_lock.release()
+    if r.returncode == 1:
+        return ""  # cancel (osascript: "User canceled", zenity: 1) is not an error
+    if r.returncode != 0:
+        raise ValueError("Folder dialog failed: %s" % (r.stderr.strip() or r.returncode))
+    out = r.stdout.strip()  # PowerShell prints nothing on cancel
+    return out if len(out) <= 3 else out.rstrip("/\\")
+
+
 def public_save_cfg():
     return {**save_cfg, "effective_dir": captures_dir()}
 
@@ -720,6 +756,8 @@ def pull_new(seen):
 def shot(seen):
     new = cam.shoot()
     invalidate_device()  # card space has changed
+    if conn_type == "usb":
+        cam.refresh_card()  # the card may have been taken out or put in; cached for the state
     if conn_type == "usb":  # USB reports the new files directly
         if not new:
             return cam.take_direct_files()  # no card: saved to the computer already (REQ-F61)
@@ -1098,6 +1136,8 @@ def public_state():
         "stage": cam.stage, "busy": busy.locked() or state["pressing"], "indexing": state["indexing"], "live": live.running, "lv_age": live.age, "lvqty": cam.lvqty, "gone": bool(getattr(cam, "gone", False)) or (conn_type == "wifi" and wifi_watch["lost"]),
         "lvperf": getattr(live, "performance", lambda: None)(), "job": job,
         "transfer": state["transfer"], "latest": state["latest"], "play": state["play"] is not None,
+        # USB: True card, False none, None unknown (cached, not read on every tick); Wi-Fi: always None
+        "card": getattr(cam, "card", None) if conn_type == "usb" else None,
         "transfer_error": state["transfer_error"], "hsl_error": hsl_auto["error"],
         "take": now - state["take"] if state["take"] else None,
         "movie": now - state["movie"]["since"] if state["movie"] else None,
@@ -1378,7 +1418,7 @@ class Handler(BaseHTTPRequestHandler):
             if extra is False:
                 return self._send({"error": "not found"}, code=404)
             self._send({"ok": True, **(extra or {})})
-        except WriteBlocked as e:
+        except (WriteBlocked, PermissionError) as e:
             self._send({"error": str(e)}, code=403)
         except (CameraError, KeyError, OSError, ValueError, TypeError,
                 ET.ParseError, subprocess.SubprocessError) as e:
@@ -1439,6 +1479,10 @@ class Handler(BaseHTTPRequestHandler):
             return None
         if path == "/api/savecfg":
             return {"cfg": set_save_cfg(b)}
+        if path == "/api/pickfolder":
+            if not self._local():  # a phone over --lan must not open dialogs on the computer
+                raise PermissionError("The folder dialog only opens from the computer itself")
+            return {"dir": pick_folder_dialog()}
         if path == "/api/open":
             subprocess.run(["open", "-a", "OM Workspace", capture_path(b["name"])], check=True)
             return None

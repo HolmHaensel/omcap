@@ -421,6 +421,8 @@ class UsbCamera:
         if hasattr(self._c, "get_prop_value"):  # PTP backend: live tilt (REQ-F23)
             self.features = self.features + ["level"]
         self.live = UsbLive(self)
+        self.card = None  # cached card flag for the page (True / False / None unknown), see refresh_card
+        self.refresh_card()
 
     def _connect(self, backend):
         if backend not in ("ptp", "gphoto2", "auto"):
@@ -932,6 +934,7 @@ class UsbCamera:
     def start_liveview(self, port):
         self._need_write()
         self._loupe_off()  # a magnified view can be left over from an earlier session (OM Capture, crash)
+        self.refresh_card()  # the card may have changed since the connect
 
     def stop_liveview(self):
         self._loupe_off()
@@ -1282,6 +1285,11 @@ class UsbCamera:
             # InvalidStorageID (GetStorageInfo / GetObjectHandles) or 0x2013 StoreNotAvailable (no-card test
             # 2026-11-21); that is "no card", not "unknown"
             return False if any(c in str(e) for c in ("0x2008", "0x2013")) else None
+
+    def refresh_card(self):
+        """Read the card state once and keep it: the page asks often, the camera must not be polled for it."""
+        self.card = self._card_state()
+        return self.card
 
     def _pre_release(self, stacking=None):
         """Decide ONCE, while the camera is idle, whether this shot comes without a card (then `_direct_wait`

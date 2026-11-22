@@ -99,7 +99,7 @@ More in [Start and stop](#start-and-stop).
 | M mode quick select: BULB, LIVE TIME, LIVECOMP | ✅ | ✅ | |
 | Movie: Start/Stop recording, movie shooting mode P/A/S/M | ✅ | ✅ | Wi-Fi switches to Movie mode (movie record mode cannot be changed over Wi-Fi); USB works like the REC button (not in PHOTO STORY and some SCN modes); movie settings over USB not built |
 | Time lapse, AE BKT | 🟡 | ✅ | |
-| Save to card only, or to card and computer; save folder and file names | ✅ | 🟡 | not tested over USB |
+| Save to card only, or to card and computer; save folder and file names | ✅ | 🟡 | not tested over USB. "Choose folder ..." opens the system folder dialog (both connections, on the computer only, REQ-F62). USB without a card: "Card only" greyed out, "Computer (no card)" (REQ-F62, not camera-tested) |
 
 ### Camera settings
 
