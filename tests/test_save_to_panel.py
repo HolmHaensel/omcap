@@ -329,3 +329,12 @@ class HintSize(unittest.TestCase):
         self.assertIn(".hint,#roProps{font-size:var(--fs-label);color:var(--muted)}", h)
         self.assertIn('class="mut hint" id="trNoCardNote"', h)
         self.assertIn('class="mut hint" data-i18n="hsl.autoHint"', h)
+
+
+class FieldLabels(unittest.TestCase):
+    def test_folder_and_names_labels_sit_above_in_grey(self):
+        # user 2026-11-23: labels like everywhere in the app – small, grey, above the field
+        h = Path(HTML).read_text(encoding="utf-8")
+        self.assertIn('<label class="field"><span data-i18n="save.folder">Folder</span>', h)
+        self.assertIn('<label class="field"><span data-i18n="save.scheme">Names</span>', h)
+        self.assertIn(".field>span:first-child{font-size:var(--fs-label);color:var(--muted)}", h)
