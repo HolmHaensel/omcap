@@ -1,6 +1,8 @@
 # Changelog
 
-## Unreleased
+## 0.7.9 – 2026-11-22
+
+Save to panel with folder dialog and one "Copy to computer" switch; shoot without a card over USB (pictures go straight to the computer); fast picture after a USB shot; AF 9×9 grid in its real size; Wi-Fi focus tone and sharper zoom on the computer (Auto ticked by default).
 
 - AF 9×9 grid in its real size (REQ-F04): read on the camera 2026-11-22 (single target, fields 1/41/81 from the AF event), 4.6–95.5 % wide × 10.7–89.4 % high; the app drew only about 17–83 %. The user confirmed it matches the camera monitor; all fields focused over USB and Wi-Fi. Over Wi-Fi the camera takes taps only in its touch frame (~17–83 %): an outer field focuses at the frame edge, and the app then shows the field the camera really used (columns 1+2, 8+9 and rows 1/9 share a spot).
 - USB: a held "Press halfway" takes the focus position from the camera's AF event 0xC003 (like tap focus); before, d05d/d05e kept an old value for the whole session (REQ-F34). The event gives positions in a ~920×696 space, scaled to 1280×960.
