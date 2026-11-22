@@ -355,6 +355,7 @@ class UsbCamera:
     usb = True
     host = "USB"
     stage = 0
+    _card_read = False  # _pre_release just read the card: the next refresh_card reuses it
     gone = False  # set by the live view loop while the camera is missing from USB
     lvqty = None
     features = FEATURES
@@ -1287,7 +1288,11 @@ class UsbCamera:
             return False if any(c in str(e) for c in ("0x2008", "0x2013")) else None
 
     def refresh_card(self):
-        """Read the card state once and keep it: the page asks often, the camera must not be polled for it."""
+        """Read the card state once and keep it: the page asks often, the camera must not be polled for it.
+        Right after a release that already read it (_pre_release) the stored value is kept: no second read."""
+        if self._card_read:
+            self._card_read = False
+            return self.card
         self.card = self._card_state()
         return self.card
 
@@ -1296,7 +1301,10 @@ class UsbCamera:
         makes the wait end at the camera's own offer). Also saves a picture the camera still holds from an
         earlier shot, so it cannot show up under this shot's name. Focus Stacking needs a card."""
         self._direct_wait = False
-        if not self._direct_capable() or self._card_state() is not False:
+        if not self._direct_capable():
+            return
+        self.card, self._card_read = self._card_state(), True
+        if self.card is not False:
             return
         if self._stacking_on() if stacking is None else stacking:
             raise CameraError("Focus Stacking needs a card: the camera keeps the merged picture on the card")

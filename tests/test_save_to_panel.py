@@ -30,11 +30,21 @@ def run(args, out="", err="", code=0):
 class Dialog(unittest.TestCase):
     def test_macos_uses_a_fixed_argument_list(self):
         with mock.patch.object(server.sys, "platform", "darwin"), run([], out="/Users/x/Pictures/\n") as r:
-            self.assertEqual(server.pick_folder_dialog(), "/Users/x/Pictures")
+            self.assertEqual(server.pick_folder_dialog(), "/Users/x/Pictures/")  # validate_save_dir normalises
         cmd = r.call_args[0][0]
         self.assertEqual(cmd[:2], ["osascript", "-e"])
-        self.assertIn("choose folder", cmd[2])
+        self.assertIn('tell application "System Events" to activate', cmd)  # dialog comes to the front
+        self.assertLess(cmd.index('tell application "System Events" to activate'),
+                        next(i for i, a in enumerate(cmd) if "choose folder" in a))
         self.assertNotIn("shell", r.call_args[1])
+        self.assertEqual(r.call_args[1]["encoding"], "utf-8")
+
+    def test_osascript_error_other_than_cancel_is_reported(self):
+        with mock.patch.object(server.sys, "platform", "darwin"), \
+                run([], err="Not authorised to send Apple events to System Events. (-1743)", code=1):
+            with self.assertRaises(ValueError) as e:
+                server.pick_folder_dialog()
+        self.assertIn("-1743", str(e.exception))
 
     def test_cancel_is_empty_not_an_error(self):
         with mock.patch.object(server.sys, "platform", "darwin"), \
@@ -60,8 +70,10 @@ class Dialog(unittest.TestCase):
 
     def test_windows_powershell(self):
         with mock.patch.object(server.sys, "platform", "win32"), run([], out="C:\\Pics\\\r\n") as r:
-            self.assertEqual(server.pick_folder_dialog(), "C:\\Pics")
+            self.assertEqual(server.pick_folder_dialog(), "C:\\Pics\\")
         self.assertEqual(r.call_args[0][0][0], "powershell")
+        self.assertIn("[Console]::OutputEncoding=[Text.Encoding]::UTF8;", r.call_args[0][0][-1])
+        self.assertEqual(r.call_args[1]["encoding"], "utf-8")
 
     def test_second_dialog_is_refused(self):
         with mock.patch.object(server.sys, "platform", "darwin"):
@@ -85,7 +97,7 @@ class Endpoint(unittest.TestCase):
 
     def test_phone_never_opens_a_dialog(self):
         with mock.patch.object(server, "pick_folder_dialog") as d:
-            with self.assertRaises(PermissionError):
+            with self.assertRaises(server.Forbidden):
                 handler("192.168.178.50", host="192.168.178.39:8765")._action("/api/pickfolder", {})
         d.assert_not_called()
 
@@ -110,6 +122,17 @@ class Endpoint(unittest.TestCase):
             h.do_POST()
         d.assert_not_called()
         self.assertEqual(sent, [403])
+
+
+    def test_real_permission_error_elsewhere_stays_502(self):
+        h = handler("127.0.0.1")
+        h.path, sent = "/api/savecfg", []
+        h._body = lambda: {}
+        h._send = lambda obj, *a, **k: sent.append(k.get("code"))
+        h._trusted = lambda: True
+        with mock.patch.object(server, "set_save_cfg", side_effect=PermissionError("EACCES")):
+            h.do_POST()
+        self.assertEqual(sent, [502])
 
 
 class CardFlag(unittest.TestCase):
@@ -163,6 +186,32 @@ class CardFlag(unittest.TestCase):
             server.shot(None)
         server.cam.refresh_card.assert_called_once()
 
+    def test_refresh_after_held_release_and_time_exposure_stop(self):
+        server.conn_type = "usb"
+        server.cam = mock.Mock(stage=0, take_new_files=mock.Mock(return_value=[]),
+                               take_direct_files=mock.Mock(return_value=[]))
+        server._state_backup = dict(server.state)
+        self.addCleanup(lambda: server.state.update(server._state_backup))
+        server.state["transfer"] = "sd"
+        server.Handler.__new__(server.Handler)._shutter(0)
+        server.cam.refresh_card.assert_called_once()
+        server.cam.reset_mock()
+        h = handler("127.0.0.1")
+        h._action("/api/take", {"action": "stop"})
+        server.cam.refresh_card.assert_called_once()
+
+    def test_pre_release_read_is_reused_not_repeated(self):
+        c = self.usb(False)
+        c.on_direct_file, c._c = mock.Mock(), mock.Mock(omd_direct_info=1)
+        c._stacking_on = lambda: False
+        c._save_leftover = lambda: None
+        c._pre_release()
+        self.assertIs(c.card, False)
+        c.refresh_card()  # after the shot: reuses the read of the release
+        c._card_state.assert_called_once()
+        c.refresh_card()  # the next one reads again
+        self.assertEqual(c._card_state.call_count, 2)
+
 
 class Page(unittest.TestCase):
     def setUp(self):
@@ -176,7 +225,8 @@ class Page(unittest.TestCase):
 
     def test_hsl_hint_matches_the_server(self):
         # hsl_apply writes <stem>_<EXT>_hsl.jpg into out/hsl; the automatic step never asks for the TIFF
-        self.assertIn("..._hsl.jpg (JPG and ORF alike) in the folder out/hsl", self.h)
+        self.assertIn("a JPEG named ..._hsl.jpg in the app's folder out/hsl, not in your save folder", self.h)
+        self.assertNotIn("TIFF", self.h[self.h.index('"hsl.autoHint"'):][:600])
         self.assertIn('hsl_apply(os.path.basename(dest), hsl_auto["preset"])', Path(server.__file__).read_text())
 
     def test_button_only_on_the_local_page(self):
@@ -192,7 +242,7 @@ def page_js(scenario):
     stubs = """
 var isUsb=true,els={},document={activeElement:null},tr=function(k){return k},
   Q=function(s){return els[s]||(els[s]={checked:false,disabled:false,title:'',textContent:'',dataset:{}})};
-['#trSd','#trBoth','#trSdLbl','#trBothText'].forEach(Q);
+['#trSd','#trBoth','#trSdLbl','#trBothText','#trNoCardNote'].forEach(Q);
 """
     out = subprocess.run(["osascript", "-l", "JavaScript", "-e",
                           stubs + code.replace("$(", "Q(") + scenario],
@@ -206,13 +256,14 @@ class PageLogic(unittest.TestCase):
     def view(self, usb, card, pref):
         return page_js("isUsb=%s; var st={card:%s,transfer:'%s'}; applyTransferView(st);"
                        "JSON.stringify({sdOff:els['#trSd'].disabled,sd:els['#trSd'].checked,both:els['#trBoth'].checked,"
-                       "label:els['#trBothText'].textContent,title:els['#trSdLbl'].title,block:trNoCard})"
+                       "label:els['#trBothText'].textContent,title:els['#trSdLbl'].title,block:trNoCard,"
+                       "note:els['#trNoCardNote'].hidden})"
                        % (str(usb).lower(), json.dumps(card), pref))
 
     def test_usb_without_card(self):
         r = self.view(True, False, "sd")  # the saved choice stays "sd", only the view changes
         self.assertEqual((r["sdOff"], r["sd"], r["both"], r["block"]), (True, False, True, True))
-        self.assertEqual((r["label"], r["title"]), ("transfer.computerOnly", "transfer.noCard"))
+        self.assertEqual((r["label"], r["title"], r["note"]), ("transfer.computerOnly", "transfer.noCard", False))
 
     def test_usb_with_card_keeps_the_choice(self):
         r = self.view(True, True, "sd")
@@ -227,7 +278,7 @@ class PageLogic(unittest.TestCase):
 
     def test_wifi_never_changes(self):
         r = self.view(False, False, "sd")  # a stray flag over Wi-Fi is ignored
-        self.assertEqual((r["sdOff"], r["label"], r["sd"]), (False, "transfer.both", True))
+        self.assertEqual((r["sdOff"], r["label"], r["sd"], r["note"]), (False, "transfer.bothWifi", True, True))
 
 
 if __name__ == "__main__":

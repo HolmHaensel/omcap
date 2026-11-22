@@ -573,15 +573,22 @@ _dialog_lock = threading.Lock()
 _DIALOG_PROMPT = "Choose the folder for the pictures"
 
 
+class Forbidden(Exception):
+    """Request refused for who asks (not for what failed): answered with 403, never 502."""
+
+
 def pick_folder_dialog():
     """Open the OS folder dialog on the machine the server runs on; returns the path, "" on cancel.
 
     Fixed argument lists only, nothing from the page reaches a shell. Raises ValueError when no dialog is
     possible (the typed field keeps working)."""
     if sys.platform == "darwin":
-        cmd = ["osascript", "-e", 'POSIX path of (choose folder with prompt "%s")' % _DIALOG_PROMPT]
+        # activate first: a dialog started from a background process opens behind the browser
+        cmd = ["osascript", "-e", 'tell application "System Events" to activate',
+               "-e", 'POSIX path of (choose folder with prompt "%s")' % _DIALOG_PROMPT]
     elif sys.platform.startswith("win"):
         cmd = ["powershell", "-NoProfile", "-STA", "-Command",
+               "[Console]::OutputEncoding=[Text.Encoding]::UTF8; "
                "Add-Type -AssemblyName System.Windows.Forms; "
                "$d = New-Object System.Windows.Forms.FolderBrowserDialog; "
                "if ($d.ShowDialog() -eq 'OK') { $d.SelectedPath }"]
@@ -592,17 +599,16 @@ def pick_folder_dialog():
     if not _dialog_lock.acquire(blocking=False):
         raise ValueError("A folder dialog is already open")
     try:
-        r = subprocess.run(cmd, capture_output=True, text=True, timeout=600)
+        r = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", timeout=600)
     except (OSError, subprocess.SubprocessError) as e:
         raise ValueError("Folder dialog failed: %s; type the folder instead" % e)
     finally:
         _dialog_lock.release()
-    if r.returncode == 1:
-        return ""  # cancel (osascript: "User canceled", zenity: 1) is not an error
+    if r.returncode == 1 and (sys.platform != "darwin" or "-128" in r.stderr):
+        return ""  # cancel (osascript "User canceled" -128, zenity 1) is not an error
     if r.returncode != 0:
         raise ValueError("Folder dialog failed: %s" % (r.stderr.strip() or r.returncode))
-    out = r.stdout.strip()  # PowerShell prints nothing on cancel
-    return out if len(out) <= 3 else out.rstrip("/\\")
+    return r.stdout.strip()  # PowerShell prints nothing on cancel; validate_save_dir normalises the path
 
 
 def public_save_cfg():
@@ -756,9 +762,8 @@ def pull_new(seen):
 def shot(seen):
     new = cam.shoot()
     invalidate_device()  # card space has changed
-    if conn_type == "usb":
-        cam.refresh_card()  # the card may have been taken out or put in; cached for the state
     if conn_type == "usb":  # USB reports the new files directly
+        cam.refresh_card()  # the card may have been taken out or put in; cached for the state
         if not new:
             return cam.take_direct_files()  # no card: saved to the computer already (REQ-F61)
         remember_shot(new)
@@ -1418,7 +1423,7 @@ class Handler(BaseHTTPRequestHandler):
             if extra is False:
                 return self._send({"error": "not found"}, code=404)
             self._send({"ok": True, **(extra or {})})
-        except (WriteBlocked, PermissionError) as e:
+        except (WriteBlocked, Forbidden) as e:
             self._send({"error": str(e)}, code=403)
         except (CameraError, KeyError, OSError, ValueError, TypeError,
                 ET.ParseError, subprocess.SubprocessError) as e:
@@ -1434,6 +1439,7 @@ class Handler(BaseHTTPRequestHandler):
         if conn_type == "usb":  # over USB the live view simply keeps running
             state["resume_live"] = False
             if stage == 0:
+                cam.refresh_card()  # released after a shot or a half press: the card may have changed
                 new = cam.take_new_files()
                 saved = cam.take_direct_files()  # no card: pictures saved straight to the computer (REQ-F61)
                 if saved:
@@ -1481,7 +1487,7 @@ class Handler(BaseHTTPRequestHandler):
             return {"cfg": set_save_cfg(b)}
         if path == "/api/pickfolder":
             if not self._local():  # a phone over --lan must not open dialogs on the computer
-                raise PermissionError("The folder dialog only opens from the computer itself")
+                raise Forbidden("The folder dialog only opens from the computer itself")
             return {"dir": pick_folder_dialog()}
         if path == "/api/open":
             subprocess.run(["open", "-a", "OM Workspace", capture_path(b["name"])], check=True)
@@ -1578,6 +1584,7 @@ class Handler(BaseHTTPRequestHandler):
                 finally:
                     state["take"] = None
                 if conn_type == "usb":
+                    cam.refresh_card()
                     saved = cam.take_direct_files()  # no card: saved straight to the computer (REQ-F61)
                     return {"saved": saved} if saved else None
         elif path == "/api/movie" and conn_type == "usb":

@@ -552,6 +552,7 @@ body.webcam{cursor:none;display:flex;align-items:center;justify-content:center}
       <label><input type="radio" name="tr" id="trBoth" value="both"> <span id="trBothText" data-i18n="transfer.both">Card and computer</span></label>
       <button id="popPhoto" data-i18n="transfer.popPhoto">Picture on second monitor</button>
     </div>
+    <div class="mut" id="trNoCardNote" data-i18n="transfer.noCardNote" hidden>No card in the camera: pictures go straight to the computer</div>
     <div class="row">
       <label><span data-i18n="save.folder">Folder on the computer</span> <input id="svDir" type="text" size="34" placeholder="~/Pictures/omcap"></label>
       <button id="svPick" hidden data-i18n="save.pick">Choose folder ...</button>
@@ -571,7 +572,7 @@ body.webcam{cursor:none;display:flex;align-items:center;justify-content:center}
       <label><input type="checkbox" id="hslAuto"> <span data-i18n="hsl.auto">Apply HSL profile when saving to computer</span></label>
       <select id="hslAutoPreset"></select>
     </div>
-    <div class="mut" data-i18n="hsl.autoHint">HSL colour profile: changes the colours of the copy saved on the computer (hue, saturation and lightness in 12 colour sectors, like the PEN-F's COLOR mode). The original is not changed. The result is an extra JPEG named ..._hsl.jpg (JPG and ORF alike) in the folder out/hsl of the app; a 16-bit TIFF for RAW only comes from the HSL button in Playback.</div>
+    <div class="mut" data-i18n="hsl.autoHint">HSL colour profile: changes the colours of an extra copy (hue, saturation, lightness in 12 sectors, like the PEN-F's COLOR mode). The original is not changed. The copy is a JPEG named ..._hsl.jpg in the app's folder out/hsl, not in your save folder.</div>
     <div id="trErr" class="warn"></div>
   </section>
   <section data-id="card" data-label="Playback" data-i18n-label="panel.card" data-feat="playback">
@@ -961,6 +962,8 @@ const I18N={en:{
   "transfer.both": "Card and computer",
   "transfer.computerOnly": "Computer (no card)",
   "transfer.noCard": "No card in the camera",
+  "transfer.noCardNote": "No card in the camera: pictures go straight to the computer",
+  "transfer.bothWifi": "Card + copy to computer",
   "transfer.popPhoto": "Picture on second monitor",
   "panel.card": "Playback",
   "card.index": "Index display",
@@ -1022,7 +1025,7 @@ const I18N={en:{
   "hsl.compare": "Before and after comparison, drag or use the arrow keys",
   "hsl.close": "Close",
   "hsl.auto": "Apply HSL profile when saving to computer",
-  "hsl.autoHint": "HSL colour profile: changes the colours of the copy saved on the computer (hue, saturation and lightness in 12 colour sectors, like the PEN-F's COLOR mode). The original is not changed. The result is an extra JPEG named ..._hsl.jpg (JPG and ORF alike) in the folder out/hsl of the app; a 16-bit TIFF for RAW only comes from the HSL button in Playback.",
+  "hsl.autoHint": "HSL colour profile: changes the colours of an extra copy (hue, saturation, lightness in 12 sectors, like the PEN-F's COLOR mode). The original is not changed. The copy is a JPEG named ..._hsl.jpg in the app's folder out/hsl, not in your save folder.",
   "hsl.notLocal": "Save the picture to the computer first",
   "layout.panels": "Panels",
   "layout.settings": "Settings",
@@ -3363,12 +3366,12 @@ function showSaveCfg(c){
 // choice (st.transfer) is not overwritten and comes back with a card.
 function transferView(usb,card,pref){
   const noCard=usb&&card===false;
-  return {sdOff:noCard,bothKey:noCard?'transfer.computerOnly':'transfer.both',value:noCard||pref==='both'?'both':'sd'};
+  return {sdOff:noCard,bothKey:noCard?'transfer.computerOnly':usb?'transfer.both':'transfer.bothWifi',value:noCard||pref==='both'?'both':'sd'};
 }
 let trNoCard=false;
 function applyTransferView(st){
   const v=transferView(isUsb,st.card,st.transfer); trNoCard=v.sdOff;
-  $('#trSd').disabled=v.sdOff; $('#trSdLbl').title=v.sdOff?tr('transfer.noCard'):'';
+  $('#trSd').disabled=v.sdOff; $('#trSdLbl').title=v.sdOff?tr('transfer.noCard'):''; $('#trNoCardNote').hidden=!v.sdOff;
   const t=$('#trBothText'); t.dataset.i18n=v.bothKey; t.textContent=tr(v.bothKey);
   if(!(document.activeElement&&document.activeElement.name==='tr')) $('#'+(v.value==='both'?'trBoth':'trSd')).checked=true;
 }
