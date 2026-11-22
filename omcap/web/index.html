@@ -164,7 +164,8 @@ button:disabled{color:var(--disabled);opacity:.6;cursor:not-allowed}
 #modeBox .seg button{flex:1;width:auto;min-width:0;padding:0 2px;height:38px;font-family:var(--font-value);font-size:13px}
 .hrow{display:flex;align-items:center;justify-content:space-between}
 .mini{font-size:11px;padding:1px 8px;background:transparent;color:var(--muted);font-weight:400;letter-spacing:0}
-#roProps{margin-top:var(--s2);font-size:var(--fs-label);color:var(--muted)}
+.hint,#roProps{font-size:var(--fs-label);color:var(--muted)} /* small grey hints, one size everywhere (user 2026-11-23) */
+#roProps{margin-top:var(--s2)}
 #panels .row label:has(input[type=text]),#panels .row label:has(select#svScheme){flex:1;min-width:0}
 #panels input[type=text]{width:100%;min-width:0}
 #svPrefix{width:8em}
@@ -552,7 +553,7 @@ body.webcam{cursor:none;display:flex;align-items:center;justify-content:center}
       <label><input type="radio" name="tr" id="trBoth" value="both"> <span id="trBothText" data-i18n="transfer.both">Card and computer</span></label>
       <button id="popPhoto" data-i18n="transfer.popPhoto">Picture on second monitor</button>
     </div>
-    <div class="mut" id="trNoCardNote" data-i18n="transfer.noCardNote" hidden>No card in the camera: pictures go straight to the computer</div>
+    <div class="mut hint" id="trNoCardNote" data-i18n="transfer.noCardNote" hidden>No card in the camera: pictures go straight to the computer</div>
     <div class="row">
       <label><span data-i18n="save.folder">Folder on the computer</span> <input id="svDir" type="text" size="34" placeholder="~/Pictures/omcap"></label>
       <button id="svPick" hidden data-i18n="save.pick">Choose folder ...</button>
@@ -572,7 +573,7 @@ body.webcam{cursor:none;display:flex;align-items:center;justify-content:center}
       <label><input type="checkbox" id="hslAuto"> <span data-i18n="hsl.auto">Apply HSL profile when saving to computer</span></label>
       <select id="hslAutoPreset"></select>
     </div>
-    <div class="mut" data-i18n="hsl.autoHint">HSL makes a copy of your photo with other colours. Your original stays as it is. The copy is saved as ..._hsl.jpg in the folder out/hsl.</div>
+    <div class="mut hint" data-i18n="hsl.autoHint">HSL makes a copy of your photo with other colours. Your original stays as it is. The copy is saved as ..._hsl.jpg in the folder out/hsl.</div>
     <div id="trErr" class="warn"></div>
   </section>
   <section data-id="card" data-label="Playback" data-i18n-label="panel.card" data-feat="playback">

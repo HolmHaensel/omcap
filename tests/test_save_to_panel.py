@@ -283,3 +283,12 @@ class PageLogic(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class HintSize(unittest.TestCase):
+    def test_hints_share_the_size_of_the_read_only_line(self):
+        # user 2026-11-23: hints in the same small grey type as "Camera settings (read only)", both connections
+        h = (Path(server.__file__).parent / "web" / "index.html").read_text(encoding="utf-8")
+        self.assertIn(".hint,#roProps{font-size:var(--fs-label);color:var(--muted)}", h)
+        self.assertIn('class="mut hint" id="trNoCardNote"', h)
+        self.assertIn('class="mut hint" data-i18n="hsl.autoHint"', h)
