@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- USB Focus Stacking: also switches Bracketing (d0a6) on and back; reads its state live; waits while the camera merges; one-frame shot ends early with a note (REQ-F69). USB-tested.
+- USB Focus Stacking: sets and restores Bracketing (d0a6); one-frame shot ends early with a note (REQ-F69). USB-tested.
 
 ## 0.7.9 – 2026-11-22
 

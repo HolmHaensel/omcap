@@ -689,10 +689,8 @@ class UsbCamera:
                 if key in self.OPTIONAL:
                     continue  # e.g. firmware without Focus Stacking: hide the setting, keep the panel
                 raise
-            if key == "focusstacking":
-                value = self._prop_now("d0cb")  # live: the descriptor keeps the session-start value
-            if key == "focusstacking" and str(value) == "1" and not self._stack_flag_on():
-                value = "2"  # Focus BKT alone (d0cb) is a plain series; the switch shows On only with d0ce too
+            if key == "focusstacking":  # On only when the camera really stacks: Bracketing, Focus BKT and d0ce (live)
+                value = "1" if self._stacking_on() else "2"
             if key == "artfilter":  # d010 also holds the kind of filter (from 34305)
                 choices = [c for c in choices if int(c) >= 34305]
             if key == "shutspeedvalue":  # M only: BULB, LIVE TIME, LIVECOMP are in d01c
@@ -1056,11 +1054,14 @@ class UsbCamera:
             if LONG_LABELS.get(self._value("shutterspeed")):  # the camera stacks with the electronic shutter only
                 raise CameraError("Focus Stacking: choose a normal shutter speed first (not BULB, LIVE TIME, LIVECOMP)")
             kind = int(float(self._value("d020")))
-            if kind != BKT_FOCUS:
-                self._bkt_before = kind  # lost after a reconnect: Off then sets Bracketing Off
-            self._bkt_main_before = self._set_bkt_main(1)  # Bracketing On: else the camera takes one picture
-            self._set("d020", BKT_FOCUS)
+            if kind != BKT_FOCUS:  # first switch-on: remember what to restore (lost after a reconnect: Off then)
+                self._bkt_before = kind
+                self._bkt_main_before = None
             try:
+                before = self._set_bkt_main(1)  # Bracketing On: else the camera takes one picture (2026-11-22)
+                if kind != BKT_FOCUS:
+                    self._bkt_main_before = before
+                self._set("d020", BKT_FOCUS)
                 self._set("d0cb", 1)  # Focus BKT on
                 try:
                     self._set_stack_flag(1)  # d0ce: merge the series in the camera (Focus Stacking)
@@ -1093,7 +1094,7 @@ class UsbCamera:
         descriptor keeps the value from the session start (a change in the camera menu would not show)."""
         try:
             return str(self._live_int(code))
-        except Exception:  # no live read (libgphoto2, test fakes): the descriptor value
+        except (CameraError, AttributeError):  # no live read (libgphoto2 backend): the descriptor value
             return str(self._value(code))
 
     def _set_bkt_main(self, value):
@@ -1600,6 +1601,8 @@ class UsbCamera:
             try:
                 self._events(max(0.0, until - time.monotonic()))
             except CameraError:
+                if self.gone:  # the live view loop saw the camera leave USB: not merging
+                    raise
                 if not busy:
                     busy = True
                     marks.append(("camera busy merging", time.monotonic() - t0))
@@ -1635,7 +1638,7 @@ class UsbCamera:
             if stacking:  # 8 frames (16 files) come first, the merged picture last
                 self._stack_events(t0 + STACK_FRAMES_WAIT, marks, t0)
                 if len(set(self._new_files)) <= 2:  # one frame (JPG+ORF): the camera did not stack
-                    self.stack_note = "one picture only"
+                    self.stack_note = True
                     marks.append(("stacking: 1 frame", time.monotonic() - t0))
                 else:
                     self._stack_events(t0 + STACK_WAIT, marks, t0)
