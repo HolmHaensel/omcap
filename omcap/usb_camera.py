@@ -1440,6 +1440,7 @@ class UsbCamera:
             if stage == 2:
                 self.direct_paths, self._direct_hit = [], False
                 self._pre_release()
+            self._event_log = []  # _read_focus_position looks for this half press's AF event
             self._shutter(OP_FIRST)
             self.stage = 1
             if stage == 1:
@@ -1492,6 +1493,14 @@ class UsbCamera:
         end = time.monotonic() + FOCUS_POSITION_WAIT
         while time.monotonic() < end:
             self._events(0.1)
+            # own PTP layer: the AF event 0xC003 carries the exact position at once (d05d/d05e read through
+            # 0x1014 can keep an old value for the whole session, USB test 2026-11-22)
+            for text in reversed(self._event_log):
+                result = parse_af_result(text)
+                if result and (result[1] or not result[0]):  # libgphoto2 events carry no position: read below
+                    self.focus_ok = bool(result[0])
+                    self.last_af = result[1] or {"x": 0, "y": 0}
+                    return
             x, y = int(float(self._value("d05d"))), int(float(self._value("d05e")))
             if (x or y) and (x, y) != prev:
                 break

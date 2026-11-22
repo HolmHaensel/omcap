@@ -2,6 +2,7 @@
 import threading
 import time
 import unittest
+from unittest import mock
 
 from omcap import usb_camera
 
@@ -56,3 +57,32 @@ class EarlyStop(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class HeldHalfPressPosition(unittest.TestCase):
+    """USB test 2026-11-22: a held "Press halfway" kept the old d05d/d05e (0x1014 is not live in a session)."""
+
+    def cam(self, events):
+        c = usb_camera.UsbCamera.__new__(usb_camera.UsbCamera)
+        c.last_af, c._event_log = {"x": 832, "y": 592}, []
+        c._events = lambda t, *a: c._event_log.extend(events) or True
+        c._value = mock.Mock(return_value="0")
+        return c
+
+    def test_event_position_wins(self):
+        c = self.cam(["PTP Event c003, Param1 00000001, Param2 00400030, Param3 0"])
+        c._read_focus_position()
+        self.assertEqual(c.last_af, {"x": 0x40, "y": 0x30})
+        c._value.assert_not_called()
+
+    def test_no_focus_event(self):
+        c = self.cam(["PTP Event c003, Param1 00000002, Param2 00000000, Param3 0"])
+        c._read_focus_position()
+        self.assertEqual(c.last_af, {"x": 0, "y": 0})
+        self.assertIs(c.focus_ok, False)
+
+    def test_event_without_position_reads_properties(self):
+        c = self.cam(["PTP Event c003, Param1 00000001"])
+        with mock.patch.object(usb_camera, "FOCUS_POSITION_WAIT", 0.05):
+            c._read_focus_position()
+        c._value.assert_called()
