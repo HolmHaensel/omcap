@@ -220,7 +220,7 @@ class Page(unittest.TestCase):
     def test_markup_and_text(self):
         for frag in ('id="svPick"', 'id="trSd"', 'id="trBothText"', 'data-i18n="hsl.autoHint"',
                      '"transfer.computerOnly": "Computer (no card)"', '"transfer.noCard": "No card in the camera"',
-                     '"save.pick": "Choose folder ..."'):
+                     '"save.pick": "Choose …"'):
             self.assertIn(frag, self.h)
 
     def test_hsl_hint_matches_the_server(self):

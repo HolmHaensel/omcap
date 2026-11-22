@@ -550,30 +550,30 @@ body.webcam{cursor:none;display:flex;align-items:center;justify-content:center}
     <h2 data-i18n="panel.transfer">Save to</h2>
     <div class="row">
       <label id="trSdLbl"><input type="radio" name="tr" id="trSd" value="sd" checked> <span data-i18n="transfer.sd">Card only</span></label>
-      <label><input type="radio" name="tr" id="trBoth" value="both"> <span id="trBothText" data-i18n="transfer.both">Card and computer</span></label>
-      <button id="popPhoto" data-i18n="transfer.popPhoto">Picture on second monitor</button>
+      <label><input type="radio" name="tr" id="trBoth" value="both"> <span id="trBothText" data-i18n="transfer.both">Card + computer</span></label>
+      <button id="popPhoto" data-i18n="transfer.popPhoto">Photo on 2nd monitor</button>
     </div>
-    <div class="mut hint" id="trNoCardNote" data-i18n="transfer.noCardNote" hidden>No card in the camera: pictures go straight to the computer</div>
+    <div class="mut hint" id="trNoCardNote" data-i18n="transfer.noCardNote" hidden>No card: photos go to the computer</div>
     <div class="row">
-      <label><span data-i18n="save.folder">Folder on the computer</span> <input id="svDir" type="text" size="34" placeholder="~/Pictures/omcap"></label>
-      <button id="svPick" hidden data-i18n="save.pick">Choose folder ...</button>
+      <label><span data-i18n="save.folder">Folder</span> <input id="svDir" type="text" size="34" placeholder="~/Pictures/omcap"></label>
+      <button id="svPick" hidden data-i18n="save.pick">Choose …</button>
     </div>
     <div class="row">
-      <label><span data-i18n="save.scheme">File naming</span>
+      <label><span data-i18n="save.scheme">Names</span>
         <select id="svScheme">
           <option value="original" data-i18n="save.original">Original name</option>
-          <option value="datetime" data-i18n="save.datetime">Date_time_original name</option>
-          <option value="prefix" data-i18n="save.prefix">Prefix + original name</option>
+          <option value="datetime" data-i18n="save.datetime">Date + time + name</option>
+          <option value="prefix" data-i18n="save.prefix">Prefix + name</option>
         </select></label>
       <input id="svPrefix" type="text" size="12" data-i18n-ph="save.prefixPh" placeholder="Prefix" hidden>
       <button id="svApply" data-i18n="save.apply">Apply</button>
     </div>
     <div id="svInfo" class="mut"></div>
     <div class="row">
-      <label><input type="checkbox" id="hslAuto"> <span data-i18n="hsl.auto">Apply HSL profile when saving to computer</span></label>
+      <label><input type="checkbox" id="hslAuto"> <span data-i18n="hsl.auto">Also save an HSL copy (PEN-F colours)</span></label>
       <select id="hslAutoPreset"></select>
     </div>
-    <div class="mut hint" data-i18n="hsl.autoHint">HSL makes a copy of your photo with other colours. Your original stays as it is. The copy is saved as ..._hsl.jpg in the folder out/hsl.</div>
+    <div class="mut hint" data-i18n="hsl.autoHint">HSL is the colour profile of the PEN-F camera. It makes a copy of your photo with other colours. Your original stays as it is. The copy is saved as ..._hsl.jpg in the folder out/hsl.</div>
     <div id="trErr" class="warn"></div>
   </section>
   <section data-id="card" data-label="Playback" data-i18n-label="panel.card" data-feat="playback">
@@ -779,14 +779,14 @@ const I18N={en:{
   "lv.autoReduced": "Live view adjusted to {size} for a smoother signal",
   "lv.second": "Second monitor",
   "lv.webcam": "Webcam (OBS)",
-  "save.folder": "Folder on the computer",
-  "save.scheme": "File naming",
+  "save.folder": "Folder",
+  "save.scheme": "Names",
   "save.original": "Original name",
-  "save.datetime": "Date_time_original name",
-  "save.prefix": "Prefix + original name",
+  "save.datetime": "Date + time + name",
+  "save.prefix": "Prefix + name",
   "save.prefixPh": "Prefix",
   "save.apply": "Apply",
-  "save.pick": "Choose folder ...",
+  "save.pick": "Choose …",
   "save.now": "Saving to {dir}",
   "save.example": "e.g. {name}",
   "msg.saveCfg": "Save settings applied",
@@ -960,12 +960,12 @@ const I18N={en:{
   "prog.error": " Error: {e}",
   "panel.transfer": "Save to",
   "transfer.sd": "Card only",
-  "transfer.both": "Card and computer",
+  "transfer.both": "Card + computer",
   "transfer.computerOnly": "Computer (no card)",
   "transfer.noCard": "No card in the camera",
-  "transfer.noCardNote": "No card in the camera: pictures go straight to the computer",
-  "transfer.bothWifi": "Card + copy to computer",
-  "transfer.popPhoto": "Picture on second monitor",
+  "transfer.noCardNote": "No card: photos go to the computer",
+  "transfer.bothWifi": "Card + computer copy",
+  "transfer.popPhoto": "Photo on 2nd monitor",
   "panel.card": "Playback",
   "card.index": "Index display",
   "card.reload": "Reload",
@@ -1025,8 +1025,8 @@ const I18N={en:{
   "hsl.after": "After",
   "hsl.compare": "Before and after comparison, drag or use the arrow keys",
   "hsl.close": "Close",
-  "hsl.auto": "Apply HSL profile when saving to computer",
-  "hsl.autoHint": "HSL makes a copy of your photo with other colours. Your original stays as it is. The copy is saved as ..._hsl.jpg in the folder out/hsl.",
+  "hsl.auto": "Also save an HSL copy (PEN-F colours)",
+  "hsl.autoHint": "HSL is the colour profile of the PEN-F camera. It makes a copy of your photo with other colours. Your original stays as it is. The copy is saved as ..._hsl.jpg in the folder out/hsl.",
   "hsl.notLocal": "Save the picture to the computer first",
   "layout.panels": "Panels",
   "layout.settings": "Settings",
