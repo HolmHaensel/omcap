@@ -37,5 +37,24 @@ class OneFrame(unittest.TestCase):
         self.assertLess(usb_camera.STACK_FRAMES_WAIT, usb_camera.STACK_WAIT)
 
 
+
+class MergingPause(unittest.TestCase):
+    def test_no_answer_while_merging_is_waited_out(self):
+        c = usb_camera.UsbCamera.__new__(usb_camera.UsbCamera)
+        calls = []
+
+        def events(seconds):
+            calls.append(seconds)
+            if len(calls) < 3:
+                raise usb_camera.CameraError("USB: PTP: no answer")
+        c._events = events
+        marks = []
+        import time as t
+        with mock.patch.object(usb_camera.time, "sleep"):
+            c._stack_events(t.monotonic() + 0.2, marks, t.monotonic())
+        self.assertGreaterEqual(len(calls), 3)
+        self.assertEqual([m[0] for m in marks], ["camera busy merging"])
+
+
 if __name__ == "__main__":
     unittest.main()

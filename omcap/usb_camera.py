@@ -1591,6 +1591,20 @@ class UsbCamera:
             self._card_read = False  # the card read of a failed release must not stand in for a fresh one
             raise
 
+    def _stack_events(self, until, marks, t0):
+        """Collect the stacking files until `until`. While the camera merges the 8 frames it does not answer
+        over USB for a while (USB test 2026-11-22: "camera not connected" although all files were written);
+        that is waiting, not a lost camera."""
+        busy = False
+        while time.monotonic() < until:
+            try:
+                self._events(max(0.0, until - time.monotonic()))
+            except CameraError:
+                if not busy:
+                    busy = True
+                    marks.append(("camera busy merging", time.monotonic() - t0))
+                time.sleep(0.5)
+
     def _shoot(self):
         self.stack_note = None
         self._new_files = []
@@ -1619,15 +1633,18 @@ class UsbCamera:
             self._events(SHOT_TIMEOUT, "quiet")
             self._direct_store(t_ev + SHOT_TIMEOUT)
             if stacking:  # 8 frames (16 files) come first, the merged picture last
-                self._events(max(0.0, STACK_FRAMES_WAIT - (time.monotonic() - t0)))
+                self._stack_events(t0 + STACK_FRAMES_WAIT, marks, t0)
                 if len(set(self._new_files)) <= 2:  # one frame (JPG+ORF): the camera did not stack
                     self.stack_note = "one picture only"
                     marks.append(("stacking: 1 frame", time.monotonic() - t0))
                 else:
-                    self._events(max(0.0, STACK_WAIT - (time.monotonic() - t0)))
+                    self._stack_events(t0 + STACK_WAIT, marks, t0)
             marks.append(("files" if not self.direct_paths else "direct store", time.monotonic() - t0))
             if self._new_files:
                 self._events(1.5)  # the second format (ORF or JPG) follows shortly after
+        except Exception as e:
+            marks.append(("error [%s]" % e, time.monotonic() - t0))
+            raise
         finally:
             self._direct_wait = False
             self._hold_add(-1)
