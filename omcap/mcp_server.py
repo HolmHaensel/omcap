@@ -1179,7 +1179,7 @@ def tool_camera_focus(client, args, ctx):
         if _is_camera_busy(state):
             raise ApiError("The camera is busy: wait, then try again.")
         if str(((_optional_json(client, "/api/props") or {}).get("takemode") or {}).get("value")) == "movie":
-            raise ApiError("Zoom AF (loupe) is not available in Movie mode via the MCP (not camera-tested there).")
+            raise ApiError("Zoom AF (loupe) is not offered in Movie mode via the MCP (not camera-tested there).")
         if loupe == "move":
             if not state.get("loupe"):
                 raise ApiError("Zoom AF (loupe) is not active. Turn it on first.")
@@ -1214,7 +1214,7 @@ def tool_camera_focus(client, args, ctx):
             raise ApiError("Focus ring (MF) steps work only over USB (no Wi-Fi command).")
         props = _optional_json(client, "/api/props") or {}
         if str((props.get("takemode") or {}).get("value")) == "movie":
-            raise ApiError("Focus ring (MF) steps are not offered in Movie mode (as in the app).")
+            raise ApiError("Focus ring (MF) steps are not offered in Movie mode via the MCP (not camera-tested there).")
         fm = (props.get("focusmode") or {}).get("value")
         if fm is not None and str(fm) not in ("1", "32769"):
             raise ApiError("Focus ring (MF) steps require AF mode MF or S-AF+MF (E-M1 manual, p.75).")
@@ -1477,7 +1477,7 @@ def tool_camera_shoot(client, args, ctx):
                  "iso": val("isospeedvalue"), "drive": val("drivemode")}
 
     if action in ("shot", "half_press") and mode == "movie":
-        raise ApiError("Take picture and Press halfway are not available in Movie mode via the MCP (not camera-tested "
+        raise ApiError("Take picture and Press halfway are not offered in Movie mode via the MCP (not camera-tested "
                        "there): use action='movie', or set a photo Shooting mode first.")
     if action == "half_press":
         step = args.get("step", "press")
