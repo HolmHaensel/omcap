@@ -654,13 +654,13 @@ class ModeRulesAndRobustness(unittest.TestCase):
             return srv.handle_message({"jsonrpc": "2.0", "id": 1, "method": "initialize",
                                        "params": {"protocolVersion": "2024-11-05"}})["result"]["instructions"]
         rw = init(True)
-        self.assertIn("in M mode", rw)
+        self.assertIn("any wish in words", rw)
         self.assertIn("apply=false", rw)
         self.assertIn("ISO fixed", rw)
         self.assertIn("aurora", rw)
         self.assertIn("Desert Pastel", rw)  # a look: settings plus body steps (Contrast, Saturation)
-        self.assertIn("cannot be set over USB or Wi-Fi", rw)
-        self.assertNotIn("in M mode", init(False))
+        self.assertIn("body_only", rw)
+        self.assertNotIn("any wish in words", init(False))
 
     def test_wifi_wb_by_kelvin(self):  # Wi-Fi sends WB codes only: "6000K" for a look must still resolve
         props = dict(self.WIFI_A, wbvalue={"value": "0", "writable": True, "enum": ["0", "18", "17", "20"]},
@@ -668,6 +668,19 @@ class ModeRulesAndRobustness(unittest.TestCase):
         _, data = self.plan("wifi", props, {"wbvalue": "6000K", "colortone": "Vivid"})
         self.assertEqual(data["invalid"], [])
         self.assertEqual({c["prop"]: c["target"] for c in data["changes"]}, {"wbvalue": "17", "colortone": "vivid"})
+
+    def test_choices_map_for_a_wish(self):
+        props = dict(self.WIFI_A, wbvalue={"value": "0", "writable": True, "enum": ["0", "17"]})
+        client = FakeClient(json_map={"/api/props": props})
+        data = _json_payload(_call(client, "camera_settings", {"choices": True}))
+        sel = data["selectable"]
+        self.assertEqual(data["shooting_mode"], "A")
+        self.assertIn("focalvalue", sel)
+        self.assertNotIn("shutspeedvalue", sel)  # read-only in A
+        self.assertNotIn("artfilter", sel)  # not in mode A
+        self.assertEqual(sel["wbvalue"]["names"]["17"], "6000K")
+        self.assertEqual(sel["wbvalue"]["setting"], "WB")
+        self.assertTrue(any("Contrast" in b for b in data["body_only"]))
 
     def test_usb_art_dial_step_says_it_reads_as_p(self):
         _, data = self.plan("usb", WriteSafetyAndConfigure.USB_PROPS, {"takemode": "art"})

@@ -303,8 +303,9 @@ camera through the running E-M1 Capture app and coach you (USB and Wi-Fi). It on
 - **Optional `--allow-write`:** adds `camera_configure`. It first shows a plan (settings, steps you do on the camera,
   e.g. the mode dial over USB) and changes settings only after you say yes. E-M1 Capture must run with
   `--allow-write` too. It follows the camera's mode rules (shutter speed only in S/M, aperture only in A/M).
-- **Just say it:** with `--allow-write`, "Set the camera up right for now" (typed or dictated) gets a pro
-  M-mode setup: shutter for the subject, aperture for the depth of field, fixed ISO and WB, checked again on the live view.
+- **Just say it:** with `--allow-write`, any wish in words – "set it up right for now", "aurora", "a warm Wes Anderson
+  look", "it is too dark" – becomes a settings plan from what the camera offers in this mode (pro M-mode
+  thinking, fixed ISO and WB, checked again on the live view); what only the body can set is named as a step.
 
 Start E-M1 Capture first. Claude Code (read-only):
 

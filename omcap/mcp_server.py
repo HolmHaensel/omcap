@@ -36,38 +36,35 @@ MAX_IMAGE_BYTES = 12 << 20  # 12 MB cap for base64 image responses over stdio
 MAX_LIST_LIMIT = 200
 WRITE_ENDPOINTS = frozenset({"/api/set"})  # strict allowlist: settings only, never shoot/erase/poweroff
 
-# "Set the camera up right for now": a pro M-mode recipe, active without picking a prompt (voice requests)
-PRO_SETUP = (
-    "When the user asks to set the camera up for the current scene (e.g. 'set it up right for now'), "
-    "set it up like a professional in M mode unless the scene needs otherwise: "
-    "1) Look first: camera_status, camera_settings, live_view_frame (exposure stats) and the lens. "
-    "2) Shutter speed for the subject: handheld with IS at least 1/(2 x focal length), 1/250-1/500 for people "
-    "moving, 1/1000+ for sport or birds; on a tripod as long as the scene allows. "
-    "3) Aperture for the depth of field: f/1.8-2.8 to blur the background, f/4-f/8 sharpest for landscapes and "
-    "groups (MFT: avoid smaller than f/11, diffraction). "
-    "4) ISO fixed (not Auto), the lowest that gives a correct exposure with 2) and 3); ISO 200 is base, up to "
-    "1600 is clean, above 3200 only if needed. "
-    "5) WB fixed to the light (daylight 5300K, shade/cloudy 6000-7500K, tungsten 3000K, mixed: Auto). "
-    "6) Plan it with camera_configure (apply=false), say in one short sentence why each value, apply after yes. "
-    "Over USB the user turns the mode dial to M by hand. "
-    "7) Check again with live_view_frame (in M the E-M1 live view shows the exposure when Live View Boost is Off): "
-    "median_luma about 100-140 and clipped_highlights_pct under 1 percent; if not, propose one shutter step "
-    "(1/3-1 stop) and apply it only after a short yes. Keep spoken answers short. "
-    "Night sky (aurora, stars): tripod, M, widest aperture (f/2.8 or faster), ISO 1600-3200, 2-8 s for aurora "
-    "(the faster it moves, the shorter; stars sharp up to about 300/(2 x focal length) s), WB 3500-4000K, "
-    "IS off on a tripod, focus with Star AF (MF on a bright star) instead of the infinity mark, RAW, "
-    "2 s self-timer or Anti-Shock; the live view at night is too dark to judge exposure: check the last shot."
+# Any wish in words (scene, subject, mood, look, film, a problem like "too dark") -> camera settings.
+# A general method; the scenes and looks are examples, not a fixed list. Active without picking a prompt (voice).
+TRANSLATE = (
+    "Turn any wish in words into camera settings: a scene ('set it up right for now', aurora, kids playing), "
+    "a look or mood (a film, a director, 'warm and dreamy'), or a problem ('too dark', 'blurry'). Method: "
+    "1) Look: camera_status, camera_settings with choices=true (what is selectable now, with readable labels), "
+    "live_view_frame (exposure stats) or last_picture at night, and the lens. "
+    "2) Decide like a professional, in M unless the wish needs otherwise: shutter for the subject (handheld with "
+    "IS at least 1/(2 x focal length), people moving 1/250-1/500, sport/birds 1/1000+, tripod as long as needed); "
+    "aperture for depth of field (f/1.8-2.8 soft background, f/4-f/8 sharpest; MFT: not past f/11); ISO fixed, "
+    "the lowest that works (200 base, 1600 clean, 3200+ only if needed); WB fixed to the light or the look "
+    "(warmer = higher kelvin); Picture Mode, Art filter, drive, AF mode, IS and aspect as the wish asks. "
+    "3) Map only to values in choices; anything the camera cannot take remotely goes into one short body step "
+    "(see body_only), never invented as a setting. "
+    "4) camera_configure with apply=false, one short reason per value, apply after the user's yes; over USB the "
+    "user turns the mode dial by hand. "
+    "5) Check the result: live_view_frame (in M it shows the exposure while Live View Boost is Off; median_luma "
+    "about 100-140, brighter for high-key looks, clipped_highlights_pct under 1 percent) or the last shot; "
+    "propose one step (1/3-1 stop) and apply only after a short yes. Keep spoken answers short. "
+    "Examples of the method: aurora = tripod, M, widest aperture, ISO 1600-3200, 2-8 s (faster aurora shorter), "
+    "WB 3500-4000K, IS off, focus with Star AF; 'Desert Pastel' (Wes Anderson style) = A f/8, +0.3 to +0.7, ISO 200, "
+    "WB 6000K, Vivid, body step Contrast -1 / Saturation +1, centred symmetric framing."
 )
-# A look (film, director, mood) in camera settings; what the camera cannot take over USB/Wi-Fi is said as a body step
-LOOKS = (
-    "When the user asks for a look (a film, a director, a mood), translate it into settings the camera takes "
-    "(mode, aperture, shutter, ISO, exposure compensation, WB, Picture Mode) and name the rest as steps on the "
-    "camera body: Contrast, Saturation and Gradation of a Picture Mode cannot be set over USB or Wi-Fi. "
-    "Example 'Desert Pastel' (Wes Anderson style, e.g. Asteroid City: sunny pastels, turquoise sky, peach sand, "
-    "soft shadows, deep focus, centred symmetric frames): A at f/8 with exposure compensation +0.3 to +0.7 "
-    "(in M instead aim for median_luma about 140-160), ISO 200, WB 6000K, Picture Mode Vivid; on the body "
-    "Vivid Contrast -1 and Saturation +1; compose centred and symmetric with a level horizon."
-)
+# Set on the camera body only (no USB or Wi-Fi command known to E-M1 Capture); told to the user as body steps
+BODY_ONLY = [
+    "Picture Mode details: Contrast, Sharpness, Saturation, Gradation, B&W filter, Pict. Tone",
+    "Art filter effects and variations", "Highlight&Shadow Control curve", "Noise Filter, Noise Reduct.",
+    "Color Creator hue and saturation", "WB fine-tuning (A/G) and custom kelvin values", "Flash intensity",
+]
 
 INSTRUCTIONS_RO = (
     "Read-only AI Photo Coach interface to a running E-M1 Capture server (Olympus OM-D E-M1 Mark I "
@@ -82,7 +79,7 @@ INSTRUCTIONS_RW = (
     "call camera_configure with apply=false first to build a validated plan, present the exact changes "
     "(and any manual steps such as turning the mode dial over USB) to the user, and call "
     "camera_configure with apply=true ONLY after the user explicitly confirms. This server never "
-    "releases the shutter, erases card files or touches firmware.\n\n" + PRO_SETUP + "\n\n" + LOOKS
+    "releases the shutter, erases card files or touches firmware.\n\n" + TRANSLATE
 )
 
 
@@ -425,6 +422,14 @@ def tool_camera_settings(client, args, ctx):
         if prop not in props:
             raise ApiError("Unknown setting %r. Available: %s" % (prop, ", ".join(sorted(props))))
         return _text({prop: _format_prop(_with_names(prop, props[prop]), include_enum=True)})
+    if args.get("choices") is True:  # the map an assistant needs to turn a wish into settings
+        mode = str((props.get("takemode") or {}).get("value"))
+        movie_exp = str((props.get("exposemovie") or {}).get("value"))
+        out = {}
+        for k, v in props.items():
+            if v.get("writable") and _mode_allows(k, mode, movie_exp):
+                out[k] = dict(_format_prop(_with_names(k, v), include_enum=True), setting=_label(k))
+        return _text({"shooting_mode": mode, "selectable": out, "body_only": BODY_ONLY})
     return _text({k: _format_prop(_with_names(k, v), include_enum=False) for k, v in props.items()})
 
 
@@ -892,8 +897,10 @@ READ_TOOLS = {
     "camera_settings": (
         "Read the camera's LV super control panel settings (mode, shutter speed, aperture, ISO, WB, "
         "drive, Picture Mode, AF mode, IS, etc.). Omit 'prop' for a compact overview of all settings; "
-        "pass 'prop' to also receive its allowed values (enum).",
-        _schema({"prop": {"type": "string", "description": "Optional setting name, e.g. shutspeedvalue, isospeedvalue."}}),
+        "pass 'prop' to also receive its allowed values (enum); pass choices=true for every setting selectable in "
+        "the current mode with its values and readable labels, plus what only the camera body can set (body_only).",
+        _schema({"prop": {"type": "string", "description": "Optional setting name, e.g. shutspeedvalue, isospeedvalue."},
+                 "choices": {"type": "boolean", "description": "All settings selectable now, with values and labels."}}),
         READ_ONLY_ANNOTATIONS,
         tool_camera_settings,
     ),
