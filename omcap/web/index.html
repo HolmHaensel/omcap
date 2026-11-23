@@ -3004,6 +3004,7 @@ function drawAf(){
   const c=$('#afGrid'),b=vp.getBoundingClientRect(),d=devicePixelRatio||1;
   if(c.width!==Math.round(b.width*d)||c.height!==Math.round(b.height*d)){c.width=Math.round(b.width*d);c.height=Math.round(b.height*d)}
   const g=c.getContext('2d'); g.clearRect(0,0,c.width,c.height);
+  if(isStarActive()||curFm()==='1') return; // no grid and no AF box while Star AF is on and in MF (user 2026-11-23)
   // without the grid ("Show AF targets" off) only the chosen frame shows for a moment after a tap (REQ-F41)
   const grid=$('#afShow').checked, tapOnly=!grid&&Date.now()<afTapShow;
   if(!af||!st.live||(!grid&&!tapOnly)) return;

@@ -325,7 +325,8 @@ class PageMarkup(unittest.TestCase):
             self.assertIn(frag, h)
         self.assertNotIn('id="rowStar"', h)
         self.assertNotIn('#starPanelAuto', h)
-        self.assertRegex(h, r"if\(isStarActive\(\)\)|curFm\(\)==='1'")  # grid hidden with Star AF and in MF (user 2026-11-23)
+        draw = h[h.index("function drawAf(){"):h.index("function drawAf(){") + 900]
+        self.assertIn("if(isStarActive()||curFm()==='1') return;", draw)  # grid hidden with Star AF and in MF (user 2026-11-23)
         for key in ("lv.starAf", "star.auto", "star.stop", "star.speed", "star.accuracy",
                     "star.prioAria", "star.prioHint", "star.lock", "star.hfrTitle",
                     "star.hfr", "star.hfrClip", "star.best", "star.hyp", "star.noStar",
