@@ -12,36 +12,34 @@ import time
 def _image_deps():
     try:
         import numpy as np
+        import imageio.v2 as imageio
+        return np, imageio
     except ImportError as e:
-        raise ValueError("Star AF needs numpy (pip install numpy): %s" % e)
-    try:
-        from PIL import Image
-        return np, ("pil", Image)
-    except ImportError:
-        try:
-            import imageio.v2 as imageio
-            return np, ("imageio", imageio)
-        except ImportError as e:
-            raise ValueError("Star AF needs Pillow or imageio (pip install pillow): %s" % e)
+        raise ValueError("Star AF needs numpy and imageio: %s" % e)
 
 
 def decode_luma(jpeg_bytes):
     """Decode JPEG bytes into a 2D float32 luminance array (0..255)."""
     if not jpeg_bytes:
         raise ValueError("Empty live view frame")
-    np, (kind, mod) = _image_deps()
-    if kind == "pil":
-        with mod.open(io.BytesIO(jpeg_bytes)) as im:
-            arr = np.asarray(im.convert("L"), dtype=np.float32)
-        return arr
-    arr = np.asarray(mod.imread(io.BytesIO(jpeg_bytes)), dtype=np.float32)
+    np, imageio = _image_deps()
+    arr = np.asarray(imageio.imread(io.BytesIO(jpeg_bytes)), dtype=np.float32)
     if arr.ndim == 3:
         arr = 0.299 * arr[..., 0] + 0.587 * arr[..., 1] + 0.114 * arr[..., 2]
     return arr
 
 
-BRIGHT_BG_LIMIT = 180.0  # OM-1 II manual p.102: Starry Sky AF cannot focus in bright/daylight scenes
-PRIORITIES = {  # AF Priority (OM-1 II manual p.119): (frames_per_step, settle_s)
+def _box3(arr):
+    """3x3 box mean: suppresses isolated 1-pixel hot pixels (~9x drop) while keeping star PSFs."""
+    return (
+        arr[:-2, :-2] + arr[:-2, 1:-1] + arr[:-2, 2:]
+        + arr[1:-1, :-2] + arr[1:-1, 1:-1] + arr[1:-1, 2:]
+        + arr[2:, :-2] + arr[2:, 1:-1] + arr[2:, 2:]
+    ) / 9.0
+
+
+BRIGHT_BG_LIMIT = 180.0  # Star AF cannot focus in bright/daylight scenes
+PRIORITIES = {  # (frames_per_step, settle_s)
     "speed": (2, 0.25),
     "accuracy": (4, 0.45),  # tripod + slower Live View Boost On2 (E-M1 manual p.176)
 }
@@ -74,13 +72,8 @@ def measure_star(luma, cx=None, cy=None, box=96, aperture=18):
     mad = float(np.median(np.abs(roi - bg)))
     sigma = max(1.4826 * mad, 1.0)
 
-    # 3x3 box mean suppresses isolated 1-pixel hot pixels (~9x drop) while keeping real star PSFs.
     # Search inside an inner margin so the aperture around the peak never underflows the ROI border.
-    smooth = (
-        roi[:-2, :-2] + roi[:-2, 1:-1] + roi[:-2, 2:]
-        + roi[1:-1, :-2] + roi[1:-1, 1:-1] + roi[1:-1, 2:]
-        + roi[2:, :-2] + roi[2:, 1:-1] + roi[2:, 2:]
-    ) / 9.0
+    smooth = _box3(roi)
     margin = 3 if smooth.shape[0] > 8 and smooth.shape[1] > 8 else 0
     inner = smooth[margin:smooth.shape[0] - margin, margin:smooth.shape[1] - margin] if margin else smooth
     idx = int(np.argmax(inner))
@@ -133,22 +126,6 @@ def measure_star(luma, cx=None, cy=None, box=96, aperture=18):
     }
 
 
-MFT_COC_MM = 0.015  # Micro Four Thirds circle of confusion (17.3 x 13.0 mm sensor)
-
-
-def hyperfocal_m(focal_mm, f_number, coc_mm=MFT_COC_MM):
-    """Hyperfocal distance in metres and near-sharp limit (H/2) for Micro Four Thirds, else None."""
-    try:
-        f = float(focal_mm)
-        n = float(f_number)
-    except (TypeError, ValueError):
-        return None
-    if f <= 0 or n <= 0 or coc_mm <= 0:
-        return None
-    h_m = (f * f / (n * coc_mm) + f) / 1000.0
-    return {"hyperfocal_m": round(h_m, 2), "near_m": round(h_m / 2.0, 2)}
-
-
 def _dilate_mask(mask, radius):
     """Return boolean mask True wherever any True pixel lies within Chebyshev distance <= radius."""
     import numpy as np
@@ -196,12 +173,7 @@ def find_brightest_star(luma, margin=24):
     mad = float(np.median(np.abs(roi - bg)))
     sigma = max(1.4826 * mad, 1.0)
 
-    # 3x3 mean rejects isolated 1-pixel hot pixels
-    smooth = (
-        roi[:-2, :-2] + roi[:-2, 1:-1] + roi[:-2, 2:]
-        + roi[1:-1, :-2] + roi[1:-1, 1:-1] + roi[1:-1, 2:]
-        + roi[2:, :-2] + roi[2:, 1:-1] + roi[2:, 2:]
-    ) / 9.0
+    smooth = _box3(roi)
     center = roi[1:-1, 1:-1]
 
     # Exclude saturated cores and their halo (both by local-max check and an exclusion radius around >= 250)
@@ -306,10 +278,11 @@ class AutoStarAF:
         self.current_hfr = None
         self.saturated = False
 
-    def _emit(self, phase, message, step=0):
+    def _emit(self, phase, message, step=0, code=None):
         if self.on_progress:
             self.on_progress({
                 "phase": phase,
+                "code": code or phase,
                 "message": message,
                 "step": step,
                 "hfr": self.current_hfr,
@@ -380,8 +353,8 @@ class AutoStarAF:
             return self._finish("stopped", "Star AF stopped")
         if not m0 or not m0.get("found"):
             if m0 and m0.get("bright"):
-                return self._finish("error", "Too bright for Star AF (use in dark sky / night).")
-            return self._finish("error", "No star found near the centre. Aim at a bright star or LED first.")
+                return self._finish("error", "Too bright for Star AF (use in dark sky / night).", code="bright")
+            return self._finish("error", "No star found near the centre. Aim at a bright star or LED first.", code="no_star")
 
         # --- Pass 1: coarse search ---
         pos = 0
@@ -458,7 +431,7 @@ class AutoStarAF:
                 self._emit("fine", "Fine search (HFR %.2f px, best %.2f px)…" % (m["hfr"], fine_best_hfr), step_n)
 
         if fine_best_hfr is None:
-            return self._finish("error", "Lost the star during fine search.")
+            return self._finish("error", "Lost the star during fine search.", code="lost_star")
 
         # Return to finest HFR minimum with backlash compensation
         self._emit("returning", "Setting best focus…", step_n)
@@ -468,11 +441,12 @@ class AutoStarAF:
         final = self._measure(fine_best_pos, "final")
         final_hfr = final["hfr"] if (final and final.get("found")) else fine_best_hfr
         sat_note = " (star clipped – try a dimmer star)" if self.saturated else ""
-        return self._finish("done", "Focused · HFR %.2f px (start %.2f px)%s" % (final_hfr, self.start_hfr, sat_note))
+        return self._finish("done", "Focused · HFR %.2f px (start %.2f px)%s" % (final_hfr, self.start_hfr, sat_note), code="done")
 
-    def _finish(self, phase, message):
+    def _finish(self, phase, message, code=None):
         out = {
             "phase": phase,
+            "code": code or phase,
             "message": message,
             "hfr": self.current_hfr,
             "best_hfr": self.best_hfr,

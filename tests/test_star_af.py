@@ -21,9 +21,9 @@ def make_star_frame(w=240, h=180, sx=120.0, sy=90.0, sigma=2.0, peak=200.0, bg=1
 
 
 def to_jpeg(luma):
-    from PIL import Image
+    import imageio.v2 as imageio
     buf = io.BytesIO()
-    Image.fromarray(luma.astype(np.uint8)).save(buf, format="JPEG", quality=95)
+    imageio.imwrite(buf, luma.astype(np.uint8), format="JPEG")
     return buf.getvalue()
 
 
@@ -89,13 +89,6 @@ class StarMeasurement(unittest.TestCase):
         hit = star_af.find_brightest_star(img)
         self.assertTrue(hit["found"])
         self.assertTrue(hit["saturated"])
-
-    def test_hyperfocal_mft_calculation(self):
-        h = star_af.hyperfocal_m(12, 2.8)
-        self.assertAlmostEqual(h["hyperfocal_m"], 3.44, places=1)
-        self.assertAlmostEqual(h["near_m"], 1.72, places=1)
-        self.assertIsNone(star_af.hyperfocal_m(0, 2.8))
-        self.assertIsNone(star_af.hyperfocal_m("bad", 2.8))
 
 
 class AutoStarAfVcurve(unittest.TestCase):
@@ -267,14 +260,59 @@ class ServerGuards(unittest.TestCase):
                 threading.Event().wait(0.01)
 
         self.assertEqual(boost_calls, [3, 2])  # On2 during Star AF, restored to Off in finally
-        self.assertTrue(cam.loupe.called)
-        _, ratio, lx, ly = cam.loupe.call_args[0]
+        self.assertEqual(cam.loupe.call_count, 2)  # Zoom AF x10 on, then explicitly off in finally
+        _, ratio, lx, ly = cam.loupe.call_args_list[0][0]
         self.assertEqual(ratio, 10)
         self.assertAlmostEqual(lx, 180.0 / 240.0, delta=0.05)
         self.assertAlmostEqual(ly, 120.0 / 180.0, delta=0.05)
+        self.assertEqual(cam.loupe.call_args_list[1][0], (False,))
         cam.set_prop.assert_called_with("focusmode", "1")
         self.assertTrue(server.star_af_state["switched_to_mf"])
-        self.assertIn("switched to MF", server.star_af_state["message"])
+        self.assertFalse(server.star_af_state["boost_on"])
+
+    def test_ensure_idle_blocks_while_star_af_running(self):
+        self._setup_cam()
+        server.star_af_state["running"] = True
+        with self.assertRaises(CameraError):
+            server.ensure_idle()
+
+    def test_concurrent_start_refused_without_race(self):
+        self._setup_cam()
+        gate = threading.Event()
+        entered = threading.Event()
+        def slow_run(af_self):
+            entered.set()
+            gate.wait(2.0)
+            return {"phase": "stopped", "code": "stopped", "message": "Star AF stopped"}
+        with mock.patch.object(star_af.AutoStarAF, "run", slow_run):
+            server.start_star_af(x=0.5, y=0.5, zoom=False, boost=False)
+            self.assertTrue(entered.wait(1.0))
+            with self.assertRaises(CameraError):
+                server.start_star_af(x=0.5, y=0.5, zoom=False, boost=False)
+            gate.set()
+            if server.star_af_thread:
+                server.star_af_thread.join(timeout=2.0)
+
+    def test_disconnect_stops_runner_and_restores_loupe_and_boost(self):
+        cam, _ = self._setup_cam()
+        boost_calls = []
+        def set_lv_boost(val):
+            boost_calls.append(val)
+            return 2 if len(boost_calls) == 1 else 3
+        cam.set_lv_boost.side_effect = set_lv_boost
+        in_run = threading.Event()
+        def blocking_run(af_self):
+            in_run.set()
+            server.stop_job.wait(2.0)
+            return {"phase": "stopped", "code": "stopped", "message": "Star AF stopped"}
+        with mock.patch.object(server.stop_job, "wait", side_effect=[False, False, True]), \
+             mock.patch.object(star_af.AutoStarAF, "run", blocking_run):
+            server.start_star_af(x=0.5, y=0.5, zoom=True, boost=True)
+            self.assertTrue(in_run.wait(1.0))
+            server.disconnect()
+        self.assertEqual(boost_calls, [3, 2])
+        self.assertEqual(cam.loupe.call_args_list[-1][0], (False,))
+        cam.close.assert_called_once()
 
 
 class PageMarkup(unittest.TestCase):
@@ -282,13 +320,16 @@ class PageMarkup(unittest.TestCase):
         h = HTML.read_text(encoding="utf-8")
         for frag in ('id="starAfOn"', 'id="starAfLab"', 'id="starRow"', 'id="starPrio"',
                      'id="starHfr"', 'id="starBest"', 'id="starHyp"', 'id="starLock"',
-                     'id="starPanelLock"', 'id="starReset"', 'id="starAuto"',
-                     'data-feat="star_af"', 'data-feat="mf_drive"', 'lvboost:'):
+                     'id="starLockLab"', 'id="starReset"', 'id="starAuto"',
+                     'data-feat="star_af"', 'data-feat="mf_drive"', "lvboost:{show:inMode('P','A','S')}"):
             self.assertIn(frag, h)
+        self.assertNotIn('id="rowStar"', h)
         for key in ("lv.starAf", "star.auto", "star.stop", "star.speed", "star.accuracy",
-                    "star.prioHint", "star.lock", "star.locked", "star.hfr", "star.hfrClip",
-                    "star.best", "star.hyp", "star.noStar", "star.tooBright",
-                    "star.reset", "star.manualHint", "prop.lvboost"):
+                    "star.prioAria", "star.prioHint", "star.lock", "star.hfrTitle",
+                    "star.hfr", "star.hfrClip", "star.best", "star.hyp", "star.noStar",
+                    "star.tooBright", "star.reset", "star.manualHint", "star.needMf",
+                    "star.running", "star.boostNote", "star.inFocus", "star.inFocusMf",
+                    "star.noFocus", "star.stopped", "prop.lvboost"):
             self.assertIn('"%s":' % key, h)
         self.assertIn("'/api/staraf'", h)
 

@@ -220,14 +220,14 @@ USB_TABLES = {
     "d01a": {"0": "Face Priority Off", "32769": "Face Priority On", "32770": "Face & Eye Priority On",
              "32771": "Face & R. Eye Priority On", "32772": "Face & L. Eye Priority On"},  # 32771 inferred
     "d0cb": {"1": "On", "2": "Off"},  # Focus BKT (user's firmware: d0ce is Focus Stacking, mapped 2026-11-16)
-    "d0ea": {"2": "Off", "1": "On1", "3": "On2"},  # Live View Boost (E-M1 manual p.176; traces B & C, 2026-11-16/22)
+    "d0ea": {"2": "Off", "1": "On1", "3": "On2"},  # Live View Boost, Others row (P/A/S; E-M1 manual p.176/179)
 }
 # Focus Stacking = Bracketing On + Focus BKT + stacking flag; the camera then switches by itself to Silent Sequential H,
 # electronic shutter (1/16000 … 1/8 s) and flash off (E-M1 manual, p.174). d020 is not written: a
 # value the camera sets itself (3 with Bracketing On, 2 with Off; OM Capture never writes it, trace round C 2026-11-22;
 # named RC flash Group A there): never written by the app.
 BKT_MAIN = "d0a6"  # Bracketing On (1) / Off (2), the main switch of Shooting Menu 2 (found 2026-11-22 by diff)
-LV_BOOST = "d0ea"  # Live View Boost: 1 = On1, 2 = Off, 3 = On2 (confirmed in OM Capture traces B & C, 2026-11-16/22)
+LV_BOOST = "d0ea"  # Live View Boost, Others row: 1 = On1, 2 = Off, 3 = On2 (d0e7-d0e9 for M/Bulb/LiveComp unmapped)
 STACK_FRAMES_WAIT = 6.0  # the 8 frames are on the card ~3.5 s after the release; then decide whether to wait on
 STACK_WAIT = 16.0  # 8 frames (16 files with JPG+ORF) in ~3.5 s, the merged JPG ~13.6 s after the release (2026-11-13)
 
@@ -697,7 +697,10 @@ class UsbCamera:
             if key == "focusstacking":  # On only when the camera really stacks: Bracketing, Focus BKT and d0ce (live)
                 value = "1" if self._stacking_on() else "2"
             if key == "lvboost":  # live value so menu or Star AF boost changes reflect immediately
-                value = self._prop_now(LV_BOOST)
+                try:
+                    value = self._prop_now(LV_BOOST)
+                except (CameraError, AttributeError, TypeError, ValueError):
+                    pass
             if key == "artfilter":  # d010 also holds the kind of filter (from 34305)
                 choices = [c for c in choices if int(c) >= 34305]
             if key == "shutspeedvalue":  # M only: BULB, LIVE TIME, LIVECOMP are in d01c
