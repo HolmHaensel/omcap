@@ -1041,11 +1041,24 @@ class UsbCamera:
         if prop not in self.PROPS:
             raise CameraError("Not available over USB: %s" % prop)
         if prop == "focusstacking":
-            self._set_focus_stacking(str(value) == "1")
+            self._busy_retry(lambda: self._set_focus_stacking(str(value) == "1"))
         elif prop == "shutspeedvalue" and value in LONG_EXPOSURE:
             self._set("d01c", LONG_EXPOSURE[value])
         else:
             self._set(self.PROPS[prop][0], value)
+
+    BUSY_RETRY = 8.0  # seconds: after a stacking shot the camera still writes and answers 0x2019 (2026-11-23)
+
+    def _busy_retry(self, action):
+        """Run `action`; while the camera answers busy (0x2019), try again for up to BUSY_RETRY seconds."""
+        end = time.monotonic() + self.BUSY_RETRY
+        while True:
+            try:
+                return action()
+            except CameraError as e:
+                if "0x2019" not in str(e) or time.monotonic() >= end:
+                    raise
+                time.sleep(0.5)
 
     def _set_focus_stacking(self, on):
         """Focus Stacking on or off: bracketing kind d020 = Focus BKT, Focus BKT d0cb and the stacking flag d0ce;
