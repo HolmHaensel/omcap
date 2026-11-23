@@ -85,7 +85,7 @@ main{display:grid;grid-template-columns:minmax(0,1044px) 340px;justify-content:c
 #viewport.loupe #afGrid,#viewport.loupe #afMark,#viewport.loupe #grid,#viewport.loupe #aidCv,#viewport.loupe #ovl{display:none} /* magnified picture: they would not match, and only the picture should be scaled (REQ-F54) */
 #viewport.loupe.star #aidCv{display:block} /* keep Star AF HFR reticle visible while zoomed (REQ-F24) */
 #starRow{flex-wrap:wrap;overflow-x:visible}
-#starAuto.rec,#starPanelAuto.rec{background:var(--rec);border-color:var(--rec);color:#fff;font-weight:600}
+#starAuto.rec{background:var(--rec);border-color:var(--rec);color:#fff;font-weight:600}
 #statusLine{display:flex;gap:var(--s4);flex-wrap:wrap;font-size:13px;color:var(--muted)}
 #statusLine #msg{margin:0;min-height:0}
 #lvSize{font-family:var(--font-value)}
@@ -1510,8 +1510,8 @@ function applyContext(){
   $('#rowMf').hidden=!(features.has('mf_drive')&&canWrite&&['1','32769'].includes(fm));
   // Star AF: photo shooting modes only, not Movie mode (REQ-F24)
   $('#starAfLab').classList.toggle('mode-off',mv);
-  // Hide AF Area boxes and target grid toggle while Star AF is active; keep them in plain MF (E-M1 manual p.102)
-  const hideAf=isStarActive();
+  // Hide AF Area boxes and 9x9 grid in MF mode or while Star AF is active (user decision 2026-11-23: app zooms via pointer/overview map)
+  const hideAf=fm==='1'||isStarActive();
   $('#afModes').hidden=hideAf||!features.has('af_modes');
   $('#afShowRow').hidden=hideAf;
   renderLongSeg(m,sp);
@@ -2981,7 +2981,7 @@ function pickField(e){
     }
     return;
   }
-  if(!af||!canWrite) return;
+  if(curFm()==='1'||!af||!canWrite) return;
   const b=layer.getBoundingClientRect(),a=af.area;
   const x=((e.clientX-b.left)/b.width*a.w-a.x0)/(a.x1-a.x0), y=((e.clientY-b.top)/b.height*a.h-a.y0)/(a.y1-a.y0);
   if(x<0||x>=1||y<0||y>=1){msg(tr('msg.outsideAf'),true);return}
@@ -3005,7 +3005,7 @@ function drawAf(){
   if(c.width!==Math.round(b.width*d)||c.height!==Math.round(b.height*d)){c.width=Math.round(b.width*d);c.height=Math.round(b.height*d)}
   const g=c.getContext('2d'); g.clearRect(0,0,c.width,c.height);
   // without the grid ("Show AF targets" off) only the chosen frame shows for a moment after a tap (REQ-F41)
-  if(isStarActive()) return;
+  if(isStarActive()||curFm()==='1') return;
   const grid=$('#afShow').checked, tapOnly=!grid&&Date.now()<afTapShow;
   if(!af||!st.live||(!grid&&!tapOnly)) return;
   const a=af.area,X=a.x0/a.w*c.width,Y=a.y0/a.h*c.height,W=(a.x1-a.x0)/a.w*c.width,H=(a.y1-a.y0)/a.h*c.height,cw=W/9,ch=H/9;

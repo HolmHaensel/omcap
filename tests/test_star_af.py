@@ -324,6 +324,8 @@ class PageMarkup(unittest.TestCase):
                      'data-feat="star_af"', 'data-feat="mf_drive"', "lvboost:{show:inMode('P','A','S')}"):
             self.assertIn(frag, h)
         self.assertNotIn('id="rowStar"', h)
+        self.assertNotIn('#starPanelAuto', h)
+        self.assertIn("if(isStarActive()||curFm()==='1') return;", h)
         for key in ("lv.starAf", "star.auto", "star.stop", "star.speed", "star.accuracy",
                     "star.prioAria", "star.prioHint", "star.lock", "star.hfrTitle",
                     "star.hfr", "star.hfrClip", "star.best", "star.hyp", "star.noStar",
