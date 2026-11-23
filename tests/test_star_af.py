@@ -362,5 +362,15 @@ def server_path():
     return os.path.join(os.path.dirname(server.__file__), "server.py")
 
 
+
+class StarChip(unittest.TestCase):
+    def test_live_view_shows_star_af_icon_while_on(self):
+        import os
+        from omcap import server
+        h = open(os.path.join(os.path.dirname(server.__file__), "web", "index.html"), encoding="utf-8").read()
+        self.assertIn('<div id="starChip" hidden>', h)
+        self.assertIn("sc.hidden=!(st.live&&isStarActive());", h)
+
+
 if __name__ == "__main__":
     unittest.main()
