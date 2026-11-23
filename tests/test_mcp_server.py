@@ -643,6 +643,16 @@ class ModeRulesAndRobustness(unittest.TestCase):
         self.assertEqual(data["pending"], [])
         self.assertEqual([c["prop"] for c in data["applied_changes"]], ["takemode", "shutspeedvalue"])
 
+    def test_aperture_written_without_decimal(self):
+        entry = {"enum": ["5.6", "8.0", "11.0"], "writable": True}
+        self.assertEqual(mcp_server._resolve_setting_value(entry, "f/8"), "8.0")
+        self.assertEqual(mcp_server._resolve_setting_value(entry, "11"), "11.0")
+        self.assertIsNone(mcp_server._resolve_setting_value(entry, "f/9"))
+
+    def test_card_date_readable(self):  # values seen on the E-M1 2026-11-23 (EXIF 10:50:13)
+        self.assertEqual(mcp_server._dos_datetime(23927, 22086), "2026-11-23 10:50:12")
+        self.assertIsNone(mcp_server._dos_datetime(None, 0))
+
     def test_bad_prompt_argument_and_internal_error_keep_the_session(self):
         srv = mcp_server.McpServer(FakeClient(), allow_write=False)
         ok = srv.handle_message({"jsonrpc": "2.0", "id": 1, "method": "prompts/get",

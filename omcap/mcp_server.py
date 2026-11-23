@@ -268,6 +268,18 @@ def _resolve_setting_value(entry, wanted):
     for c in choices:
         if c.lower() == stripped:
             return c
+    # Numbers written differently ("8" for the camera's "8.0", "f/8")
+    try:
+        num = float(stripped)
+    except ValueError:
+        num = None
+    if num is not None:
+        for c in choices:
+            try:
+                if abs(float(c) - num) < 0.01:
+                    return c
+            except ValueError:
+                continue
     # Match human-readable USB display names (e.g. "MF" -> "1", "S-AF+MF" -> "32769", "Natural" -> "33537")
     for code, label in names.items():
         if label.lower() == low and (not choices or code in choices):
@@ -386,6 +398,14 @@ def tool_live_view_frame(client, args, ctx):
     return [_image(data), *_text(meta)]
 
 
+def _dos_datetime(date, time_):
+    """Card list date/time as the camera sends them (FAT/DOS packed integers) -> "YYYY-MM-DD HH:MM:SS"."""
+    if not isinstance(date, int) or not isinstance(time_, int) or not date:
+        return None
+    return "%04d-%02d-%02d %02d:%02d:%02d" % (1980 + (date >> 9), (date >> 5) & 15, date & 31,
+                                              time_ >> 11, (time_ >> 5) & 63, (time_ & 31) * 2)
+
+
 def tool_list_card_images(client, args, ctx):
     raw_limit = args.get("limit", 20)
     if isinstance(raw_limit, bool) or not isinstance(raw_limit, int):
@@ -406,10 +426,13 @@ def tool_list_card_images(client, args, ctx):
     else:
         imgs = client.get_json("/api/images", {"dir": folder}, timeout=30.0)
 
-    items = [
-        {k: e.get(k) for k in ("path", "name", "size", "date", "time") if e.get(k) is not None}
-        for e in imgs[:limit]
-    ]
+    items = []
+    for e in imgs[:limit]:
+        item = {k: e.get(k) for k in ("path", "name", "size") if e.get(k) is not None}
+        taken = _dos_datetime(e.get("date"), e.get("time"))
+        if taken:
+            item["taken"] = taken
+        items.append(item)
     return _text({"total": len(imgs), "shown": len(items), "cached": used_cache, "images": items})
 
 
