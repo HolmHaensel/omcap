@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Disconnecting during a running request answers "Not connected" (409) instead of an internal error; caches and live view counters are thread-safe.
 - USB Focus Stacking no longer writes d020; the camera sets it itself, like OM Capture (REQ-F69).
 - Quit and Open in OM Workspace only from the computer itself (hidden on a phone over --lan); Quit waits for a running connect (REQ-Q10).
 - USB Focus Stacking: waits out the camera's silence while merging; switching Off retries while the camera is busy after a shot (REQ-F69). USB-tested 2026-11-23 (busy retry unit-tested).
