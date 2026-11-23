@@ -34,7 +34,8 @@ SUPPORTED_PROTOCOLS = ("2024-11-05", "2025-03-26", "2025-06-18")
 LOOPBACK_HOSTS = ("127.0.0.1", "localhost")
 MAX_IMAGE_BYTES = 12 << 20  # 12 MB cap for base64 image responses over stdio
 MAX_LIST_LIMIT = 200
-WRITE_ENDPOINTS = frozenset({"/api/set"})  # strict allowlist: settings only, never shoot/erase/poweroff
+WRITE_ENDPOINTS = frozenset({"/api/set", "/api/afarea", "/api/mfdrive", "/api/liveview"})  # settings, focus, live view
+SHUTTER_ENDPOINTS = frozenset({"/api/shoot"})  # only with --allow-shutter; never erase, power off or firmware
 
 # Any wish in words (scene, subject, mood, look, film, a problem like "too dark") -> camera settings.
 # A general method; the scenes and looks are examples, not a fixed list. Active without picking a prompt (voice).
@@ -74,6 +75,19 @@ BODY_ONLY = [
     "Color Creator hue and saturation", "WB fine-tuning (A/G) and custom kelvin values", "Flash intensity",
 ]
 
+# Focus and live view come with --allow-write; the report from the first Cowork test (2026-11-23): after a
+# settings change the live view may be soft, so focus again before judging sharpness
+CONTROL = (
+    "Control: live_view starts the live view; camera_focus focuses (on a point x/y of the live view frame, the "
+    "current AF point, or manual steps over USB). After settings changes or when live_view_frame looks soft, "
+    "focus again with camera_focus before judging sharpness."
+)
+SHUTTER_RULES = (
+    "Shutter: camera_shoot takes ONE picture. First call it without confirm and tell the user what will be "
+    "taken; take it with confirm=true only after the user's yes for this shot (a yes covers one shot, never a "
+    "series). Then check it with last_picture."
+)
+
 INSTRUCTIONS_RO = (
     "Read-only AI Photo Coach interface to a running E-M1 Capture server (Olympus OM-D E-M1 Mark I "
     "over USB or Wi-Fi). Use these tools to inspect camera status, settings, lens, live view frame "
@@ -87,7 +101,7 @@ INSTRUCTIONS_RW = (
     "call camera_configure with apply=false first to build a validated plan, present the exact changes "
     "(and any manual steps such as turning the mode dial over USB) to the user, and call "
     "camera_configure with apply=true ONLY after the user explicitly confirms. This server never "
-    "releases the shutter, erases card files or touches firmware.\n\n" + TRANSLATE
+    "releases the shutter unless started with --allow-shutter, never erases card files or touches firmware.\n\n" + TRANSLATE + "\n\n" + CONTROL
 )
 
 
@@ -124,10 +138,11 @@ class _NoRedirect(urllib.request.HTTPRedirectHandler):
 class HttpClient:
     """Thin client for the local E-M1 Capture HTTP API (GET always; allowlisted POST only with allow_write)."""
 
-    def __init__(self, base_url=DEFAULT_URL, timeout=10.0, allow_write=False):
+    def __init__(self, base_url=DEFAULT_URL, timeout=10.0, allow_write=False, allow_shutter=False):
         self.base_url = validate_url(base_url)
         self.timeout = timeout
         self.allow_write = bool(allow_write)
+        self.allow_shutter = bool(allow_shutter) and self.allow_write
         # Ignore system proxy env vars on loopback and refuse redirects off localhost
         self._opener = urllib.request.build_opener(urllib.request.ProxyHandler({}), _NoRedirect())
 
@@ -180,7 +195,7 @@ class HttpClient:
         """HTTP POST strictly gated by allow_write and WRITE_ENDPOINTS allowlist."""
         if not self.allow_write:
             raise ApiError("MCP server is read-only. Restart with --allow-write to configure settings.", status=403)
-        if path not in WRITE_ENDPOINTS:
+        if path not in WRITE_ENDPOINTS and not (self.allow_shutter and path in SHUTTER_ENDPOINTS):
             raise ApiError("Endpoint %s is not allowed from MCP" % path, status=403)
         body = json.dumps(payload).encode("utf-8")
         req = urllib.request.Request(
@@ -886,6 +901,8 @@ READ_ONLY_ANNOTATIONS = {
     "openWorldHint": False,
 }
 
+CONTROL_ANNOTATIONS = {"readOnlyHint": False, "destructiveHint": False, "idempotentHint": False, "openWorldHint": False}
+SHUTTER_ANNOTATIONS = {"readOnlyHint": False, "destructiveHint": False, "idempotentHint": False, "openWorldHint": False}
 CONFIGURE_ANNOTATIONS = {
     "readOnlyHint": False,
     "destructiveHint": False,
@@ -946,6 +963,98 @@ READ_TOOLS = {
     ),
 }
 
+AF_ALL_TARGETS = 33024  # USB AF Area "All Targets": the camera picks the field itself
+
+
+def _af_field(info, x, y):
+    """Field 1-81 of the camera's 9x9 AF grid at (x, y) given as 0-1 of the live view frame."""
+    a = info.get("area") or {}
+    w, h = a.get("w") or 1, a.get("h") or 1
+    col = int((x * w - a.get("x0", 0)) * 9 / max(1, a.get("x1", w) - a.get("x0", 0)))
+    row = int((y * h - a.get("y0", 0)) * 9 / max(1, a.get("y1", h) - a.get("y0", 0)))
+    return 9 * min(max(row, 0), 8) + min(max(col, 0), 8) + 1
+
+
+def tool_camera_focus(client, args, ctx):
+    status = client.get_json("/api/status")
+    conn = status.get("type")
+    mf = args.get("mf")
+    if mf is not None:
+        if mf not in ("near", "far"):
+            raise ValueError("'mf' must be 'near' or 'far'")
+        step = args.get("step", 1)
+        if isinstance(step, bool) or step not in (1, 2, 3):
+            raise ValueError("'step' must be 1 (fine), 2 or 3 (coarse)")
+        if conn != "usb":
+            raise ApiError("Manual focus steps work only over USB (no Wi-Fi command).")
+        client.post_json("/api/mfdrive", {"direction": mf, "step": step})
+        return _text({"mf": mf, "step": step, "note": "Needs AF mode MF or S-AF+MF. Check with live_view_frame."})
+    x, y = args.get("x"), args.get("y")
+    if (x is None) != (y is None):
+        raise ValueError("Give both 'x' and 'y' (0-1 of the live view frame) or neither")
+    info = client.get_json("/api/afarea")
+    if x is not None:
+        for v in (x, y):
+            if isinstance(v, bool) or not isinstance(v, (int, float)) or not 0 <= v <= 1:
+                raise ValueError("'x' and 'y' must be numbers from 0 to 1")
+        if conn == "usb" and info.get("mode") == AF_ALL_TARGETS:
+            raise ApiError("AF Area is All Targets: the camera picks the point. Set Single Target in the app "
+                           "to focus on a point, or call camera_focus without x/y.")
+        payload = {"field": _af_field(info, x, y)}
+    elif conn == "usb":
+        payload = {"focus": True}
+    else:
+        payload = {"field": info.get("field") or 41}  # Wi-Fi focuses on a point: the last one, else the centre
+    res = client.post_json("/api/afarea", payload, timeout=15.0) or {}
+    last = res.get("last_af")
+    out = {"connection": conn, "field": res.get("field", payload.get("field")), "in_focus": bool(last)}
+    if not last:
+        out["note"] = "No focus confirmed: more contrast, more light, or a closer point; then check live_view_frame."
+    return _text(out)
+
+
+def tool_live_view(client, args, ctx):
+    action = args.get("action")
+    if action not in ("start", "stop"):
+        raise ValueError("'action' must be 'start' or 'stop'")
+    client.post_json("/api/liveview", {"action": action}, timeout=20.0)
+    return _text({"live_view": action == "start"})
+
+
+def _card_paths(client, conn):
+    try:
+        imgs = client.get_json("/api/images", {"newest": "1"} if conn == "wifi" else {"cached": "1"}, timeout=20.0)
+    except ApiError:
+        return []
+    return [e.get("path") for e in imgs or () if e.get("path")]
+
+
+def tool_camera_shoot(client, args, ctx):
+    status = client.get_json("/api/status")
+    conn = status.get("type")
+    props = client.get_json("/api/props")
+    state = client.get_json("/api/state")
+    val = lambda k: (props.get(k) or {}).get("value")  # noqa: E731
+    shutter = str(val("shutspeedvalue"))
+    if shutter in LONG_SHUTTER:
+        raise ApiError("BULB, LIVE TIME and LIVECOMP need start and stop: use the app for these.")
+    if state.get("busy") or state.get("stage") or state.get("job", {}).get("running") or state.get("movie"):
+        raise ApiError("The camera is busy (shot, series, movie or Press halfway): wait, then try again.")
+    plan = {"connection": conn, "shooting_mode": val("takemode"), "shutter": shutter, "aperture": val("focalvalue"),
+            "iso": val("isospeedvalue"), "drive": val("drivemode")}
+    if args.get("confirm") is not True:
+        return _text({"dry_run": True, "will_take_one_picture": plan,
+                      "next_step": "Tell the user and call camera_shoot with confirm=true only after their yes."})
+    before = set(_card_paths(client, conn))
+    res = client.post_json("/api/shoot", {}, timeout=120.0) or {}
+    new = [p for p in _card_paths(client, conn) if p not in before]
+    out = {"taken": True, "settings": plan, "new_files": new, "saved_to_computer": res.get("saved") or []}
+    if res.get("note"):
+        out["note"] = "Focus Stacking was On, the camera took one picture."
+    out["next_step"] = "Check it with last_picture (preview='full' for sharpness)."
+    return _text(out)
+
+
 WRITE_TOOLS = {
     "camera_configure": (
         "Validate or apply camera settings for a scene (e.g. stars, sunset, portrait). "
@@ -965,18 +1074,49 @@ WRITE_TOOLS = {
         CONFIGURE_ANNOTATIONS,
         tool_camera_configure,
     ),
+    "camera_focus": (
+        "Focus the camera: AF on a point (x, y as 0-1 of the live view frame), AF with the current AF point "
+        "(no arguments), or a manual focus step over USB (mf='near'/'far', step 1 fine to 3 coarse; AF mode MF "
+        "or S-AF+MF). Returns whether the camera confirmed focus. Does not release the shutter.",
+        _schema({"x": {"type": "number", "minimum": 0, "maximum": 1, "description": "Horizontal point, 0 left to 1 right."},
+                 "y": {"type": "number", "minimum": 0, "maximum": 1, "description": "Vertical point, 0 top to 1 bottom."},
+                 "mf": {"type": "string", "enum": ["near", "far"], "description": "USB: manual focus step direction."},
+                 "step": {"type": "integer", "enum": [1, 2, 3], "description": "Manual step size (default 1, fine)."}}),
+        CONTROL_ANNOTATIONS,
+        tool_camera_focus,
+    ),
+    "live_view": (
+        "Start or stop the live view in E-M1 Capture (needed for live_view_frame).",
+        _schema({"action": {"type": "string", "enum": ["start", "stop"]}}, required=["action"]),
+        CONTROL_ANNOTATIONS,
+        tool_live_view,
+    ),
+}
+
+SHUTTER_TOOLS = {
+    "camera_shoot": (
+        "Take ONE picture, like the Take picture button (the camera focuses in S-AF and releases only in focus). "
+        "Default confirm=false returns what will be taken; call with confirm=true ONLY after the user said yes "
+        "for this shot. Returns the new card files. Not for BULB/LIVE TIME/LIVECOMP or series.",
+        _schema({"confirm": {"type": "boolean", "description": "True takes the picture; only after the user's yes."}}),
+        SHUTTER_ANNOTATIONS,
+        tool_camera_shoot,
+    ),
 }
 
 
 class McpServer:
     """Stateless JSON-RPC 2.0 handler for E-M1 Capture MCP tools and Photo Coach prompts."""
 
-    def __init__(self, client, allow_write=False, lenses=None):
+    def __init__(self, client, allow_write=False, lenses=None, allow_shutter=False):
         self.client = client
         self.allow_write = bool(allow_write)
+        self.allow_shutter = bool(allow_shutter) and self.allow_write
         self.lenses = [s.strip() for s in (lenses or ()) if str(s).strip()]
 
     def _tools(self):
+        if self.allow_shutter:
+            return {**READ_TOOLS, **WRITE_TOOLS, **SHUTTER_TOOLS}
         if self.allow_write:
             return {**READ_TOOLS, **WRITE_TOOLS}
         return READ_TOOLS
@@ -1012,7 +1152,8 @@ class McpServer:
                 "protocolVersion": ver,
                 "capabilities": {"tools": {}, "prompts": {}},
                 "serverInfo": {"name": "em1-capture", "version": __version__},
-                "instructions": INSTRUCTIONS_RW if self.allow_write else INSTRUCTIONS_RO,
+                "instructions": (INSTRUCTIONS_RW + ("\n\n" + SHUTTER_RULES if self.allow_shutter else ""))
+                if self.allow_write else INSTRUCTIONS_RO,
             }
         if method == "ping":
             return {}
@@ -1042,7 +1183,7 @@ class McpServer:
             extra = sorted(set(args) - allowed)
             if extra:
                 raise _RpcError(-32602, "Unexpected argument(s) for %s: %s" % (name, ", ".join(extra)))
-            ctx = {"allow_write": self.allow_write, "lenses": self.lenses}
+            ctx = {"allow_write": self.allow_write, "allow_shutter": self.allow_shutter, "lenses": self.lenses}
             try:
                 content = tools[name][3](self.client, args, ctx)
                 return {"content": content, "isError": False}
@@ -1114,17 +1255,24 @@ def main(argv=None):
         help="Enable camera_configure to change camera settings (E-M1 Capture must also run with --allow-write).",
     )
     ap.add_argument(
+        "--allow-shutter",
+        action="store_true",
+        help="Also enable camera_shoot (one picture per user yes); needs --allow-write.",
+    )
+    ap.add_argument(
         "--lenses",
         default=os.environ.get("OMCAP_LENSES", ""),
         help="Comma-separated list of lenses you own, for Photo Coach recommendations (or OMCAP_LENSES).",
     )
     args = ap.parse_args(argv)
     try:
-        client = HttpClient(args.url, allow_write=args.allow_write)
+        if args.allow_shutter and not args.allow_write:
+            ap.error("--allow-shutter needs --allow-write")
+        client = HttpClient(args.url, allow_write=args.allow_write, allow_shutter=args.allow_shutter)
     except ValueError as e:
         ap.error(str(e))
     lenses = [s.strip() for s in args.lenses.split(",") if s.strip()]
-    serve(McpServer(client, allow_write=args.allow_write, lenses=lenses))
+    serve(McpServer(client, allow_write=args.allow_write, lenses=lenses, allow_shutter=args.allow_shutter))
     return 0
 
 
