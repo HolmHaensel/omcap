@@ -118,6 +118,7 @@ stop_job = threading.Event()
 job = {"name": None, "running": False, "done": 0, "total": 0, "error": None}
 star_af_lock = threading.Lock()  # serializes Star AF start/stop and thread lifecycle
 star_af_thread = None
+star_af_restore = {}  # what a running Star AF changed ("boost": d0ea before), for disconnect()
 star_af_state = {"running": False, "phase": "idle", "code": None, "hfr": None, "best_hfr": None,
                  "start_hfr": None, "step": 0, "message": None, "error": None,
                  "saturated": False, "switched_to_mf": False, "boost_on": False,
@@ -208,6 +209,14 @@ def disconnect():
     if t is not None and t.is_alive():
         stop_job.set()
         t.join(timeout=3.0)
+        if t.is_alive():  # still busy: put the camera back ourselves before the session closes
+            print("Star AF did not stop within 3 s: restoring Zoom AF and Live View Boost", flush=True)
+            for undo in (lambda: cam.loupe(False),
+                         lambda: "boost" in star_af_restore and cam.set_lv_boost(star_af_restore["boost"])):
+                try:
+                    undo()
+                except Exception:
+                    pass
     star_af_thread = None
     if conn_type == "usb" and state.get("take"):
         try:
@@ -881,7 +890,7 @@ def start_star_af(x=None, y=None, zoom=True, boost=True, priority="speed"):
     Zoom AF x10, coarse-to-fine V-curve via OMD_MFDrive (0x9487), and switch S-AF+MF -> MF on success."""
     global star_af_thread
     if conn_type != "usb":
-        raise CameraError("Auto Star AF needs USB focus drive (over Wi-Fi use the live HFR aid and turn the focus ring)")
+        raise CameraError("Auto Star AF needs a USB cable. Turn the focus ring and watch the number.")
     if not cam.allow_write:
         raise WriteBlocked("Read-only mode: start with --allow-write")
     if not live.running:
@@ -921,11 +930,13 @@ def start_star_af(x=None, y=None, zoom=True, boost=True, priority="speed"):
                             _, frame, _ = live_ref.wait_frame(live_ref.seq, 1.5)
                             return frame
 
-                        if boost and hasattr(cam_ref, "set_lv_boost"):
+                        # d0ea is the Live View Boost of the "Others" row: it acts in P/A/S only (M has its own rows)
+                        if boost and hasattr(cam_ref, "set_lv_boost") and cam_ref.take_mode() in ("P", "A", "S"):
                             try:
                                 boost_before = cam_ref.set_lv_boost(3)  # d0ea = 3 (On2) for dim night live view
                                 if boost_before is not None:
                                     star_af_state["boost_on"] = True
+                                    star_af_restore["boost"] = boost_before
                                 if boost_before is not None and boost_before != 3:
                                     if stop_job.wait(0.35):
                                         star_af_state.update(phase="stopped", code="stopped", message="Star AF stopped")
@@ -990,6 +1001,7 @@ def start_star_af(x=None, y=None, zoom=True, boost=True, priority="speed"):
                             except (CameraError, WriteBlocked):
                                 star_af_state["message"] = (star_af_state["message"] or "") + " · switch to MF before shooting"
                     finally:
+                        star_af_restore.clear()
                         if zoomed_by_us and hasattr(cam_ref, "loupe"):
                             try:
                                 cam_ref.loupe(False)
@@ -1754,7 +1766,8 @@ class Handler(BaseHTTPRequestHandler):
             cam.mf_drive(b.get("direction"), int(b.get("step", 1)))
         elif path == "/api/staraf":
             if b.get("action") == "stop":
-                stop_job.set()
+                if star_af_state["running"]:  # stop_job is shared: must not stop a series or time-lapse
+                    stop_job.set()
             else:
                 start_star_af(
                     b.get("x"),

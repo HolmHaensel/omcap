@@ -465,7 +465,7 @@ body.webcam{cursor:none;display:flex;align-items:center;justify-content:center}
   </div>
   <div class="tb" id="starRow" hidden>
     <button class="w" id="starAuto" data-feat="mf_drive" data-i18n="star.auto">Auto Star AF</button>
-    <select id="starPrio" data-feat="mf_drive" data-i18n-aria="star.prioAria" aria-label="Star AF speed or accuracy" data-i18n-title="star.prioHint" title="Speed: faster sweep. Accuracy: more frames and longer settle for tripod and Live View Boost On2"><option value="speed" data-i18n="star.speed">Speed</option><option value="accuracy" data-i18n="star.accuracy">Accuracy</option></select>
+    <select id="starPrio" data-feat="mf_drive" data-i18n-aria="star.prioAria" aria-label="Star AF speed or accuracy" data-i18n-title="star.prioHint" title="Speed: quicker. Accuracy: slower, but sharper."><option value="speed" data-i18n="star.speed">Speed</option><option value="accuracy" data-i18n="star.accuracy">Accuracy</option></select>
     <label class="tog" id="starLockLab" data-feat="mf_drive"><input type="checkbox" id="starLock"> <span data-i18n="star.lock">Lock focus</span></label>
     <span id="starHfr" class="chip" role="status" data-i18n-title="star.hfrTitle" title="Star size (HFR): smaller is sharper"></span>
     <span id="starBest" class="mut"></span>
@@ -834,7 +834,7 @@ const I18N={en:{
   "star.speed": "Speed",
   "star.accuracy": "Accuracy",
   "star.prioAria": "Star AF speed or accuracy",
-  "star.prioHint": "Speed: faster sweep. Accuracy: more frames and longer settle for tripod and Live View Boost On2",
+  "star.prioHint": "Speed: quicker. Accuracy: slower, but sharper.",
   "star.lock": "Lock focus",
   "star.hfrTitle": "Star size (HFR): smaller is sharper",
   "star.hfr": "HFR {v} px",
@@ -3005,7 +3005,6 @@ function drawAf(){
   if(c.width!==Math.round(b.width*d)||c.height!==Math.round(b.height*d)){c.width=Math.round(b.width*d);c.height=Math.round(b.height*d)}
   const g=c.getContext('2d'); g.clearRect(0,0,c.width,c.height);
   // without the grid ("Show AF targets" off) only the chosen frame shows for a moment after a tap (REQ-F41)
-  if(isStarActive()||curFm()==='1') return;
   const grid=$('#afShow').checked, tapOnly=!grid&&Date.now()<afTapShow;
   if(!af||!st.live||(!grid&&!tapOnly)) return;
   const a=af.area,X=a.x0/a.w*c.width,Y=a.y0/a.h*c.height,W=(a.x1-a.x0)/a.w*c.width,H=(a.y1-a.y0)/a.h*c.height,cw=W/9,ch=H/9;
@@ -3286,7 +3285,7 @@ $('#starLock').onchange=updateStarAfUi;
 $('#starAfOn').addEventListener('change',()=>{applyContext();drawAf()});
 function aidTick(){
   if(quitting) return;
-  const mv=!!(lastProps&&lastProps.takemode&&lastProps.takemode.value==='movie');
+  const mv=isMovie();
   const wantH=$('#aidHist').checked,wantC=$('#aidClip').checked,wantP=$('#aidPeak').checked,wantS=$('#starAfOn').checked&&!mv;
   const hc=$('#histCv'),oc=$('#aidCv'),img=$('#live'),nw=img.naturalWidth,nh=img.naturalHeight;
   hc.hidden=!(wantH&&st.live);

@@ -239,7 +239,7 @@ class ServerGuards(unittest.TestCase):
         self.assertNotIn("_local()", block)
 
     def test_auto_star_af_boosts_finds_star_switches_to_mf_and_restores_boost(self):
-        cam, live = self._setup_cam(fm="32769")  # S-AF+MF
+        cam, live = self._setup_cam(fm="32769", mode="A")  # S-AF+MF; boost acts in P/A/S only
         boost_calls = []
         def set_lv_boost(val):
             boost_calls.append(val)
@@ -294,7 +294,7 @@ class ServerGuards(unittest.TestCase):
                 server.star_af_thread.join(timeout=2.0)
 
     def test_disconnect_stops_runner_and_restores_loupe_and_boost(self):
-        cam, _ = self._setup_cam()
+        cam, _ = self._setup_cam(mode="A")  # boost acts in P/A/S only
         boost_calls = []
         def set_lv_boost(val):
             boost_calls.append(val)
@@ -325,7 +325,7 @@ class PageMarkup(unittest.TestCase):
             self.assertIn(frag, h)
         self.assertNotIn('id="rowStar"', h)
         self.assertNotIn('#starPanelAuto', h)
-        self.assertIn("if(isStarActive()||curFm()==='1') return;", h)
+        self.assertRegex(h, r"if\(isStarActive\(\)\)|curFm\(\)==='1'")  # grid hidden with Star AF and in MF (user 2026-11-23)
         for key in ("lv.starAf", "star.auto", "star.stop", "star.speed", "star.accuracy",
                     "star.prioAria", "star.prioHint", "star.lock", "star.hfrTitle",
                     "star.hfr", "star.hfrClip", "star.best", "star.hyp", "star.noStar",
@@ -334,6 +334,31 @@ class PageMarkup(unittest.TestCase):
                     "star.noFocus", "star.stopped", "prop.lvboost"):
             self.assertIn('"%s":' % key, h)
         self.assertIn("'/api/staraf'", h)
+
+
+
+class ReReviewFixes(unittest.TestCase):
+    """Re-review 2026-11-23: stop only stops Star AF; the Wi-Fi refusal is plain words."""
+
+    def test_stop_does_not_touch_other_jobs(self):
+        from omcap import server
+        from unittest import mock
+        server.stop_job.clear()
+        server.star_af_state["running"] = False
+        h = server.Handler.__new__(server.Handler)
+        with mock.patch.object(server, "cam", mock.MagicMock()):
+            h._action("/api/staraf", {"action": "stop"})
+        self.assertFalse(server.stop_job.is_set())  # a running series or time-lapse keeps going
+
+    def test_boost_only_in_p_a_s(self):
+        src = open(server_path()).read()
+        self.assertIn('cam_ref.take_mode() in ("P", "A", "S")', src)
+
+
+def server_path():
+    import os
+    from omcap import server
+    return os.path.join(os.path.dirname(server.__file__), "server.py")
 
 
 if __name__ == "__main__":

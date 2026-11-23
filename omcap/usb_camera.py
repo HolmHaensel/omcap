@@ -1258,7 +1258,7 @@ class UsbCamera:
 
     def take_mode(self):
         """Current shooting mode name ('P', 'A', 'S', 'M', 'movie', or '?')."""
-        return EXPOSURE_PROGRAM.get(str(self._value("d006")), "?")
+        return EXPOSURE_PROGRAM.get(self._prop_now("d006"), "?")  # live: the dial may have turned
 
     def set_lv_boost(self, value):
         """Set Live View Boost d0ea (1 On1, 2 Off, 3 On2); returns previous int value or None if unsupported."""
