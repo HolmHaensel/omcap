@@ -3,6 +3,7 @@
 ## Unreleased
 
 - MCP: "Set the camera up right for now" gives a pro M-mode setup (shutter, aperture, fixed ISO and WB, live view check), still only after your yes (REQ-F35).
+- MCP: looks (e.g. "Desert Pastel") and night sky / aurora setup; WB in kelvin also over Wi-Fi (REQ-F35).
 - README easier to read: grouped highlights, short feature table; all details moved to FEATURES.md.
 - Star AF (REQ-F24): live star-size (HFR) focus aid and hyperfocal readout in photo modes (USB and Wi-Fi), plus USB Auto Star AF (auto-switches to MF, tap-on-star focuses and auto-locks focus) and Live View Boost (Others, P/A/S). 9×9 grid and AF Area hidden while Star AF is on and in MF; "★AF" shown in the live view value strip. Camera-tested over USB 2026-11-23.
 - MCP Photo Coach server (`em1-capture-mcp`): read-only tools and coach prompts; `--allow-write` adds a dry-run `camera_configure` (REQ-F35). USB- and Wi-Fi-tested.

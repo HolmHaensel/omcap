@@ -657,7 +657,17 @@ class ModeRulesAndRobustness(unittest.TestCase):
         self.assertIn("in M mode", rw)
         self.assertIn("apply=false", rw)
         self.assertIn("ISO fixed", rw)
+        self.assertIn("aurora", rw)
+        self.assertIn("Desert Pastel", rw)  # a look: settings plus body steps (Contrast, Saturation)
+        self.assertIn("cannot be set over USB or Wi-Fi", rw)
         self.assertNotIn("in M mode", init(False))
+
+    def test_wifi_wb_by_kelvin(self):  # Wi-Fi sends WB codes only: "6000K" for a look must still resolve
+        props = dict(self.WIFI_A, wbvalue={"value": "0", "writable": True, "enum": ["0", "18", "17", "20"]},
+                     colortone={"value": "natural", "writable": True, "enum": ["natural", "vivid"]})
+        _, data = self.plan("wifi", props, {"wbvalue": "6000K", "colortone": "Vivid"})
+        self.assertEqual(data["invalid"], [])
+        self.assertEqual({c["prop"]: c["target"] for c in data["changes"]}, {"wbvalue": "17", "colortone": "vivid"})
 
     def test_usb_art_dial_step_says_it_reads_as_p(self):
         _, data = self.plan("usb", WriteSafetyAndConfigure.USB_PROPS, {"takemode": "art"})

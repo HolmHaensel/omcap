@@ -52,7 +52,21 @@ PRO_SETUP = (
     "Over USB the user turns the mode dial to M by hand. "
     "7) Check again with live_view_frame (in M the E-M1 live view shows the exposure when Live View Boost is Off): "
     "median_luma about 100-140 and clipped_highlights_pct under 1 percent; if not, propose one shutter step "
-    "(1/3-1 stop) and apply it only after a short yes. Keep spoken answers short."
+    "(1/3-1 stop) and apply it only after a short yes. Keep spoken answers short. "
+    "Night sky (aurora, stars): tripod, M, widest aperture (f/2.8 or faster), ISO 1600-3200, 2-8 s for aurora "
+    "(the faster it moves, the shorter; stars sharp up to about 300/(2 x focal length) s), WB 3500-4000K, "
+    "IS off on a tripod, focus with Star AF (MF on a bright star) instead of the infinity mark, RAW, "
+    "2 s self-timer or Anti-Shock; the live view at night is too dark to judge exposure: check the last shot."
+)
+# A look (film, director, mood) in camera settings; what the camera cannot take over USB/Wi-Fi is said as a body step
+LOOKS = (
+    "When the user asks for a look (a film, a director, a mood), translate it into settings the camera takes "
+    "(mode, aperture, shutter, ISO, exposure compensation, WB, Picture Mode) and name the rest as steps on the "
+    "camera body: Contrast, Saturation and Gradation of a Picture Mode cannot be set over USB or Wi-Fi. "
+    "Example 'Desert Pastel' (Wes Anderson style, e.g. Asteroid City: sunny pastels, turquoise sky, peach sand, "
+    "soft shadows, deep focus, centred symmetric frames): A at f/8 with exposure compensation +0.3 to +0.7 "
+    "(in M instead aim for median_luma about 140-160), ISO 200, WB 6000K, Picture Mode Vivid; on the body "
+    "Vivid Contrast -1 and Saturation +1; compose centred and symmetric with a level horizon."
 )
 
 INSTRUCTIONS_RO = (
@@ -68,7 +82,7 @@ INSTRUCTIONS_RW = (
     "call camera_configure with apply=false first to build a validated plan, present the exact changes "
     "(and any manual steps such as turning the mode dial over USB) to the user, and call "
     "camera_configure with apply=true ONLY after the user explicitly confirms. This server never "
-    "releases the shutter, erases card files or touches firmware.\n\n" + PRO_SETUP
+    "releases the shutter, erases card files or touches firmware.\n\n" + PRO_SETUP + "\n\n" + LOOKS
 )
 
 
@@ -216,6 +230,20 @@ def _newest_jpg(images):
         if _is_jpg(entry.get("path")):
             return entry["path"]
     return None
+
+
+# Readable names where the connection sends only codes (Wi-Fi WB); same table as FEATURES.wbvalue in index.html
+DEFAULT_NAMES = {
+    "wbvalue": {"0": "AUTO", "18": "5300K", "16": "7500K", "17": "6000K", "20": "3000K", "35": "4000K",
+                "64": "Underwater", "23": "5500K Flash", "256": "One-touch 1", "257": "One-touch 2",
+                "258": "One-touch 3", "259": "One-touch 4", "512": "CWB"},
+}
+
+
+def _with_names(prop, entry):
+    if entry.get("names") or prop not in DEFAULT_NAMES:
+        return entry
+    return dict(entry, names=DEFAULT_NAMES[prop])
 
 
 def _format_prop(entry, include_enum=False):
@@ -396,8 +424,8 @@ def tool_camera_settings(client, args, ctx):
         prop = prop.strip()
         if prop not in props:
             raise ApiError("Unknown setting %r. Available: %s" % (prop, ", ".join(sorted(props))))
-        return _text({prop: _format_prop(props[prop], include_enum=True)})
-    return _text({k: _format_prop(v, include_enum=False) for k, v in props.items()})
+        return _text({prop: _format_prop(_with_names(prop, props[prop]), include_enum=True)})
+    return _text({k: _format_prop(_with_names(k, v), include_enum=False) for k, v in props.items()})
 
 
 def tool_live_view_frame(client, args, ctx):
@@ -666,7 +694,7 @@ def _plan_settings(status, props, wanted):
             pending.append({"prop": prop, "label": _label(prop), "wanted": val,
                             "reason": "Checked again after the shooting mode is %s" % mode})
             continue
-        entry = props[prop]
+        entry = _with_names(prop, props[prop])
         cur = str(entry.get("value"))
         names = {str(k): str(v) for k, v in (entry.get("names") or {}).items()}
         if not entry.get("writable"):
