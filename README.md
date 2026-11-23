@@ -138,6 +138,7 @@ More in [Start and stop](#start-and-stop).
 | Phone view: live view size picked by itself, no computer-only windows | ✅ | 🟡 | Wi-Fi follows the screen and the signal; USB always 1024×768 at 30 fps |
 | Second monitor (live view or last picture in its own window) | ✅ | ✅ | live view window tested 2026-11-15 |
 | Webcam (OBS) | ✅ | ✅ | webcam view tested; the **Webcam (OBS)** button itself not tested; see [Use as webcam](#use-as-webcam-obs) |
+| AI Photo Coach (MCP for Claude Desktop / Claude Code) | 🟡 | ✅ | USB demo 2026-11-23: all tools and a dry-run plan; Wi-Fi not tried; see [MCP server](#mcp-server-for-ai-assistants-ai-photo-coach) |
 
 ### Connection
 
@@ -342,6 +343,34 @@ python -m omcap.hsl IMG.JPG --profile my_profile.json
 ORF gives a 16-bit TIFF, JPG a JPEG, always in `--out` (default `out/hsl/`). `--sheet` adds a before/after sheet and
 a colour wheel chart. Presets: `omcap/data/hsl_presets.json`. Sector angles and gains are approximations, not the
 camera's values.
+
+## MCP server for AI assistants (AI Photo Coach)
+
+A [Model Context Protocol](https://modelcontextprotocol.io/) server lets Claude Desktop or Claude Code look at the
+camera through the running E-M1 Capture app and coach you (USB and Wi-Fi). It only talks to the app on this computer
+(`127.0.0.1`), never to the camera directly, and never releases the shutter, erases files or switches the camera off.
+
+- **Read-only (default):** tools `camera_status`, `camera_settings`, `live_view_frame` (with exposure statistics),
+  `list_card_images`, `last_picture`; prompts `setup_for_scene`, `check_composition`, `critique_last_shot`.
+- **Optional `--allow-write`:** adds `camera_configure`. It first shows a plan (settings, steps you do on the camera,
+  e.g. the mode dial over USB) and changes settings only after you say yes. E-M1 Capture must run with
+  `--allow-write` too. It follows the camera's mode rules (shutter speed only in S/M, aperture only in A/M).
+
+Start E-M1 Capture first. Claude Code (read-only):
+
+```sh
+claude mcp add em1-capture -- /path/to/omcap/.venv/bin/em1-capture-mcp
+```
+
+Claude Desktop: add to `~/Library/Application Support/Claude/claude_desktop_config.json` and restart it:
+
+```json
+{"mcpServers": {"em1-capture": {"command": "/path/to/omcap/.venv/bin/em1-capture-mcp",
+                                "args": ["--lenses", "M.12-40mm F2.8, M.45mm F1.8"]}}}
+```
+
+Add `"--allow-write"` to `args` to let it change settings. Other port: `--url http://127.0.0.1:8766` (or
+`OMCAP_URL`); your lenses: `--lenses` (or `OMCAP_LENSES`).
 
 ## Tests
 
