@@ -1,4 +1,4 @@
-"""Offline unit tests for the read-only MCP server (REQ-F35). No camera, no sockets."""
+"""Offline unit tests for the E-M1 Capture MCP server (REQ-F35). No camera, no sockets."""
 import ast
 import base64
 import io
@@ -22,10 +22,12 @@ JPEG = b"\xff\xd8\xff\xe0\x00\x10JFIF\x00\x01\xff\xd9"
 class FakeClient:
     """In-memory stand-in for mcp_server.HttpClient recording every GET and POST request."""
 
-    def __init__(self, json_map=None, bytes_map=None, allow_write=False):
+    def __init__(self, json_map=None, bytes_map=None, allow_write=False, allow_shutter=False, allow_erase=False):
         self.json_map = dict(json_map or {})
         self.bytes_map = dict(bytes_map or {})
         self.allow_write = allow_write
+        self.allow_shutter = allow_shutter and allow_write
+        self.allow_erase = allow_erase and allow_write
         self.calls = []
         self.posts = []
         self.post_hook = None
@@ -57,7 +59,12 @@ class FakeClient:
     def post_json(self, path, payload, timeout=None):
         if not self.allow_write:
             raise mcp_server.ApiError("Read-only", status=403)
-        if path not in mcp_server.WRITE_ENDPOINTS:
+        allowed = (
+            path in mcp_server.WRITE_ENDPOINTS
+            or (self.allow_shutter and path in mcp_server.SHUTTER_ENDPOINTS)
+            or (self.allow_erase and path in mcp_server.ERASE_ENDPOINTS)
+        )
+        if not allowed:
             raise mcp_server.ApiError("Not allowed", status=403)
         self.posts.append((path, dict(payload)))
         if self.post_hook:
@@ -195,8 +202,14 @@ class Protocol(unittest.TestCase):
         self.assertEqual(lines[1], {"jsonrpc": "2.0", "id": 7, "result": {}})
 
 
-def _call(client, name, arguments=None, allow_write=False, lenses=None):
-    srv = mcp_server.McpServer(client, allow_write=allow_write, lenses=lenses)
+def _call(client, name, arguments=None, allow_write=False, allow_shutter=False, allow_erase=False, lenses=None):
+    srv = mcp_server.McpServer(
+        client,
+        allow_write=allow_write,
+        allow_shutter=allow_shutter,
+        allow_erase=allow_erase,
+        lenses=lenses,
+    )
     resp = srv.handle_message({
         "jsonrpc": "2.0",
         "id": 1,
@@ -474,14 +487,26 @@ class WriteSafetyAndConfigure(unittest.TestCase):
 
     def test_http_client_blocks_post_without_allow_write_and_blocks_dangerous_endpoints(self):
         ro = mcp_server.HttpClient("http://127.0.0.1:8765", allow_write=False)
-        with self.assertRaises(mcp_server.ApiError):
+        with self.assertRaises(mcp_server.ApiError) as cm:
             ro.post_json("/api/set", {"prop": "isospeedvalue", "value": "800"})
+        self.assertEqual(cm.exception.status, 403)
 
         rw = mcp_server.HttpClient("http://127.0.0.1:8765", allow_write=True)
-        for forbidden in ("/api/shoot", "/api/shutter", "/api/erase", "/api/poweroff", "/api/open", "/api/quit"):
-            with self.subTest(endpoint=forbidden):
-                with self.assertRaises(mcp_server.ApiError):
+        for forbidden in ("/api/shoot", "/api/shutter", "/api/take", "/api/interval", "/api/bracket",
+                          "/api/movie", "/api/job/stop", "/api/erase", "/api/shareorder/clear",
+                          "/api/quit", "/api/pickfolder"):
+            with self.subTest(tier="write_only", endpoint=forbidden):
+                with self.assertRaises(mcp_server.ApiError) as cm:
                     rw.post_json(forbidden, {})
+                self.assertEqual(cm.exception.status, 403)
+
+        # Even with all opt-in flags enabled, /api/quit and /api/pickfolder are permanently blocked
+        full = mcp_server.HttpClient("http://127.0.0.1:8765", allow_write=True, allow_shutter=True, allow_erase=True)
+        for never in ("/api/quit", "/api/pickfolder", "/api/unknown"):
+            with self.subTest(tier="all", endpoint=never):
+                with self.assertRaises(mcp_server.ApiError) as cm:
+                    full.post_json(never, {})
+                self.assertEqual(cm.exception.status, 403)
 
     def test_read_only_server_hides_and_rejects_camera_configure(self):
         srv = mcp_server.McpServer(FakeClient(), allow_write=False)
@@ -771,6 +796,446 @@ class PromptsStatsAndLenses(unittest.TestCase):
         res = _call(client, "camera_status", lenses=["M.12-40mm F2.8", "M.45mm F1.8"])
         data = _json_payload(res)
         self.assertEqual(data["my_lenses"], ["M.12-40mm F2.8", "M.45mm F1.8"])
+
+
+class SafetyTiersAndFlags(unittest.TestCase):
+    """Safety tiers: read-only -> --allow-write -> --allow-shutter / --allow-erase."""
+
+    def _tool_names(self, **flags):
+        srv = mcp_server.McpServer(FakeClient(), **flags)
+        return [t["name"] for t in srv.handle_message({"jsonrpc": "2.0", "id": 1, "method": "tools/list"})["result"]["tools"]]
+
+    def test_tool_lists_per_tier_and_write_prerequisite(self):
+        ro = ["camera_status", "camera_settings", "live_view_frame", "list_card_images", "last_picture"]
+        rw = ro + ["camera_configure", "camera_focus", "live_view", "playback", "app_control"]
+        self.assertEqual(self._tool_names(), ro)
+        # Shutter / erase without allow_write must NOT unlock write, shutter, or erase tools
+        self.assertEqual(self._tool_names(allow_shutter=True, allow_erase=True), ro)
+        self.assertEqual(self._tool_names(allow_write=True), rw)
+        self.assertEqual(self._tool_names(allow_write=True, allow_shutter=True), rw + ["camera_shoot"])
+        self.assertEqual(self._tool_names(allow_write=True, allow_erase=True), rw + ["card_erase"])
+        self.assertEqual(self._tool_names(allow_write=True, allow_shutter=True, allow_erase=True),
+                         rw + ["camera_shoot", "card_erase"])
+
+    def test_cli_rejects_shutter_or_erase_without_write(self):
+        for argv in (["--allow-shutter"], ["--allow-erase"]):
+            with self.subTest(argv=argv), mock.patch("sys.stderr", new=io.StringIO()):
+                with self.assertRaises(SystemExit) as cm:
+                    mcp_server.main(argv)
+                self.assertEqual(cm.exception.code, 2)
+
+    def test_initialize_instructions_match_tiers(self):
+        srv = mcp_server.McpServer(FakeClient(), allow_write=True, allow_shutter=True, allow_erase=True)
+        instr = srv.handle_message({"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {}})["result"]["instructions"]
+        self.assertIn("camera_shoot", instr)
+        self.assertIn("card_erase", instr)
+
+
+class FocusAndLiveViewTools(unittest.TestCase):
+    AREA = {"x0": 59, "x1": 1221, "y0": 103, "y1": 857, "w": 1280, "h": 960}
+
+    def test_af_field_corners_and_centre(self):
+        info = {"area": self.AREA}
+        self.assertEqual(mcp_server._af_field(info, 0.5, 0.5), 41)
+        self.assertEqual(mcp_server._af_field(info, 0.0, 0.0), 1)
+        self.assertEqual(mcp_server._af_field(info, 1.0, 1.0), 81)
+        self.assertEqual(mcp_server._af_field(info, 1.0, 0.0), 9)
+        self.assertEqual(mcp_server._af_field(info, 0.0, 1.0), 73)
+
+    def test_usb_focus_uses_focus_ok_and_blocks_point_in_all_targets(self):
+        # All Targets + x/y -> clear error
+        c_all = FakeClient(json_map={
+            "/api/status": {"type": "usb", "allow_write": True},
+            "/api/afarea": {"mode": 33024, "field": 41, "area": self.AREA},
+        }, allow_write=True)
+        res = _call(c_all, "camera_focus", {"x": 0.5, "y": 0.5}, allow_write=True)
+        self.assertTrue(res["isError"])
+        self.assertEqual(c_all.posts, [])
+
+        # Single Target + x/y -> focus_ok=True wins even if last_af is None
+        c_ok = FakeClient(json_map={
+            "/api/status": {"type": "usb", "allow_write": True},
+            "/api/afarea": {"mode": 33025, "field": 41, "area": self.AREA},
+        }, allow_write=True)
+        c_ok.post_hook = lambda p, b: {"mode": 33025, "field": b["field"], "last_af": None, "focus_ok": True}
+        data = _json_payload(_call(c_ok, "camera_focus", {"x": 0.5, "y": 0.5, "confirm": True}, allow_write=True))
+        self.assertTrue(data["in_focus"])
+        self.assertEqual(data["field"], 41)
+        self.assertEqual(data["af_area"], "Single Target")
+        self.assertEqual(c_ok.posts, [("/api/afarea", {"field": 41})])
+
+    def test_focus_changes_are_dry_run_until_confirm(self):
+        client = FakeClient(json_map={
+            "/api/status": {"type": "usb", "allow_write": True, "features": ["loupe"]},
+            "/api/state": {"live": True, "loupe": True},
+            "/api/props": {"takemode": {"value": "M"}, "focusmode": {"value": "32769"}},
+            "/api/afarea": {"mode": 33025, "field": 41, "area": self.AREA},
+        }, allow_write=True)
+        for args in ({}, {"x": 0.5, "y": 0.5}, {"af_area": "group"}, {"mf": "near"}, {"star_af": "start"},
+                     {"loupe": "on"}, {"loupe": "move", "direction": "up"}, {"mf": "far", "confirm": "yes"}):
+            with self.subTest(args=args):
+                data = _json_payload(_call(client, "camera_focus", args, allow_write=True))
+                self.assertTrue(data["dry_run"])
+                self.assertIn("confirm=true", data["next_step"])
+        self.assertEqual(client.posts, [])
+        data = _json_payload(_call(client, "camera_focus", {"star_af": "start", "zoom": False}, allow_write=True))
+        self.assertIn("zoom=false", data["next_step"])  # JSON values, not Python reprs
+        # Star AF stop and loupe off run at once
+        for args in ({"star_af": "stop"}, {"loupe": "off"}):
+            _call(client, "camera_focus", args, allow_write=True)
+        self.assertEqual([p for p, _ in client.posts], ["/api/staraf", "/api/loupe"])
+
+    def test_camera_state_changes_are_dry_run_until_confirm(self):
+        client = FakeClient(json_map={
+            "/api/status": {"type": "usb", "allow_write": True, "features": ["lvsize"]},
+            "/api/state": {"live": False},
+        }, allow_write=True)
+        for tool, args in (("live_view", {"action": "start"}), ("playback", {"action": "enter"}),
+                           ("playback", {"action": "exit"}), ("app_control", {"action": "connect", "connection": "wifi"}),
+                           ("app_control", {"action": "refresh"})):
+            with self.subTest(tool=tool, args=args):
+                data = _json_payload(_call(client, tool, args, allow_write=True))
+                self.assertTrue(data["dry_run"])
+                self.assertIn("confirm=true", data["next_step"])
+        self.assertEqual(client.posts, [])
+        _call(client, "live_view", {"action": "stop"}, allow_write=True)
+        self.assertEqual(client.posts, [("/api/liveview", {"action": "stop"})])
+
+    def test_wifi_movie_needs_movie_mode(self):
+        client = FakeClient(json_map={
+            "/api/status": {"type": "wifi", "allow_write": True},
+            "/api/props": {"takemode": {"value": "P"}, "shutspeedvalue": {"value": "250"}},
+            "/api/state": {"busy": False},
+        }, allow_write=True)
+        res = _call(client, "camera_shoot", {"action": "movie", "step": "start"}, allow_write=True, allow_shutter=True)
+        self.assertTrue(res["isError"])
+        client.json_map["/api/props"]["takemode"] = {"value": "movie"}
+        data = _json_payload(_call(client, "camera_shoot", {"action": "movie", "step": "start"},
+                                   allow_write=True, allow_shutter=True))
+        self.assertTrue(data["dry_run"])
+        self.assertEqual(client.posts, [])
+
+    def test_wifi_focus_uses_last_af_and_rejects_usb_only_controls(self):
+        client = FakeClient(json_map={
+            "/api/status": {"type": "wifi", "allow_write": True},
+            "/api/afarea": {"mode": 33025, "field": 41, "area": self.AREA},
+        }, allow_write=True)
+        client.post_hook = lambda p, b: {"mode": 33025, "field": 41, "last_af": {"x": 640, "y": 480}}
+        data = _json_payload(_call(client, "camera_focus", {"confirm": True}, allow_write=True))
+        self.assertTrue(data["in_focus"])
+        self.assertEqual(client.posts, [("/api/afarea", {"field": 41})])
+
+        for args in ({"mf": "near"}, {"af_area": "single"}, {"star_af": "start"}, {"loupe": "on"}):
+            with self.subTest(args=args):
+                res = _call(client, "camera_focus", args, allow_write=True)
+                self.assertTrue(res["isError"])
+
+    def test_usb_af_area_mf_star_af_loupe_and_live_view(self):
+        client = FakeClient(json_map={
+            "/api/status": {"type": "usb", "allow_write": True, "features": ["lvsize", "loupe"]},
+            "/api/state": {"live": True, "loupe": True},
+            "/api/props": {"takemode": {"value": "M"}, "focusmode": {"value": "32769"}},
+            "/api/afarea": {"mode": 33025, "field": 41, "area": self.AREA},
+            "/api/staraf": {"running": True, "phase": "coarse", "hfr": 2.4},
+        }, allow_write=True)
+
+        # AF area mode + point
+        _call(client, "camera_focus", {"af_area": "small", "x": 0.5, "y": 0.5, "confirm": True}, allow_write=True)
+        # MF step
+        _call(client, "camera_focus", {"mf": "far", "step": 2, "confirm": True}, allow_write=True)
+        # Star AF start / status / stop
+        _call(client, "camera_focus", {"star_af": "start", "x": 0.4, "y": 0.6, "priority": "accuracy", "confirm": True}, allow_write=True)
+        st = _json_payload(_call(client, "camera_focus", {"star_af": "status"}, allow_write=True))
+        self.assertTrue(st["star_af"]["running"])
+        _call(client, "camera_focus", {"star_af": "stop"}, allow_write=True)
+        # Loupe on / move / off
+        _call(client, "camera_focus", {"loupe": "on", "ratio": 10, "x": 0.5, "y": 0.5, "confirm": True}, allow_write=True)
+        _call(client, "camera_focus", {"loupe": "move", "direction": "right", "confirm": True}, allow_write=True)
+        _call(client, "camera_focus", {"loupe": "off"}, allow_write=True)
+        # Live view start with size & stop
+        _call(client, "live_view", {"action": "start", "size": "1024x0768", "confirm": True}, allow_write=True)
+        _call(client, "live_view", {"action": "stop"}, allow_write=True)
+
+        self.assertEqual(client.posts, [
+            ("/api/afarea", {"mode": 33027, "field": 41}),
+            ("/api/mfdrive", {"direction": "far", "step": 2}),
+            ("/api/staraf", {"action": "start", "zoom": True, "boost": True, "priority": "accuracy", "x": 0.4, "y": 0.6}),
+            ("/api/staraf", {"action": "stop"}),
+            ("/api/loupe", {"on": True, "ratio": 10, "x": 0.5, "y": 0.5}),
+            ("/api/loupe", {"move": "right"}),
+            ("/api/loupe", {"on": False}),
+            ("/api/liveview", {"action": "start", "lvqty": "1024x0768"}),
+            ("/api/liveview", {"action": "stop"}),
+        ])
+
+        # Star AF refused in Movie mode
+        client.json_map["/api/props"] = {"takemode": {"value": "movie"}, "focusmode": {"value": "32769"}}
+        self.assertTrue(_call(client, "camera_focus", {"star_af": "start"}, allow_write=True)["isError"])
+        # MF refused in S-AF; AF refused in MF
+        client.json_map["/api/props"] = {"takemode": {"value": "M"}, "focusmode": {"value": "2"}}
+        self.assertTrue(_call(client, "camera_focus", {"mf": "near"}, allow_write=True)["isError"])
+        client.json_map["/api/props"] = {"takemode": {"value": "M"}, "focusmode": {"value": "1"}}
+        self.assertTrue(_call(client, "camera_focus", {"x": 0.5, "y": 0.5}, allow_write=True)["isError"])
+        # USB focus_ok=False/None never falls back to stale last_af
+        client.json_map["/api/props"] = {"takemode": {"value": "M"}, "focusmode": {"value": "2"}}
+        client.post_hook = lambda p, b: {"mode": 33025, "field": 41, "last_af": {"x": 640, "y": 480}, "focus_ok": False}
+        self.assertFalse(_json_payload(_call(client, "camera_focus", {"x": 0.5, "y": 0.5, "confirm": True}, allow_write=True))["in_focus"])
+        # Busy (indexing / star_af.running) blocks focus; play blocks live_view start; missing lvsize blocks size
+        client.json_map["/api/state"] = {"live": True, "indexing": True}
+        self.assertTrue(_call(client, "camera_focus", {"x": 0.5, "y": 0.5}, allow_write=True)["isError"])
+        client.json_map["/api/state"] = {"live": False, "play": True}
+        self.assertTrue(_call(client, "live_view", {"action": "start"}, allow_write=True)["isError"])
+        client.json_map["/api/state"] = {"live": False}
+        client.json_map["/api/status"] = {"type": "usb", "allow_write": True, "features": []}
+        self.assertTrue(_call(client, "live_view", {"action": "start", "size": "1280x0960"}, allow_write=True)["isError"])
+
+
+class PlaybackAndAppControlTools(unittest.TestCase):
+    def test_playback_actions_and_read_sources(self):
+        client = FakeClient(json_map={
+            "/api/local": [{"name": "PB220001.JPG", "size": 1234, "mtime": 100.0}],
+            "/api/shareorder": ["/DCIM/100OLYMP/PB220001.JPG"],
+            "/api/movlength": {"seconds": 12.5},
+        }, allow_write=True)
+
+        loc = _json_payload(_call(client, "list_card_images", {"source": "local"}))
+        self.assertEqual(loc["source"], "local")
+        self.assertEqual(loc["total"], 1)
+
+        so = _json_payload(_call(client, "list_card_images", {"source": "share_order"}))
+        self.assertEqual(so["images"], ["/DCIM/100OLYMP/PB220001.JPG"])
+        client.json_map["/api/state"] = {"play": False}
+        self.assertTrue(_call(client, "list_card_images", {"source": "share_order"})["isError"])
+        client.json_map.pop("/api/state")
+
+        mov = _json_payload(_call(client, "last_picture", {"path": "/DCIM/100OLYMP/P1010001.MOV", "preview": "none"}))
+        self.assertEqual(mov["movie_seconds"], 12.5)
+
+        _call(client, "playback", {"action": "enter", "confirm": True}, allow_write=True)
+        _call(client, "playback", {"action": "exit", "confirm": True}, allow_write=True)
+        _call(client, "playback", {"action": "download", "path": "/DCIM/100OLYMP/PB220001.JPG"}, allow_write=True)
+        _call(client, "playback", {"action": "hsl", "name": "PB220001.JPG", "profile": "Claudra 800"}, allow_write=True)
+        _call(client, "playback", {"action": "hsl_auto", "enabled": True, "preset": "CineStill 800T"}, allow_write=True)
+        _call(client, "playback", {"action": "open_workspace", "name": "PB220001.JPG"}, allow_write=True)
+        self.assertEqual(client.posts, [
+            ("/api/playback", {"action": "enter"}),
+            ("/api/playback", {"action": "leave"}),
+            ("/api/download", {"path": "/DCIM/100OLYMP/PB220001.JPG"}),
+            ("/api/hsl", {"name": "PB220001.JPG", "profile": "Claudra 800", "tiff": False}),
+            ("/api/hslauto", {"enabled": True, "preset": "CineStill 800T"}),
+            ("/api/open", {"name": "PB220001.JPG"}),
+        ])
+        # Path traversal in capture name is rejected
+        self.assertTrue(_call(client, "playback", {"action": "open_workspace", "name": "../secret.jpg"}, allow_write=True)["isError"])
+
+    def test_app_control_confirm_gates_and_save_config(self):
+        client = FakeClient(json_map={
+            "/api/status": {"type": "wifi", "model": "E-M1", "allow_write": True},
+            "/api/savecfg": {"dir": "", "scheme": "original", "prefix": ""},
+        }, allow_write=True)
+
+        # disconnect & poweroff dry-run by default (string "true" also rejected)
+        d1 = _json_payload(_call(client, "app_control", {"action": "disconnect", "confirm": "true"}, allow_write=True))
+        self.assertTrue(d1["dry_run"])
+        d2 = _json_payload(_call(client, "app_control", {"action": "poweroff"}, allow_write=True))
+        self.assertTrue(d2["dry_run"])
+        self.assertEqual(client.posts, [])
+
+        # save_config with explicit None keeps existing dir
+        client.json_map["/api/savecfg"] = {"dir": "/tmp/photos", "scheme": "original", "prefix": ""}
+        _call(client, "app_control", {"action": "save_config", "dir": None, "scheme": "datetime"}, allow_write=True)
+        self.assertEqual(client.posts[-1], ("/api/savecfg", {"dir": "/tmp/photos", "scheme": "datetime", "prefix": ""}))
+        client.posts.clear()
+        client.json_map["/api/savecfg"] = {"dir": "", "scheme": "original", "prefix": ""}
+
+        # refresh refused on Wi-Fi
+        self.assertTrue(_call(client, "app_control", {"action": "refresh"}, allow_write=True)["isError"])
+
+        # Confirmed actions + connect + transfer + save_config partial merge
+        _call(client, "app_control", {"action": "connect", "connection": "usb", "confirm": True}, allow_write=True)
+        _call(client, "app_control", {"action": "transfer", "target": "both"}, allow_write=True)
+        _call(client, "app_control", {"action": "save_config", "scheme": "prefix", "prefix": "astro_"}, allow_write=True)
+        _call(client, "app_control", {"action": "disconnect", "confirm": True}, allow_write=True)
+        _call(client, "app_control", {"action": "poweroff", "confirm": True}, allow_write=True)
+        self.assertEqual(client.posts, [
+            ("/api/connect", {"type": "usb"}),
+            ("/api/transfer", {"target": "both"}),
+            ("/api/savecfg", {"dir": "", "scheme": "prefix", "prefix": "astro_"}),
+            ("/api/disconnect", {}),
+            ("/api/poweroff", {}),
+        ])
+
+
+class ShutterAndEraseTools(unittest.TestCase):
+    PROPS_A = {
+        "takemode": {"value": "A"},
+        "shutspeedvalue": {"value": "1/250"},
+        "focalvalue": {"value": "4.0"},
+        "isospeedvalue": {"value": "200"},
+        "drivemode": {"value": "normal"},
+        "expcomp": {"value": "0.0", "writable": True,
+                    "enum": ["-1.0", "-0.7", "-0.3", "0.0", "+0.3", "+0.7", "+1.0"]},
+    }
+
+    def _client(self, conn="usb", props=None, state=None, allow_write_srv=True):
+        return FakeClient(json_map={
+            "/api/status": {"type": conn, "allow_write": allow_write_srv},
+            "/api/props": props or self.PROPS_A,
+            "/api/state": state or {"busy": False, "stage": 0, "job": {"running": False}, "card": True},
+            "/api/lastshot": {"path": "/DCIM/100OLYMP/PB220001.JPG"},
+            "/api/images": [{"path": "/DCIM/100OLYMP/PB220001.JPG"}],
+            "/api/shareorder": ["/DCIM/100OLYMP/PB220001.JPG"],
+        }, allow_write=True, allow_shutter=True, allow_erase=True)
+
+    def test_single_shot_dry_run_strict_confirm_and_new_files_diff(self):
+        client = self._client(conn="usb")
+        dry = _json_payload(_call(client, "camera_shoot", {"confirm": "true"}, allow_write=True, allow_shutter=True))
+        self.assertTrue(dry["dry_run"])
+        self.assertEqual(client.posts, [])
+
+        def on_post(path, payload):
+            if path == "/api/shoot":
+                client.json_map["/api/lastshot"] = {"path": "/DCIM/100OLYMP/PB220002.JPG"}
+            return {"ok": True, "saved": []}
+        client.post_hook = on_post
+        with mock.patch("omcap.mcp_server.time.sleep") as slp:
+            taken = _json_payload(_call(client, "camera_shoot", {"self_timer": 2, "confirm": True},
+                                        allow_write=True, allow_shutter=True))
+        slp.assert_called_once_with(2)
+        self.assertTrue(taken["taken"])
+        self.assertEqual(taken["new_files"], ["/DCIM/100OLYMP/PB220002.JPG"])
+
+        # Wi-Fi pre-shot card-list failure does not dump existing card into new_files
+        wifi = self._client(conn="wifi")
+        wifi.json_map["/api/images"] = mcp_server.ApiError("timeout", status=502)
+        wres = _json_payload(_call(wifi, "camera_shoot", {"confirm": True}, allow_write=True, allow_shutter=True))
+        self.assertEqual(wres["new_files"], [])
+        self.assertIn("note", wres)
+
+        # Wi-Fi post-shot retries when the card updates after a short delay
+        wifi2 = self._client(conn="wifi")
+        seq_lists = [
+            [{"path": "/DCIM/100OLYMP/PB220001.JPG"}],  # before
+            [{"path": "/DCIM/100OLYMP/PB220001.JPG"}],  # attempt 0 (card still writing)
+            [{"path": "/DCIM/100OLYMP/PB220002.JPG"}, {"path": "/DCIM/100OLYMP/PB220001.JPG"}],  # attempt 1
+        ]
+        orig_get = wifi2.get_json
+        def fake_get(path, query=None, timeout=None):
+            if path == "/api/images" and query == {"newest": "1"}:
+                return seq_lists.pop(0)
+            return orig_get(path, query=query, timeout=timeout)
+        wifi2.get_json = fake_get
+        with mock.patch("omcap.mcp_server.time.sleep") as slp_w:
+            wres2 = _json_payload(_call(wifi2, "camera_shoot", {"confirm": True}, allow_write=True, allow_shutter=True))
+        self.assertEqual(wres2["new_files"], ["/DCIM/100OLYMP/PB220002.JPG"])
+        slp_w.assert_called_once_with(1.5)
+
+        # Read-only server refuses before sleeping or starting a job
+        ro_srv = self._client(conn="usb", allow_write_srv=False)
+        with mock.patch("omcap.mcp_server.time.sleep") as slp2:
+            self.assertTrue(_call(ro_srv, "camera_shoot", {"self_timer": 5, "confirm": True},
+                                  allow_write=True, allow_shutter=True)["isError"])
+            self.assertTrue(_call(ro_srv, "camera_shoot", {"action": "interval", "count": 3, "seconds": 5, "confirm": True},
+                                  allow_write=True, allow_shutter=True)["isError"])
+        slp2.assert_not_called()
+        self.assertEqual(ro_srv.posts, [])
+
+    def test_long_exposure_interval_bracket_movie_and_stop(self):
+        # Bracket dry-run & confirm in A mode
+        client = self._client()
+        bdry = _json_payload(_call(client, "camera_shoot", {"action": "bracket", "frames": 3, "ev_step": 2},
+                                   allow_write=True, allow_shutter=True))
+        self.assertTrue(bdry["dry_run"])
+        self.assertEqual(bdry["will_run_bracket"]["ev_sequence"], ["-0.7", "0.0", "+0.7"])
+        self.assertEqual(client.posts, [])
+        _call(client, "camera_shoot", {"action": "bracket", "frames": 3, "ev_step": 2, "confirm": True},
+              allow_write=True, allow_shutter=True)
+
+        # Interval dry-run & confirm
+        idry = _json_payload(_call(client, "camera_shoot", {"action": "interval", "count": 10, "seconds": 5},
+                                   allow_write=True, allow_shutter=True))
+        self.assertEqual(idry["will_run_interval"]["estimated_total_s"], 45.0)
+        _call(client, "camera_shoot", {"action": "interval", "count": 10, "seconds": 5, "confirm": True},
+              allow_write=True, allow_shutter=True)
+
+        # Stop job & half_press release run immediately without confirm
+        _call(client, "camera_shoot", {"action": "stop_job"}, allow_write=True, allow_shutter=True)
+        _call(client, "camera_shoot", {"action": "half_press", "step": "press", "confirm": True},
+              allow_write=True, allow_shutter=True)
+        _call(client, "camera_shoot", {"action": "half_press", "step": "release"},
+              allow_write=True, allow_shutter=True)
+
+        # Movie start (confirm) & stop (immediate when recording)
+        _call(client, "camera_shoot", {"action": "movie", "step": "start", "confirm": True},
+              allow_write=True, allow_shutter=True)
+        client.json_map["/api/state"] = {"busy": False, "movie": 3.2}
+        _call(client, "camera_shoot", {"action": "movie", "step": "stop"},
+              allow_write=True, allow_shutter=True)
+
+        self.assertEqual(client.posts, [
+            ("/api/bracket", {"frames": 3, "step": 2}),
+            ("/api/interval", {"count": 10, "seconds": 5.0}),
+            ("/api/job/stop", {}),
+            ("/api/shutter", {"stage": 1}),
+            ("/api/shutter", {"stage": 0}),
+            ("/api/movie", {"action": "start"}),
+            ("/api/movie", {"action": "stop"}),
+        ])
+
+        # Mode / card / stacking / Wi-Fi prepare guards
+        wifi_lc = self._client(conn="wifi", props={"takemode": {"value": "M"}, "shutspeedvalue": {"value": "livecomp"}})
+        self.assertTrue(_call(wifi_lc, "camera_shoot", {"action": "long_exposure", "step": "prepare", "confirm": True},
+                              allow_write=True, allow_shutter=True)["isError"])
+        usb_stack = self._client(conn="usb", props=dict(self.PROPS_A, focusstacking={"value": "1"}))
+        self.assertTrue(_call(usb_stack, "camera_shoot", {"action": "bracket", "frames": 3, "ev_step": 1},
+                              allow_write=True, allow_shutter=True)["isError"])
+        self.assertTrue(_call(usb_stack, "camera_shoot", {"action": "movie", "step": "start"},
+                              allow_write=True, allow_shutter=True)["isError"])
+        usb_nocard = self._client(conn="usb", state={"busy": False, "card": False})
+        self.assertTrue(_call(usb_nocard, "camera_shoot", {"action": "movie", "step": "start"},
+                              allow_write=True, allow_shutter=True)["isError"])
+        usb_iauto = self._client(conn="usb", props=dict(self.PROPS_A, takemode={"value": "iAuto"}))
+        self.assertTrue(_call(usb_iauto, "camera_shoot", {"action": "interval", "count": 5, "seconds": 5},
+                              allow_write=True, allow_shutter=True)["isError"])
+        usb_mv = self._client(conn="usb", props=dict(self.PROPS_A, takemode={"value": "movie"}))
+        self.assertTrue(_call(usb_mv, "camera_shoot", {"action": "shot", "self_timer": 2},
+                              allow_write=True, allow_shutter=True)["isError"])
+
+        # Long exposure gated to M + LONG_SHUTTER
+        self.assertTrue(_call(client, "camera_shoot", {"action": "long_exposure", "step": "start", "confirm": True},
+                              allow_write=True, allow_shutter=True)["isError"])
+        c_lc = self._client(props={"takemode": {"value": "M"}, "shutspeedvalue": {"value": "livecomp"}})
+        self.assertTrue(_call(c_lc, "camera_shoot", {"action": "shot"}, allow_write=True, allow_shutter=True)["isError"])
+        _call(c_lc, "camera_shoot", {"action": "long_exposure", "step": "prepare", "confirm": True},
+              allow_write=True, allow_shutter=True)
+        _call(c_lc, "camera_shoot", {"action": "long_exposure", "step": "start", "confirm": True},
+              allow_write=True, allow_shutter=True)
+        _call(c_lc, "camera_shoot", {"action": "long_exposure", "step": "stop"},
+              allow_write=True, allow_shutter=True)
+        self.assertEqual(c_lc.posts, [
+            ("/api/take", {"action": "prepare"}),
+            ("/api/take", {"action": "start"}),
+            ("/api/take", {"action": "stop"}),
+        ])
+
+    def test_card_erase_and_share_order_clear(self):
+        usb = self._client(conn="usb")
+        paths = ["/DCIM/100OLYMP/PB220001.JPG", "/DCIM/100OLYMP/PB220001.ORF"]
+        dry = _json_payload(_call(usb, "card_erase", {"paths": paths}, allow_write=True, allow_erase=True))
+        self.assertTrue(dry["dry_run"])
+        self.assertEqual(dry["paths"], paths)
+        self.assertEqual(usb.posts, [])
+        usb.post_hook = lambda p, b: {"erased": paths, "failed": []}
+        done = _json_payload(_call(usb, "card_erase", {"paths": paths, "confirm": True}, allow_write=True, allow_erase=True))
+        self.assertEqual(done["erased"], paths)
+        self.assertTrue(_call(usb, "card_erase", {"action": "clear_share_order"}, allow_write=True, allow_erase=True)["isError"])
+
+        wifi = self._client(conn="wifi")
+        self.assertTrue(_call(wifi, "card_erase", {"paths": paths}, allow_write=True, allow_erase=True)["isError"])
+        so_dry = _json_payload(_call(wifi, "card_erase", {"action": "clear_share_order"}, allow_write=True, allow_erase=True))
+        self.assertEqual(so_dry["marked_count"], 1)
+        _call(wifi, "card_erase", {"action": "clear_share_order", "confirm": True}, allow_write=True, allow_erase=True)
+        self.assertEqual(wifi.posts, [("/api/shareorder/clear", {})])
 
 
 if __name__ == "__main__":

@@ -78,7 +78,8 @@ More in [Start and stop](#start-and-stop).
 | Erase pictures on the card | – | ✅ |
 | Shoot without a card, straight to the computer | – (needs a card) | ✅ |
 | Phone view, second monitor, webcam (OBS) | ✅ | ✅ |
-| AI Photo Coach (MCP) | ✅ | ✅ |
+| AI Photo Coach (MCP: read-only & dry-run plan) | ✅ | ✅ |
+| MCP camera & app control (`--allow-write`, `--allow-shutter`, `--allow-erase`) | 🟡 | 🟡 |
 
 Every feature with details and test notes: **[FEATURES.md](FEATURES.md)**.
 
@@ -295,14 +296,18 @@ camera's values.
 ## AI Photo Coach (MCP)
 
 A [Model Context Protocol](https://modelcontextprotocol.io/) server lets Claude Desktop or Claude Code look at the
-camera through the running E-M1 Capture app and coach you (USB and Wi-Fi). It only talks to the app on this computer
-(`127.0.0.1`), never to the camera directly, and never releases the shutter, erases files or switches the camera off.
+camera through the running E-M1 Capture app and coach or control it (USB and Wi-Fi). It only talks to the app on this
+computer (`127.0.0.1`), never to the camera directly, and never exposes app quit or firmware operations.
 
-- **Read-only (default):** tools `camera_status`, `camera_settings`, `live_view_frame` (with exposure statistics),
-  `list_card_images`, `last_picture`; prompts `setup_for_scene`, `check_composition`, `critique_last_shot`.
-- **Optional `--allow-write`:** adds `camera_configure`. It first shows a plan (settings, steps you do on the camera,
-  e.g. the mode dial over USB) and changes settings only after you say yes. E-M1 Capture must run with
-  `--allow-write` too. It follows the camera's mode rules (shutter speed only in S/M, aperture only in A/M).
+Safety tiers (cumulative, opt-in via CLI flags; E-M1 Capture must also run with `--allow-write` for any write tier):
+
+| Flag | Added tools | Safety rule |
+|---|---|---|
+| *(default)* | `camera_status`, `camera_settings`, `live_view_frame`, `list_card_images` (card, local `captures/`, Wi-Fi Share Order), `last_picture`; prompts `setup_for_scene`, `check_composition`, `critique_last_shot` | Read-only (no POST requests) |
+| `--allow-write` | `camera_configure`, `camera_focus` (AF point/current, USB AF Area, USB Focus ring (MF) steps, USB Auto Star AF, USB Zoom AF), `live_view` (start/stop/size), `playback` (Playback, download, HSL, OM Workspace), `app_control` (connect/disconnect/Wi-Fi Turn off camera/USB refresh/transfer/save config) | No shutter release, no card erase; `camera_configure` defaults to `apply=false`; `camera_focus` (AF, AF point, AF Area, MF, Star AF start, Zoom AF on/move), `live_view` start, Playback enter/exit, `connect`, `disconnect`, `refresh` and `poweroff` require `confirm=true`; computer-side actions (download, HSL, OM Workspace, transfer, save config) run at once |
+| `--allow-shutter` *(needs `--allow-write`)* | `camera_shoot` (single shot + optional self-timer, Press halfway, BULB/LIVE TIME/LIVECOMP in M, Time lapse shooting, AE BKT, movie, `stop_job`) | Dry-run plan by default; capture starts only with `confirm=true` after your yes; stop actions run immediately |
+| `--allow-erase` *(needs `--allow-write`)* | `card_erase` (USB card erase, Wi-Fi Reset Share Order) | Dry-run lists exact files; executes only with `confirm=true` after your yes |
+
 - **Just say it:** with `--allow-write`, any wish in words – "set it up right for now", "aurora", "a warm Wes Anderson
   look", "it is too dark" – becomes a settings plan from what the camera offers in this mode (pro M-mode
   thinking, fixed ISO and WB, checked again on the live view); what only the body can set is named as a step.
@@ -322,8 +327,8 @@ Claude Desktop: add to `~/Library/Application Support/Claude/claude_desktop_conf
                                 "args": ["--lenses", "M.12-40mm F2.8, M.45mm F1.8"]}}}
 ```
 
-Add `"--allow-write"` to `args` to let it change settings. Other port: `--url http://127.0.0.1:8766` (or
-`OMCAP_URL`); your lenses: `--lenses` (or `OMCAP_LENSES`).
+Add `"--allow-write"` (and optionally `"--allow-shutter"` / `"--allow-erase"`) to `args` to unlock the corresponding
+safety tier. Other port: `--url http://127.0.0.1:8766` (or `OMCAP_URL`); your lenses: `--lenses` (or `OMCAP_LENSES`).
 
 
 ## Tests

@@ -1,23 +1,31 @@
 """MCP server (Model Context Protocol, stdio) for E-M1 Capture (REQ-F35).
 
 Starts read-only by default (5 read-only tools + 3 Photo Coach prompts).
-With `--allow-write` (and E-M1 Capture also running with `--allow-write`), adds the
-`camera_configure` tool (dry-run by default; applies settings only with `apply=true`
-after explicit user confirmation).
+Safety tiers (cumulative, opt-in via CLI flags; E-M1 Capture must also run with `--allow-write`):
+  --allow-write   : camera_configure, camera_focus (AF/MF/Star AF/Zoom AF), live_view, playback
+                    (Playback, download, HSL, OM Workspace), app_control (connect/disconnect/
+                    poweroff/refresh/transfer/save_config). No shutter, no erase.
+  --allow-shutter : + camera_shoot (single shot, half-press, BULB/LIVE TIME/LIVECOMP, interval,
+                    bracketing, movie, stop_job; dry-run by default, confirm=true to trigger).
+  --allow-erase   : + card_erase (USB card erase, Wi-Fi Share Order clear; dry-run by default,
+                    confirm=true to execute).
 
 Talks only to the running E-M1 Capture web app over local HTTP (loopback 127.0.0.1 /
 localhost only) and never accesses the camera, firmware or card directly. Never exposes
-shutter release, card erase or power-off.
+app quit (`/api/quit`) or firmware operations.
 
 Usage:
-  .venv/bin/python -B -m omcap.mcp_server                          # read-only (default)
-  .venv/bin/python -B -m omcap.mcp_server --allow-write            # + camera_configure
+  .venv/bin/python -B -m omcap.mcp_server                                  # read-only (default)
+  .venv/bin/python -B -m omcap.mcp_server --allow-write                    # + configure/focus/live/playback/app
+  .venv/bin/python -B -m omcap.mcp_server --allow-write --allow-shutter    # + camera_shoot
+  .venv/bin/python -B -m omcap.mcp_server --allow-write --allow-erase      # + card_erase
   .venv/bin/em1-capture-mcp --url http://127.0.0.1:8765 --lenses "12-40mm f/2.8, 45mm f/1.8"
 """
 import argparse
 import base64
 import io
 import json
+import math
 import os
 import sys
 import time
@@ -34,7 +42,21 @@ SUPPORTED_PROTOCOLS = ("2024-11-05", "2025-03-26", "2025-06-18")
 LOOPBACK_HOSTS = ("127.0.0.1", "localhost")
 MAX_IMAGE_BYTES = 12 << 20  # 12 MB cap for base64 image responses over stdio
 MAX_LIST_LIMIT = 200
-WRITE_ENDPOINTS = frozenset({"/api/set"})  # strict allowlist: settings only, never shoot/erase/poweroff
+WRITE_ENDPOINTS = frozenset({
+    "/api/set",
+    "/api/afarea", "/api/mfdrive", "/api/staraf", "/api/loupe",
+    "/api/liveview",
+    "/api/playback", "/api/download", "/api/hsl", "/api/hslauto", "/api/open",
+    "/api/connect", "/api/disconnect", "/api/poweroff",
+    "/api/refresh", "/api/transfer", "/api/savecfg",
+})  # settings, focus, live view, playback/HSL, app/connection (never /api/quit or firmware)
+SHUTTER_ENDPOINTS = frozenset({
+    "/api/shoot", "/api/shutter", "/api/take",
+    "/api/interval", "/api/bracket", "/api/movie", "/api/job/stop",
+})  # only with --allow-shutter (requires --allow-write)
+ERASE_ENDPOINTS = frozenset({
+    "/api/erase", "/api/shareorder/clear",
+})  # only with --allow-erase (requires --allow-write)
 
 # Any wish in words (scene, subject, mood, look, film, a problem like "too dark") -> camera settings.
 # A general method; the scenes and looks are examples, not a fixed list. Active without picking a prompt (voice).
@@ -74,11 +96,37 @@ BODY_ONLY = [
     "Color Creator hue and saturation", "WB fine-tuning (A/G) and custom kelvin values", "Flash intensity",
 ]
 
+# Focus, live view, playback and app control come with --allow-write; after settings changes the live view may be
+# soft, so focus again before judging sharpness.
+CONTROL = (
+    "Control: live_view starts/stops live view (with optional size); camera_focus handles AF (point x/y or current "
+    "point), USB AF Area mode, USB Focus ring (MF) steps, USB Auto Star AF, and USB Zoom AF (loupe). After settings "
+    "changes or when live_view_frame looks soft, focus again with camera_focus before judging sharpness. "
+    "playback enters/exits Playback, downloads card files, applies software HSL or opens captures in OM Workspace. "
+    "app_control connects/disconnects, refreshes USB state, sets transfer target and save folder/naming, or turns "
+    "off the camera over Wi-Fi. Every change to the camera or its mode (live_view start, camera_focus changes, Playback "
+    "enter/exit, connect, disconnect, refresh, Turn off camera) is a dry-run first: tell the user, then repeat with "
+    "confirm=true after their yes."
+)
+SHUTTER_RULES = (
+    "Shutter: camera_shoot covers single shot (optional self-timer), Press halfway, long exposure (BULB/LIVE TIME/"
+    "LIVECOMP in M), Time lapse shooting (interval), AE BKT (exposure bracketing in P/A/S), movie recording, and "
+    "stop_job. For any capture start, ALWAYS call without confirm first to get the dry-run plan (including exact "
+    "frame count, interval, or EV sequence), tell the user, and call with confirm=true ONLY after their explicit "
+    "yes for that specific action (one yes = one named action). Stop actions (stop_job, long_exposure stop, movie "
+    "stop, Press halfway release) run immediately."
+)
+ERASE_RULES = (
+    "Erase: card_erase deletes files from the camera card (USB) or runs Reset Share Order (Wi-Fi). ALWAYS call "
+    "without confirm first to list the exact files, warn that the action cannot be undone, and call with "
+    "confirm=true ONLY after the user's explicit yes."
+)
+
 INSTRUCTIONS_RO = (
     "Read-only AI Photo Coach interface to a running E-M1 Capture server (Olympus OM-D E-M1 Mark I "
     "over USB or Wi-Fi). Use these tools to inspect camera status, settings, lens, live view frame "
-    "(with exposure statistics), card list and recent pictures. This server is read-only and cannot "
-    "change camera settings, focus or release the shutter."
+    "(with exposure statistics), card/local/Share Order lists and recent pictures. This server is read-only "
+    "and cannot change camera settings, focus, release the shutter or erase files."
 )
 
 INSTRUCTIONS_RW = (
@@ -86,8 +134,9 @@ INSTRUCTIONS_RW = (
     "or Wi-Fi). Inspect status, settings, live view and shots freely. To configure the camera, ALWAYS "
     "call camera_configure with apply=false first to build a validated plan, present the exact changes "
     "(and any manual steps such as turning the mode dial over USB) to the user, and call "
-    "camera_configure with apply=true ONLY after the user explicitly confirms. This server never "
-    "releases the shutter, erases card files or touches firmware.\n\n" + TRANSLATE
+    "camera_configure with apply=true ONLY after the user explicitly confirms. Shutter actions require "
+    "--allow-shutter, card erase requires --allow-erase, and app quit or firmware operations are never exposed.\n\n"
+    + TRANSLATE + "\n\n" + CONTROL
 )
 
 
@@ -122,12 +171,14 @@ class _NoRedirect(urllib.request.HTTPRedirectHandler):
 
 
 class HttpClient:
-    """Thin client for the local E-M1 Capture HTTP API (GET always; allowlisted POST only with allow_write)."""
+    """Thin client for the local E-M1 Capture HTTP API (GET always; allowlisted POST gated by safety tier)."""
 
-    def __init__(self, base_url=DEFAULT_URL, timeout=10.0, allow_write=False):
+    def __init__(self, base_url=DEFAULT_URL, timeout=10.0, allow_write=False, allow_shutter=False, allow_erase=False):
         self.base_url = validate_url(base_url)
         self.timeout = timeout
         self.allow_write = bool(allow_write)
+        self.allow_shutter = bool(allow_shutter) and self.allow_write
+        self.allow_erase = bool(allow_erase) and self.allow_write
         # Ignore system proxy env vars on loopback and refuse redirects off localhost
         self._opener = urllib.request.build_opener(urllib.request.ProxyHandler({}), _NoRedirect())
 
@@ -177,10 +228,15 @@ class HttpClient:
             raise ApiError("Invalid JSON from %s: %s" % (path, e), status=status)
 
     def post_json(self, path, payload, timeout=None):
-        """HTTP POST strictly gated by allow_write and WRITE_ENDPOINTS allowlist."""
+        """HTTP POST strictly gated by allow_write / allow_shutter / allow_erase endpoint allowlists."""
         if not self.allow_write:
-            raise ApiError("MCP server is read-only. Restart with --allow-write to configure settings.", status=403)
-        if path not in WRITE_ENDPOINTS:
+            raise ApiError("MCP server is read-only. Restart with --allow-write to control the camera.", status=403)
+        allowed = (
+            path in WRITE_ENDPOINTS
+            or (self.allow_shutter and path in SHUTTER_ENDPOINTS)
+            or (self.allow_erase and path in ERASE_ENDPOINTS)
+        )
+        if not allowed:
             raise ApiError("Endpoint %s is not allowed from MCP" % path, status=403)
         body = json.dumps(payload).encode("utf-8")
         req = urllib.request.Request(
@@ -376,15 +432,21 @@ def tool_camera_status(client, args, ctx):
     level = None
     if not gone and status.get("type") == "usb" and state.get("live") and "level" in (status.get("features") or ()):
         level = _optional_json(client, "/api/level")
+    star_af = None if gone else _optional_json(client, "/api/staraf")
+    save_cfg = None if gone else _optional_json(client, "/api/savecfg")
+    hsl_info = None if gone else _optional_json(client, "/api/hsl/presets")
 
     result = {
         "connected": True,
         "app": app,
         "mcp_allow_write": bool(ctx.get("allow_write")),
+        "mcp_allow_shutter": bool(ctx.get("allow_shutter")),
+        "mcp_allow_erase": bool(ctx.get("allow_erase")),
         "connection": {
             "type": status.get("type"),
             "model": status.get("model"),
             "allow_write": bool(status.get("allow_write")),
+            "om_workspace": bool(status.get("om_workspace")),
             "usb_backend": status.get("usb_backend"),
             "features": status.get("features") or [],
         },
@@ -403,6 +465,7 @@ def tool_camera_status(client, args, ctx):
             "shutter_stage": state.get("stage"),
             "play_mode": bool(state.get("play")),
             "card_present": state.get("card"),
+            "job": state.get("job") if (state.get("job") or {}).get("running") else None,
             "movie_s": round(state["movie"], 1) if isinstance(state.get("movie"), (int, float)) else None,
             "long_exposure_s": round(state["take"], 1) if isinstance(state.get("take"), (int, float)) else None,
             "transfer": state.get("transfer"),
@@ -415,6 +478,12 @@ def tool_camera_status(client, args, ctx):
     }
     if level is not None:
         result["level"] = level
+    if isinstance(star_af, dict) and (star_af.get("running") or star_af.get("phase") not in (None, "idle")):
+        result["star_af"] = star_af
+    if isinstance(save_cfg, dict):
+        result["save_config"] = save_cfg
+    if isinstance(hsl_info, dict):
+        result["hsl"] = hsl_info
     if ctx.get("lenses"):
         result["my_lenses"] = list(ctx["lenses"])
     return _text(result)
@@ -468,10 +537,25 @@ def _dos_datetime(date, time_):
 
 
 def tool_list_card_images(client, args, ctx):
+    source = args.get("source", "card")
+    if source not in ("card", "local", "share_order"):
+        raise ValueError("'source' must be one of: card, local, share_order")
     raw_limit = args.get("limit", 20)
     if isinstance(raw_limit, bool) or not isinstance(raw_limit, int):
         raise ValueError("'limit' must be an integer")
     limit = max(1, min(raw_limit, MAX_LIST_LIMIT))
+
+    if source == "local":
+        files = client.get_json("/api/local") or []
+        return _text({"source": "local", "total": len(files), "shown": min(len(files), limit), "images": files[:limit]})
+    if source == "share_order":
+        state = _optional_json(client, "/api/state") or {}
+        if state.get("play") is False:
+            raise ApiError("Share Order over Wi-Fi requires Playback mode. Call playback(action='enter') first.")
+        paths = client.get_json("/api/shareorder") or []
+        return _text({"source": "share_order", "total": len(paths), "shown": min(len(paths), limit),
+                      "images": paths[:limit]})
+
     fresh = bool(args.get("fresh", False))
     folder = args.get("dir", "/DCIM")
     if not isinstance(folder, str) or not folder.startswith("/"):
@@ -532,11 +616,15 @@ def tool_last_picture(client, args, ctx):
     target = _resolve_picture(client, args.get("path"))
     card_path, has_fast, local_name = target["path"], target["fast"], target["local"]
 
-    exif_data, exif_note = None, None
+    exif_data, exif_note, movie_seconds = None, None, None
     if card_path:
         if _is_jpg(card_path):
             res = _optional_json(client, "/api/exif", {"path": card_path})
             exif_data = res.get("exif") if isinstance(res, dict) else None
+        elif card_path.lower().endswith(".mov"):
+            res = _optional_json(client, "/api/movlength", {"path": card_path})
+            movie_seconds = res.get("seconds") if isinstance(res, dict) else None
+            exif_note = "EXIF shooting data is only read from JPG files."
         else:
             exif_note = "EXIF shooting data is only read from JPG files."
 
@@ -588,6 +676,8 @@ def tool_last_picture(client, args, ctx):
     }
     if exif_note:
         meta["exif_note"] = exif_note
+    if movie_seconds is not None:
+        meta["movie_seconds"] = movie_seconds
     content = [_image(img_bytes)] if img_bytes else []
     content.extend(_text(meta))
     return content
@@ -886,6 +976,9 @@ READ_ONLY_ANNOTATIONS = {
     "openWorldHint": False,
 }
 
+CONTROL_ANNOTATIONS = {"readOnlyHint": False, "destructiveHint": False, "idempotentHint": False, "openWorldHint": False}
+SHUTTER_ANNOTATIONS = {"readOnlyHint": False, "destructiveHint": False, "idempotentHint": False, "openWorldHint": False}
+ERASE_ANNOTATIONS = {"readOnlyHint": False, "destructiveHint": True, "idempotentHint": False, "openWorldHint": False}
 CONFIGURE_ANNOTATIONS = {
     "readOnlyHint": False,
     "destructiveHint": False,
@@ -921,9 +1014,12 @@ READ_TOOLS = {
         tool_live_view_frame,
     ),
     "list_card_images": (
-        "List pictures on the camera card (newest first). Uses the saved card list by default for "
+        "List pictures on the camera card (newest first), saved computer captures (source='local'), "
+        "or Wi-Fi Share Order marks (source='share_order'). Uses the saved card list by default for "
         "instant answers; set fresh=true to query the camera card.",
         _schema({
+            "source": {"type": "string", "enum": ["card", "local", "share_order"],
+                       "description": "List source: 'card' (default), 'local' (captures/), or 'share_order' (Wi-Fi)."},
             "limit": {"type": "integer", "minimum": 1, "maximum": MAX_LIST_LIMIT,
                       "description": "Maximum number of entries to return (default 20)."},
             "fresh": {"type": "boolean", "description": "Read the live list from the camera instead of the cache."},
@@ -946,6 +1042,638 @@ READ_TOOLS = {
     ),
 }
 
+AF_ALL_TARGETS = 33024  # USB AF Area "All Targets": the camera picks the field itself
+AF_AREA_MODES = {"all": 33024, "single": 33025, "group": 33026, "small": 33027}
+AF_AREA_LABELS = {33024: "All Targets", 33025: "Single Target", 33026: "Group Target", 33027: "Small Target"}
+LOUPE_RATIOS = (3, 5, 7, 10, 14)
+LOUPE_DIRECTIONS = ("up", "down", "left", "right")
+LV_SIZES = ("0320x0240", "0640x0480", "0800x0600", "1024x0768", "1280x0960")
+MIN_INTERVAL = 5  # same minimum as omcap/server.py (one shot takes ~4 s)
+MAX_SELF_TIMER = 30
+
+
+def _af_field(info, x, y):
+    """Field 1-81 of the camera's 9x9 AF grid at (x, y) given as 0-1 of the live view frame."""
+    a = info.get("area") or {}
+    w, h = a.get("w") or 1, a.get("h") or 1
+    col = int((x * w - a.get("x0", 0)) * 9 / max(1, a.get("x1", w) - a.get("x0", 0)))
+    row = int((y * h - a.get("y0", 0)) * 9 / max(1, a.get("y1", h) - a.get("y0", 0)))
+    return 9 * min(max(row, 0), 8) + min(max(col, 0), 8) + 1
+
+
+def _check_xy(x, y):
+    if (x is None) != (y is None):
+        raise ValueError("Give both 'x' and 'y' (0-1 of the live view frame) or neither")
+    if x is not None:
+        for v in (x, y):
+            if isinstance(v, bool) or not isinstance(v, (int, float)) or not math.isfinite(v) or not 0 <= v <= 1:
+                raise ValueError("'x' and 'y' must be numbers from 0 to 1")
+    return x, y
+
+
+def _check_capture_name(name):
+    if not isinstance(name, str) or not name.strip() or "/" in name or "\\" in name or ".." in name:
+        raise ValueError("'name' must be a plain file name from captures/ (no path separators)")
+    return name.strip()
+
+
+def _is_camera_busy(state):
+    return bool(state.get("busy") or state.get("indexing") or state.get("stage")
+                or (state.get("job") or {}).get("running")
+                or (state.get("star_af") or {}).get("running")
+                or state.get("movie") or state.get("take") or state.get("play"))
+
+
+def _require_server_write(status):
+    if isinstance(status, dict) and status.get("allow_write") is False:
+        raise ApiError("E-M1 Capture is running read-only. Restart E-M1 Capture with --allow-write first.", status=403)
+
+
+def _in_focus(conn, res):
+    """USB reports authoritative focus_ok (never trust stale last_af); Wi-Fi reports last_af only on affocus=ok."""
+    if conn == "usb":
+        return res.get("focus_ok") is True
+    return bool(res.get("last_af"))
+
+
+def _is_usb_sequential_drive(drive_val):
+    if drive_val is None:
+        return False
+    try:
+        return (int(str(drive_val)) & 15) in (2, 3)
+    except ValueError:
+        return False
+
+
+def _focus_dry_run(change, call_args):
+    """Dry-run answer of camera_focus: what would change, and the call that applies it after the user's yes."""
+    shown = ", ".join("%s=%s" % (k, json.dumps(v)) for k, v in sorted(call_args.items()))
+    return _text({"dry_run": True, "will_change": change,
+                  "next_step": "Tell the user what changes, then call camera_focus(%s%sconfirm=true)."
+                               % (shown, ", " if shown else "")})
+
+
+def tool_camera_focus(client, args, ctx):
+    confirm = args.get("confirm") is True
+    call_args = {k: v for k, v in args.items() if k != "confirm"}
+    mf = args.get("mf")
+    star_af = args.get("star_af")
+    loupe = args.get("loupe")
+    af_area = args.get("af_area")
+    if sum(v is not None for v in (mf, star_af, loupe, af_area)) > 1:
+        raise ValueError("Use only one of 'mf', 'star_af', 'loupe', or 'af_area' per call")
+
+    if star_af == "status":
+        return _text({"star_af": client.get_json("/api/staraf")})
+
+    status = client.get_json("/api/status")
+    _require_server_write(status)
+    conn = status.get("type")
+
+    if star_af is not None:
+        if star_af not in ("start", "stop"):
+            raise ValueError("'star_af' must be 'start', 'stop', or 'status'")
+        if star_af == "stop":
+            res = client.post_json("/api/staraf", {"action": "stop"}) or {}
+            return _text(res)
+        if conn != "usb":
+            raise ApiError("Auto Star AF works only over USB (no Wi-Fi focus drive command).")
+        state = client.get_json("/api/state")
+        if not state.get("live"):
+            raise ApiError("Start Live View first before running Star AF.")
+        if _is_camera_busy(state):
+            raise ApiError("The camera is busy: wait, then try again.")
+        props = client.get_json("/api/props")
+        if str((props.get("takemode") or {}).get("value")) == "movie":
+            raise ApiError("Star AF is only available in photo shooting modes (not Movie mode).")
+        x, y = _check_xy(args.get("x"), args.get("y"))
+        zoom = args.get("zoom", True)
+        boost = args.get("boost", True)
+        if not isinstance(zoom, bool) or not isinstance(boost, bool):
+            raise ValueError("'zoom' and 'boost' must be booleans")
+        priority = args.get("priority", "speed")
+        if priority not in ("speed", "accuracy"):
+            raise ValueError("'priority' must be 'speed' or 'accuracy'")
+        payload = {"action": "start", "zoom": zoom, "boost": boost, "priority": priority}
+        if x is not None:
+            payload["x"], payload["y"] = float(x), float(y)
+        if not confirm:
+            return _focus_dry_run("Auto Star AF: drives the focus, may switch S-AF+MF to MF on success"
+                                  + (", temporary Live View Boost" if boost else "")
+                                  + (", Zoom AF x10 while it runs" if zoom else ""), call_args)
+        res = client.post_json("/api/staraf", payload) or {}
+        res["note"] = "Star AF runs asynchronously; poll camera_focus(star_af='status') or camera_status."
+        return _text(res)
+
+    if loupe is not None:
+        if loupe not in ("on", "off", "move"):
+            raise ValueError("'loupe' must be 'on', 'off', or 'move'")
+        if conn != "usb":
+            raise ApiError("Zoom AF (loupe) works only over USB (no Wi-Fi command).")
+        if loupe == "off":
+            res = client.post_json("/api/loupe", {"on": False}) or {}
+            return _text({"loupe": bool(res.get("loupe", False)), "rev": res.get("rev")})
+        state = client.get_json("/api/state")
+        if not state.get("live"):
+            raise ApiError("Start Live View first before using Zoom AF (loupe).")
+        if _is_camera_busy(state):
+            raise ApiError("The camera is busy: wait, then try again.")
+        if loupe == "move":
+            if not state.get("loupe"):
+                raise ApiError("Zoom AF (loupe) is not active. Turn it on first.")
+            direction = args.get("direction")
+            if direction not in LOUPE_DIRECTIONS:
+                raise ValueError("'direction' must be one of: %s" % ", ".join(LOUPE_DIRECTIONS))
+            if not confirm:
+                return _focus_dry_run("Zoom AF (loupe): moves the zoomed area %s" % direction, call_args)
+            res = client.post_json("/api/loupe", {"move": direction}) or {}
+            return _text({"loupe": bool(res.get("loupe", True)), "moved": direction, "rev": res.get("rev")})
+        payload = {"on": True}
+        ratio = args.get("ratio")
+        if ratio is not None:
+            if isinstance(ratio, bool) or ratio not in LOUPE_RATIOS:
+                raise ValueError("'ratio' must be one of: %s" % ", ".join(str(r) for r in LOUPE_RATIOS))
+            payload["ratio"] = ratio
+        x, y = _check_xy(args.get("x"), args.get("y"))
+        if x is not None:
+            payload["x"], payload["y"] = float(x), float(y)
+        if not confirm:
+            return _focus_dry_run("Zoom AF (loupe) on" + (" at x%s" % ratio if ratio else ""), call_args)
+        res = client.post_json("/api/loupe", payload) or {}
+        return _text({"loupe": bool(res.get("loupe", True)), "ratio": ratio, "rev": res.get("rev")})
+
+    if mf is not None:
+        if mf not in ("near", "far"):
+            raise ValueError("'mf' must be 'near' or 'far'")
+        step = args.get("step", 1)
+        if isinstance(step, bool) or step not in (1, 2, 3):
+            raise ValueError("'step' must be 1, 2, or 3")
+        if conn != "usb":
+            raise ApiError("Focus ring (MF) steps work only over USB (no Wi-Fi command).")
+        props = _optional_json(client, "/api/props") or {}
+        fm = (props.get("focusmode") or {}).get("value")
+        if fm is not None and str(fm) not in ("1", "32769"):
+            raise ApiError("Focus ring (MF) steps require AF mode MF or S-AF+MF (E-M1 manual, p.75).")
+        if not confirm:
+            return _focus_dry_run("Focus ring (MF): drives the lens %s, step %d" % (mf, step), call_args)
+        client.post_json("/api/mfdrive", {"direction": mf, "step": step})
+        return _text({"mf": mf, "step": step, "note": "Check sharpness with live_view_frame."})
+
+    state = _optional_json(client, "/api/state") or {}
+    if _is_camera_busy(state):
+        raise ApiError("The camera is busy (shot, series, movie, Playback, or Press halfway): wait, then try again.")
+    if conn == "usb":
+        props = _optional_json(client, "/api/props") or {}
+        if str((props.get("focusmode") or {}).get("value")) == "1":
+            raise ApiError("AF target and AF Area are not available in MF mode.")
+
+    x, y = _check_xy(args.get("x"), args.get("y"))
+    if af_area is not None:
+        if af_area not in AF_AREA_MODES:
+            raise ValueError("'af_area' must be one of: %s" % ", ".join(AF_AREA_MODES))
+        if conn != "usb":
+            raise ApiError("AF Area mode can only be changed over USB (Wi-Fi always uses a single point).")
+        mode_code = AF_AREA_MODES[af_area]
+        if x is not None and mode_code == AF_ALL_TARGETS:
+            raise ApiError("AF Area 'all' (All Targets) lets the camera pick the point; omit x/y or choose single/group/small.")
+        payload = {"mode": mode_code}
+        if x is not None:
+            info = client.get_json("/api/afarea")
+            payload["field"] = _af_field(info, x, y)
+        if not confirm:
+            return _focus_dry_run("AF Area: %s" % AF_AREA_LABELS.get(mode_code, af_area)
+                                  + (", AF target field %d, then AF" % payload["field"] if "field" in payload else ""),
+                                  call_args)
+        res = client.post_json("/api/afarea", payload, timeout=15.0) or {}
+        out = {
+            "connection": conn,
+            "af_area": AF_AREA_LABELS.get(res.get("mode", mode_code), af_area),
+            "field": res.get("field", payload.get("field")),
+        }
+        if x is not None:
+            out["in_focus"] = _in_focus(conn, res)
+        return _text(out)
+
+    info = client.get_json("/api/afarea")
+    if x is not None:
+        if conn == "usb" and info.get("mode") == AF_ALL_TARGETS:
+            raise ApiError("AF Area is All Targets: the camera picks the point. Set af_area='single' "
+                           "to focus on a point, or call camera_focus without x/y.")
+        payload = {"field": _af_field(info, x, y)}
+        if not confirm:
+            return _focus_dry_run("AF target: field %d (of 81), then AF" % payload["field"], call_args)
+    elif conn == "usb":
+        payload = {"focus": True}
+    else:
+        payload = {"field": info.get("field") or 41}  # Wi-Fi focuses on a point: the last one, else the centre
+    if not confirm:
+        return _focus_dry_run("AF (Press halfway) with %s" % ("the current AF target" if "focus" in payload
+                              else "AF target field %d" % payload["field"]), call_args)
+    res = client.post_json("/api/afarea", payload, timeout=15.0) or {}
+    in_focus = _in_focus(conn, res)
+    out = {"connection": conn, "field": res.get("field", payload.get("field")), "in_focus": in_focus}
+    if res.get("mode") in AF_AREA_LABELS:
+        out["af_area"] = AF_AREA_LABELS[res["mode"]]
+    if not in_focus:
+        out["note"] = "No focus confirmed: more contrast, more light, or a closer point; then check live_view_frame."
+    return _text(out)
+
+
+def tool_live_view(client, args, ctx):
+    action = args.get("action")
+    if action not in ("start", "stop"):
+        raise ValueError("'action' must be 'start' or 'stop'")
+    status = _optional_json(client, "/api/status")
+    _require_server_write(status)
+    payload = {"action": action}
+    size = args.get("size")
+    if size is not None:
+        if size not in LV_SIZES:
+            raise ValueError("'size' must be one of: %s" % ", ".join(LV_SIZES))
+    if action == "start":
+        state = _optional_json(client, "/api/state") or {}
+        if state.get("play"):
+            raise ApiError("Exit Playback first before starting Live View.")
+        if _is_camera_busy(state):
+            raise ApiError("The camera is busy: wait before starting Live View.")
+        if size is not None:
+            if isinstance(status, dict) and status.get("features") is not None and "lvsize" not in status["features"]:
+                raise ApiError("Live view size cannot be changed on this USB backend (fixed 1024x768).")
+            payload["lvqty"] = size
+        if args.get("confirm") is not True:
+            return _text({"dry_run": True, "will_start_live_view": {"size": size} if size else True,
+                          "next_step": "Tell the user, then call live_view(action='start'%s, confirm=true)."
+                                       % (", size=%r" % size if size else "")})
+    client.post_json("/api/liveview", payload, timeout=20.0)
+    out = {"live_view": action == "start"}
+    if action == "start" and size is not None:
+        out["size"] = size
+    return _text(out)
+
+
+def tool_playback(client, args, ctx):
+    action = args.get("action")
+    if action not in ("enter", "exit", "download", "hsl", "hsl_auto", "open_workspace"):
+        raise ValueError("'action' must be one of: enter, exit, download, hsl, hsl_auto, open_workspace")
+    if action in ("enter", "exit"):
+        _require_server_write(_optional_json(client, "/api/status"))
+        if _is_camera_busy(_optional_json(client, "/api/state") or {}):
+            raise ApiError("The camera is busy (shot, series, movie or Press halfway): wait, then try again.")
+        if args.get("confirm") is not True:
+            return _text({"dry_run": True, "will_switch_camera_to": "Playback" if action == "enter" else "shooting",
+                          "next_step": "Tell the user, then call playback(action=%r, confirm=true)." % action})
+        res = client.post_json("/api/playback", {"action": "enter" if action == "enter" else "leave"}, timeout=20.0) or {}
+        return _text({"play_mode": bool(res.get("play", action == "enter"))})
+    if action == "download":
+        path = args.get("path")
+        if not isinstance(path, str) or not path.startswith("/"):
+            raise ValueError("'path' must be a camera card path starting with '/'")
+        res = client.post_json("/api/download", {"path": path}, timeout=60.0) or {}
+        return _text({"downloaded": True, "path": path, "saved": res.get("saved"), "name": res.get("name")})
+    if action == "hsl":
+        name = _check_capture_name(args.get("name"))
+        profile = args.get("profile")
+        if not (isinstance(profile, (str, dict)) and profile):
+            raise ValueError("'profile' must be a preset name or profile object")
+        tiff = args.get("tiff", False)
+        if not isinstance(tiff, bool):
+            raise ValueError("'tiff' must be a boolean")
+        res = client.post_json("/api/hsl", {"name": name, "profile": profile, "tiff": tiff}, timeout=60.0) or {}
+        return _text({"hsl_applied": True, "name": name, "result": res})
+    if action == "hsl_auto":
+        enabled = args.get("enabled")
+        if not isinstance(enabled, bool):
+            raise ValueError("'enabled' must be a boolean")
+        payload = {"enabled": enabled}
+        if args.get("preset") is not None:
+            if not isinstance(args["preset"], str) or not args["preset"].strip():
+                raise ValueError("'preset' must be a non-empty string")
+            payload["preset"] = args["preset"].strip()
+        res = client.post_json("/api/hslauto", payload) or {}
+        return _text(res)
+    name = _check_capture_name(args.get("name"))
+    client.post_json("/api/open", {"name": name})
+    return _text({"opened_in_om_workspace": name})
+
+
+def tool_app_control(client, args, ctx):
+    action = args.get("action")
+    if action not in ("connect", "disconnect", "poweroff", "refresh", "transfer", "save_config"):
+        raise ValueError("'action' must be one of: connect, disconnect, poweroff, refresh, transfer, save_config")
+    confirm = args.get("confirm") is True
+    if action == "connect":
+        conn = args.get("connection")
+        if conn not in ("usb", "wifi"):
+            raise ValueError("'connection' must be 'usb' or 'wifi'")
+        if not confirm:
+            return _text({"dry_run": True, "will_connect": conn,
+                          "next_step": "Tell the user, then call app_control(action='connect', connection=%r, confirm=true)." % conn})
+        res = client.post_json("/api/connect", {"type": conn}, timeout=30.0) or {}
+        return _text({"connected": True, "type": res.get("type", conn)})
+    if action == "disconnect":
+        if not confirm:
+            return _text({"dry_run": True, "will_disconnect": True,
+                          "next_step": "Confirm with the user and call app_control(action='disconnect', confirm=true)."})
+        client.post_json("/api/disconnect", {})
+        return _text({"disconnected": True})
+    if action == "poweroff":
+        status = client.get_json("/api/status")
+        if status.get("type") != "wifi":
+            raise ApiError("Turn off camera is only available over Wi-Fi.")
+        if not confirm:
+            return _text({"dry_run": True, "will_poweroff_camera": True, "model": status.get("model"),
+                          "next_step": "Confirm with the user and call app_control(action='poweroff', confirm=true)."})
+        _require_server_write(status)
+        client.post_json("/api/poweroff", {}, timeout=15.0)
+        return _text({"powered_off": True})
+    if action == "refresh":
+        status = client.get_json("/api/status")
+        if status.get("type") != "usb":
+            raise ApiError("Refresh is only needed over USB.")
+        if not confirm:
+            return _text({"dry_run": True, "will_refresh_usb_session": True,
+                          "next_step": "Tell the user, then call app_control(action='refresh', confirm=true)."})
+        client.post_json("/api/refresh", {}, timeout=30.0)
+        return _text({"refreshed": True})
+    if action == "transfer":
+        target = args.get("target")
+        if target not in ("sd", "both"):
+            raise ValueError("'target' must be 'sd' or 'both'")
+        client.post_json("/api/transfer", {"target": target})
+        return _text({"transfer": target})
+    cur = _optional_json(client, "/api/savecfg") or {}
+    scheme = cur.get("scheme", "original") if args.get("scheme") is None else args["scheme"]
+    if scheme not in ("original", "prefix", "datetime"):
+        raise ValueError("'scheme' must be one of: original, prefix, datetime")
+    save_dir = cur.get("dir", "") if args.get("dir") is None else args["dir"]
+    prefix = cur.get("prefix", "") if args.get("prefix") is None else args["prefix"]
+    if not isinstance(save_dir, str) or not isinstance(prefix, str):
+        raise ValueError("'dir' and 'prefix' must be strings")
+    payload = {"dir": save_dir, "scheme": scheme, "prefix": prefix}
+    res = client.post_json("/api/savecfg", payload) or {}
+    return _text({"save_config": res.get("cfg", payload)})
+
+
+def _wifi_card_paths(client):
+    """Newest Wi-Fi card paths, or None if the query failed (never conflated with an empty card)."""
+    try:
+        imgs = client.get_json("/api/images", {"newest": "1"}, timeout=20.0)
+    except ApiError:
+        return None
+    return [e.get("path") for e in imgs or () if e.get("path")]
+
+
+def _bracket_sequence(props, frames, step):
+    """Compute the exact exposure compensation sequence (mirrors omcap/server.bracket_plan)."""
+    if isinstance(frames, bool) or frames not in (3, 5, 7) or isinstance(step, bool) or step not in (1, 2, 3):
+        raise ValueError("Bracketing requires frames in (3, 5, 7) and step in (1, 2, 3) thirds of a stop")
+    p = props.get("expcomp") or {}
+    enum = list(p.get("enum") or ())
+    cur = p.get("value")
+    if not p.get("writable") or not enum or cur not in enum:
+        raise ApiError("Exposure compensation is not selectable in the current mode.")
+    idx = enum.index(cur)
+    wanted = [idx + k * step for k in range(-(frames // 2), frames // 2 + 1)]
+    if wanted[0] < 0 or wanted[-1] >= len(enum):
+        raise ApiError("Bracketing (%d frames, step %d/3 EV) exceeds the camera's compensation range." % (frames, step))
+    return [enum[j] for j in wanted]
+
+
+def tool_camera_shoot(client, args, ctx):
+    action = args.get("action", "shot")
+    if action not in ("shot", "half_press", "long_exposure", "interval", "bracket", "movie", "stop_job"):
+        raise ValueError("'action' must be one of: shot, half_press, long_exposure, interval, bracket, movie, stop_job")
+    confirm = args.get("confirm") is True
+
+    # Stop/release actions run immediately so a running series, exposure or recording can always be stopped.
+    if action == "stop_job":
+        client.post_json("/api/job/stop", {})
+        return _text({"stopped": "job"})
+    if action == "half_press" and args.get("step") == "release":
+        res = client.post_json("/api/shutter", {"stage": 0}) or {}
+        return _text({"half_press": False, "saved_to_computer": res.get("saved") or []})
+    if action == "long_exposure" and args.get("step") == "stop":
+        res = client.post_json("/api/take", {"action": "stop"}, timeout=120.0) or {}
+        return _text({"long_exposure": "stopped", "saved_to_computer": res.get("saved") or []})
+    if action == "movie" and args.get("step") == "stop":
+        state = _optional_json(client, "/api/state") or {}
+        if "movie" in state and not state.get("movie"):
+            raise ApiError("No movie recording is running.")
+        client.post_json("/api/movie", {"action": "stop"}, timeout=20.0)
+        return _text({"movie": "stopped"})
+
+    status = client.get_json("/api/status")
+    conn = status.get("type")
+    props = client.get_json("/api/props")
+    state = client.get_json("/api/state")
+    val = lambda k: (props.get(k) or {}).get("value")  # noqa: E731
+    mode = str(val("takemode"))
+    shutter = str(val("shutspeedvalue"))
+    base_plan = {"connection": conn, "shooting_mode": mode, "shutter": shutter, "aperture": val("focalvalue"),
+                 "iso": val("isospeedvalue"), "drive": val("drivemode")}
+
+    if action == "half_press":
+        step = args.get("step", "press")
+        if step != "press":
+            raise ValueError("'step' for half_press must be 'press' or 'release'")
+        if _is_camera_busy(state):
+            raise ApiError("The camera is busy: wait, then try again.")
+        if not confirm:
+            return _text({"dry_run": True, "will_half_press": base_plan,
+                          "next_step": "Confirm with the user and call camera_shoot(action='half_press', step='press', confirm=true)."})
+        _require_server_write(status)
+        res = client.post_json("/api/shutter", {"stage": 1}, timeout=15.0) or {}
+        return _text({"half_press": True, "last_af": res.get("last_af")})
+
+    if action == "long_exposure":
+        step = args.get("step")
+        if step not in ("prepare", "start"):
+            raise ValueError("'step' for long_exposure must be 'prepare', 'start', or 'stop'")
+        if mode != "M" or shutter not in LONG_SHUTTER:
+            raise ApiError("Long exposure requires Shooting mode M and Shutter speed BULB, LIVE TIME, or LIVECOMP.")
+        if step == "prepare":
+            if conn != "usb":
+                raise ApiError("Prepare for LIVECOMP is only used over USB; call step='start' directly over Wi-Fi.")
+            if shutter != "livecomp":
+                raise ApiError("Prepare is only used for LIVECOMP.")
+        if _is_camera_busy(state):
+            raise ApiError("The camera is busy: wait, then try again.")
+        plan = dict(base_plan, step=step)
+        payload = {"action": step}
+        if step == "start":
+            for opt in ("exposuremin", "upperlimit"):
+                v = args.get(opt)
+                if v is not None:
+                    if conn == "usb":
+                        raise ApiError("'%s' is only supported over Wi-Fi (USB uses the camera's own setting)." % opt)
+                    if isinstance(v, bool) or not isinstance(v, (int, float)) or not math.isfinite(v) or v <= 0:
+                        raise ValueError("'%s' must be a positive number" % opt)
+                    payload[opt] = v
+                    plan[opt] = v
+        if not confirm:
+            return _text({"dry_run": True, "will_long_exposure": plan,
+                          "next_step": "Confirm with the user and call camera_shoot(action='long_exposure', step=%r, confirm=true)." % step})
+        _require_server_write(status)
+        client.post_json("/api/take", payload, timeout=30.0)
+        return _text({"long_exposure": step, "settings": plan,
+                      "next_step": "Call camera_shoot(action='long_exposure', step='stop') to finish." if step == "start"
+                      else "Call camera_shoot(action='long_exposure', step='start', confirm=true) to begin."})
+
+    if action == "movie":
+        step = args.get("step")
+        if step != "start":
+            raise ValueError("'step' for movie must be 'start' or 'stop'")
+        if conn == "usb" and state.get("card") is False:
+            raise ApiError("Movie recording requires a card in the camera.")
+        if shutter in LONG_SHUTTER:
+            raise ApiError("Movie recording is not available during BULB, LIVE TIME, or LIVECOMP (E-M1 manual, p.26).")
+        if conn == "usb" and (str(val("focusstacking")) == "1" or _is_usb_sequential_drive(val("drivemode"))):
+            raise ApiError("Movie recording is not available during sequential shooting or Focus Stacking (E-M1 manual, p.26).")
+        if _is_camera_busy(state):
+            raise ApiError("The camera is busy: wait, then try again.")
+        if conn == "wifi" and mode != "movie":
+            raise ApiError("Over Wi-Fi the MCP does not switch the Shooting mode by itself (the app does): set Movie "
+                           "with camera_configure (after the user's yes) or turn the mode dial to Movie.")
+        plan = dict(base_plan, action="start")
+        if not confirm:
+            return _text({"dry_run": True, "will_start_movie": plan,
+                          "next_step": "Confirm with the user and call camera_shoot(action='movie', step='start', confirm=true)."})
+        _require_server_write(status)
+        client.post_json("/api/movie", {"action": "start"}, timeout=20.0)
+        return _text({"movie": "recording", "settings": plan,
+                      "next_step": "Call camera_shoot(action='movie', step='stop') to stop recording."})
+
+    if action == "interval":
+        count, seconds = args.get("count"), args.get("seconds")
+        if isinstance(count, bool) or not isinstance(count, int) or not 1 <= count <= 999:
+            raise ValueError("'count' must be an integer from 1 to 999")
+        if (isinstance(seconds, bool) or not isinstance(seconds, (int, float))
+                or not math.isfinite(seconds) or seconds < MIN_INTERVAL):
+            raise ValueError("'seconds' must be a number of at least %d s" % MIN_INTERVAL)
+        if mode not in ("P", "A", "S", "M") or shutter in LONG_SHUTTER:
+            raise ApiError("Time lapse shooting is only available in P, A, S, or M mode (not BULB/LIVE TIME/LIVECOMP).")
+        if _is_camera_busy(state):
+            raise ApiError("The camera is busy: wait, then try again.")
+        plan = dict(base_plan, count=count, seconds=float(seconds),
+                    estimated_total_s=round(max(0, count - 1) * float(seconds), 1))
+        if not confirm:
+            return _text({"dry_run": True, "will_run_interval": plan,
+                          "next_step": "State the frame count and interval to the user, then call camera_shoot(action='interval', count=%d, seconds=%s, confirm=true)." % (count, seconds)})
+        _require_server_write(status)
+        client.post_json("/api/interval", {"count": count, "seconds": float(seconds)})
+        return _text({"started": "interval", "plan": plan,
+                      "next_step": "Check progress in camera_status or stop with camera_shoot(action='stop_job')."})
+
+    if action == "bracket":
+        frames, step = args.get("frames"), args.get("ev_step")
+        if mode not in ("P", "A", "S"):
+            raise ApiError("AE BKT is only available in P, A, or S mode (not %s)." % mode)
+        if conn == "usb" and str(val("focusstacking")) == "1":
+            raise ApiError("AE BKT is not available while Focus Stacking is On.")
+        ev_seq = _bracket_sequence(props, frames, step)
+        if _is_camera_busy(state):
+            raise ApiError("The camera is busy: wait, then try again.")
+        plan = dict(base_plan, frames=frames, ev_step_thirds=step, ev_sequence=ev_seq)
+        if not confirm:
+            return _text({"dry_run": True, "will_run_bracket": plan,
+                          "next_step": "State the frame count and EV sequence to the user, then call camera_shoot(action='bracket', frames=%d, ev_step=%d, confirm=true)." % (frames, step)})
+        _require_server_write(status)
+        client.post_json("/api/bracket", {"frames": frames, "step": step})
+        return _text({"started": "bracket", "plan": plan,
+                      "next_step": "Check progress in camera_status or stop with camera_shoot(action='stop_job')."})
+
+    # Default: action == "shot"
+    self_timer = args.get("self_timer", 0)
+    if isinstance(self_timer, bool) or not isinstance(self_timer, int) or not 0 <= self_timer <= MAX_SELF_TIMER:
+        raise ValueError("'self_timer' must be an integer from 0 to %d seconds" % MAX_SELF_TIMER)
+    if self_timer and mode == "movie":
+        raise ApiError("Self-timer is not available in Movie mode.")
+    if shutter in LONG_SHUTTER:
+        raise ApiError("BULB, LIVE TIME and LIVECOMP need start and stop: use camera_shoot(action='long_exposure').")
+    if _is_camera_busy(state):
+        raise ApiError("The camera is busy (shot, series, movie, Playback, or Press halfway): wait, then try again.")
+    plan = dict(base_plan)
+    if self_timer:
+        plan["self_timer_s"] = self_timer
+    if not confirm:
+        return _text({"dry_run": True, "will_take_one_picture": plan,
+                      "next_step": "Tell the user and call camera_shoot with confirm=true only after their yes."})
+    _require_server_write(status)
+    if self_timer:
+        time.sleep(self_timer)
+    if conn == "usb":
+        before_last = (_optional_json(client, "/api/lastshot") or {}).get("path")
+        res = client.post_json("/api/shoot", {}, timeout=120.0) or {}
+        after_last = (_optional_json(client, "/api/lastshot") or {}).get("path")
+        new = [after_last] if after_last and after_last != before_last else []
+        new_note = None
+    else:
+        before = _wifi_card_paths(client)
+        res = client.post_json("/api/shoot", {}, timeout=120.0) or {}
+        if before is None:
+            new, new_note = [], "Could not list card files before the shot; check last_picture."
+        else:
+            before_set = set(before)
+            new = []
+            for attempt in range(3):
+                after = _wifi_card_paths(client) or []
+                new = [p for p in after if p not in before_set]
+                if new or attempt == 2:
+                    break
+                time.sleep(1.5)
+            new_note = None
+    out = {"taken": True, "settings": plan, "new_files": new, "saved_to_computer": res.get("saved") or []}
+    if res.get("note"):
+        out["note"] = "Focus Stacking was On, the camera took one picture."
+    elif new_note:
+        out["note"] = new_note
+    out["next_step"] = "Check it with last_picture (preview='full' for sharpness)."
+    return _text(out)
+
+
+def tool_card_erase(client, args, ctx):
+    action = args.get("action", "erase")
+    if action not in ("erase", "clear_share_order"):
+        raise ValueError("'action' must be 'erase' or 'clear_share_order'")
+    confirm = args.get("confirm") is True
+    status = client.get_json("/api/status")
+    conn = status.get("type")
+
+    if action == "clear_share_order":
+        if conn != "wifi":
+            raise ApiError("Reset Share Order is only available over Wi-Fi.")
+        state = _optional_json(client, "/api/state") or {}
+        if state.get("play") is False:
+            raise ApiError("Reset Share Order over Wi-Fi requires Playback mode. Call playback(action='enter') first.")
+        marked = client.get_json("/api/shareorder") or []
+        if not confirm:
+            return _text({"dry_run": True, "action": "clear_share_order",
+                          "marked_count": len(marked), "marked_files": marked,
+                          "warning": "Deselects all images selected for sharing on the camera's card. This cannot be undone.",
+                          "next_step": "Confirm with the user and call card_erase(action='clear_share_order', confirm=true)."})
+        _require_server_write(status)
+        client.post_json("/api/shareorder/clear", {})
+        return _text({"cleared_share_order": True, "previous_count": len(marked)})
+
+    if conn != "usb":
+        raise ApiError("Card erase is only available over USB (Wi-Fi has no erase command).")
+    paths = args.get("paths")
+    if not isinstance(paths, list) or not paths or len(paths) > MAX_LIST_LIMIT:
+        raise ValueError("'paths' must be a non-empty list of card paths (max %d)" % MAX_LIST_LIMIT)
+    clean = []
+    for p in paths:
+        if not isinstance(p, str) or not p.startswith("/"):
+            raise ValueError("Every path must be a camera card path starting with '/'")
+        clean.append(p)
+    if not confirm:
+        return _text({"dry_run": True, "action": "erase", "will_erase_count": len(clean), "paths": clean,
+                      "warning": "Card deletion cannot be undone.",
+                      "next_step": "List the exact files to the user and call card_erase(action='erase', paths=..., confirm=true) only after their explicit yes."})
+    _require_server_write(status)
+    res = client.post_json("/api/erase", {"paths": clean}, timeout=60.0) or {}
+    return _text({"erased": res.get("erased") or [], "failed": res.get("failed") or []})
+
+
 WRITE_TOOLS = {
     "camera_configure": (
         "Validate or apply camera settings for a scene (e.g. stars, sunset, portrait). "
@@ -965,21 +1693,163 @@ WRITE_TOOLS = {
         CONFIGURE_ANNOTATIONS,
         tool_camera_configure,
     ),
+    "camera_focus": (
+        "Focus the camera: AF on a point (x, y as 0-1 of the live view frame), AF with the current AF point "
+        "(no arguments), USB AF Area mode ('all'/'single'/'group'/'small'), USB Focus ring (MF) steps "
+        "(mf='near'/'far', step 1-3), USB Auto Star AF (star_af='start'/'stop'/'status'), or USB Zoom AF "
+        "(loupe='on'/'off'/'move'). Does not release the shutter. Anything that focuses, changes a setting or drives "
+        "the lens (AF, x/y, af_area, mf, star_af='start', loupe='on'/'move') is a dry-run first: show the change, then "
+        "repeat with confirm=true after the user's yes. star_af='status'/'stop' and loupe='off' run at once.",
+        _schema({
+            "x": {"type": "number", "minimum": 0, "maximum": 1, "description": "Horizontal point, 0 left to 1 right."},
+            "y": {"type": "number", "minimum": 0, "maximum": 1, "description": "Vertical point, 0 top to 1 bottom."},
+            "af_area": {"type": "string", "enum": ["all", "single", "group", "small"],
+                        "description": "USB: AF Area target mode."},
+            "mf": {"type": "string", "enum": ["near", "far"], "description": "USB: Focus ring (MF) direction (Near/Far)."},
+            "step": {"type": "integer", "enum": [1, 2, 3], "description": "Focus ring (MF) step size 1-3 (default 1)."},
+            "star_af": {"type": "string", "enum": ["start", "stop", "status"],
+                        "description": "USB photo modes: Auto Star AF control or status."},
+            "zoom": {"type": "boolean", "description": "Star AF: use Zoom AF x10 (default true)."},
+            "boost": {"type": "boolean", "description": "Star AF: temporary Live View Boost (default true)."},
+            "priority": {"type": "string", "enum": ["speed", "accuracy"],
+                         "description": "Star AF priority (default 'speed')."},
+            "loupe": {"type": "string", "enum": ["on", "off", "move"], "description": "USB: Zoom AF (loupe) control."},
+            "ratio": {"type": "integer", "enum": [3, 5, 7, 10, 14], "description": "USB Zoom AF magnification."},
+            "direction": {"type": "string", "enum": ["up", "down", "left", "right"],
+                          "description": "USB Zoom AF move direction when loupe='move'."},
+            "confirm": {"type": "boolean", "description": "True applies the change; only after the user's yes."},
+        }),
+        CONTROL_ANNOTATIONS,
+        tool_camera_focus,
+    ),
+    "live_view": (
+        "Start or stop the live view in E-M1 Capture (needed for live_view_frame), with optional frame size. "
+        "start is a dry-run first and needs confirm=true after the user's yes; stop runs at once.",
+        _schema({
+            "action": {"type": "string", "enum": ["start", "stop"]},
+            "size": {"type": "string", "enum": list(LV_SIZES),
+                     "description": "Optional live view resolution on start (e.g. '1024x0768')."},
+            "confirm": {"type": "boolean", "description": "True starts the live view; only after the user's yes."},
+        }, required=["action"]),
+        CONTROL_ANNOTATIONS,
+        tool_live_view,
+    ),
+    "playback": (
+        "Playback, computer download, software HSL and OM Workspace: enter/exit camera Playback, download a "
+        "card file to captures/, apply an HSL preset/profile to a file in captures/, configure auto-HSL, or "
+        "open a saved capture in OM Workspace on this computer. enter/exit switch the camera mode: dry-run first, "
+        "confirm=true after the user's yes. The computer-side actions run at once (they never write to the camera).",
+        _schema({
+            "action": {"type": "string", "enum": ["enter", "exit", "download", "hsl", "hsl_auto", "open_workspace"]},
+            "path": {"type": "string", "description": "Camera card path (starting with '/') for action='download'."},
+            "name": {"type": "string", "description": "File name in captures/ for action='hsl' or 'open_workspace'."},
+            "profile": {"description": "HSL preset name (string) or profile dict for action='hsl'."},
+            "tiff": {"type": "boolean", "description": "For ORF in action='hsl': also write 16-bit TIFF (default false)."},
+            "enabled": {"type": "boolean", "description": "Enable/disable auto-HSL for action='hsl_auto'."},
+            "preset": {"type": "string", "description": "Preset name for action='hsl_auto'."},
+            "confirm": {"type": "boolean", "description": "Required (true) for enter/exit after the user's yes."},
+        }, required=["action"]),
+        CONTROL_ANNOTATIONS,
+        tool_playback,
+    ),
+    "app_control": (
+        "Manage E-M1 Capture connection and computer save settings: connect ('usb'/'wifi'), disconnect, "
+        "Turn off camera over Wi-Fi ('poweroff'), USB refresh, transfer target ('sd'/'both'), or save folder/naming "
+        "config. connect, disconnect, poweroff and refresh default to dry-run and require confirm=true after user approval; "
+        "transfer and save_config only change computer-side settings and run at once. Never quits the app.",
+        _schema({
+            "action": {"type": "string", "enum": ["connect", "disconnect", "poweroff", "refresh", "transfer", "save_config"]},
+            "connection": {"type": "string", "enum": ["usb", "wifi"], "description": "Target for action='connect'."},
+            "target": {"type": "string", "enum": ["sd", "both"], "description": "Target for action='transfer'."},
+            "dir": {"type": "string", "description": "Folder path for action='save_config' (empty = default captures/)."},
+            "scheme": {"type": "string", "enum": ["original", "prefix", "datetime"],
+                       "description": "File naming scheme for action='save_config'."},
+            "prefix": {"type": "string", "description": "File name prefix when scheme='prefix'."},
+            "confirm": {"type": "boolean", "description": "Required (true) for connect, disconnect, poweroff and refresh after the user's yes."},
+        }, required=["action"]),
+        CONTROL_ANNOTATIONS,
+        tool_app_control,
+    ),
+}
+
+SHUTTER_TOOLS = {
+    "camera_shoot": (
+        "Trigger or stop camera capture: single shot (action='shot', optional self-timer), Press halfway ('half_press'), "
+        "long exposure BULB/LIVE TIME/LIVECOMP in M ('long_exposure'), Time lapse shooting ('interval', P/A/S/M), "
+        "AE BKT exposure bracketing in P/A/S ('bracket'), movie recording ('movie'), or stop a running series ('stop_job'). "
+        "Defaults to confirm=false (safe dry-run plan); set confirm=true ONLY after the user said yes for this "
+        "specific action. Stop actions execute immediately.",
+        _schema({
+            "action": {"type": "string",
+                       "enum": ["shot", "half_press", "long_exposure", "interval", "bracket", "movie", "stop_job"],
+                       "description": "Capture action (default 'shot')."},
+            "confirm": {"type": "boolean", "description": "True executes the capture; only after the user's yes."},
+            "self_timer": {"type": "integer", "minimum": 0, "maximum": MAX_SELF_TIMER,
+                           "description": "Delay in seconds (0-30) before action='shot' (photo modes only)."},
+            "step": {"type": "string", "enum": ["press", "release", "prepare", "start", "stop"],
+                     "description": "Sub-step for half_press, long_exposure (prepare = USB LIVECOMP only), or movie."},
+            "count": {"type": "integer", "minimum": 1, "maximum": 999,
+                      "description": "Number of frames for action='interval' (Time lapse shooting)."},
+            "seconds": {"type": "number", "minimum": MIN_INTERVAL,
+                        "description": "Interval between shots in seconds (>= 5) for action='interval'."},
+            "frames": {"type": "integer", "enum": [3, 5, 7], "description": "Frame count for action='bracket' (AE BKT)."},
+            "ev_step": {"type": "integer", "enum": [1, 2, 3],
+                        "description": "EV step in thirds of a stop (1=1/3, 2=2/3, 3=1 EV) for action='bracket'."},
+            "exposuremin": {"type": "number", "description": "Wi-Fi optional minimum exposure for long_exposure start."},
+            "upperlimit": {"type": "number", "description": "Wi-Fi optional upper limit for long_exposure start."},
+        }),
+        SHUTTER_ANNOTATIONS,
+        tool_camera_shoot,
+    ),
+}
+
+ERASE_TOOLS = {
+    "card_erase": (
+        "Erase files from the camera card (USB only, action='erase') or Reset Share Order over Wi-Fi "
+        "(action='clear_share_order'). Defaults to confirm=false (dry-run listing the exact files); "
+        "set confirm=true ONLY after the user's explicit yes. Neither action can be undone.",
+        _schema({
+            "action": {"type": "string", "enum": ["erase", "clear_share_order"],
+                       "description": "Operation (default 'erase')."},
+            "paths": {"type": "array", "items": {"type": "string"},
+                      "description": "Camera card paths starting with '/' for action='erase'."},
+            "confirm": {"type": "boolean", "description": "True executes deletion/reset; only after the user's yes."},
+        }),
+        ERASE_ANNOTATIONS,
+        tool_card_erase,
+    ),
 }
 
 
 class McpServer:
     """Stateless JSON-RPC 2.0 handler for E-M1 Capture MCP tools and Photo Coach prompts."""
 
-    def __init__(self, client, allow_write=False, lenses=None):
+    def __init__(self, client, allow_write=False, lenses=None, allow_shutter=False, allow_erase=False):
         self.client = client
         self.allow_write = bool(allow_write)
+        self.allow_shutter = bool(allow_shutter) and self.allow_write
+        self.allow_erase = bool(allow_erase) and self.allow_write
         self.lenses = [s.strip() for s in (lenses or ()) if str(s).strip()]
 
     def _tools(self):
+        tools = dict(READ_TOOLS)
         if self.allow_write:
-            return {**READ_TOOLS, **WRITE_TOOLS}
-        return READ_TOOLS
+            tools.update(WRITE_TOOLS)
+        if self.allow_shutter:
+            tools.update(SHUTTER_TOOLS)
+        if self.allow_erase:
+            tools.update(ERASE_TOOLS)
+        return tools
+
+    def _instructions(self):
+        if not self.allow_write:
+            return INSTRUCTIONS_RO
+        parts = [INSTRUCTIONS_RW]
+        if self.allow_shutter:
+            parts.append(SHUTTER_RULES)
+        if self.allow_erase:
+            parts.append(ERASE_RULES)
+        return "\n\n".join(parts)
 
     def handle_message(self, msg):
         """Process one decoded JSON-RPC message. Returns a response dict, or None for notifications."""
@@ -1012,7 +1882,7 @@ class McpServer:
                 "protocolVersion": ver,
                 "capabilities": {"tools": {}, "prompts": {}},
                 "serverInfo": {"name": "em1-capture", "version": __version__},
-                "instructions": INSTRUCTIONS_RW if self.allow_write else INSTRUCTIONS_RO,
+                "instructions": self._instructions(),
             }
         if method == "ping":
             return {}
@@ -1042,7 +1912,8 @@ class McpServer:
             extra = sorted(set(args) - allowed)
             if extra:
                 raise _RpcError(-32602, "Unexpected argument(s) for %s: %s" % (name, ", ".join(extra)))
-            ctx = {"allow_write": self.allow_write, "lenses": self.lenses}
+            ctx = {"allow_write": self.allow_write, "allow_shutter": self.allow_shutter,
+                   "allow_erase": self.allow_erase, "lenses": self.lenses}
             try:
                 content = tools[name][3](self.client, args, ctx)
                 return {"content": content, "isError": False}
@@ -1111,7 +1982,17 @@ def main(argv=None):
     ap.add_argument(
         "--allow-write",
         action="store_true",
-        help="Enable camera_configure to change camera settings (E-M1 Capture must also run with --allow-write).",
+        help="Enable camera_configure, camera_focus, live_view, playback and app_control (E-M1 Capture must also run with --allow-write).",
+    )
+    ap.add_argument(
+        "--allow-shutter",
+        action="store_true",
+        help="Also enable camera_shoot (shot, long exposure, interval, bracket, movie; dry-run by default); needs --allow-write.",
+    )
+    ap.add_argument(
+        "--allow-erase",
+        action="store_true",
+        help="Also enable card_erase (USB card erase, Wi-Fi Share Order clear; dry-run by default); needs --allow-write.",
     )
     ap.add_argument(
         "--lenses",
@@ -1120,11 +2001,26 @@ def main(argv=None):
     )
     args = ap.parse_args(argv)
     try:
-        client = HttpClient(args.url, allow_write=args.allow_write)
+        if args.allow_shutter and not args.allow_write:
+            ap.error("--allow-shutter needs --allow-write")
+        if args.allow_erase and not args.allow_write:
+            ap.error("--allow-erase needs --allow-write")
+        client = HttpClient(
+            args.url,
+            allow_write=args.allow_write,
+            allow_shutter=args.allow_shutter,
+            allow_erase=args.allow_erase,
+        )
     except ValueError as e:
         ap.error(str(e))
     lenses = [s.strip() for s in args.lenses.split(",") if s.strip()]
-    serve(McpServer(client, allow_write=args.allow_write, lenses=lenses))
+    serve(McpServer(
+        client,
+        allow_write=args.allow_write,
+        lenses=lenses,
+        allow_shutter=args.allow_shutter,
+        allow_erase=args.allow_erase,
+    ))
     return 0
 
 
