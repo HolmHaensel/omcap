@@ -2,8 +2,9 @@
 
 ## Unreleased
 
-- USB Focus Stacking no longer writes d020 (it is the RC flash Group A mode, not the bracketing kind) (REQ-F69).
-- Quit and Open in OM Workspace only from the computer itself, not from a phone over --lan; Quit waits for a running connect.
+- USB Focus Stacking no longer writes d020; the camera sets it itself, like OM Capture (REQ-F69).
+- Quit and Open in OM Workspace only from the computer itself (hidden on a phone over --lan); Quit waits for a running connect (REQ-Q10).
+- USB Focus Stacking: waits out the camera's silence while merging; switching Off retries while the camera is busy after a shot (REQ-F69). USB-tested 2026-11-23 (busy retry unit-tested).
 - The page's status poll no longer piles up when the camera answers slowly.
 - USB Focus Stacking: sets and restores Bracketing (d0a6); one-frame shot ends early with a note (REQ-F69). USB-tested.
 

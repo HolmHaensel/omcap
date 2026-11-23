@@ -222,8 +222,9 @@ USB_TABLES = {
     "d0cb": {"1": "On", "2": "Off"},  # Focus BKT (user's firmware: d0ce is Focus Stacking, mapped 2026-11-16)
 }
 # Focus Stacking = Bracketing On + Focus BKT + stacking flag; the camera then switches by itself to Silent Sequential H,
-# electronic shutter (1/16000 … 1/8 s) and flash off (E-M1 manual, p.174). d020 is NOT the bracketing kind but the
-# RC flash Group A mode (OM Capture trace round C, 2026-11-22): never written for stacking.
+# electronic shutter (1/16000 … 1/8 s) and flash off (E-M1 manual, p.174). d020 is not written: a
+# value the camera sets itself (3 with Bracketing On, 2 with Off; OM Capture never writes it, trace round C 2026-11-22;
+# named RC flash Group A there): never written by the app.
 BKT_MAIN = "d0a6"  # Bracketing On (1) / Off (2), the main switch of Shooting Menu 2 (found 2026-11-22 by diff)
 STACK_FRAMES_WAIT = 6.0  # the 8 frames are on the card ~3.5 s after the release; then decide whether to wait on
 STACK_WAIT = 16.0  # 8 frames (16 files with JPG+ORF) in ~3.5 s, the merged JPG ~13.6 s after the release (2026-11-13)
@@ -1041,7 +1042,10 @@ class UsbCamera:
         if prop not in self.PROPS:
             raise CameraError("Not available over USB: %s" % prop)
         if prop == "focusstacking":
-            self._busy_retry(lambda: self._set_focus_stacking(str(value) == "1"))
+            if str(value) == "1":
+                self._set_focus_stacking(True)
+            else:  # only Off follows a shot: the camera may still write and answer busy
+                self._busy_retry(lambda: self._set_focus_stacking(False))
         elif prop == "shutspeedvalue" and value in LONG_EXPOSURE:
             self._set("d01c", LONG_EXPOSURE[value])
         else:
@@ -1061,8 +1065,8 @@ class UsbCamera:
                 time.sleep(0.5)
 
     def _set_focus_stacking(self, on):
-        """Focus Stacking on or off: bracketing kind d020 = Focus BKT, Focus BKT d0cb and the stacking flag d0ce;
-        the earlier bracketing kind is kept and comes back on Off."""
+        """Focus Stacking on or off: Bracketing d0a6 On, Focus BKT d0cb and the stacking flag d0ce;
+        Bracketing comes back as it was on Off. d020 is left to the camera."""
         self._need_write()
         if on:
             if LONG_LABELS.get(self._value("shutterspeed")):  # the camera stacks with the electronic shutter only
@@ -1646,7 +1650,7 @@ class UsbCamera:
             else:  # 8 frames (16 files) come first, the merged picture last; the camera may go silent while
                 # merging from a few seconds after the release (USB test 2026-11-23: read failed at 8.1 s)
                 self._stack_events(t0 + STACK_FRAMES_WAIT, marks, t0)
-                if len(set(self._new_files)) <= 2:  # one frame (JPG+ORF): the camera did not stack
+                if 1 <= len(set(self._new_files)) <= 2:  # one frame (JPG+ORF): the camera did not stack
                     self.stack_note = True
                     marks.append(("stacking: 1 frame", time.monotonic() - t0))
                 else:

@@ -383,5 +383,13 @@ class LocalOnly(unittest.TestCase):
                 r.assert_not_called()
 
 
+
+class PhoneHidesLocalActions(unittest.TestCase):
+    def test_quit_and_workspace_hidden_off_the_computer(self):
+        h = Path(HTML).read_text(encoding="utf-8")
+        self.assertIn("document.querySelectorAll('.quitBtn').forEach(b=>b.hidden=!isLocalPage());", h)
+        self.assertIn("$('#vWs').hidden=!(s.om_workspace&&isLocalPage());", h)
+
+
 if __name__ == "__main__":
     unittest.main()
