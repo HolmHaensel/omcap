@@ -9,6 +9,13 @@ from unittest import mock
 
 from omcap import __version__, mcp_server
 
+try:
+    import numpy  # noqa: F401
+    import PIL  # noqa: F401
+    HAVE_PIL = True
+except ImportError:  # CI installs numpy and imageio only
+    HAVE_PIL = False
+
 JPEG = b"\xff\xd8\xff\xe0\x00\x10JFIF\x00\x01\xff\xd9"
 
 
@@ -568,6 +575,86 @@ class WriteSafetyAndConfigure(unittest.TestCase):
         ])
 
 
+class ModeRulesAndRobustness(unittest.TestCase):
+    """Review fixes 2026-11-23: mode rules as on the page, strict apply, no crash of the stdio session."""
+
+    def plan(self, conn, props, settings):
+        client = FakeClient(json_map={"/api/status": {"type": conn, "allow_write": True}, "/api/props": props},
+                            allow_write=True)
+        return client, _json_payload(_call(client, "camera_configure", {"settings": settings}, allow_write=True))
+
+    WIFI_A = {
+        "takemode": {"value": "A", "writable": True, "enum": ["iAuto", "P", "A", "S", "M", "ART", "movie"]},
+        "shutspeedvalue": {"value": "1/250", "writable": False, "enum": []},
+        "focalvalue": {"value": "4.0", "writable": True, "enum": ["2.8", "4.0"]},
+        "artfilter": {"value": "popart", "writable": True, "enum": ["popart", "pastel"]},
+        "drivemode": {"value": "normal", "writable": True, "enum": ["normal", "continuous-H"]},
+    }
+
+    def test_string_false_does_not_apply(self):
+        client = FakeClient(json_map={"/api/status": {"type": "usb", "allow_write": True},
+                                      "/api/props": WriteSafetyAndConfigure.USB_PROPS}, allow_write=True)
+        data = _json_payload(_call(client, "camera_configure", {"settings": {"focusmode": "MF"}, "apply": "false"},
+                                   allow_write=True))
+        self.assertTrue(data["dry_run"])
+        self.assertEqual(client.posts, [])
+
+    def test_setting_outside_its_modes_is_invalid(self):
+        _, data = self.plan("wifi", self.WIFI_A, {"artfilter": "pastel", "shutspeedvalue": "1/500"})
+        self.assertEqual(sorted(i["prop"] for i in data["invalid"]), ["artfilter", "shutspeedvalue"])
+        self.assertIn("mode A", data["invalid"][0]["reason"])
+
+    def test_shutter_after_mode_change_is_pending_not_manual(self):
+        _, data = self.plan("wifi", self.WIFI_A, {"takemode": "Manual", "shutspeedvalue": "15", "focalvalue": "2.8"})
+        self.assertEqual([c["prop"] for c in data["changes"]], ["takemode", "focalvalue"])
+        self.assertEqual(data["changes"][0]["target"], "M")
+        self.assertEqual([p["prop"] for p in data["pending"]], ["shutspeedvalue"])
+        self.assertEqual(data["manual_steps"], [])
+
+    def test_long_exposure_only_in_m(self):
+        props = dict(self.WIFI_A, takemode={"value": "S", "writable": True, "enum": ["S", "M"]},
+                     shutspeedvalue={"value": "1/250", "writable": True, "enum": ["1/250", "livecomp"]})
+        _, data = self.plan("wifi", props, {"shutspeedvalue": "livecomp"})
+        self.assertEqual(data["invalid"][0]["prop"], "shutspeedvalue")
+
+    def test_drive_mode_not_with_focus_stacking(self):
+        props = dict(WriteSafetyAndConfigure.USB_PROPS, drivemode={"value": "0", "writable": True, "enum": ["0", "1"]},
+                     focusstacking={"value": "1", "writable": True, "enum": ["1", "2"]})
+        _, data = self.plan("usb", props, {"drivemode": "1"})
+        self.assertIn("Focus stacking", data["invalid"][0]["reason"])
+
+    def test_usb_art_dial_step_says_it_reads_as_p(self):
+        _, data = self.plan("usb", WriteSafetyAndConfigure.USB_PROPS, {"takemode": "art"})
+        self.assertIn("reads iAUTO, ART", data["manual_steps"][0])
+        _, same = self.plan("usb", WriteSafetyAndConfigure.USB_PROPS, {"takemode": "aperture"})
+        self.assertEqual(same["manual_steps"], [])  # label "aperture" = A: no needless dial turn
+
+    def test_apply_after_mode_change_has_no_duplicates(self):
+        props_m = dict(self.WIFI_A, takemode={"value": "M", "writable": True, "enum": ["A", "M"]},
+                       shutspeedvalue={"value": "1/250", "writable": True, "enum": ["1/250", "15"]})
+        client = FakeClient(json_map={"/api/status": {"type": "wifi", "allow_write": True}, "/api/props": self.WIFI_A},
+                            allow_write=True)
+        client.post_hook = lambda path, payload: client.json_map.update({"/api/props": props_m}) or {"ok": True}
+        data = _json_payload(_call(client, "camera_configure",
+                                   {"settings": {"takemode": "M", "shutspeedvalue": "15", "focalvalue": "4.0"},
+                                    "apply": True}, allow_write=True))
+        self.assertTrue(data["applied"])
+        self.assertEqual([u["prop"] for u in data["unchanged"]], ["focalvalue"])
+        self.assertEqual(data["pending"], [])
+        self.assertEqual([c["prop"] for c in data["applied_changes"]], ["takemode", "shutspeedvalue"])
+
+    def test_bad_prompt_argument_and_internal_error_keep_the_session(self):
+        srv = mcp_server.McpServer(FakeClient(), allow_write=False)
+        ok = srv.handle_message({"jsonrpc": "2.0", "id": 1, "method": "prompts/get",
+                                 "params": {"name": "setup_for_scene", "arguments": {"scene": 5}}})
+        self.assertIn("result", ok)
+        with mock.patch.object(srv, "_dispatch", side_effect=AttributeError("boom")), \
+                mock.patch("sys.stderr"):
+            err = srv.handle_message({"jsonrpc": "2.0", "id": 2, "method": "ping"})
+        self.assertEqual(err["error"]["code"], -32603)
+        self.assertEqual(srv.handle_message({"jsonrpc": "2.0", "id": 3, "method": "ping"})["result"], {})
+
+
 class PromptsStatsAndLenses(unittest.TestCase):
     def test_prompts_list_and_get_reflect_write_mode(self):
         ro = mcp_server.McpServer(FakeClient(), allow_write=False)
@@ -589,6 +676,7 @@ class PromptsStatsAndLenses(unittest.TestCase):
                                      "params": {"name": "setup_for_scene", "arguments": {}}})
         self.assertEqual(missing["error"]["code"], -32602)
 
+    @unittest.skipUnless(HAVE_PIL, "needs numpy and Pillow")
     def test_image_stats_measures_clipping_and_median(self):
         import numpy as np
         from PIL import Image

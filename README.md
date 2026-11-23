@@ -345,31 +345,31 @@ camera's values.
 
 ## MCP server for AI assistants (AI Photo Coach)
 
-E-M1 Capture includes a [Model Context Protocol](https://modelcontextprotocol.io/) (MCP) server over stdio so assistants such as Claude Desktop or Claude Code can act as an interactive photo coach while E-M1 Capture is running:
+A [Model Context Protocol](https://modelcontextprotocol.io/) server lets Claude Desktop or Claude Code look at the
+camera through the running E-M1 Capture app and coach you (USB and Wi-Fi). It only talks to the app on this computer
+(`127.0.0.1`), never to the camera directly, and never releases the shutter, erases files or switches the camera off.
 
-- **Five read-only tools (default):** `camera_status` (model, connection, lens, optional `--lenses` bag, AF area, card space, USB battery/level), `camera_settings` (LV super control panel values), `live_view_frame` (current live view JPEG + exposure clipping stats), `list_card_images` (card directory), and `last_picture` (EXIF shooting data, exposure stats and JPEG preview).
-- **Three Photo Coach prompts:** `setup_for_scene` (e.g. stars, sunset, portrait, macro), `check_composition` (framing, horizon tilt and light) and `critique_last_shot` (sharpness, exposure and next-shot advice).
-- **Optional camera configuration (`--allow-write`):** adds `camera_configure`, which builds a validated dry-run plan by default (`apply: false`, resolving labels and noting manual steps like the USB mode dial) and applies settings via `POST /api/set` only when called with `apply: true` after explicit confirmation (E-M1 Capture must also run with `--allow-write`). Never releases the shutter, erases card files or touches firmware.
-- **Safe by design:** talks only over local loopback HTTP (`127.0.0.1` / `localhost`) to the running E-M1 Capture server – never directly to the camera. Works over both USB and Wi-Fi.
+- **Read-only (default):** tools `camera_status`, `camera_settings`, `live_view_frame` (with exposure statistics),
+  `list_card_images`, `last_picture`; prompts `setup_for_scene`, `check_composition`, `critique_last_shot`.
+- **Optional `--allow-write`:** adds `camera_configure`. It first shows a plan (settings, steps you do on the camera,
+  e.g. the mode dial over USB) and changes settings only after you say yes. E-M1 Capture must run with
+  `--allow-write` too. It follows the camera's mode rules (shutter speed only in S/M, aperture only in A/M).
 
-Start E-M1 Capture first, then point your MCP client to:
+Start E-M1 Capture first. Claude Code (read-only):
 
-```json
-{
-  "mcpServers": {
-    "em1-capture": {
-      "command": "/path/to/omcap/.venv/bin/python",
-      "args": [
-        "-B", "-m", "omcap.mcp_server",
-        "--allow-write",
-        "--lenses", "M.12-40mm F2.8, M.45mm F1.8"
-      ]
-    }
-  }
-}
+```sh
+claude mcp add em1-capture -- /path/to/omcap/.venv/bin/em1-capture-mcp
 ```
 
-Omit `--allow-write` to keep the MCP server strictly read-only. Use `--url http://127.0.0.1:8766` (or `OMCAP_URL`) if E-M1 Capture runs on another local port.
+Claude Desktop: add to `~/Library/Application Support/Claude/claude_desktop_config.json` and restart it:
+
+```json
+{"mcpServers": {"em1-capture": {"command": "/path/to/omcap/.venv/bin/em1-capture-mcp",
+                                "args": ["--lenses", "M.12-40mm F2.8, M.45mm F1.8"]}}}
+```
+
+Add `"--allow-write"` to `args` to let it change settings. Other port: `--url http://127.0.0.1:8766` (or
+`OMCAP_URL`); your lenses: `--lenses` (or `OMCAP_LENSES`).
 
 ## Tests
 

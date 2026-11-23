@@ -20,6 +20,7 @@ import io
 import json
 import os
 import sys
+import traceback
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -508,49 +509,139 @@ def tool_last_picture(client, args, ctx):
     return content
 
 
+PASM = ("P", "A", "S", "M")
+# Where the E-M1 lets you select a setting: (still photo modes, movie exposure modes). Same rules as FEATURES.show
+# in omcap/web/index.html (E-M1 manual p.18, 24, 38-41, 71, 82); keep both in step.
+MODE_RULES = {
+    "shutspeedvalue": (("S", "M"), ("S", "M")),
+    "focalvalue": (("A", "M"), ("A", "M")),
+    "expcomp": (("P", "A", "S", "ART"), ("P", "A", "S")),
+    "isospeedvalue": (("P", "A", "S", "M", "ART"), ("M",)),
+    "wbvalue": (("P", "A", "S", "M", "ART"), PASM),
+    "drivemode": (("iAuto", "P", "A", "S", "M", "ART", "B"), ()),
+    "colortone": (PASM, ()),
+    "artfilter": (("ART",), ()),
+    "exposemovie": ((), PASM),
+    "focusmode": (PASM, ()), "metering": (PASM, ()), "flashmode": (PASM, ()), "recordmode": (PASM, ()),
+    "aspect": (PASM, ()), "stabilizer": (PASM, ()), "facepriority": (PASM, ()), "focusstacking": (PASM, ()),
+}
+USB_ONLY = ("focusmode", "metering", "flashmode", "recordmode", "aspect", "stabilizer", "facepriority",
+            "focusstacking")  # Super Control Panel items without a Wi-Fi command
+NOT_WITH_STACKING = ("drivemode", "flashmode")  # hidden while Focus Stacking is On (as on the page)
+LONG_SHUTTER = ("livebulb", "livetime", "livecomp")  # BULB, LIVE TIME, LIVECOMP: M only
+# The manual's terms, for text the user reads
+LABELS = {
+    "takemode": "Shooting mode", "shutspeedvalue": "Shutter speed", "focalvalue": "Aperture",
+    "expcomp": "Exposure compensation", "isospeedvalue": "ISO", "wbvalue": "WB", "drivemode": "Sequential/Self-timer",
+    "colortone": "Picture Mode", "artfilter": "ART filter", "exposemovie": "Movie exposure mode", "focusmode": "AF mode",
+    "metering": "Metering", "flashmode": "Flash mode", "recordmode": "Record mode (image quality)",
+    "aspect": "Image aspect", "stabilizer": "Image stabilizer", "facepriority": "Face priority",
+    "focusstacking": "Focus stacking",
+}
+MODE_NAMES = {"p": "P", "program": "P", "a": "A", "aperture": "A", "aperture priority": "A", "s": "S",
+              "shutter": "S", "shutter priority": "S", "m": "M", "manual": "M", "iauto": "iAuto", "auto": "iAuto",
+              "art": "ART", "movie": "movie", "b": "B", "bulb": "B"}
+
+
+def _label(prop):
+    return LABELS.get(prop, prop)
+
+
+def _norm_mode(value):
+    return MODE_NAMES.get(str(value).strip().lower())
+
+
+def _mode_allows(prop, mode, movie_exp):
+    photo, movie = MODE_RULES.get(prop, (None, None))
+    if photo is None:
+        return True  # no rule known: the camera's writable flag decides
+    return movie_exp in movie if mode == "movie" else mode in photo
+
+
 def _plan_settings(status, props, wanted):
-    """Validate requested settings against live camera props; split into changes, unchanged, manual, invalid."""
+    """Validate requested settings against the camera's props and the E-M1 mode rules.
+
+    Returns changes, unchanged, manual steps, invalid and pending (settings that only become selectable
+    after a mode change: checked again once the mode has changed)."""
     conn = status.get("type")
-    changes, unchanged, manual_steps, invalid = [], [], [], []
-    # Put takemode first so over Wi-Fi mode changes run before shutter/aperture
-    order = sorted(wanted.keys(), key=lambda k: (0 if k == "takemode" else 1, k))
-    for prop in order:
+    changes, unchanged, manual_steps, invalid, pending = [], [], [], [], []
+    cur_mode = str((props.get("takemode") or {}).get("value"))
+    mode = cur_mode
+    if "takemode" in wanted:
+        val = wanted["takemode"]
+        want = _norm_mode(val)
+        entry = props.get("takemode") or {}
+        if want is None:
+            invalid.append({"prop": "takemode", "label": _label("takemode"), "wanted": val,
+                            "reason": "Unknown shooting mode (P, A, S, M, iAuto, ART, movie)"})
+        elif conn == "usb":
+            if want == cur_mode:
+                unchanged.append({"prop": "takemode", "value": cur_mode})
+            else:
+                note = (" Over USB the app reads iAUTO, ART, SCN and PHOTO STORY as P, so it cannot check this turn."
+                        if want in ("iAuto", "ART") else "")
+                manual_steps.append("Turn the mode dial to %s (the computer cannot change the shooting mode over "
+                                    "USB, E-M1 manual p.18).%s" % (want, note))
+                mode = want
+        else:
+            resolved = _resolve_setting_value(entry, want)
+            if resolved is None or not entry.get("writable"):
+                invalid.append({"prop": "takemode", "label": _label("takemode"), "wanted": val,
+                                "reason": "Shooting mode cannot be set to this now"})
+            elif resolved == cur_mode:
+                unchanged.append({"prop": "takemode", "value": cur_mode})
+            else:
+                changes.append({"prop": "takemode", "label": _label("takemode"), "current": cur_mode,
+                                "target": resolved})
+                mode = resolved
+    movie_exp = str(wanted.get("exposemovie") or (props.get("exposemovie") or {}).get("value"))
+    stacking = str(wanted.get("focusstacking", (props.get("focusstacking") or {}).get("value"))) in ("1", "On", "on")
+    for prop in sorted(k for k in wanted if k != "takemode"):
         val = wanted[prop]
         if prop not in props:
-            if conn == "wifi" and prop in ("focusmode", "metering", "flashmode", "recordmode", "aspect",
-                                           "stabilizer", "facepriority", "focusstacking"):
-                manual_steps.append("Set %s to %s on the camera (not available over Wi-Fi)." % (prop, val))
+            if conn == "wifi" and prop in USB_ONLY:
+                manual_steps.append("Set %s to %s on the camera (not available over Wi-Fi)." % (_label(prop), val))
             else:
                 invalid.append({"prop": prop, "wanted": val, "reason": "Unknown setting on this connection"})
+            continue
+        if not _mode_allows(prop, mode, movie_exp):
+            invalid.append({"prop": prop, "label": _label(prop), "wanted": val,
+                            "reason": "Not selectable in shooting mode %s (E-M1 manual p.18)" % mode})
+            continue
+        if stacking and prop in NOT_WITH_STACKING:
+            invalid.append({"prop": prop, "label": _label(prop), "wanted": val,
+                            "reason": "Not selectable while Focus stacking is On"})
+            continue
+        if mode != cur_mode and not _mode_allows(prop, cur_mode, movie_exp):
+            # only selectable after the mode change: the current writable flag and choices say nothing yet
+            pending.append({"prop": prop, "label": _label(prop), "wanted": val,
+                            "reason": "Checked again after the shooting mode is %s" % mode})
             continue
         entry = props[prop]
         cur = str(entry.get("value"))
         names = {str(k): str(v) for k, v in (entry.get("names") or {}).items()}
         if not entry.get("writable"):
-            if prop == "takemode" and conn == "usb":
-                if cur.lower() != str(val).strip().lower():
-                    manual_steps.append("Turn the camera mode dial to %s (USB cannot change the shooting mode)." % val)
-                else:
-                    unchanged.append({"prop": prop, "value": cur})
-            else:
-                manual_steps.append("Set %s to %s on the camera (read-only in current mode/connection)." % (prop, val))
+            manual_steps.append("Set %s to %s on the camera (read-only in this mode or connection)."
+                                % (_label(prop), val))
             continue
         resolved = _resolve_setting_value(entry, val)
-        if resolved is None:
+        if resolved is None or (prop == "shutspeedvalue" and resolved in LONG_SHUTTER and mode != "M"):
             sample = [names.get(str(c), str(c)) for c in (entry.get("enum") or ())[:15]]
-            invalid.append({"prop": prop, "wanted": val, "reason": "Not in allowed values", "allowed_sample": sample})
+            invalid.append({"prop": prop, "label": _label(prop), "wanted": val, "reason": "Not in allowed values",
+                            "allowed_sample": sample})
             continue
         if resolved == cur:
             unchanged.append({"prop": prop, "value": cur, "label": names.get(cur)})
         else:
             changes.append({
                 "prop": prop,
+                "label": _label(prop),
                 "current": cur,
                 "current_label": names.get(cur),
                 "target": resolved,
                 "target_label": names.get(resolved),
             })
-    return changes, unchanged, manual_steps, invalid
+    return changes, unchanged, manual_steps, invalid, pending
 
 
 def tool_camera_configure(client, args, ctx):
@@ -558,11 +649,11 @@ def tool_camera_configure(client, args, ctx):
     settings = args.get("settings")
     if not isinstance(settings, dict) or not settings:
         raise ValueError("'settings' must be a non-empty object mapping setting names to target values")
-    apply_now = bool(args.get("apply", False))
+    apply_now = args.get("apply") is True  # only a real JSON true applies ("false" as a string must not)
 
     status = client.get_json("/api/status")
     props = client.get_json("/api/props")
-    changes, unchanged, manual_steps, invalid = _plan_settings(status, props, settings)
+    changes, unchanged, manual_steps, invalid, pending = _plan_settings(status, props, settings)
 
     if not apply_now:
         return _text({
@@ -573,6 +664,7 @@ def tool_camera_configure(client, args, ctx):
             "changes": changes,
             "unchanged": unchanged,
             "manual_steps": manual_steps,
+            "pending": pending,
             "invalid": invalid,
             "next_step": "Show this plan to the user and call camera_configure again with apply=true only after explicit confirmation.",
         })
@@ -583,21 +675,15 @@ def tool_camera_configure(client, args, ctx):
         raise ApiError("Refused to apply because some settings are invalid: %s" % json.dumps(invalid))
 
     applied, failed = [], []
-    # Apply takemode first on Wi-Fi, then re-read props because mode changes unlock shutter/aperture
-    if any(c["prop"] == "takemode" for c in changes):
-        tm = next(c for c in changes if c["prop"] == "takemode")
-        client.post_json("/api/set", {"prop": "takemode", "value": tm["target"]})
-        applied.append(tm)
-        rest_wanted = {k: v for k, v in settings.items() if k != "takemode"}
-        if rest_wanted:
-            props = client.get_json("/api/props")
-            changes, unchanged2, manual2, invalid2 = _plan_settings(status, props, rest_wanted)
-            unchanged.extend(unchanged2)
-            manual_steps.extend(manual2)
-            invalid.extend(invalid2)
-        else:
+    mode_change = next((c for c in changes if c["prop"] == "takemode"), None)
+    if mode_change:  # Wi-Fi: the mode first, then plan the rest again on the new mode's props
+        client.post_json("/api/set", {"prop": "takemode", "value": mode_change["target"]})
+        applied.append(mode_change)
+        rest = {k: v for k, v in settings.items() if k != "takemode"}
+        changes, unchanged, manual_steps, invalid, pending = (
+            _plan_settings(status, client.get_json("/api/props"), rest) if rest else ([], [], [], [], []))
+        if invalid:  # the new mode refuses something: stop after the mode change
             changes = []
-
     for ch in changes:
         try:
             client.post_json("/api/set", {"prop": ch["prop"], "value": ch["target"]})
@@ -606,12 +692,13 @@ def tool_camera_configure(client, args, ctx):
             failed.append({**ch, "error": str(e)})
 
     return _text({
-        "applied": len(failed) == 0,
+        "applied": not failed and not invalid,
         "dry_run": False,
         "connection": status.get("type"),
         "applied_changes": applied,
         "unchanged": unchanged,
         "manual_steps": manual_steps,
+        "pending": pending,
         "invalid": invalid,
         "failed": failed,
     })
@@ -644,10 +731,10 @@ PROMPTS = {
 
 def render_prompt(name, args, allow_write):
     if name == "setup_for_scene":
-        scene = (args.get("scene") or "").strip()
+        scene = str(args.get("scene") or "").strip()
         if not scene:
             raise _RpcError(-32602, "Prompt 'setup_for_scene' requires argument 'scene'")
-        notes = (args.get("notes") or "").strip()
+        notes = str(args.get("notes") or "").strip()
         cfg_step = (
             "Then call camera_configure with apply=false to prepare a validated change plan, show the exact "
             "changes and any manual camera steps (like turning the mode dial over USB) to the user, and apply "
@@ -664,13 +751,15 @@ def render_prompt(name, args, allow_write):
             "3. Spot any current camera pitfalls (e.g. S-IS on while on a tripod, JPG-only instead of RAW+JPG, "
             "exposure compensation left non-zero, shutter too slow/too long for stars per MFT NPF rule, "
             "overexposed highlights in sunset/twilight, Live Composite for star trails/light painting).\n"
-            "4. Give concise, practical recommendations for mode, aperture, shutter, ISO, WB, AF mode, IS and framing.\n"
+            "4. Give concise, practical recommendations for mode, aperture, shutter, ISO, WB, AF mode, IS and framing. "
+            "Respect the E-M1 mode rules (manual p.18): shutter speed only in S and M, aperture only in A and M, "
+            "BULB / LIVE TIME / LIVECOMP only in M; over USB the user turns the mode dial by hand.\n"
             "5. %s"
         ) % (scene, (" Extra context: " + notes) if notes else "", cfg_step)
         return {"description": PROMPTS[name]["description"],
                 "messages": [{"role": "user", "content": {"type": "text", "text": text}}]}
     if name == "check_composition":
-        goal = (args.get("goal") or "").strip()
+        goal = str(args.get("goal") or "").strip()
         text = (
             "Call camera_status and live_view_frame.%s Review the framing, horizon tilt (from USB level gauge if "
             "present), focal length, foreground/background balance, and the exposure stats (median_luma, "
@@ -679,7 +768,7 @@ def render_prompt(name, args, allow_write):
         return {"description": PROMPTS[name]["description"],
                 "messages": [{"role": "user", "content": {"type": "text", "text": text}}]}
     if name == "critique_last_shot":
-        goal = (args.get("goal") or "").strip()
+        goal = str(args.get("goal") or "").strip()
         text = (
             "Call last_picture with preview='full' (falling back to 'auto' if needed).%s Inspect sharpness/focus, "
             "EXIF settings (shutter speed vs focal length, ISO, aperture, EV), clipped highlights / crushed shadows "
@@ -818,6 +907,9 @@ class McpServer:
             return {"jsonrpc": "2.0", "id": mid, "result": result}
         except _RpcError as e:
             return self._error(mid, e.code, str(e))
+        except Exception as e:  # noqa: BLE001 - one bad request must not end the stdio session
+            traceback.print_exc(file=sys.stderr)
+            return self._error(mid, -32603, "Internal error: %s" % e)
 
     def _dispatch(self, method, params):
         if method == "initialize":
@@ -862,6 +954,9 @@ class McpServer:
                 content = tools[name][3](self.client, args, ctx)
                 return {"content": content, "isError": False}
             except (ApiError, ValueError) as e:
+                return {"content": _text("Error: %s" % e), "isError": True}
+            except Exception as e:  # noqa: BLE001 - reported to the AI as a tool error, logged to stderr
+                traceback.print_exc(file=sys.stderr)
                 return {"content": _text("Error: %s" % e), "isError": True}
         if method == "prompts/list":
             return {
