@@ -1,3 +1,5 @@
+![E-M1 Capture – a new life for a classic camera. USB + Wi-Fi, mobile and desktop, Star AF, MCP connector](design/banner.webp)
+
 # E-M1 Capture
 
 **Control your Olympus OM-D E-M1 (Mark I) from your computer – over the camera's own Wi-Fi or a USB cable.**
