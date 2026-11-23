@@ -108,7 +108,7 @@ More in [Start and stop](#start-and-stop).
 | LV super control panel: shutter speed, aperture, exposure compensation, ISO, WB, drive, Picture Mode | ✅ | ✅ | |
 | Art filter | ✅ | 🟡 | USB: not tested in ART mode |
 | Partial Color colour ring (ART and Picture Mode Partial Color; 18 colours, laid out like the camera's ring) | ✅ | – | USB: the camera offers no value for the colour, only selecting Partial Color |
-| Shooting mode | ✅ | – | USB: set by the mode dial; the app follows the dial and reloads the values (tested; iAUTO, ART, SCN, PHOTO STORY show as P) |
+| Shooting mode | ✅ | – | USB: set by the mode dial; the app follows the dial and reloads the values (tested; iAUTO, ART, SCN, PHOTO STORY show as P; change poll without reconnect: camera test open) |
 | AF mode, Metering, Flash mode, Record mode, Aspect ratio, Image stabilizer, Face priority | – | ✅ | no Wi-Fi command |
 | Aperture list limited to the attached lens | ✅ | ✅ | USB after the first picture of the session |
 | Read-only values: Anti-Shock, Silent, Noise Reduct., BULB/TIME Timer, Digital Tele-converter | ✅ | – | no USB property known |
@@ -267,8 +267,8 @@ pkill -f 'omcap\.server|bin/em1-capture'
 
 - The first connect reads the camera's card index once (about 45 s; the card list saved on the computer is shown
   meanwhile). Later connects take about 5 s.
-- The shooting mode follows the mode dial during live view; each turn reconnects the camera (8–10 s), so quick
-  turns in a row show only the last position. Other settings changed on the camera itself come in with **reload**
+- The shooting mode follows the mode dial during live view. The own PTP layer polls the camera's changed settings
+  (0x9486, as OM Capture) and shows a turn in under a second; with libgphoto2 each turn reconnects the camera (8–10 s). Other settings changed on the camera itself come in with **reload**
   in the LV super control panel (about 9 s with libgphoto2).
 - Cable pulled while connected? The live view shows *Camera not found. Is the cable plugged in?* Plug it in and choose
   the computer + camera entry again – the app reconnects by itself after a few seconds. Only if that fails, stop the

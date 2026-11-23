@@ -115,6 +115,18 @@ class Backend(unittest.TestCase):
         c.set_single_config("aperture", w)
         self.assertEqual(c.get_single_config("aperture").get_value(), "4.0")
 
+    def test_write_uses_the_polled_choices(self):
+        fake = PollFake()
+        c = camera(fake)
+        c.polling = c._start_poll(fake, INFO)
+        fake.props[0xD002] = dict(fake.props[0xD002], enum=[35, 40, 220])  # 0x1014: session-start choices
+        polled = fake.changed_props
+        fake.changed_props = lambda: {**polled(), 0xD002: dict(fake.props[0xD002], code=0xD002, enum=[28, 35])}
+        c.poll_props()
+        w = c.get_single_config("aperture")
+        w.set_value("2.8")  # offered only by the poll (e.g. after a lens change)
+        c.set_single_config("aperture", w)
+        self.assertEqual(fake.calls[-1], ("set", 0xD002, 28, 4))
 
 class Mode(unittest.TestCase):
     def make(self, fake=None, polling=True):
@@ -137,6 +149,19 @@ class Mode(unittest.TestCase):
         self.assertGreaterEqual(cam.mode_changed_at, t0)
         self.assertIn("M -> A", log.call_args_list[0][0][0])
         self.assertEqual(usb_camera.EXPOSURE_PROGRAM[str(cam._value("d006"))], "A")  # what props() shows
+
+    def test_writable_flags_count_as_a_turn(self):
+        cam, fake = self.make()
+        cam.poll_mode()
+        fake.props[0xD007]["writable"] = False  # e.g. P -> iAUTO: d006 still reads P, ISO locked
+        with mock.patch("builtins.print"):
+            self.assertTrue(cam.poll_mode())
+
+    def test_choices_alone_are_no_turn(self):
+        cam, fake = self.make()
+        cam.poll_mode()
+        fake.props[0xD002]["enum"] = [40, 220]  # zooming changes the aperture list
+        self.assertFalse(cam.poll_mode())
 
     def test_no_poll_means_none(self):
         cam, _ = self.make(polling=False)
@@ -162,6 +187,16 @@ class Mode(unittest.TestCase):
             self.assertIsNone(cam.poll_mode())
             self.assertIsNone(cam.poll_mode())
         self.assertEqual(log.call_count, 1)
+        with mock.patch("builtins.print"):
+            self.assertIsNone(cam.poll_mode())
+        self.assertFalse(cam.can_poll)  # third failure in a row: back to the event check and rebuild
+
+    def test_props_poll_without_live_view(self):
+        cam, fake = self.make()
+        cam.live = type("L", (), {"running": False})()
+        fake.camera_mode = 4
+        with mock.patch.object(usb_camera.UsbCamera, "PROPS", {}):
+            self.assertEqual(cam.props()["takemode"]["value"], "S")
 
 
 class LiveLoop(unittest.TestCase):
@@ -198,14 +233,13 @@ class LiveLoop(unittest.TestCase):
 
     def test_poll_replaces_rebuild(self):
         calls, cam = self.run_once(False)
-        self.assertEqual(calls, ["poll", "poll"])  # regular poll, then one for the dial event
+        self.assertEqual(calls, ["poll"])  # the dial event reuses this pass's poll, no rebuild
         self.assertIsNone(cam.mode_changed_at)
 
     def test_rebuild_without_poll(self):
         calls, cam = self.run_once(None)
         self.assertEqual(calls, ["reopen"])  # no poll: the dial event rebuilds the session as before
         self.assertIsNotNone(cam.mode_changed_at)
-
 
 
 class FrameHeader(unittest.TestCase):
@@ -223,6 +257,7 @@ class FrameHeader(unittest.TestCase):
             self.assertEqual(FrameHeaders.frame(None, live)["X-Mode-At"], "")
         finally:
             server.cam = saved
+
 
 if __name__ == "__main__":
     unittest.main()

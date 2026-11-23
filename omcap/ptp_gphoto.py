@@ -345,6 +345,7 @@ class Camera:
         if not codes:
             return False
         try:
+            # not gated by --allow-write: 0x9489 only chooses what 0x9486 reports, no camera setting changes
             cam.set_poll_list(codes)
             self._polled = cam.changed_props()
         except (ptp.PtpError, struct.error, IndexError, KeyError, ValueError) as e:
@@ -451,7 +452,7 @@ class Camera:
             cam.transact(code, tuple(params))
             return
         code, text, _ = self._lookup(name)
-        desc = cam.prop_desc(code)
+        desc = self._polled.get(code) or cam.prop_desc(code)  # 0x1014 keeps the session-start choices
         dtype = desc["type"]
         # the raw value whose text is the wanted one (as libgphoto2 does); else a number for dXXX
         raw = next((v for v in desc.get("enum", []) if text(v, dtype) == value), None)
