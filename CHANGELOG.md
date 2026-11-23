@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased
+
+- HSL copy in float32: half the memory, within 1 step of 16 bit.
+- `develop.py` moved to `tools/` (English).
+- Disconnecting during a running request answers "Not connected" (409) instead of an internal error; caches and live view counters are thread-safe.
+- USB Focus Stacking no longer writes d020; the camera sets it itself, like OM Capture (REQ-F69).
+- Quit and Open in OM Workspace only from the computer itself (hidden on a phone over --lan); Quit waits for a running connect (REQ-Q10).
+- USB Focus Stacking: waits out the camera's silence while merging; switching Off retries while the camera is busy after a shot (REQ-F69). USB-tested 2026-11-23 (busy retry unit-tested).
+- The page's status poll no longer piles up when the camera answers slowly.
+- USB Focus Stacking: sets and restores Bracketing (d0a6); one-frame shot ends early with a note (REQ-F69). USB-tested.
+
 ## 0.7.9 – 2026-11-22
 
 - Save to: click the Folder field for the folder dialog; one "Copy to computer" switch; short path; HSL hint (REQ-F62). USB-tested.

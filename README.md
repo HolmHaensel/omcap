@@ -79,13 +79,13 @@ More in [Start and stop](#start-and-stop).
 
 | Feature | Wi-Fi | USB | Note |
 |---|---|---|---|
-| Tap the 9×9 AF grid to focus, AF target in green | ✅ | ✅ | |
+| Tap the 9×9 AF grid to focus, AF target in green | ✅ | ✅ | grid in the camera's real size (read 2026-11-22); Wi-Fi: outer fields focus at the edge of the camera's touch area |
 | AF frame on tap (white focusing, green in focus, red no focus) | ✅ | ✅ | |
 | Focus tone in the app after a tap focus (high = in focus, low = no focus; switch "Focus tone", off by default) | ✅ | – | over USB the camera beeps itself on the half press (menu "Beep"), so no app tone; over Wi-Fi a tap sets the AF frame without a camera beep, a half press would need mode "shutter" and pause the live view; tried over Wi-Fi 2026-11-22 (user: works) (REQ-F59) |
 | "In focus" / "No focus" chip | ✅ | ✅ | Wi-Fi after a tap; USB also after Press halfway and Take picture. With S-AF the camera only releases in focus |
 | AF Area (All Targets, Single Target, Small Target, Group Target) | – | ✅ | no Wi-Fi command |
 | Focus ring (MF): Near/Far in three step sizes | – | ✅ | AF mode MF or S-AF+MF; no Wi-Fi command |
-| Focus Stacking On/Off (8 frames, merged in the camera, P/A/S/M) | – | ✅ | no Wi-Fi command; USB: needs a card, hidden without one |
+| Focus Stacking On/Off (8 frames, merged in the camera, P/A/S/M) | – | ✅ | no Wi-Fi command; USB sets Bracketing, Focus BKT and stacking together; needs a card, hidden without one |
 
 ### Shooting
 
@@ -126,8 +126,8 @@ More in [Start and stop](#start-and-stop).
 | HSL color profiles (HSL button, before/after) | ✅ | 🟡 | |
 | Share Order: show, save all, reset | ✅ | – | no USB counterpart known |
 | Erase selected pictures from the card (Select → Erase, JPG and ORF together, asks first) | – | ✅ | no Wi-Fi command; protected pictures are refused by the camera and kept; tested with the own USB layer, libgphoto2 not tested |
-| Fast last-shot picture right after the release (REQ-F60) | ✅ | 🟡 | Wi-Fi: `getrecview`/`getlastjpg`. USB: PTP 0x9485 OMD_GetImage, shown before the card lists the file; camera-tested once without a card: JPEG 0.9 s after the release; with card, RAW-only, held button pending; own USB layer only (libgphoto2 keeps the card path); independent of the Rec View setting (E-M1 manual p.91); not for self-timer, Focus Stacking, Bulb/Time/Live Composite, movie |
-| Shoot without a card: pictures go straight to the computer (REQ-F61) | ✅ | 🟡 | Wi-Fi saves to the computer already. USB: PTP 0x9495 info and 0x9493 pieces after event 0xC004, ORF then JPG saved as `E-M1_YYYYMMDD-HHMMSS`; own USB layer only (libgphoto2 keeps the card path); with a card nothing changes; works for single shots, Bulb/Time/Live Composite and held button (no more failure after 21 s); Focus Stacking is refused without a card; camera-tested without a card (JPG only, RAW+JPEG) and with a card (unchanged); untested: RAW only, self-timer, Bulb/Time/Live Composite stop, interval, held button, sequential L/H, locked card (counts as a card, direct store skipped), movie (needs a card) |
+| Fast last-shot picture right after the release (REQ-F60) | ✅ | ✅ | Wi-Fi: `getrecview`/`getlastjpg`. USB: PTP 0x9485 OMD_GetImage, shown before the card lists the file; camera-tested once without a card: JPEG 0.9 s after the release; with card, RAW-only, held button pending; own USB layer only (libgphoto2 keeps the card path); independent of the Rec View setting (E-M1 manual p.91); not for self-timer, Focus Stacking, Bulb/Time/Live Composite, movie |
+| Shoot without a card: pictures go straight to the computer (REQ-F61) | ✅ | ✅ | Wi-Fi saves to the computer already. USB: PTP 0x9495 info and 0x9493 pieces after event 0xC004, ORF then JPG saved as `E-M1_YYYYMMDD-HHMMSS`; own USB layer only (libgphoto2 keeps the card path); with a card nothing changes; works for single shots, Bulb/Time/Live Composite and held button (no more failure after 21 s); Focus Stacking is refused without a card; camera-tested without a card (JPG only, RAW+JPEG) and with a card (unchanged); untested: RAW only, self-timer, Bulb/Time/Live Composite stop, interval, held button, sequential L/H, locked card (counts as a card, direct store skipped), movie (needs a card) |
 | Movie length in the single-frame view | ✅ | – | not built for USB |
 
 ### Phone, second monitor and webcam

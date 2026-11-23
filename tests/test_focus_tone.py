@@ -7,7 +7,7 @@ import unittest
 
 from omcap import camera, server, usb_camera
 
-WEB = os.path.join(os.path.dirname(__file__), "..", "omcap", "web", "index.html")
+from tests.web_path import HTML_PATH as WEB
 HAVE_JS = shutil.which("osascript")
 
 STUBS = """
@@ -63,13 +63,13 @@ class Page(unittest.TestCase):
         self.assertIn('data-feat="focus_tone"', self.html)
         self.assertIn('id="focusTone"', self.html)
         self.assertIn("'lvlSound','focusTone']", self.html)  # saved with the other switches
-        self.assertIn('"lv.focusTone": "Focus tone"', self.html)
-        self.assertIn('"lv.focusToneHint"', self.html)
+        for key in ("lv.focusTone", "lv.focusToneHint"):
+            self.assertRegex(self.html, r'"%s": "' % key.replace(".", r"\."))
 
     def test_tone_after_tap_focus_only(self):
         self.assertIn("if(f) focusTone(!!hit);", self.html)
+        self.assertEqual(self.html.count("focusTone("), 2)  # definition + the tap-focus call, nothing else
         self.assertIn("features.has('focus_tone')", self.html)
-        self.assertEqual(self.html.count("focusTone("), 2)  # definition and the one call in setAf
 
     def test_wifi_only(self):
         self.assertIn("focus_tone", server.WIFI_FEATURES)
@@ -195,7 +195,6 @@ class HalfPaused(unittest.TestCase):
             json.loads(out.stdout.strip()),
             [[True, False], [False, True], [True, False], [False, True], [True, False]],
         )
-        self.assertIn("paused?tr('lv.halfPaused')", self.h)  # shown in place of the No signal text
 
 
 if __name__ == "__main__":

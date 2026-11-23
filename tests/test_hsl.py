@@ -29,8 +29,23 @@ class HslTests(unittest.TestCase):
         rng = np.random.RandomState(1)
         img = rng.rand(40, 40, 3)
         out = hsl.apply_hsl(img, hsl.neutral_profile())
-        self.assertLess(np.abs(out - img).max(), 1e-6)
+        self.assertLess(np.abs(out - img).max(), 1 / 65535)  # float32 math: under 1 LSB of 16 bit
         self.assertEqual(out.shape, img.shape)
+
+    def test_float32_matches_float64_within_one_lsb(self):
+        # smooth ramps, saturated corners, near-black and near-white, random noise
+        rng = np.random.RandomState(7)
+        g = np.linspace(0, 1, 64)
+        ramp = np.stack(np.meshgrid(g, g, g[::8], indexing="ij"), axis=-1).reshape(-1, 3)
+        img = np.concatenate([ramp, rng.rand(20000, 3), rng.rand(2000, 3) * 0.01,
+                              1 - rng.rand(2000, 3) * 0.01]).reshape(1, -1, 3)
+        p = prof(red={"h": 5, "s": 7, "l": -7}, green={"h": -7, "s": -7, "l": 7},
+                 blue={"h": 3, "s": 4, "l": 4}, yellow={"h": -4, "s": 6, "l": -3})
+        new = hsl.apply_hsl(img, p)
+        old = hsl.apply_hsl(img, p, dtype=np.float64)
+        self.assertEqual(new.dtype, np.float32)
+        u16 = lambda x: np.clip(x.astype(np.float64), 0, 1) * 65535
+        self.assertLessEqual(np.abs(np.rint(u16(new)) - np.rint(u16(old))).max(), 1)
 
     def test_greys_unchanged(self):
         g = np.linspace(0, 1, 33)
