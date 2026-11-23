@@ -78,7 +78,8 @@ More in [Start and stop](#start-and-stop).
 | Erase pictures on the card | – | ✅ |
 | Shoot without a card, straight to the computer | – (needs a card) | ✅ |
 | Phone view, second monitor, webcam (OBS) | ✅ | ✅ |
-| AI Photo Coach (MCP) | ✅ | ✅ |
+| AI Photo Coach (MCP: read-only & dry-run plan) | ✅ | ✅ |
+| MCP camera & app control (`--allow-write`, `--allow-shutter`, `--allow-erase`) | 🟡 | 🟡 |
 
 Every feature with details and test notes: **[FEATURES.md](FEATURES.md)**.
 
@@ -303,9 +304,9 @@ Safety tiers (cumulative, opt-in via CLI flags; E-M1 Capture must also run with 
 | Flag | Added tools | Safety rule |
 |---|---|---|
 | *(default)* | `camera_status`, `camera_settings`, `live_view_frame`, `list_card_images` (card, local `captures/`, Wi-Fi Share Order), `last_picture`; prompts `setup_for_scene`, `check_composition`, `critique_last_shot` | Read-only (no POST requests) |
-| `--allow-write` | `camera_configure`, `camera_focus` (AF point/current, USB AF Area, USB MF steps, USB Auto Star AF, USB Zoom AF), `live_view` (start/stop/size), `playback` (Playback, download, HSL, OM Workspace), `app_control` (connect/disconnect/Wi-Fi poweroff/USB refresh/transfer/save config) | No shutter release, no card erase; `camera_configure` defaults to `apply=false`; `disconnect` and `poweroff` require `confirm=true` |
-| `--allow-shutter` *(needs `--allow-write`)* | `camera_shoot` (single shot + optional self-timer, half-press, BULB/LIVE TIME/LIVECOMP in M, interval, exposure bracketing, movie, `stop_job`) | Dry-run plan by default; capture starts only with `confirm=true` after your yes; stop actions run immediately |
-| `--allow-erase` *(needs `--allow-write`)* | `card_erase` (USB card erase, Wi-Fi Share Order clear) | Dry-run lists exact files; executes only with `confirm=true` after your yes |
+| `--allow-write` | `camera_configure`, `camera_focus` (AF point/current, USB AF Area, USB Focus ring (MF) steps, USB Auto Star AF, USB Zoom AF), `live_view` (start/stop/size), `playback` (Playback, download, HSL, OM Workspace), `app_control` (connect/disconnect/Wi-Fi Turn off camera/USB refresh/transfer/save config) | No shutter release, no card erase; `camera_configure` defaults to `apply=false`; `disconnect` and `poweroff` require `confirm=true` |
+| `--allow-shutter` *(needs `--allow-write`)* | `camera_shoot` (single shot + optional self-timer, Press halfway, BULB/LIVE TIME/LIVECOMP in M, Time lapse shooting, AE BKT, movie, `stop_job`) | Dry-run plan by default; capture starts only with `confirm=true` after your yes; stop actions run immediately |
+| `--allow-erase` *(needs `--allow-write`)* | `card_erase` (USB card erase, Wi-Fi Reset Share Order) | Dry-run lists exact files; executes only with `confirm=true` after your yes |
 
 - **Just say it:** with `--allow-write`, any wish in words – "set it up right for now", "aurora", "a warm Wes Anderson
   look", "it is too dark" – becomes a settings plan from what the camera offers in this mode (pro M-mode
