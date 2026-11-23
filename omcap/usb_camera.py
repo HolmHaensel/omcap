@@ -101,6 +101,9 @@ DIAL_EVERY = 3.0  # seconds between event checks; each costs ~0.3 s of live view
 # Two check intervals: the camera also sends it a little after a shot, and it is only read every DIAL_EVERY s
 # (seen 3.1 s after a shot, 2026-11-13). A real dial turn in that time is missed; turn it again.
 DIAL_QUIET = 2 * DIAL_EVERY
+# Own PTP layer: the change poll 0x9486 (as OM Capture, every 0.6 s, ~26 ms) shows a mode dial turn without
+# rebuilding the session (~9 s); the event check above stays the fallback when the camera has no poll.
+POLL_EVERY = 0.6
 FOCUS_WAIT = 2.0
 FOCUS_POSITION_WAIT = 1.5
 SHOT_TIMEOUT = 20
@@ -300,15 +303,20 @@ class UsbLive:
             self._thread = None
 
     def _loop(self):
-        failures, next_dial = 0, 0.0
+        failures, next_dial, next_poll = 0, 0.0, 0.0
         while self._run:
             if self.camera.hold:  # shooting or card list: do not disturb the connection
                 failures = 0
                 time.sleep(0.05)
                 continue
+            poll = getattr(self.camera, "can_poll", False)  # (camera stand-ins in tests may lack it)
+            if poll and time.monotonic() >= next_poll:
+                next_poll = time.monotonic() + POLL_EVERY
+                self.camera.poll_mode()
             if time.monotonic() >= next_dial:
                 next_dial = time.monotonic() + DIAL_EVERY
-                if self.camera.dial_turned() and self.camera.reopen_if_idle(
+                if self.camera.dial_turned() and (not poll or self.camera.poll_mode() is None) \
+                        and self.camera.reopen_if_idle(
                         "mode dial turned, %s" % getattr(self.camera, "dial_reason", "?")):
                     self.camera.mode_changed_at = time.time()
                     continue
@@ -396,6 +404,9 @@ class UsbCamera:
     loupe_x = loupe_y = None  # wanted zoom centre as last requested (picture fractions, before the x gain)
     loupe_owner = None  # client id of the page that sent the last zoom request; None when the server ended the zoom
     loupe_rev = 0  # counts every change of the camera's zoom state; live frames carry it (REQ-F54)
+    mode_changed_at = None  # time.time() of the last mode dial turn (the page reloads the values)
+    _mode = None  # shooting mode d006 seen by the last change poll
+    _poll_failed = False  # the last change poll failed (logged once)
 
     # setting named as over Wi-Fi -> gphoto name, display names from the choice values
     PROPS = {
@@ -570,6 +581,35 @@ class UsbCamera:
         # named in the rebuild message: tells a real dial turn from an event after AF or a setting
         self.dial_reason = "%.1f s after the last command" % since
         return turned and since > DIAL_QUIET
+
+    @property
+    def can_poll(self):
+        """Own PTP layer and the camera took the poll list: camera-side changes arrive without a new session."""
+        return bool(getattr(self._c, "polling", False))
+
+    def poll_mode(self):
+        """Change poll (0x9486): the settings the page shows are current afterwards (get_single_config uses them).
+        True when the mode dial was turned (mode_changed_at is set, the page reloads), False when not,
+        None when there is no poll or it failed (the caller may rebuild the session instead)."""
+        if not self.can_poll:
+            return None
+        if self.hold or self.stage or self.shooting or self.gone:
+            return False
+        try:
+            mode = self._call(self._c.poll_props).get(0xD006, {}).get("value")
+        except CameraError as e:
+            if not self._poll_failed:  # once per run of failures (the live view rebuilds a broken session)
+                print("USB: change poll failed (%s)" % e, flush=True)
+            self._poll_failed = True
+            return None
+        self._poll_failed = False
+        old, self._mode = self._mode, mode
+        if old is None or mode is None or mode == old:
+            return False
+        self.mode_changed_at = time.time()
+        print("USB: mode dial turned (%s -> %s), values from the change poll"
+              % (EXPOSURE_PROGRAM.get(str(old), old), EXPOSURE_PROGRAM.get(str(mode), mode)), flush=True)
+        return True
 
     def refresh(self):
         """Mode dial and other camera changes only arrive with a new session."""
