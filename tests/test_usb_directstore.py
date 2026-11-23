@@ -5,6 +5,7 @@ import tempfile
 import threading
 import time
 import unittest
+from unittest import mock
 
 from omcap import ptp, ptp_gphoto as pg, server, usb_camera
 from omcap.camera import CameraError
@@ -144,11 +145,15 @@ def make_cam(fake, saved):
 
 class Shoot(unittest.TestCase):
     def setUp(self):
-        self.old = (usb_camera.DIRECT_GRACE, usb_camera.DIRECT_NEXT_WAIT, usb_camera.SHOT_TIMEOUT)
-        usb_camera.DIRECT_GRACE, usb_camera.DIRECT_NEXT_WAIT, usb_camera.SHOT_TIMEOUT = 0.02, 0.2, 1
-
-    def tearDown(self):
-        usb_camera.DIRECT_GRACE, usb_camera.DIRECT_NEXT_WAIT, usb_camera.SHOT_TIMEOUT = self.old
+        # short waits: the behaviour is the same, only the real-time sleeps shrink
+        for name, value in (("DIRECT_GRACE", 0.02), ("DIRECT_NEXT_WAIT", 0.2), ("SHOT_TIMEOUT", 0.4),
+                            ("STACK_WAIT", 0.0), ("SECOND_FORMAT_WAIT", 0.1), ("STACK_FRAMES_WAIT", 0.1)):
+            p = mock.patch.object(usb_camera, name, value)
+            p.start()
+            self.addCleanup(p.stop)
+        p = mock.patch.object(usb_camera.UsbCamera, "CARD_SETTLE", (0.0, 0.0, 0.0))
+        p.start()
+        self.addCleanup(p.stop)
 
     def test_orf_then_jpg_without_card(self):
         fake = Fake([(".ORF", b"ORFDATA"), (".JPG", b"JPGDATA")], [C004, D0DE])
@@ -236,13 +241,13 @@ class Shoot(unittest.TestCase):
 
     def test_card_with_busy_event_and_late_file_is_the_card_path(self):
         # d0de also changes with a card: it must not end the wait and raise "did not release" (review finding)
-        usb_camera.SHOT_TIMEOUT = 3
-        fake = Fake([(".ORF", b"ORF")], [C004, D0DE], card=True, timed=[(1.0, CARD_FILE)])
+        usb_camera.SHOT_TIMEOUT = 1
+        fake = Fake([(".ORF", b"ORF")], [C004, D0DE], card=True, timed=[(0.3, CARD_FILE)])  # after DIRECT_NEXT_WAIT
         saved = []
         cam = make_cam(fake, saved)
         t0 = time.monotonic()
         self.assertEqual(cam.shoot(), ["/d/P1.JPG"])
-        self.assertGreaterEqual(time.monotonic() - t0, 1.0)
+        self.assertGreaterEqual(time.monotonic() - t0, 0.3)
         self.assertEqual((saved, fake.fetched), ([], []))
 
     def test_locked_card_counts_as_a_card(self):
@@ -272,7 +277,7 @@ class Shoot(unittest.TestCase):
             self.assertTrue(saved)
 
     def test_card_found_after_the_event_waits_for_the_card_file(self):
-        usb_camera.SHOT_TIMEOUT = 3
+        usb_camera.SHOT_TIMEOUT = 1
         calls = []
 
         class Late(Fake):  # no card before the release, a card when asked after the event
@@ -280,7 +285,7 @@ class Shoot(unittest.TestCase):
                 calls.append(1)
                 self.card = 1 if len(calls) > 1 else 0
                 return super().get_storageinfo()
-        fake = Late([(".ORF", b"ORF")], [C004], timed=[(1.0, CARD_FILE)])
+        fake = Late([(".ORF", b"ORF")], [C004], timed=[(0.3, CARD_FILE)])  # after DIRECT_NEXT_WAIT
         self.assertEqual(make_cam(fake, []).shoot(), ["/d/P1.JPG"])
         self.assertEqual(fake.fetched, [])
 
@@ -295,7 +300,6 @@ class Shoot(unittest.TestCase):
         self.assertEqual(shutter, [])  # nothing was released
 
     def test_focus_stacking_with_a_card_is_unchanged(self):
-        usb_camera.STACK_WAIT = 0.0
         fake = Fake([], [CARD_FILE, C004], card=True)
         cam = make_cam(fake, [])
         cam._stacking_on = lambda: True
@@ -536,7 +540,8 @@ class PcModeBusy(unittest.TestCase):
 
             def prop_desc(self, code):
                 return {"value": 1}
-        self.assertTrue(Cam().pc_mode(True))
+        with mock.patch.object(ptp.time, "sleep"):  # the retry pause is not under test
+            self.assertTrue(Cam().pc_mode(True))
         self.assertEqual(len(calls), 3)
 
     def test_other_error_not_retried(self):
@@ -548,3 +553,7 @@ class PcModeBusy(unittest.TestCase):
                 raise ptp.PtpError("denied", code=0x200F)
         with self.assertRaises(ptp.PtpError):
             Cam().pc_mode(True)
+
+
+if __name__ == "__main__":
+    unittest.main()

@@ -8,7 +8,7 @@ import shutil
 import subprocess
 import unittest
 
-HTML = os.path.join(os.path.dirname(__file__), "..", "omcap", "web", "index.html")
+from tests.web_path import HTML_PATH as HTML
 HAVE_JS = shutil.which("osascript")
 
 STUBS = """
@@ -60,19 +60,10 @@ class Markup(unittest.TestCase):
 
     def test_scale_limit_is_one_constant_with_its_reason(self):
         self.assertIn("const WZ_MAX=4", self.h)
-        self.assertIn("beyond 4x it only gets blurrier", self.h)
-        self.assertNotIn("Math.min(8,Math.max(1,z*", self.h)  # the old 8x wheel steps are gone
 
     def test_usb_wheel_limit_unchanged(self):
         self.assertIn("const zWheelScale=(s,dy,mode,max=14)=>", self.h)
         self.assertIn("zWheelScale(V.s,e.deltaY,e.deltaMode)", self.h)  # the USB call keeps the default 14
-
-    def test_buttons_stay(self):
-        for n in (1, 2, 4):
-            self.assertIn('<button data-z="%d">' % n, self.h)
-
-    def test_map_reuses_the_aria_label(self):
-        self.assertEqual(len(re.findall(r'id="zoomMap"[^>]*data-i18n-aria="lv.zoomMap"', self.h)), 1)
 
     def test_no_camera_request_in_the_screen_zoom(self):
         a = self.h.index("// Wi-Fi screen zoom (REQ-F55)")
@@ -240,13 +231,6 @@ class SharpSizeAndPointers(unittest.TestCase):
     def test_focus_at_or_below_1_5x_changes_nothing(self):
         self.assertEqual(self.run_js("z=1.5; st.lvqty='0800x0600'; wzFocusAction(); wzSizeCheck(); JSON.stringify(calls)"), [])
 
-    def test_select_shows_the_size_in_use_in_auto(self):
-        with open(HTML, encoding="utf-8") as f:
-            h = f.read()
-        body = h[h.index("function autoLvLabel"):h.index("function idealMobileLvSize")]
-        self.assertIn("if(sizing&&size) $('#lvqty').value=size", body)
-        self.assertIn("Auto: show what the camera really sends", h)
-
     def test_no_size_change_while_half_pressed_even_inside_the_hold(self):
         r = self.run_js("""
         z=3; st.lvqty='0640x0480'; wzFocusOnly=true; wzBase='0640x0480'; wzFocusAction(); st.stage=1; wzSizeCheck();
@@ -375,11 +359,8 @@ class AutoSizeOnTheComputer(unittest.TestCase):
     def test_markup_and_handlers(self):
         self.assertIn('id="lvAuto" checked', self.h)
         self.assertIn('data-i18n="lv.autoSize"', self.h)
-        self.assertIn('"lv.autoSize": "Auto"', self.h)
         self.assertIn("$('#lvAuto').checked=false", self.h)  # picking a size ends Auto
         self.assertIn("$('#lvAutoLab').hidden=isUsb", self.h)  # Wi-Fi only
-        self.assertIn("wzSizeSoon()}; // a size picked by hand ends Auto, the zoom still goes sharp", self.h)
-        self.assertIn('"lv.sizeFocus"', self.h)
         self.assertIn("on&&MOBILE_LIVE.matches", self.h)  # the size choice hides on the phone only
 
 

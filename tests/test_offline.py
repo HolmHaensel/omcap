@@ -268,3 +268,7 @@ class ShareOrderAndMovieLength(unittest.TestCase):
     def test_feature_flag(self):
         self.assertIn("share_order", server.WIFI_FEATURES)
         self.assertNotIn("share_order", server.usb_camera.FEATURES)
+
+
+if __name__ == "__main__":
+    unittest.main()

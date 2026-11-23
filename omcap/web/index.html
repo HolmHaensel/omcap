@@ -1039,7 +1039,6 @@ const I18N={en:{
   "date.day": "{month} {d}, {y}",
   "date.month": "{month} {y}",
   "date.short": "{mon} {d}, {time}",
-  "panel.local": "Pictures on the computer",
   "local.title": "On the computer",
   "local.none": "No files yet.",
   "local.view": "View",
@@ -2501,9 +2500,11 @@ function zMeasure(){const r=vp.getBoundingClientRect();zBoxC={width:r.width,heig
 const zBox=()=>zBoxC||zMeasure();
 function zKeep(){if(zCamShows&&!lastNormal) Object.assign(V,zCoverClamp(zCam,V))} // last fallback: no normal frame seen yet
 function zSchedule(){zKeep(); if(!zRaf)zRaf=requestAnimationFrame(()=>{zRaf=0;zRender()})}
+/* AF field 1..81 (9x9 grid, row by row from top left) -> [row, column], 0-based */
+function fieldRC(field){return [Math.floor((field-1)/9),(field-1)%9]}
 function loupePoint(){
   if(!af||af.mode===33024) return {x:.5,y:.5};
-  const a=af.area,row=Math.floor((af.field-1)/9),col=(af.field-1)%9;
+  const a=af.area,[row,col]=fieldRC(af.field);
   return {x:(a.x0+(col+.5)*(a.x1-a.x0)/9)/a.w,y:(a.y0+(row+.5)*(a.y1-a.y0)/9)/a.h};
 }
 // Overview map (bottom left while zoomed): the last normal frame, the visible view and the camera's crop
@@ -2963,7 +2964,7 @@ function focusField(a){
 function showAf(){
   if(!af) return;
   document.querySelectorAll('[data-af]').forEach(b=>b.classList.toggle('on',+b.dataset.af===af.mode));
-  const r=Math.floor((af.field-1)/9)+1,c=(af.field-1)%9+1;
+  const [r0,c0]=fieldRC(af.field),r=r0+1,c=c0+1;
   const pos=tr('af.pos',{r,c});
   $('#afInfo').textContent=!af.modes?pos:af.mode===33024?AF_NAMES[af.mode]:`${AF_NAMES[af.mode]} · ${pos}`;
   drawAf();
@@ -3007,12 +3008,12 @@ function drawAf(){
   const grid=$('#afShow').checked, tapOnly=!grid&&Date.now()<afTapShow;
   if(!af||!st.live||(!grid&&!tapOnly)) return;
   const a=af.area,X=a.x0/a.w*c.width,Y=a.y0/a.h*c.height,W=(a.x1-a.x0)/a.w*c.width,H=(a.y1-a.y0)/a.h*c.height,cw=W/9,ch=H/9;
-  const row=Math.floor((af.field-1)/9),col=(af.field-1)%9;
+  const [row,col]=fieldRC(af.field);
   if(tapOnly){
     // green in focus, red without focus, white while focusing
     g.strokeStyle=focusHit&&Date.now()<focusHit.until?'#3DDC84':focusMiss>Date.now()?'#FF5A4F':'#fff'; g.lineWidth=2*d;
     if(af.mode===33024){
-      if(focusHit&&Date.now()<focusHit.until){const r=Math.floor((focusHit.field-1)/9),k=(focusHit.field-1)%9;g.strokeRect(X+k*cw,Y+r*ch,cw,ch)}
+      if(focusHit&&Date.now()<focusHit.until){const [r,k]=fieldRC(focusHit.field);g.strokeRect(X+k*cw,Y+r*ch,cw,ch)}
       else g.strokeRect(X,Y,W,H);
       return;
     }
@@ -3036,7 +3037,7 @@ function drawAf(){
   g.setLineDash([]); g.strokeStyle='#3DDC84'; g.lineWidth=2*d;
   if(af.mode===33024){
     if(focusHit&&Date.now()<focusHit.until){
-      const r=Math.floor((focusHit.field-1)/9),k=(focusHit.field-1)%9;
+      const [r,k]=fieldRC(focusHit.field);
       g.strokeRect(X+k*cw,Y+r*ch,cw,ch);
     }else g.strokeRect(X,Y,W,H);
     return;
@@ -3692,6 +3693,7 @@ document.querySelectorAll('.quitBtn').forEach(b=>b.onclick=async()=>{
   showStopped();
 });
 function isLocalPage(){return ['127.0.0.1','localhost','::1','[::1]'].includes(location.hostname)}
+document.querySelectorAll('.quitBtn').forEach(b=>b.hidden=!isLocalPage()); // a phone over --lan cannot quit the app
 $('#phoneBtn').onclick=$('#startPhone').onclick=async()=>{
   try{const l=await api('/api/lanlink');$('#phoneQr').innerHTML=l.svg;$('#phoneUrl').textContent=l.url;$('#phoneDlg').showModal()}
   catch(e){msg(e.message,true)}
@@ -3711,7 +3713,7 @@ async function enterApp(){
     canWrite=s.allow_write;
     // Phone link (--lan, REQ-F47): only offered on the computer itself, the phone already has it
     $('#phoneBtn').hidden=!(s.lan&&isLocalPage());
-    $('#vWs').hidden=!s.om_workspace; // only when OM Workspace is installed on this computer
+    $('#vWs').hidden=!(s.om_workspace&&isLocalPage()); // installed on the computer, and only from the computer itself
     features=new Set(s.features); isUsb=s.type==='usb'; usbBackend=s.usb_backend;
     applyFeatures();
     $('#lvAutoLab').hidden=isUsb||!features.has('lvsize'); // Wi-Fi only; the phone has no choice
@@ -3737,7 +3739,10 @@ async function enterApp(){
   }catch(e){$('#status').className='warn';$('#status').textContent=e.message;$('#connChip').hidden=true}
   local(); applyLayout();
 }
-if(!view){init();setInterval(tick,1500)}
+// the poll skips while the last one still waits (a slow /api/state must not pile up); explicit tick() calls still run
+let tickBusy=false;
+function tickPoll(){if(tickBusy) return; tickBusy=true; tick().finally(()=>{tickBusy=false})}
+if(!view){init();setInterval(tickPoll,1500)}
 </script>
 </body>
 </html>

@@ -43,3 +43,7 @@ class FromCameraDump(unittest.TestCase):
         cam = usb_camera.UsbCamera.__new__(usb_camera.UsbCamera)
         cam._value = {"d07f": "35", "d080": "220"}.get
         self.assertEqual(cam._within_lens_limits(["1.0", "3.5", "5.6", "22", "25", "91"]), ["3.5", "5.6", "22"])
+
+
+if __name__ == "__main__":
+    unittest.main()

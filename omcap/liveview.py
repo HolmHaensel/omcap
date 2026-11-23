@@ -142,8 +142,9 @@ class LiveView:
                     if b is not None and b != self.last_id7:  # meaning unknown (not the battery %): log changes to learn it
                         print("Wi-Fi live view ID 7: %s -> %s" % (self.last_id7, b), flush=True)
                         self.last_id7 = b
-                    for fid in ext:
-                        self.ext_seen[fid] = self.ext_seen.get(fid, 0) + 1
+                    with self.cond:  # ext_info() reads the counters from another thread
+                        for fid in ext:
+                            self.ext_seen[fid] = self.ext_seen.get(fid, 0) + 1
                 except struct.error:
                     pass
                 hdr += 4 + 4 * n
@@ -204,8 +205,10 @@ class LiveView:
 
     def ext_info(self):
         """Latest extension data: decoded where known, raw words otherwise."""
-        ext = dict(self.ext)
-        return {"seen": {str(k): v for k, v in sorted(self.ext_seen.items())},
+        with self.cond:
+            ext = dict(self.ext)
+            seen = dict(self.ext_seen)
+        return {"seen": {str(k): v for k, v in sorted(seen.items())},
                 "decoded": {str(k): decode_entry(k, w) for k, w in ext.items() if decode_entry(k, w) is not None},
                 "raw": {str(k): w for k, w in ext.items()}}
 

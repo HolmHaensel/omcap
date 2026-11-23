@@ -2,8 +2,12 @@
 
 ## Unreleased
 
-- Star AF (`REQ-F24`): live HFR aid, hyperfocal readout, clipping/bright-scene warnings and focus lock (USB and Wi-Fi, photo modes only), plus USB Live View Boost (Off/On1/On2) and Auto Star AF (Speed/Accuracy, full-frame finder, ×10 zoom, S-AF+MF → MF). Offline-tested.
-- USB Focus Stacking: sets and restores Bracketing (d0a6); one-frame shot ends early with a note (REQ-F69). USB-tested.
+- Star AF (REQ-F24): live star-size (HFR) focus aid and hyperfocal readout in photo modes (USB and Wi-Fi), plus USB Auto Star AF, Focus Lock and Live View Boost (Others, P/A/S). Offline-tested.
+- USB Focus Stacking sets itself up: Bracketing (d0a6), Focus BKT, stacking; no d020; waits while the camera merges; Off retries while busy; one-frame note (REQ-F69). USB-tested.
+- Quit and Open in OM Workspace only from the computer itself, hidden on a phone (REQ-Q10).
+- Disconnect during a request answers "Not connected" instead of an error; status poll no longer piles up.
+- HSL copy in float32 (half the memory); `develop.py` moved to `tools/`.
+- Test suite 42 s → 15 s.
 
 ## 0.7.9 – 2026-11-22
 
