@@ -104,7 +104,9 @@ CONTROL = (
     "changes or when live_view_frame looks soft, focus again with camera_focus before judging sharpness. "
     "playback enters/exits Playback, downloads card files, applies software HSL or opens captures in OM Workspace. "
     "app_control connects/disconnects, refreshes USB state, sets transfer target and save folder/naming, or turns "
-    "off the camera over Wi-Fi (disconnect and Turn off camera require confirm=true after user approval)."
+    "off the camera over Wi-Fi. Every change to the camera or its mode (live_view start, camera_focus changes, Playback "
+    "enter/exit, connect, disconnect, refresh, Turn off camera) is a dry-run first: tell the user, then repeat with "
+    "confirm=true after their yes."
 )
 SHUTTER_RULES = (
     "Shutter: camera_shoot covers single shot (optional self-timer), Press halfway, long exposure (BULB/LIVE TIME/"
@@ -1295,6 +1297,10 @@ def tool_live_view(client, args, ctx):
             if isinstance(status, dict) and status.get("features") is not None and "lvsize" not in status["features"]:
                 raise ApiError("Live view size cannot be changed on this USB backend (fixed 1024x768).")
             payload["lvqty"] = size
+        if args.get("confirm") is not True:
+            return _text({"dry_run": True, "will_start_live_view": {"size": size} if size else True,
+                          "next_step": "Tell the user, then call live_view(action='start'%s, confirm=true)."
+                                       % (", size=%r" % size if size else "")})
     client.post_json("/api/liveview", payload, timeout=20.0)
     out = {"live_view": action == "start"}
     if action == "start" and size is not None:
@@ -1307,6 +1313,9 @@ def tool_playback(client, args, ctx):
     if action not in ("enter", "exit", "download", "hsl", "hsl_auto", "open_workspace"):
         raise ValueError("'action' must be one of: enter, exit, download, hsl, hsl_auto, open_workspace")
     if action in ("enter", "exit"):
+        if args.get("confirm") is not True:
+            return _text({"dry_run": True, "will_switch_camera_to": "Playback" if action == "enter" else "shooting",
+                          "next_step": "Tell the user, then call playback(action=%r, confirm=true)." % action})
         res = client.post_json("/api/playback", {"action": "enter" if action == "enter" else "leave"}, timeout=20.0) or {}
         return _text({"play_mode": bool(res.get("play", action == "enter"))})
     if action == "download":
@@ -1350,6 +1359,9 @@ def tool_app_control(client, args, ctx):
         conn = args.get("connection")
         if conn not in ("usb", "wifi"):
             raise ValueError("'connection' must be 'usb' or 'wifi'")
+        if not confirm:
+            return _text({"dry_run": True, "will_connect": conn,
+                          "next_step": "Tell the user, then call app_control(action='connect', connection=%r, confirm=true)." % conn})
         res = client.post_json("/api/connect", {"type": conn}, timeout=30.0) or {}
         return _text({"connected": True, "type": res.get("type", conn)})
     if action == "disconnect":
@@ -1372,6 +1384,9 @@ def tool_app_control(client, args, ctx):
         status = client.get_json("/api/status")
         if status.get("type") != "usb":
             raise ApiError("Refresh is only needed over USB.")
+        if not confirm:
+            return _text({"dry_run": True, "will_refresh_usb_session": True,
+                          "next_step": "Tell the user, then call app_control(action='refresh', confirm=true)."})
         client.post_json("/api/refresh", {}, timeout=30.0)
         return _text({"refreshed": True})
     if action == "transfer":
@@ -1510,9 +1525,10 @@ def tool_camera_shoot(client, args, ctx):
             raise ApiError("Movie recording is not available during sequential shooting or Focus Stacking (E-M1 manual, p.26).")
         if _is_camera_busy(state):
             raise ApiError("The camera is busy: wait, then try again.")
-        plan = dict(base_plan, action="start")
         if conn == "wifi" and mode != "movie":
-            plan["note"] = "Over Wi-Fi the camera briefly switches to Movie mode and switches back on stop."
+            raise ApiError("Over Wi-Fi, movie recording needs Shooting mode Movie (as in the app): turn the mode dial "
+                           "to Movie, or set it with camera_configure.")
+        plan = dict(base_plan, action="start")
         if not confirm:
             return _text({"dry_run": True, "will_start_movie": plan,
                           "next_step": "Confirm with the user and call camera_shoot(action='movie', step='start', confirm=true)."})
@@ -1702,11 +1718,13 @@ WRITE_TOOLS = {
         tool_camera_focus,
     ),
     "live_view": (
-        "Start or stop the live view in E-M1 Capture (needed for live_view_frame), with optional frame size.",
+        "Start or stop the live view in E-M1 Capture (needed for live_view_frame), with optional frame size. "
+        "start is a dry-run first and needs confirm=true after the user's yes; stop runs at once.",
         _schema({
             "action": {"type": "string", "enum": ["start", "stop"]},
             "size": {"type": "string", "enum": list(LV_SIZES),
                      "description": "Optional live view resolution on start (e.g. '1024x0768')."},
+            "confirm": {"type": "boolean", "description": "True starts the live view; only after the user's yes."},
         }, required=["action"]),
         CONTROL_ANNOTATIONS,
         tool_live_view,
@@ -1714,7 +1732,8 @@ WRITE_TOOLS = {
     "playback": (
         "Playback, computer download, software HSL and OM Workspace: enter/exit camera Playback, download a "
         "card file to captures/, apply an HSL preset/profile to a file in captures/, configure auto-HSL, or "
-        "open a saved capture in OM Workspace on this computer.",
+        "open a saved capture in OM Workspace on this computer. enter/exit switch the camera mode: dry-run first, "
+        "confirm=true after the user's yes. The computer-side actions run at once (they never write to the camera).",
         _schema({
             "action": {"type": "string", "enum": ["enter", "exit", "download", "hsl", "hsl_auto", "open_workspace"]},
             "path": {"type": "string", "description": "Camera card path (starting with '/') for action='download'."},
@@ -1723,6 +1742,7 @@ WRITE_TOOLS = {
             "tiff": {"type": "boolean", "description": "For ORF in action='hsl': also write 16-bit TIFF (default false)."},
             "enabled": {"type": "boolean", "description": "Enable/disable auto-HSL for action='hsl_auto'."},
             "preset": {"type": "string", "description": "Preset name for action='hsl_auto'."},
+            "confirm": {"type": "boolean", "description": "Required (true) for enter/exit after the user's yes."},
         }, required=["action"]),
         CONTROL_ANNOTATIONS,
         tool_playback,
@@ -1730,7 +1750,8 @@ WRITE_TOOLS = {
     "app_control": (
         "Manage E-M1 Capture connection and computer save settings: connect ('usb'/'wifi'), disconnect, "
         "Turn off camera over Wi-Fi ('poweroff'), USB refresh, transfer target ('sd'/'both'), or save folder/naming "
-        "config. disconnect and poweroff default to dry-run and require confirm=true after user approval. Never quits the app.",
+        "config. connect, disconnect, poweroff and refresh default to dry-run and require confirm=true after user approval; "
+        "transfer and save_config only change computer-side settings and run at once. Never quits the app.",
         _schema({
             "action": {"type": "string", "enum": ["connect", "disconnect", "poweroff", "refresh", "transfer", "save_config"]},
             "connection": {"type": "string", "enum": ["usb", "wifi"], "description": "Target for action='connect'."},
@@ -1739,7 +1760,7 @@ WRITE_TOOLS = {
             "scheme": {"type": "string", "enum": ["original", "prefix", "datetime"],
                        "description": "File naming scheme for action='save_config'."},
             "prefix": {"type": "string", "description": "File name prefix when scheme='prefix'."},
-            "confirm": {"type": "boolean", "description": "Required (true) for disconnect and poweroff after user yes."},
+            "confirm": {"type": "boolean", "description": "Required (true) for connect, disconnect, poweroff and refresh after the user's yes."},
         }, required=["action"]),
         CONTROL_ANNOTATIONS,
         tool_app_control,

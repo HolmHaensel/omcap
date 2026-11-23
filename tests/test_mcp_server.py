@@ -884,6 +884,36 @@ class FocusAndLiveViewTools(unittest.TestCase):
             _call(client, "camera_focus", args, allow_write=True)
         self.assertEqual([p for p, _ in client.posts], ["/api/afarea", "/api/staraf", "/api/loupe"])
 
+    def test_camera_state_changes_are_dry_run_until_confirm(self):
+        client = FakeClient(json_map={
+            "/api/status": {"type": "usb", "allow_write": True, "features": ["lvsize"]},
+            "/api/state": {"live": False},
+        }, allow_write=True)
+        for tool, args in (("live_view", {"action": "start"}), ("playback", {"action": "enter"}),
+                           ("playback", {"action": "exit"}), ("app_control", {"action": "connect", "connection": "wifi"}),
+                           ("app_control", {"action": "refresh"})):
+            with self.subTest(tool=tool, args=args):
+                data = _json_payload(_call(client, tool, args, allow_write=True))
+                self.assertTrue(data["dry_run"])
+                self.assertIn("confirm=true", data["next_step"])
+        self.assertEqual(client.posts, [])
+        _call(client, "live_view", {"action": "stop"}, allow_write=True)
+        self.assertEqual(client.posts, [("/api/liveview", {"action": "stop"})])
+
+    def test_wifi_movie_needs_movie_mode(self):
+        client = FakeClient(json_map={
+            "/api/status": {"type": "wifi", "allow_write": True},
+            "/api/props": {"takemode": {"value": "P"}, "shutspeedvalue": {"value": "250"}},
+            "/api/state": {"busy": False},
+        }, allow_write=True)
+        res = _call(client, "camera_shoot", {"action": "movie", "step": "start"}, allow_write=True, allow_shutter=True)
+        self.assertTrue(res["isError"])
+        client.json_map["/api/props"]["takemode"] = {"value": "movie"}
+        data = _json_payload(_call(client, "camera_shoot", {"action": "movie", "step": "start"},
+                                   allow_write=True, allow_shutter=True))
+        self.assertTrue(data["dry_run"])
+        self.assertEqual(client.posts, [])
+
     def test_wifi_focus_uses_last_af_and_rejects_usb_only_controls(self):
         client = FakeClient(json_map={
             "/api/status": {"type": "wifi", "allow_write": True},
@@ -922,7 +952,7 @@ class FocusAndLiveViewTools(unittest.TestCase):
         _call(client, "camera_focus", {"loupe": "move", "direction": "right", "confirm": True}, allow_write=True)
         _call(client, "camera_focus", {"loupe": "off"}, allow_write=True)
         # Live view start with size & stop
-        _call(client, "live_view", {"action": "start", "size": "1024x0768"}, allow_write=True)
+        _call(client, "live_view", {"action": "start", "size": "1024x0768", "confirm": True}, allow_write=True)
         _call(client, "live_view", {"action": "stop"}, allow_write=True)
 
         self.assertEqual(client.posts, [
@@ -980,8 +1010,8 @@ class PlaybackAndAppControlTools(unittest.TestCase):
         mov = _json_payload(_call(client, "last_picture", {"path": "/DCIM/100OLYMP/P1010001.MOV", "preview": "none"}))
         self.assertEqual(mov["movie_seconds"], 12.5)
 
-        _call(client, "playback", {"action": "enter"}, allow_write=True)
-        _call(client, "playback", {"action": "exit"}, allow_write=True)
+        _call(client, "playback", {"action": "enter", "confirm": True}, allow_write=True)
+        _call(client, "playback", {"action": "exit", "confirm": True}, allow_write=True)
         _call(client, "playback", {"action": "download", "path": "/DCIM/100OLYMP/PB220001.JPG"}, allow_write=True)
         _call(client, "playback", {"action": "hsl", "name": "PB220001.JPG", "profile": "Claudra 800"}, allow_write=True)
         _call(client, "playback", {"action": "hsl_auto", "enabled": True, "preset": "CineStill 800T"}, allow_write=True)
@@ -1021,7 +1051,7 @@ class PlaybackAndAppControlTools(unittest.TestCase):
         self.assertTrue(_call(client, "app_control", {"action": "refresh"}, allow_write=True)["isError"])
 
         # Confirmed actions + connect + transfer + save_config partial merge
-        _call(client, "app_control", {"action": "connect", "connection": "usb"}, allow_write=True)
+        _call(client, "app_control", {"action": "connect", "connection": "usb", "confirm": True}, allow_write=True)
         _call(client, "app_control", {"action": "transfer", "target": "both"}, allow_write=True)
         _call(client, "app_control", {"action": "save_config", "scheme": "prefix", "prefix": "astro_"}, allow_write=True)
         _call(client, "app_control", {"action": "disconnect", "confirm": True}, allow_write=True)
