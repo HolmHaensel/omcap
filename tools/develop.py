@@ -1,7 +1,7 @@
-"""Develop RAW and merge focus stacks (stage 3).
+"""Develop RAW and merge focus stacks (stage 3). Standalone helper, not used by the app.
 
-  python3 -m omcap.develop raw  captures/P1010001.ORF out/P1010001.png
-  python3 -m omcap.develop stack out/stack.png captures/*.ORF   # or .JPG
+  python3 tools/develop.py raw  captures/P1010001.ORF out/P1010001.png
+  python3 tools/develop.py stack out/stack.png captures/*.ORF   # or .JPG
 
 Needs: pip install rawpy numpy opencv-python-headless
 Only reads; writes only the given output file.
@@ -17,7 +17,7 @@ def _deps():
         import numpy as np
         import rawpy
     except ImportError as e:
-        sys.exit("Fehlt: %s – pip install rawpy numpy opencv-python-headless" % e.name)
+        sys.exit("Missing: %s - pip install rawpy numpy opencv-python-headless" % e.name)
     return cv2, np, rawpy
 
 
@@ -29,15 +29,15 @@ def load(path, cv2, np, rawpy):
         return cv2.cvtColor(rgb, cv2.COLOR_RGB2BGR)
     img = cv2.imread(path, cv2.IMREAD_UNCHANGED)
     if img is None:
-        sys.exit("Nicht lesbar: " + path)
+        sys.exit("Cannot read: " + path)
     return (img.astype(np.uint16) * 257) if img.dtype == np.uint8 else img
 
 
 def safe_out(out, inputs):
     if os.path.abspath(out) in {os.path.abspath(i) for i in inputs}:
-        sys.exit("Ausgabe darf keine Eingabedatei sein")
+        sys.exit("The output must not be an input file")
     if os.path.exists(out):
-        sys.exit("Existiert schon, wird nicht überschrieben: " + out)
+        sys.exit("Already exists, not overwritten: " + out)
     os.makedirs(os.path.dirname(os.path.abspath(out)), exist_ok=True)
 
 
@@ -89,11 +89,11 @@ def main():
         img = load(args.src, cv2, np, rawpy)
     else:
         if len(args.src) < 2:
-            sys.exit("Mindestens 2 Bilder")
+            sys.exit("At least 2 images")
         safe_out(args.out, args.src)
         img = stack(sorted(args.src))
     cv2.imwrite(args.out, img)
-    print("geschrieben:", args.out)
+    print("written:", args.out)
 
 
 if __name__ == "__main__":
