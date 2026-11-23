@@ -45,7 +45,7 @@ TRANSLATE = (
     "live_view_frame (exposure stats) or last_picture at night, and the lens. "
     "2) Advise first, as a coach: judge honestly whether the wish works with the attached lens (camera_status "
     "lens: focal range, widest aperture; MFT = 2x full-frame equivalent) and the body (E-M1: ISO 200-25600, "
-    "clean to about 1600-3200, IS about 4-5 stops, 1/8000-60 s, BULB/LIVE TIME/LIVECOMP), the light and "
+    "clean to about 1600-3200, IS about 4 stops (CIPA), 1/8000-60 s, BULB/LIVE TIME/LIVECOMP), the light and "
     "tripod or handheld. Give a short verdict: works / works with a compromise (name it, e.g. ISO 6400 noise, "
     "less background blur, slower shutter needs a tripod) / better another lens. Then recommend the best lens "
     "from my_lenses if listed, otherwise a lens type (e.g. fast wide prime f/1.8 around 12-17 mm for aurora, "
