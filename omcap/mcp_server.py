@@ -36,6 +36,44 @@ MAX_IMAGE_BYTES = 12 << 20  # 12 MB cap for base64 image responses over stdio
 MAX_LIST_LIMIT = 200
 WRITE_ENDPOINTS = frozenset({"/api/set"})  # strict allowlist: settings only, never shoot/erase/poweroff
 
+# Any wish in words (scene, subject, mood, look, film, a problem like "too dark") -> camera settings.
+# A general method; the scenes and looks are examples, not a fixed list. Active without picking a prompt (voice).
+TRANSLATE = (
+    "Turn any wish in words into camera settings: a scene ('set it up right for now', aurora, kids playing), "
+    "a look or mood (a film, a director, 'warm and dreamy'), or a problem ('too dark', 'blurry'). Method: "
+    "1) Look: camera_status, camera_settings with choices=true (what is selectable now, with readable labels), "
+    "live_view_frame (exposure stats) or last_picture at night, and the lens. "
+    "2) Advise first, as a coach: judge honestly whether the wish works with the attached lens (camera_status "
+    "lens: focal range, widest aperture; MFT = 2x full-frame equivalent) and the body (E-M1: ISO 200-25600, "
+    "clean to about 1600-3200, IS about 4 stops (CIPA), 1/8000-60 s, BULB/LIVE TIME/LIVECOMP), the light and "
+    "tripod or handheld. Give a short verdict: works / works with a compromise (name it, e.g. ISO 6400 noise, "
+    "less background blur, slower shutter needs a tripod) / better another lens. Then recommend the best lens "
+    "from my_lenses if listed, otherwise a lens type (e.g. fast wide prime f/1.8 around 12-17 mm for aurora, "
+    "f/1.8 portrait prime 45 mm, 100 mm+ for birds); also say what to change in the setup (tripod, position, "
+    "time of day). If the user stays with the current lens, still set up the best possible result. "
+    "3) Decide like a professional, in M unless the wish needs otherwise: shutter for the subject (handheld with "
+    "IS at least 1/(2 x focal length), people moving 1/250-1/500, sport/birds 1/1000+, tripod as long as needed); "
+    "aperture for depth of field (f/1.8-2.8 soft background, f/4-f/8 sharpest; MFT: not past f/11); ISO fixed, "
+    "the lowest that works (200 base, 1600 clean, 3200+ only if needed); WB fixed to the light or the look "
+    "(warmer = higher kelvin); Picture Mode, Art filter, drive, AF mode, IS and aspect as the wish asks. "
+    "4) Map only to values in choices; anything the camera cannot take remotely goes into one short body step "
+    "(see body_only), never invented as a setting. "
+    "5) camera_configure with apply=false, one short reason per value, apply after the user's yes; over USB the "
+    "user turns the mode dial by hand. "
+    "6) Check the result after about 2 s (the E-M1 live view settles slowly): live_view_frame (in M it shows the exposure while Live View Boost is Off; median_luma "
+    "about 100-140, brighter for high-key looks, lower when large dark areas fill the frame: judge the subject in the image; clipped_highlights_pct under 1 percent) or the last shot; "
+    "propose one step (1/3-1 stop) and apply only after a short yes. Keep spoken answers short. "
+    "Examples of the method: aurora = tripod, M, widest aperture, ISO 1600-3200, 2-8 s (faster aurora shorter), "
+    "WB 3500-4000K, IS off, focus with Star AF; 'Desert Pastel' (Wes Anderson style) = A f/8, +0.3 to +0.7, ISO 200, "
+    "WB 6000K, Vivid, body step Contrast -1 / Saturation +1, centred symmetric framing."
+)
+# Set on the camera body only (no USB or Wi-Fi command known to E-M1 Capture); told to the user as body steps
+BODY_ONLY = [
+    "Picture Mode details: Contrast, Sharpness, Saturation, Gradation, B&W filter, Pict. Tone",
+    "Art filter effects and variations", "Highlight&Shadow Control curve", "Noise Filter, Noise Reduct.",
+    "Color Creator hue and saturation", "WB fine-tuning (A/G) and custom kelvin values", "Flash intensity",
+]
+
 INSTRUCTIONS_RO = (
     "Read-only AI Photo Coach interface to a running E-M1 Capture server (Olympus OM-D E-M1 Mark I "
     "over USB or Wi-Fi). Use these tools to inspect camera status, settings, lens, live view frame "
@@ -49,7 +87,7 @@ INSTRUCTIONS_RW = (
     "call camera_configure with apply=false first to build a validated plan, present the exact changes "
     "(and any manual steps such as turning the mode dial over USB) to the user, and call "
     "camera_configure with apply=true ONLY after the user explicitly confirms. This server never "
-    "releases the shutter, erases card files or touches firmware."
+    "releases the shutter, erases card files or touches firmware.\n\n" + TRANSLATE
 )
 
 
@@ -197,6 +235,20 @@ def _newest_jpg(images):
         if _is_jpg(entry.get("path")):
             return entry["path"]
     return None
+
+
+# Readable names where the connection sends only codes (Wi-Fi WB); same table as FEATURES.wbvalue in index.html
+DEFAULT_NAMES = {
+    "wbvalue": {"0": "AUTO", "18": "5300K", "16": "7500K", "17": "6000K", "20": "3000K", "35": "4000K",
+                "64": "Underwater", "23": "5500K Flash", "256": "One-touch 1", "257": "One-touch 2",
+                "258": "One-touch 3", "259": "One-touch 4", "512": "CWB"},
+}
+
+
+def _with_names(prop, entry):
+    if entry.get("names") or prop not in DEFAULT_NAMES:
+        return entry
+    return dict(entry, names=DEFAULT_NAMES[prop])
 
 
 def _format_prop(entry, include_enum=False):
@@ -377,8 +429,16 @@ def tool_camera_settings(client, args, ctx):
         prop = prop.strip()
         if prop not in props:
             raise ApiError("Unknown setting %r. Available: %s" % (prop, ", ".join(sorted(props))))
-        return _text({prop: _format_prop(props[prop], include_enum=True)})
-    return _text({k: _format_prop(v, include_enum=False) for k, v in props.items()})
+        return _text({prop: _format_prop(_with_names(prop, props[prop]), include_enum=True)})
+    if args.get("choices") is True:  # the map an assistant needs to turn a wish into settings
+        mode = str((props.get("takemode") or {}).get("value"))
+        movie_exp = str((props.get("exposemovie") or {}).get("value"))
+        out = {}
+        for k, v in props.items():
+            if v.get("writable") and _mode_allows(k, mode, movie_exp):
+                out[k] = dict(_format_prop(_with_names(k, v), include_enum=True), setting=_label(k))
+        return _text({"shooting_mode": mode, "selectable": out, "body_only": BODY_ONLY})
+    return _text({k: _format_prop(_with_names(k, v), include_enum=False) for k, v in props.items()})
 
 
 def tool_live_view_frame(client, args, ctx):
@@ -647,7 +707,7 @@ def _plan_settings(status, props, wanted):
             pending.append({"prop": prop, "label": _label(prop), "wanted": val,
                             "reason": "Checked again after the shooting mode is %s" % mode})
             continue
-        entry = props[prop]
+        entry = _with_names(prop, props[prop])
         cur = str(entry.get("value"))
         names = {str(k): str(v) for k, v in (entry.get("names") or {}).items()}
         if not entry.get("writable"):
@@ -845,8 +905,10 @@ READ_TOOLS = {
     "camera_settings": (
         "Read the camera's LV super control panel settings (mode, shutter speed, aperture, ISO, WB, "
         "drive, Picture Mode, AF mode, IS, etc.). Omit 'prop' for a compact overview of all settings; "
-        "pass 'prop' to also receive its allowed values (enum).",
-        _schema({"prop": {"type": "string", "description": "Optional setting name, e.g. shutspeedvalue, isospeedvalue."}}),
+        "pass 'prop' to also receive its allowed values (enum); pass choices=true for every setting selectable in "
+        "the current mode with its values and readable labels, plus what only the camera body can set (body_only).",
+        _schema({"prop": {"type": "string", "description": "Optional setting name, e.g. shutspeedvalue, isospeedvalue."},
+                 "choices": {"type": "boolean", "description": "All settings selectable now, with values and labels."}}),
         READ_ONLY_ANNOTATIONS,
         tool_camera_settings,
     ),

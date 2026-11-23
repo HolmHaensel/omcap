@@ -648,6 +648,41 @@ class ModeRulesAndRobustness(unittest.TestCase):
         _, off = self.plan("usb", props, {"drivemode": "1", "focusstacking": "2"})
         self.assertEqual([c["prop"] for c in off["changes"]], ["focusstacking", "drivemode"])
 
+    def test_pro_m_recipe_only_with_write(self):  # "set it up right for now" by voice: no prompt picked
+        def init(allow_write):
+            srv = mcp_server.McpServer(FakeClient(), allow_write=allow_write)
+            return srv.handle_message({"jsonrpc": "2.0", "id": 1, "method": "initialize",
+                                       "params": {"protocolVersion": "2024-11-05"}})["result"]["instructions"]
+        rw = init(True)
+        self.assertIn("any wish in words", rw)
+        self.assertIn("apply=false", rw)
+        self.assertIn("ISO fixed", rw)
+        self.assertIn("aurora", rw)
+        self.assertIn("better another lens", rw)  # coach verdict on the attached lens
+        self.assertIn("Desert Pastel", rw)  # a look: settings plus body steps (Contrast, Saturation)
+        self.assertIn("body_only", rw)
+        self.assertNotIn("any wish in words", init(False))
+
+    def test_wifi_wb_by_kelvin(self):  # Wi-Fi sends WB codes only: "6000K" for a look must still resolve
+        props = dict(self.WIFI_A, wbvalue={"value": "0", "writable": True, "enum": ["0", "18", "17", "20"]},
+                     colortone={"value": "natural", "writable": True, "enum": ["natural", "vivid"]})
+        _, data = self.plan("wifi", props, {"wbvalue": "6000K", "colortone": "Vivid"})
+        self.assertEqual(data["invalid"], [])
+        self.assertEqual({c["prop"]: c["target"] for c in data["changes"]}, {"wbvalue": "17", "colortone": "vivid"})
+
+    def test_choices_map_for_a_wish(self):
+        props = dict(self.WIFI_A, wbvalue={"value": "0", "writable": True, "enum": ["0", "17"]})
+        client = FakeClient(json_map={"/api/props": props})
+        data = _json_payload(_call(client, "camera_settings", {"choices": True}))
+        sel = data["selectable"]
+        self.assertEqual(data["shooting_mode"], "A")
+        self.assertIn("focalvalue", sel)
+        self.assertNotIn("shutspeedvalue", sel)  # read-only in A
+        self.assertNotIn("artfilter", sel)  # not in mode A
+        self.assertEqual(sel["wbvalue"]["names"]["17"], "6000K")
+        self.assertEqual(sel["wbvalue"]["setting"], "WB")
+        self.assertTrue(any("Contrast" in b for b in data["body_only"]))
+
     def test_usb_art_dial_step_says_it_reads_as_p(self):
         _, data = self.plan("usb", WriteSafetyAndConfigure.USB_PROPS, {"takemode": "art"})
         self.assertIn("reads iAUTO, ART", data["manual_steps"][0])
