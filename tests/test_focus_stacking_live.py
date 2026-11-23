@@ -37,7 +37,7 @@ class Switch(unittest.TestCase):
     """The app switch sets Bracketing d0a6 with Focus BKT and restores what was there before."""
 
     def cam(self):
-        state = {"d0a6": "2", "d020": "1", "d0cb": "2", "d0ce": "2", "shutterspeed": "1/60"}
+        state = {"d0a6": "2", "d020": "1", "d0cb": "2", "d0ce": "2", "shutterspeed": "1/60"}  # d020 = RC Group A
         c = usb_camera.UsbCamera.__new__(usb_camera.UsbCamera)
         c._need_write = lambda: None
         c._value = lambda code: state[code]
@@ -50,7 +50,8 @@ class Switch(unittest.TestCase):
         c, state = self.cam()
         c._set_focus_stacking(True)
         c._set_focus_stacking(True)  # a second On (retry, stale page) must not forget the old state
-        self.assertEqual((state["d0a6"], state["d020"], state["d0ce"]), ("1", "3", "1"))
+        self.assertEqual((state["d0a6"], state["d0cb"], state["d0ce"]), ("1", "1", "1"))
+        self.assertEqual(state["d020"], "1")  # RC flash Group A untouched
         c._set_focus_stacking(False)
         self.assertEqual((state["d0a6"], state["d020"], state["d0cb"], state["d0ce"]), ("2", "1", "2", "2"))
 
@@ -80,6 +81,29 @@ class MergingPause(unittest.TestCase):
             c._stack_events(time.monotonic() + 0.2, marks, time.monotonic())
         self.assertGreaterEqual(len(calls), 3)
         self.assertEqual([m[0] for m in marks], ["camera busy merging"])
+
+
+
+class BusyAfterShot(unittest.TestCase):
+    def test_busy_is_retried_then_succeeds(self):
+        c = usb_camera.UsbCamera.__new__(usb_camera.UsbCamera)
+        tries = []
+
+        def action():
+            tries.append(1)
+            if len(tries) < 3:
+                raise usb_camera.CameraError("USB: PTP: PTP 0x1016 answered 0x2019")
+            return "ok"
+        with mock.patch.object(usb_camera.time, "sleep"):
+            self.assertEqual(c._busy_retry(action), "ok")
+        self.assertEqual(len(tries), 3)
+
+    def test_other_errors_are_not_retried(self):
+        c = usb_camera.UsbCamera.__new__(usb_camera.UsbCamera)
+        action = mock.Mock(side_effect=usb_camera.CameraError("USB: PTP: answered 0x2005"))
+        with self.assertRaises(usb_camera.CameraError):
+            c._busy_retry(action)
+        action.assert_called_once()
 
 
 if __name__ == "__main__":

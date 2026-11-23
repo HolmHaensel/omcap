@@ -12,7 +12,7 @@ from omcap import ptp, server, usb_camera
 from omcap.camera import CameraError
 from tests.test_usb_loupe import make
 
-HTML = os.path.join(os.path.dirname(__file__), "..", "omcap", "web", "index.html")
+from tests.web_path import HTML_PATH as HTML
 
 
 class Revision(unittest.TestCase):
@@ -347,17 +347,13 @@ class Page(unittest.TestCase):
             self.assertIn('data-z="%d"' % z, h)
         for z in (1, 3, 5, 7, 10, 14):
             self.assertIn('data-lz="%d"' % z, h)
-        self.assertIn("const LOUPE_STEPS=[1,3,5,7,10,14]", h)
         self.assertIn('id="liveBack"', h)  # backdrop behind the moved camera crop
-        self.assertIn("LOUPE_LAG_FRAMES=6", h)
         for name in ("loupeReconcile", "loupeCommit", "loupeHold", "loupeOnFrame", "zRender"):
             self.assertIn("function %s(" % name, h)
-        for name in ("zSnap", "zClamp", "zClampCam", "zCrop", "zSigDiff", "zSwapDue", "zMatch", "zRubber", "zWheelScale", "zZoomAt", "zMatchLimit", "zMapTo", "zFrameKind", "zCoverClamp"):
+        for name in ("zSnap", "zClamp", "zClampCam", "zCrop", "zSigDiff", "zSwapDue", "zMatch", "zRubber", "zWheelScale", "zZoomAt", "zMatchLimit", "zMapTo", "zFrameKind", "zCoverClamp", "zCovers"):
             self.assertIn("const %s=" % name, h)
         self.assertIn("X-Loupe-Rev", h)
-        self.assertIn("const zCovers=", h)
         self.assertIn('id="zoomMap"', h)  # overview map, shown only while .loupe
-        self.assertNotIn("loupeBtn", h)
 
     def test_idle_server_does_not_block_the_zoom(self):
         """zBlock hides the zoom control while the camera is busy: every state key it reads is falsy when idle

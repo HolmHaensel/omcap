@@ -21,6 +21,7 @@ import subprocess
 import sys
 import tempfile
 import threading
+import traceback
 import time
 import urllib.parse
 import urllib.request
@@ -92,16 +93,19 @@ exif_cache = {}  # card path -> picture info (shooting data) from EXIF
 # so opening a picture over USB reads the file from the card only once.
 jpg_cache = {}  # card path -> bytes, oldest first
 JPG_CACHE_MAX = 40 << 20
+cache_lock = threading.RLock()  # the caches are touched by parallel requests and cleared by disconnect()
 
 
 def read_jpg(path):
     """Whole JPG from the card, kept for a short while (size-limited)."""
-    if path in jpg_cache:
-        return jpg_cache[path]
-    data = cam.read_file(path)
-    jpg_cache[path] = data
-    while len(jpg_cache) > 1 and sum(len(v) for v in list(jpg_cache.values())) > JPG_CACHE_MAX:
-        jpg_cache.pop(next(iter(jpg_cache)))
+    with cache_lock:
+        if path in jpg_cache:
+            return jpg_cache[path]
+    data = cam.read_file(path)  # slow: outside the lock
+    with cache_lock:
+        jpg_cache[path] = data
+        while len(jpg_cache) > 1 and sum(len(v) for v in list(jpg_cache.values())) > JPG_CACHE_MAX:
+            jpg_cache.pop(next(iter(jpg_cache)))
     return data
 
 busy = threading.Lock()  # only one shooting sequence at a time
@@ -214,11 +218,12 @@ def disconnect():
     if conn_type == "usb":
         cam.close()
     cam, live, conn_type = None, None, None
-    lens_cache.clear()
-    exif_cache.clear()
-    jpg_cache.clear()
+    with cache_lock:
+        lens_cache.clear()
+        exif_cache.clear()
+        jpg_cache.clear()
+        movtime_cache.clear()
     device.update(at=0.0, card=None, battery=None)
-    movtime_cache.clear()
     state.update(play=None, indexing=False)
     state.update(transfer="sd", latest=None, transfer_error=None, take=None, movie=None,
                  resume_live=False, seen=None, wifi_field=41, wifi_af=None, last_shot=None,
@@ -1042,9 +1047,13 @@ def movie_length(path, size):
     if state["play"] is None:
         raise CameraError("Movie length only in Playback")
     key = (path, size)
-    if key not in movtime_cache:
-        movtime_cache[key] = cam.movie_length(path)
-    return movtime_cache[key]
+    with cache_lock:
+        known = movtime_cache.get(key)
+    if known is None:
+        known = cam.movie_length(path)
+        with cache_lock:
+            movtime_cache[key] = known
+    return known
 
 
 def reset_share_order():
@@ -1086,22 +1095,30 @@ def picture_info(path):
     """
     if not path.lower().endswith((".jpg", ".jpeg")):
         raise CameraError("Picture info only from JPG files")
-    if path not in exif_cache:
-        if len(exif_cache) > 2000:
-            exif_cache.clear()
+    with cache_lock:
+        known = exif_cache.get(path)
+        head = jpg_cache.get(path)
+    if known is None:
         # a file already read in full for /api/full is reused (USB); otherwise only the head
-        head = jpg_cache.get(path) or cam.read_head(path, exif.HEAD_BYTES)
-        exif_cache[path] = exif.picture_info(head)
-    return exif_cache[path]
+        info = exif.picture_info(head or cam.read_head(path, exif.HEAD_BYTES))
+        with cache_lock:
+            if len(exif_cache) > 2000:
+                exif_cache.clear()
+            exif_cache[path] = known = info
+    return known
 
 
 def lens(path):
     """Lens data of the shot path (JPG on the card), read only once per path."""
     if not path.lower().endswith((".jpg", ".jpeg")):
         raise CameraError("Lens data only from JPG files")
-    if path not in lens_cache:
-        lens_cache[path] = exif.lens_info(cam.read_head(path, exif.HEAD_BYTES))
-    return lens_cache[path]
+    with cache_lock:
+        known = lens_cache.get(path)
+    if known is None:
+        known = exif.lens_info(cam.read_head(path, exif.HEAD_BYTES))
+        with cache_lock:
+            lens_cache[path] = known
+    return known
 
 
 def preview_path(path):
@@ -1389,6 +1406,11 @@ class Handler(BaseHTTPRequestHandler):
             self._send({"error": "not found"}, code=404)
         except (CameraError, WriteBlocked, KeyError, OSError, ValueError, ET.ParseError) as e:
             self._send({"error": str(e)}, code=502)
+        except AttributeError:
+            if cam is not None:
+                raise
+            traceback.print_exc()  # logged: an offline endpoint bug must not hide behind "Not connected"
+            self._send({"error": "Not connected"}, code=409)  # a disconnect ran in parallel
 
     def _live_frame(self, seq):
         """Next live frame after `seq` (waits up to 3 s); 204 if none. The main page and the ?view= windows
@@ -1405,6 +1427,7 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("X-Seq", str(new_seq))
         self.send_header("X-Loupe", str(stamp[1]))
         self.send_header("X-Loupe-Rev", str(stamp[0]))
+        self.send_header("X-Mode-At", str(getattr(cam, "mode_changed_at", None) or ""))  # USB: dial turn, faster than the state tick
         self.end_headers()
         self.wfile.write(frame)
 
@@ -1436,6 +1459,11 @@ class Handler(BaseHTTPRequestHandler):
         except (CameraError, KeyError, OSError, ValueError, TypeError,
                 ET.ParseError, subprocess.SubprocessError) as e:
             self._send({"error": str(e)}, code=502)
+        except AttributeError:
+            if cam is not None:
+                raise
+            traceback.print_exc()  # logged: an offline endpoint bug must not hide behind "Not connected"
+            self._send({"error": "Not connected"}, code=409)  # a disconnect ran in parallel
 
     def _shutter(self, stage):
         """Set shutter stage: 0 release, 1 half, 2 full."""
@@ -1480,8 +1508,11 @@ class Handler(BaseHTTPRequestHandler):
                 disconnect()
             return None
         if path == "/api/quit":
+            if not self._local():  # a phone over --lan must not stop the app on the computer
+                raise Forbidden("Quit only from the computer itself")
             try:
-                disconnect()
+                with connecting:  # like Disconnect: wait for a running connect
+                    disconnect()
             except (CameraError, WriteBlocked, OSError) as e:  # quit anyway
                 print("Quit: disconnecting the camera failed:", e)
             # delay so the answer is sent before main() returns
@@ -1498,6 +1529,8 @@ class Handler(BaseHTTPRequestHandler):
                 raise Forbidden("The folder dialog only opens from the computer itself")
             return {"dir": pick_folder_dialog()}
         if path == "/api/open":
+            if not self._local():  # opens a program on the computer: not from a phone over --lan
+                raise Forbidden("Open in OM Workspace only from the computer itself")
             subprocess.run(["open", "-a", "OM Workspace", capture_path(b["name"])], check=True)
             return None
         if path == "/api/hsl":

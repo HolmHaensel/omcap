@@ -101,6 +101,9 @@ DIAL_EVERY = 3.0  # seconds between event checks; each costs ~0.3 s of live view
 # Two check intervals: the camera also sends it a little after a shot, and it is only read every DIAL_EVERY s
 # (seen 3.1 s after a shot, 2026-11-13). A real dial turn in that time is missed; turn it again.
 DIAL_QUIET = 2 * DIAL_EVERY
+# Own PTP layer: the change poll 0x9486 (as OM Capture, every 0.6 s, ~26 ms) shows a mode dial turn without
+# rebuilding the session (~9 s); the event check above stays the fallback when the camera has no poll.
+POLL_EVERY = 0.6
 FOCUS_WAIT = 2.0
 FOCUS_POSITION_WAIT = 1.5
 SHOT_TIMEOUT = 20
@@ -108,6 +111,7 @@ SHOT_TIMEOUT = 20
 # then the picture is read with PTP 0x9495/0x9493 (REQ-F61). Events as the own PTP layer words them.
 DIRECT_EVENT = re.compile(r"PTP Event c004\b|PTP Property d0de changed", re.I)
 DIRECT_GRACE = 0.5  # after the event: a card file may still be announced (then the card path stays the truth)
+SECOND_FORMAT_WAIT = 1.5  # s to wait for the second format (ORF or JPG) of a card shot
 DIRECT_NEXT_WAIT = 1.0  # seconds without a new event after a non-JPG file (ORF): no JPG follows; after a JPG we stop at once
 
 
@@ -220,9 +224,10 @@ USB_TABLES = {
              "32771": "Face & R. Eye Priority On", "32772": "Face & L. Eye Priority On"},  # 32771 inferred
     "d0cb": {"1": "On", "2": "Off"},  # Focus BKT (user's firmware: d0ce is Focus Stacking, mapped 2026-11-16)
 }
-# Bracketing kind d020: 2 = Off, 3 = Focus BKT (mapped 2026-11-13). Focus Stacking needs Focus BKT; the camera then
-# switches by itself to Silent Sequential H, electronic shutter (1/16000 … 1/8 s) and flash off (E-M1 manual, p.174).
-BKT_OFF, BKT_FOCUS = 2, 3
+# Focus Stacking = Bracketing On + Focus BKT + stacking flag; the camera then switches by itself to Silent Sequential H,
+# electronic shutter (1/16000 … 1/8 s) and flash off (E-M1 manual, p.174). d020 is not written: a
+# value the camera sets itself (3 with Bracketing On, 2 with Off; OM Capture never writes it, trace round C 2026-11-22;
+# named RC flash Group A there): never written by the app.
 BKT_MAIN = "d0a6"  # Bracketing On (1) / Off (2), the main switch of Shooting Menu 2 (found 2026-11-22 by diff)
 STACK_FRAMES_WAIT = 6.0  # the 8 frames are on the card ~3.5 s after the release; then decide whether to wait on
 STACK_WAIT = 16.0  # 8 frames (16 files with JPG+ORF) in ~3.5 s, the merged JPG ~13.6 s after the release (2026-11-13)
@@ -298,15 +303,25 @@ class UsbLive:
             self._thread = None
 
     def _loop(self):
-        failures, next_dial = 0, 0.0
+        failures, next_dial, next_poll = 0, 0.0, 0.0
         while self._run:
             if self.camera.hold:  # shooting or card list: do not disturb the connection
                 failures = 0
                 time.sleep(0.05)
                 continue
+            poll = getattr(self.camera, "can_poll", False)  # (camera stand-ins in tests may lack it)
+            polled = None  # result of this pass's poll; "no" = no poll ran
+            if poll and time.monotonic() >= next_poll:
+                next_poll = time.monotonic() + POLL_EVERY
+                polled = self.camera.poll_mode()
+            else:
+                polled = "no"
             if time.monotonic() >= next_dial:
                 next_dial = time.monotonic() + DIAL_EVERY
-                if self.camera.dial_turned() and self.camera.reopen_if_idle(
+                if poll and polled == "no":
+                    polled = self.camera.poll_mode()
+                if self.camera.dial_turned() and (not poll or polled is None) \
+                        and self.camera.reopen_if_idle(
                         "mode dial turned, %s" % getattr(self.camera, "dial_reason", "?")):
                     self.camera.mode_changed_at = time.time()
                     continue
@@ -394,6 +409,10 @@ class UsbCamera:
     loupe_x = loupe_y = None  # wanted zoom centre as last requested (picture fractions, before the x gain)
     loupe_owner = None  # client id of the page that sent the last zoom request; None when the server ended the zoom
     loupe_rev = 0  # counts every change of the camera's zoom state; live frames carry it (REQ-F54)
+    mode_changed_at = None  # time.time() of the last mode dial turn (the page reloads the values)
+    _mode = None  # (d006, writable flags) seen by the last change poll
+    live = None  # UsbLive (class default: objects built without __init__)
+    _poll_failed = 0  # change polls failed in a row (3: back to the event check and session rebuild)
 
     # setting named as over Wi-Fi -> gphoto name, display names from the choice values
     PROPS = {
@@ -522,6 +541,7 @@ class UsbCamera:
             self._resync_files_locked()
             self._card_due = True  # a card may have been put in or taken out: read after the lock (_settle_card)
             self.gone = False  # also after reload (refresh) or a rebuild without live view
+            self._poll_failed = 0  # the new session sets its own poll list
             return True
         except (CameraError, self.gp.GPhoto2Error):
             return False
@@ -568,6 +588,43 @@ class UsbCamera:
         # named in the rebuild message: tells a real dial turn from an event after AF or a setting
         self.dial_reason = "%.1f s after the last command" % since
         return turned and since > DIAL_QUIET
+
+    @property
+    def can_poll(self):
+        """Own PTP layer and the camera took the poll list: camera-side changes arrive without a new session."""
+        return bool(getattr(self._c, "polling", False))
+
+    def poll_mode(self):
+        """Change poll (0x9486): the settings the page shows are current afterwards (get_single_config uses them).
+        True when the mode dial was turned (mode_changed_at is set, the page reloads), False when not,
+        None when there is no poll or it failed (the caller may rebuild the session instead).
+        A turn is d006 or a writable flag changing: iAUTO, ART, SCN and PHOTO STORY all read d006 = P but may lock
+        other settings. Choices are not compared: the aperture list also changes when zooming."""
+        if not self.can_poll:
+            return None
+        if self.hold or self.stage or self.shooting or self.gone:
+            return False
+        try:
+            descs = self._call(self._c.poll_props)
+        except CameraError as e:
+            self._poll_failed += 1
+            if self._poll_failed == 1:  # logged once per run of failures
+                print("USB: change poll failed (%s)" % e, flush=True)
+            if self._poll_failed >= 3:  # each failure can hold the lock for seconds: stop polling this session
+                print("USB: change poll off for this session, a mode dial turn rebuilds it", flush=True)
+                self._c.polling = False
+            return None
+        self._poll_failed = 0
+        mode = descs.get(0xD006, {}).get("value")
+        sig = (mode, tuple(sorted((c, d.get("writable")) for c, d in descs.items())))
+        old, self._mode = self._mode, sig
+        if old is None or mode is None or sig == old:
+            return False
+        old = old[0]
+        self.mode_changed_at = time.time()
+        print("USB: mode dial turned (%s -> %s), values from the change poll"
+              % (EXPOSURE_PROGRAM.get(str(old), old), EXPOSURE_PROGRAM.get(str(mode), mode)), flush=True)
+        return True
 
     def refresh(self):
         """Mode dial and other camera changes only arrive with a new session."""
@@ -677,6 +734,11 @@ class UsbCamera:
         return []
 
     def props(self):
+        if self.can_poll and not (self.live and self.live.running):  # nothing polls without live view: read the poll list now
+            try:
+                self._call(self._c.poll_props)
+            except CameraError:
+                pass  # descriptors as last polled or 0x1014
         out = {"takemode": {"value": EXPOSURE_PROGRAM.get(str(self._value("d006")), "?"),
                             "writable": False, "enum": []}}
         for key, (name, namer) in self.PROPS.items():
@@ -1040,44 +1102,53 @@ class UsbCamera:
         if prop not in self.PROPS:
             raise CameraError("Not available over USB: %s" % prop)
         if prop == "focusstacking":
-            self._set_focus_stacking(str(value) == "1")
+            if str(value) == "1":
+                self._set_focus_stacking(True)
+            else:  # only Off follows a shot: the camera may still write and answer busy
+                self._busy_retry(lambda: self._set_focus_stacking(False))
         elif prop == "shutspeedvalue" and value in LONG_EXPOSURE:
             self._set("d01c", LONG_EXPOSURE[value])
         else:
             self._set(self.PROPS[prop][0], value)
 
+    BUSY_RETRY = 8.0  # seconds: after a stacking shot the camera still writes and answers 0x2019 (2026-11-23)
+
+    def _busy_retry(self, action):
+        """Run `action`; while the camera answers busy (0x2019), try again for up to BUSY_RETRY seconds."""
+        end = time.monotonic() + self.BUSY_RETRY
+        while True:
+            try:
+                return action()
+            except CameraError as e:
+                if "0x2019" not in str(e) or time.monotonic() >= end:
+                    raise
+                time.sleep(0.5)
+
     def _set_focus_stacking(self, on):
-        """Focus Stacking on or off: bracketing kind d020 = Focus BKT, Focus BKT d0cb and the stacking flag d0ce;
-        the earlier bracketing kind is kept and comes back on Off."""
+        """Focus Stacking on or off: Bracketing d0a6 On, Focus BKT d0cb and the stacking flag d0ce;
+        Bracketing comes back as it was on Off. d020 is left to the camera."""
         self._need_write()
         if on:
             if LONG_LABELS.get(self._value("shutterspeed")):  # the camera stacks with the electronic shutter only
                 raise CameraError("Focus Stacking: choose a normal shutter speed first (not BULB, LIVE TIME, LIVECOMP)")
-            kind = int(float(self._value("d020")))
-            if kind != BKT_FOCUS:  # first switch-on: remember what to restore (lost after a reconnect: Off then)
-                self._bkt_before = kind
-                self._bkt_main_before = None
+            first = not self._stacking_on()  # a second On (retry, stale page) keeps what to restore
             try:
                 before = self._set_bkt_main(1)  # Bracketing On: else the camera takes one picture (2026-11-22)
-                if kind != BKT_FOCUS:
-                    self._bkt_main_before = before
-                self._set("d020", BKT_FOCUS)
+                if first:
+                    self._bkt_main_before = before  # lost after a reconnect: Off then sets Bracketing Off
                 self._set("d0cb", 1)  # Focus BKT on
                 try:
                     self._set_stack_flag(1)  # d0ce: merge the series in the camera (Focus Stacking)
                 except CameraError:
                     self._set("d0cb", 2)  # not a plain series left behind
                     raise
-            except CameraError:
-                self._set("d020", getattr(self, "_bkt_before", BKT_OFF))  # e.g. a lens without Focus BKT (p.173)
+            except CameraError:  # e.g. a lens without Focus BKT (p.173): leave Bracketing as it was
                 self._set_bkt_main(getattr(self, "_bkt_main_before", None) or 2)
                 raise
         else:
             self._set_stack_flag(2)
             self._set("d0cb", 2)
-            if int(float(self._value("d020"))) == BKT_FOCUS:  # leave another bracketing kind alone
-                self._set("d020", getattr(self, "_bkt_before", BKT_OFF))
-                self._set_bkt_main(getattr(self, "_bkt_main_before", None) or 2)  # as it was (default Off)
+            self._set_bkt_main(getattr(self, "_bkt_main_before", None) or 2)  # as it was (default Off)
         self.refresh()  # drive mode, shutter limits and flash change with it; they arrive with a new session
 
     def _set_stack_flag(self, value):
@@ -1633,18 +1704,20 @@ class UsbCamera:
             self.af_failed = False
             self._event_log = []
             t_ev = time.monotonic()
-            self._events(SHOT_TIMEOUT, "quiet")
-            self._direct_store(t_ev + SHOT_TIMEOUT)
-            if stacking:  # 8 frames (16 files) come first, the merged picture last
+            if not stacking:
+                self._events(SHOT_TIMEOUT, "quiet")
+                self._direct_store(t_ev + SHOT_TIMEOUT)
+            else:  # 8 frames (16 files) come first, the merged picture last; the camera may go silent while
+                # merging from a few seconds after the release (USB test 2026-11-23: read failed at 8.1 s)
                 self._stack_events(t0 + STACK_FRAMES_WAIT, marks, t0)
-                if len(set(self._new_files)) <= 2:  # one frame (JPG+ORF): the camera did not stack
+                if 1 <= len(set(self._new_files)) <= 2:  # one frame (JPG+ORF): the camera did not stack
                     self.stack_note = True
                     marks.append(("stacking: 1 frame", time.monotonic() - t0))
                 else:
                     self._stack_events(t0 + STACK_WAIT, marks, t0)
             marks.append(("files" if not self.direct_paths else "direct store", time.monotonic() - t0))
             if self._new_files:
-                self._events(1.5)  # the second format (ORF or JPG) follows shortly after
+                self._events(SECOND_FORMAT_WAIT)  # the second format (ORF or JPG) follows shortly after
         except Exception as e:
             marks.append(("error [%s]" % e, time.monotonic() - t0))
             raise

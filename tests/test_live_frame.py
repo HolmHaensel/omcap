@@ -25,7 +25,7 @@ class LiveFrame(unittest.TestCase):
         self.host = "127.0.0.1:%d" % port
         server.allowed_hosts.add(self.host)
         self.httpd = ThreadingHTTPServer(("127.0.0.1", port), server.Handler)
-        threading.Thread(target=self.httpd.serve_forever, daemon=True).start()
+        threading.Thread(target=self.httpd.serve_forever, kwargs={"poll_interval": 0.01}, daemon=True).start()
 
     def tearDown(self):
         self.httpd.shutdown()

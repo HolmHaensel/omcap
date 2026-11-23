@@ -131,3 +131,7 @@ class FocusRaster(unittest.TestCase):
         self.assertIsNone(focus_in_raster({"x": 0, "y": 0}, area))
 
 
+
+
+if __name__ == "__main__":
+    unittest.main()

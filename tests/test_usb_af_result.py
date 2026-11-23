@@ -49,8 +49,8 @@ class EarlyStop(unittest.TestCase):
     def test_caf_keeps_waiting(self):
         cam = self.make(saf=False)
         t0 = time.monotonic()
-        cam._events(1.5, "quiet")
-        self.assertGreaterEqual(time.monotonic() - t0, 1.5)
+        cam._events(1.2, "quiet")  # longer than the 1 s early stop of S-AF
+        self.assertGreaterEqual(time.monotonic() - t0, 1.2)
         self.assertFalse(cam.af_failed)
 
 

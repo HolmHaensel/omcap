@@ -132,3 +132,7 @@ class SaveCfgHardening(SaveCfg):
         server.save_cfg.update(scheme="datetime")
         b = server.save_capture("/DCIM/A.JPG", 1)
         self.assertNotEqual(server.save_capture("/DCIM/A.JPG", 1), b)
+
+
+if __name__ == "__main__":
+    unittest.main()
