@@ -224,6 +224,7 @@ USB_TABLES = {
 # switches by itself to Silent Sequential H, electronic shutter (1/16000 … 1/8 s) and flash off (E-M1 manual, p.174).
 BKT_OFF, BKT_FOCUS = 2, 3
 BKT_MAIN = "d0a6"  # Bracketing On (1) / Off (2), the main switch of Shooting Menu 2 (found 2026-11-22 by diff)
+LV_BOOST = "d0ea"  # Live View Boost: 1 = On1, 2 = Off, 3 = On2 (confirmed in OM Capture traces B & C, 2026-11-16/22)
 STACK_FRAMES_WAIT = 6.0  # the 8 frames are on the card ~3.5 s after the release; then decide whether to wait on
 STACK_WAIT = 16.0  # 8 frames (16 files with JPG+ORF) in ~3.5 s, the merged JPG ~13.6 s after the release (2026-11-13)
 
@@ -1236,6 +1237,18 @@ class UsbCamera:
     def focus_mode(self):
         """Current AF mode code as string ('1' = MF, '32769' = S-AF+MF, '2' = S-AF, '32770' = C-AF)."""
         return self._prop_now("d003")
+
+    def set_lv_boost(self, value):
+        """Set Live View Boost d0ea (1 On1, 2 Off, 3 On2); returns previous int value or None if unsupported."""
+        self._need_write()
+        try:
+            before = int(float(self._prop_now(LV_BOOST)))
+        except (CameraError, ValueError):
+            return None
+        want = int(value)
+        if before != want:
+            self._set(LV_BOOST, want)
+        return before
 
     def mf_drive(self, direction, step):
         """Move the focus like turning the focus ring (MF, S-AF+MF): direction "near"/"far", step 1-3."""

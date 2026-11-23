@@ -116,10 +116,119 @@ def measure_star(luma, cx=None, cy=None, box=96, aperture=18):
         "peak": round(raw_peak, 1),
         "snr": round(snr, 1),
         "bg": round(local_bg, 1),
-        "saturated": float(roi[sy_roi, sx_roi]) >= 250.0,
+        "saturated": float(roi[sy_roi - 1:sy_roi + 2, sx_roi - 1:sx_roi + 2].max()) >= 250.0,
         "x": round(max(0.0, min(1.0, star_x)), 4),
         "y": round(max(0.0, min(1.0, star_y)), 4),
     }
+
+
+MFT_COC_MM = 0.015  # Micro Four Thirds circle of confusion (17.3 x 13.0 mm sensor)
+
+
+def hyperfocal_m(focal_mm, f_number, coc_mm=MFT_COC_MM):
+    """Hyperfocal distance in metres and near-sharp limit (H/2) for Micro Four Thirds, else None."""
+    try:
+        f = float(focal_mm)
+        n = float(f_number)
+    except (TypeError, ValueError):
+        return None
+    if f <= 0 or n <= 0 or coc_mm <= 0:
+        return None
+    h_m = (f * f / (n * coc_mm) + f) / 1000.0
+    return {"hyperfocal_m": round(h_m, 2), "near_m": round(h_m / 2.0, 2)}
+
+
+def _dilate_mask(mask, radius):
+    """Return boolean mask True wherever any True pixel lies within Chebyshev distance <= radius."""
+    import numpy as np
+
+    if not mask.any() or radius <= 0:
+        return mask.copy()
+    h, w = mask.shape
+    r = int(radius)
+    padded = np.pad(mask.astype(np.int32), r, mode="constant", constant_values=0)
+    cs = np.zeros((h + 2 * r + 1, w + 2 * r + 1), dtype=np.int32)
+    cs[1:, 1:] = padded.cumsum(axis=0).cumsum(axis=1)
+    k = 2 * r + 1
+    box_sum = cs[k:, k:] - cs[:-k, k:] - cs[k:, :-k] + cs[:-k, :-k]
+    return box_sum > 0
+
+
+def _local_max_mask(arr, radius=2):
+    """Boolean mask of pixels that are >= every neighbour within Chebyshev distance <= radius."""
+    import numpy as np
+
+    h, w = arr.shape
+    r = int(radius)
+    p = np.pad(arr, r, mode="constant", constant_values=-np.inf)
+    k = 2 * r + 1
+    hmax = np.maximum.reduce([p[:, i:i + w] for i in range(k)])
+    vmax = np.maximum.reduce([hmax[i:i + h, :] for i in range(k)])
+    return arr >= vmax
+
+
+def find_brightest_star(luma, margin=24):
+    """Scan the full frame for the brightest star, preferring non-saturated stars over clipped beacons.
+
+    margin: border pixels excluded so Zoom AF x10 stays inside the camera's 10-90 % crop limits.
+    Returns {"found": True, "x": 0..1, "y": 0..1, "peak": ..., "snr": ..., "saturated": bool} or {"found": False}.
+    """
+    import numpy as np
+
+    img = np.asarray(luma, dtype=np.float32)
+    if img.ndim != 2 or img.shape[0] < 16 or img.shape[1] < 16:
+        return {"found": False}
+    h, w = img.shape
+    m = max(4, min(int(margin), h // 6, w // 6))
+    roi = img[m:h - m, m:w - m]
+    bg = float(np.median(roi))
+    mad = float(np.median(np.abs(roi - bg)))
+    sigma = max(1.4826 * mad, 1.0)
+
+    # 3x3 mean rejects isolated 1-pixel hot pixels
+    smooth = (
+        roi[:-2, :-2] + roi[:-2, 1:-1] + roi[:-2, 2:]
+        + roi[1:-1, :-2] + roi[1:-1, 1:-1] + roi[1:-1, 2:]
+        + roi[2:, :-2] + roi[2:, 1:-1] + roi[2:, 2:]
+    ) / 9.0
+    center = roi[1:-1, 1:-1]
+
+    # Exclude saturated cores and their halo (both by local-max check and an exclusion radius around >= 250)
+    sat_core = center >= 250.0
+    sat3 = _dilate_mask(sat_core, 1)
+    near_sat = _dilate_mask(sat_core, 10)
+    is_peak = _local_max_mask(smooth, 2)
+
+    # Prefer bright unsaturated star peaks so HFR is not distorted by flat-topped clipping
+    unsat = np.where(is_peak & ~near_sat, smooth, -1.0)
+    idx = int(np.argmax(unsat))
+    sy_rel, sx_rel = divmod(idx, smooth.shape[1])
+    use_val = float(unsat[sy_rel, sx_rel])
+    if use_val - bg < 8.0 or float(center[sy_rel, sx_rel]) - bg < 12.0 or (use_val - bg) / sigma < 3.5:
+        idx = int(np.argmax(smooth))
+        sy_rel, sx_rel = divmod(idx, smooth.shape[1])
+        use_val = float(smooth[sy_rel, sx_rel])
+
+    smooth_peak = use_val - bg
+    raw_peak = float(center[sy_rel, sx_rel]) - bg
+    snr = smooth_peak / sigma
+    if smooth_peak < 8.0 or raw_peak < 12.0 or snr < 3.5:
+        return {"found": False, "bg": round(bg, 1), "noise": round(sigma, 2), "snr": round(snr, 1)}
+
+    sx = m + sx_rel + 1
+    sy = m + sy_rel + 1
+    return {
+        "found": True,
+        "x": round(sx / float(w), 4),
+        "y": round(sy / float(h), 4),
+        "peak": round(raw_peak, 1),
+        "snr": round(snr, 1),
+        "saturated": bool(sat3[sy_rel, sx_rel]),
+    }
+
+
+def find_brightest_star_jpeg(jpeg_bytes, margin=24):
+    return find_brightest_star(decode_luma(jpeg_bytes), margin=margin)
 
 
 def measure_jpeg(jpeg_bytes, cx=None, cy=None, box=96, aperture=18):
@@ -180,6 +289,7 @@ class AutoStarAF:
         self.start_hfr = None
         self.best_hfr = None
         self.current_hfr = None
+        self.saturated = False
 
     def _emit(self, phase, message, step=0):
         if self.on_progress:
@@ -190,6 +300,7 @@ class AutoStarAF:
                 "hfr": self.current_hfr,
                 "best_hfr": self.best_hfr,
                 "start_hfr": self.start_hfr,
+                "saturated": self.saturated,
                 "samples": list(self.samples[-30:]),
             })
 
@@ -221,6 +332,7 @@ class AutoStarAF:
         m = measure_frames(frames, cx=self.cx, cy=self.cy)
         if m.get("found"):
             self.current_hfr = m["hfr"]
+            self.saturated = bool(m.get("saturated"))
             if self.start_hfr is None:
                 self.start_hfr = m["hfr"]
             if self.best_hfr is None or m["hfr"] < self.best_hfr:
@@ -338,7 +450,8 @@ class AutoStarAF:
 
         final = self._measure(fine_best_pos, "final")
         final_hfr = final["hfr"] if (final and final.get("found")) else fine_best_hfr
-        return self._finish("done", "Focused · HFR %.2f px (start %.2f px)" % (final_hfr, self.start_hfr))
+        sat_note = " (star clipped – try a dimmer star)" if self.saturated else ""
+        return self._finish("done", "Focused · HFR %.2f px (start %.2f px)%s" % (final_hfr, self.start_hfr, sat_note))
 
     def _finish(self, phase, message):
         out = {
@@ -347,6 +460,7 @@ class AutoStarAF:
             "hfr": self.current_hfr,
             "best_hfr": self.best_hfr,
             "start_hfr": self.start_hfr,
+            "saturated": self.saturated,
             "samples": list(self.samples[-30:]),
         }
         if self.on_progress:

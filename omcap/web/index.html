@@ -465,8 +465,10 @@ body.webcam{cursor:none;display:flex;align-items:center;justify-content:center}
   </div>
   <div class="tb" id="starRow" hidden>
     <button class="w" id="starAuto" data-feat="mf_drive" data-i18n="star.auto">Auto Star AF</button>
+    <label class="tog" data-feat="mf_drive"><input type="checkbox" id="starLock"> <span data-i18n="star.lock">Lock focus</span></label>
     <span id="starHfr" class="chip" role="status"></span>
     <span id="starBest" class="mut"></span>
+    <span id="starHyp" class="mut"></span>
     <button id="starReset" class="mini" data-i18n="star.reset">Reset</button>
     <span id="starMsg" class="mut"></span>
   </div>
@@ -503,6 +505,7 @@ body.webcam{cursor:none;display:flex;align-items:center;justify-content:center}
     <div class="row" id="rowStar" data-feat="star_af">
       <button type="button" id="starPanelTog" data-i18n="lv.starAf">Star AF</button>
       <button type="button" class="w" id="starPanelAuto" data-feat="mf_drive" data-i18n="star.auto">Auto Star AF</button>
+      <button type="button" id="starPanelLock" data-feat="mf_drive" data-i18n="star.lock">Lock focus</button>
     </div>
     <div class="row" id="afShowRow">
       <label><input type="checkbox" id="afShow" checked> <span data-i18n="af.show">Show AF targets</span></label>
@@ -832,8 +835,12 @@ const I18N={en:{
   "lv.starAf": "Star AF",
   "star.auto": "Auto Star AF",
   "star.stop": "Stop Star AF",
+  "star.lock": "Lock focus",
+  "star.locked": "Focus locked",
   "star.hfr": "HFR {v} px",
+  "star.hfrClip": "HFR {v} px · clipped",
   "star.best": "Best {v} px",
+  "star.hyp": "Hyperfocal {h} m ({n} m–∞)",
   "star.noStar": "No star",
   "star.reset": "Reset",
   "star.manualHint": "Turn the focus ring to minimise HFR",
@@ -2951,6 +2958,7 @@ function showAf(){
   drawAf();
 }
 function pickField(e){
+  if($('#starLock').checked) return;
   if(isStarActive()){
     const b=layer.getBoundingClientRect();
     if(b.width>0&&b.height>0){
@@ -3113,23 +3121,65 @@ function drawHist(data){
   g.fillStyle='rgba(255,255,255,.55)';
   for(let i=0;i<256;i++){const hh=Math.min(1,l[i]/mx)*(H-3);g.fillRect(i/255*(W-1),H-hh,Math.max(1,W/256),hh)}
 }
-let starBestHfr=null, starPt={x:0.5,y:0.5};
+let starBestHfr=null, starPt=null, starSwitchedMf=false;
 function isStarActive(){return !!($('#starAfOn').checked||(st&&st.star_af&&st.star_af.running))}
+function hyperfocalText(){
+  // MFT circle of confusion 0.015 mm: H = f^2 / (N * c) + f, sharp from H/2 to infinity
+  const f=(st&&st.lvinfo&&st.lvinfo.focal&&st.lvinfo.focal[2])||(lens&&(lens.focal||(lens.focal_min&&lens.focal_min===lens.focal_max?lens.focal_min:null)));
+  const mode=lastProps&&lastProps.takemode&&lastProps.takemode.value;
+  const liveAp=st&&st.lvinfo&&st.lvinfo.aperture;
+  const ap=(liveAp&&!['A','M','B'].includes(mode))?liveAp:(lastProps&&lastProps.focalvalue&&parseFloat(lastProps.focalvalue.value))||liveAp;
+  if(!f||!ap||f<=0||ap<=0) return '';
+  const h=(f*f/(ap*0.015)+f)/1000;
+  return tr('star.hyp',{h:h.toFixed(1),n:(h/2).toFixed(1)});
+}
 function measureStarHfr(gray,w,h,pt){
-  // Search around the chosen star point (centre when zoomed); 3x3 mean suppresses hot pixels (REQ-F24)
-  const px=Math.round((pt?pt.x:0.5)*(w-1)), py=Math.round((pt?pt.y:0.5)*(h-1));
-  const half=Math.max(12,Math.min(96,w>>1,h>>1));
-  const x0=Math.max(0,px-half),x1=Math.min(w,px+half),y0=Math.max(0,py-half),y1=Math.min(h,py+half);
+  // Search around the chosen star point (or full frame when pt is null); 3x3 mean suppresses hot pixels (REQ-F24)
+  let x0,x1,y0,y1;
+  if(pt){
+    const px=Math.round(pt.x*(w-1)), py=Math.round(pt.y*(h-1));
+    const half=Math.max(12,Math.min(96,w>>1,h>>1));
+    x0=Math.max(0,px-half); x1=Math.min(w,px+half); y0=Math.max(0,py-half); y1=Math.min(h,py+half);
+  }else{
+    const m=Math.max(8,Math.min(24,Math.floor(w/8),Math.floor(h/8)));
+    x0=m; x1=w-m; y0=m; y1=h-m;
+  }
   const rw=x1-x0,rh=y1-y0; if(rw<11||rh<11) return null;
   const hist=new Uint32Array(256);
   for(let y=y0;y<y1;y++) for(let x=x0;x<x1;x++) hist[gray[y*w+x]]++;
   const mid=(rw*rh)>>1; let acc=0,bg=0;
   for(let i=0;i<256;i++){acc+=hist[i];if(acc>=mid){bg=i;break}}
-  let best=0,bx=-1,by=-1;
-  for(let y=y0+4;y<y1-4;y++) for(let x=x0+4;x<x1-4;x++){
-    const s=(gray[(y-1)*w+x-1]+gray[(y-1)*w+x]+gray[(y-1)*w+x+1]+gray[y*w+x-1]+gray[y*w+x]+gray[y*w+x+1]+gray[(y+1)*w+x-1]+gray[(y+1)*w+x]+gray[(y+1)*w+x+1])/9;
-    if(s>best){best=s;bx=x;by=y}
+  // Precompute 3x3 mean inside ROI so local-max checks stay fast
+  const sm=new Float32Array(rw*rh);
+  for(let ry=1;ry<rh-1;ry++){
+    const gy=y0+ry, row=gy*w, rOut=ry*rw;
+    for(let rx=1;rx<rw-1;rx++){
+      const gx=x0+rx;
+      sm[rOut+rx]=(gray[row-w+gx-1]+gray[row-w+gx]+gray[row-w+gx+1]
+        +gray[row+gx-1]+gray[row+gx]+gray[row+gx+1]
+        +gray[row+w+gx-1]+gray[row+w+gx]+gray[row+w+gx+1])/9;
+    }
   }
+  let bestU=0,bxU=-1,byU=-1,bestA=0,bxA=-1,byA=-1;
+  for(let ry=4;ry<rh-4;ry++) for(let rx=4;rx<rw-4;rx++){
+    const s=sm[ry*rw+rx];
+    if(s-bg<8) continue;
+    const gx=x0+rx, gy=y0+ry;
+    if(gray[gy*w+gx]-bg<12) continue;
+    if(s>bestA){bestA=s;bxA=gx;byA=gy}
+    if(!pt&&s>bestU){
+      // Full-frame auto search prefers unsaturated 5x5 local maxima clear of any clipped beacon (r=10)
+      let isPeak=true;
+      for(let dy=-2;dy<=2&&isPeak;dy++) for(let dx=-2;dx<=2;dx++) if(sm[(ry+dy)*rw+(rx+dx)]>s){isPeak=false;break}
+      if(!isPeak) continue;
+      let nearSat=false;
+      const sx0=Math.max(x0,gx-10),sx1=Math.min(x1-1,gx+10),sy0=Math.max(y0,gy-10),sy1=Math.min(y1-1,gy+10);
+      for(let yy=sy0;yy<=sy1&&!nearSat;yy++) for(let xx=sx0;xx<=sx1;xx++) if(gray[yy*w+xx]>=250){nearSat=true;break}
+      if(!nearSat){bestU=s;bxU=gx;byU=gy}
+    }
+  }
+  const useU=!pt&&bxU>=0;
+  const bx=useU?bxU:bxA, by=useU?byU:byA, best=useU?bestU:bestA;
   if(bx<0||best-bg<8||gray[by*w+bx]-bg<12) return null;
   const ap=Math.min(18,bx-x0,by-y0,x1-1-bx,y1-1-by);
   if(ap<3) return null;
@@ -3142,39 +3192,52 @@ function measureStarHfr(gray,w,h,pt){
   for(let dy=-ap;dy<=ap;dy++) for(let dx=-ap;dx<=ap;dx++){
     const v=gray[(by+dy)*w+(bx+dx)]-bg; if(v>0) rsum+=v*Math.hypot(dx-cx,dy-cy);
   }
-  return {hfr:rsum/sum,x:bx+cx,y:by+cy,ap};
+  let sat=false;
+  for(let dy=-1;dy<=1&&!sat;dy++) for(let dx=-1;dx<=1;dx++) if(gray[(by+dy)*w+(bx+dx)]>=250){sat=true;break}
+  return {hfr:rsum/sum,x:bx+cx,y:by+cy,ap,saturated:sat};
 }
 function updateStarAfUi(){
   const on=!!(st&&st.live&&$('#starAfOn').checked);
-  const sa=(st&&st.star_af)||{}, run=!!sa.running;
+  const sa=(st&&st.star_af)||{}, run=!!sa.running, locked=!!$('#starLock').checked;
   const active=on||run;
   $('#starRow').hidden=!active;
   $('#viewport').classList.toggle('star',active);
   $('#starPanelTog').classList.toggle('on',!!$('#starAfOn').checked);
   $('#starPanelTog').setAttribute('aria-pressed',$('#starAfOn').checked?'true':'false');
-  const blocked=!canWrite||(!run&&(!st||!st.live||zBlock));
+  $('#starPanelLock').classList.toggle('on',locked);
+  $('#starPanelLock').setAttribute('aria-pressed',locked?'true':'false');
+  $('#starPanelLock').textContent=tr(locked?'star.locked':'star.lock');
+  document.querySelectorAll('[data-mf]').forEach(b=>b.disabled=!canWrite||locked||run);
+  const blocked=!canWrite||(!run&&(locked||!st||!st.live||zBlock));
   for(const btn of [$('#starAuto'),$('#starPanelAuto')]){
     btn.textContent=tr(run?'star.stop':'star.auto');
     btn.classList.toggle('rec',run);
     btn.disabled=blocked;
   }
+  $('#starHyp').textContent=active?hyperfocalText():'';
   const m=sa.message||(features.has('mf_drive')?'':tr('star.manualHint'));
   $('#starMsg').textContent=m;
   $('#starMsg').className=sa.error?'warn':'mut';
+  if(sa.switched_to_mf&&!starSwitchedMf){starSwitchedMf=true;props()}
+  if(!sa.switched_to_mf) starSwitchedMf=false;
 }
 async function runStarAuto(){
   const run=!!(st&&st.star_af&&st.star_af.running);
   try{
     if(run){await api('/api/staraf',{action:'stop'});return}
+    if($('#starLock').checked) return;
     if(!$('#starAfOn').checked){$('#starAfOn').checked=true;aidSave();applyContext();drawAf()}
-    const p=loupeOn?{x:0.5,y:0.5}:starPt;
-    await api('/api/staraf',{action:'start',x:p.x,y:p.y,zoom:true});
+    const body={action:'start',zoom:true,boost:true};
+    if(!loupeOn&&starPt){body.x=starPt.x;body.y=starPt.y}
+    await api('/api/staraf',body);
     tick();
   }catch(e){msg(e.message,true)}
 }
-$('#starReset').onclick=()=>{starBestHfr=null;starPt={x:0.5,y:0.5};$('#starBest').textContent=''};
+$('#starReset').onclick=()=>{starBestHfr=null;starPt=null;$('#starBest').textContent=''};
 $('#starAuto').onclick=runStarAuto;
 $('#starPanelAuto').onclick=runStarAuto;
+$('#starLock').onchange=updateStarAfUi;
+$('#starPanelLock').onclick=()=>{$('#starLock').checked=!$('#starLock').checked;updateStarAfUi()};
 $('#starPanelTog').onclick=()=>{$('#starAfOn').checked=!$('#starAfOn').checked;aidSave();applyContext();drawAf();aidTick()};
 $('#starAfOn').addEventListener('change',()=>{applyContext();drawAf()});
 function aidTick(){
@@ -3216,10 +3279,10 @@ function aidTick(){
     const res=measureStarHfr(gray,w,h,loupeOn?{x:0.5,y:0.5}:starPt),chip=$('#starHfr');
     if(res){
       if(starBestHfr===null||res.hfr<starBestHfr) starBestHfr=res.hfr;
-      chip.textContent=tr('star.hfr',{v:res.hfr.toFixed(2)});
-      chip.classList.toggle('ok',res.hfr<=starBestHfr*1.1);
+      chip.textContent=tr(res.saturated?'star.hfrClip':'star.hfr',{v:res.hfr.toFixed(2)});
+      chip.classList.toggle('ok',!res.saturated&&res.hfr<=starBestHfr*1.1);
       $('#starBest').textContent=tr('star.best',{v:starBestHfr.toFixed(2)});
-      og.strokeStyle='#3DDC84'; og.lineWidth=1.5;
+      og.strokeStyle=res.saturated?'#FFB020':'#3DDC84'; og.lineWidth=1.5;
       og.beginPath(); og.arc(res.x,res.y,Math.max(8,res.hfr*2.5),0,Math.PI*2); og.stroke();
     }else{
       chip.textContent=tr('star.noStar'); chip.classList.remove('ok');

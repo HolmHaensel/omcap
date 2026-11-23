@@ -73,6 +73,30 @@ class StarMeasurement(unittest.TestCase):
         self.assertTrue(m["found"])
         self.assertLess(m["hfr"], 3.5)
 
+    def test_full_frame_finder_prefers_unsaturated_star(self):
+        # Blown-out beacon at (60, 50) + clean unsaturated star at (180, 120)
+        img = make_star_frame(w=240, h=180, sx=60.0, sy=50.0, sigma=2.5, peak=255.0, bg=10.0)
+        img += make_star_frame(w=240, h=180, sx=180.0, sy=120.0, sigma=2.0, peak=160.0, bg=0.0)
+        img = np.clip(img, 0, 255)
+        hit = star_af.find_brightest_star(img)
+        self.assertTrue(hit["found"])
+        self.assertFalse(hit["saturated"])
+        self.assertAlmostEqual(hit["x"], 180.0 / 240.0, delta=0.03)
+        self.assertAlmostEqual(hit["y"], 120.0 / 180.0, delta=0.03)
+
+    def test_full_frame_finder_falls_back_to_saturated_with_flag(self):
+        img = make_star_frame(w=240, h=180, sx=170.0, sy=110.0, sigma=2.5, peak=255.0, bg=10.0)
+        hit = star_af.find_brightest_star(img)
+        self.assertTrue(hit["found"])
+        self.assertTrue(hit["saturated"])
+
+    def test_hyperfocal_mft_calculation(self):
+        h = star_af.hyperfocal_m(12, 2.8)
+        self.assertAlmostEqual(h["hyperfocal_m"], 3.44, places=1)
+        self.assertAlmostEqual(h["near_m"], 1.72, places=1)
+        self.assertIsNone(star_af.hyperfocal_m(0, 2.8))
+        self.assertIsNone(star_af.hyperfocal_m("bad", 2.8))
+
 
 class AutoStarAfVcurve(unittest.TestCase):
     def _run_sim(self, start_pos, true_focus, stop_after=None):
@@ -181,14 +205,47 @@ class ServerGuards(unittest.TestCase):
         block = src[src.index('elif path == "/api/staraf":'):][:300]
         self.assertNotIn("_local()", block)
 
+    def test_auto_star_af_boosts_finds_star_switches_to_mf_and_restores_boost(self):
+        cam, live = self._setup_cam(fm="32769")  # S-AF+MF
+        boost_calls = []
+        def set_lv_boost(val):
+            boost_calls.append(val)
+            return 2 if len(boost_calls) == 1 else 3
+        cam.set_lv_boost.side_effect = set_lv_boost
+        # Off-center star for full-frame scan, then centered sharp star while zoomed
+        off_jpg = to_jpeg(make_star_frame(w=240, h=180, sx=180.0, sy=120.0, sigma=2.0, peak=180.0))
+        ctr_jpg = to_jpeg(make_star_frame(w=240, h=180, sx=120.0, sy=90.0, sigma=1.4, peak=190.0))
+        frames = [off_jpg] + [ctr_jpg] * 30
+        live.wait_frame.side_effect = lambda seq, timeout=1.5: (seq + 1, frames.pop(0) if frames else ctr_jpg, (0, 0))
+
+        with mock.patch.object(server.stop_job, "wait", return_value=False), \
+             mock.patch.object(star_af.AutoStarAF, "run", return_value={"phase": "done", "message": "Focused · HFR 1.40 px"}):
+            server.start_star_af(x=None, y=None, zoom=True, boost=True)
+            for _ in range(100):
+                if not server.star_af_state["running"]:
+                    break
+                threading.Event().wait(0.01)
+
+        self.assertEqual(boost_calls, [3, 2])  # On2 during Star AF, restored to Off in finally
+        self.assertTrue(cam.loupe.called)
+        _, ratio, lx, ly = cam.loupe.call_args[0]
+        self.assertEqual(ratio, 10)
+        self.assertAlmostEqual(lx, 180.0 / 240.0, delta=0.05)
+        self.assertAlmostEqual(ly, 120.0 / 180.0, delta=0.05)
+        cam.set_prop.assert_called_with("focusmode", "1")
+        self.assertTrue(server.star_af_state["switched_to_mf"])
+        self.assertIn("switched to MF", server.star_af_state["message"])
+
 
 class PageMarkup(unittest.TestCase):
     def test_star_af_controls_and_i18n_keys_present(self):
         h = HTML.read_text(encoding="utf-8")
         for frag in ('id="starAfOn"', 'id="starRow"', 'id="starHfr"', 'id="starBest"',
+                     'id="starHyp"', 'id="starLock"', 'id="starPanelLock"',
                      'id="starReset"', 'id="starAuto"', 'data-feat="star_af"', 'data-feat="mf_drive"'):
             self.assertIn(frag, h)
-        for key in ("lv.starAf", "star.auto", "star.stop", "star.hfr", "star.best",
+        for key in ("lv.starAf", "star.auto", "star.stop", "star.lock", "star.locked",
+                    "star.hfr", "star.hfrClip", "star.best", "star.hyp",
                     "star.noStar", "star.reset", "star.manualHint"):
             self.assertIn('"%s":' % key, h)
         self.assertIn("'/api/staraf'", h)
