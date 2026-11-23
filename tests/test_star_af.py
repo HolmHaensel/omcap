@@ -364,12 +364,15 @@ def server_path():
 
 
 class StarChip(unittest.TestCase):
-    def test_live_view_shows_star_af_icon_while_on(self):
+    def test_live_view_shows_star_af_inline_in_valstrip_and_workflow_wired(self):
         import os
         from omcap import server
         h = open(os.path.join(os.path.dirname(server.__file__), "web", "index.html"), encoding="utf-8").read()
-        self.assertIn('<div id="starChip" hidden>', h)
-        self.assertIn("sc.hidden=!(st.live&&isStarActive());", h)
+        self.assertNotIn('id="starChip"', h)
+        self.assertIn("out.push([run?'saf run':'saf','★AF'", h)
+        self.assertIn("async function ensureStarMf()", h)
+        self.assertIn("if(starWasRunning&&!run&&sa.phase==='done'&&features.has('mf_drive')) $('#starLock').checked=true;", h)
+        self.assertIn("if(canWrite&&features.has('mf_drive')&&isStarMfReady()&&!(st&&st.star_af&&st.star_af.running)&&!zBlock) runStarAuto();", h)
 
 
 if __name__ == "__main__":

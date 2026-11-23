@@ -129,7 +129,7 @@ button:disabled{color:var(--disabled);opacity:.6;cursor:not-allowed}
 #valStrip .sub{color:var(--muted);font-size:.8em;margin-left:-14px} /* ISO the camera picks at ISO AUTO */
 .isoAuto{display:block;font:12px var(--font-value);color:var(--muted);margin-top:2px}
 #valStrip{position:absolute;left:0;right:0;bottom:0;height:44px;display:flex;align-items:center;gap:22px;padding:0 18px;background:linear-gradient(0deg,rgba(0,0,0,.78),rgba(0,0,0,0));font-family:var(--font-value);font-size:17px;font-weight:500;pointer-events:none;z-index:2;white-space:nowrap;overflow:hidden}
-#valStrip .m{color:var(--accent);font-weight:600} #valStrip .sz{margin-left:auto;color:var(--muted);font-size:14px}
+#valStrip .m{color:var(--accent);font-weight:600} #valStrip .saf{color:var(--accent);font-weight:600} #valStrip .saf.run{color:#fff;text-shadow:0 0 8px var(--accent)} #valStrip .sz{margin-left:auto;color:var(--muted);font-size:14px}
 #start{min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:28px;padding:24px 16px}
 #stopped{min-height:100vh;display:flex;align-items:center;justify-content:center;font-size:18px}
 #start h1{font-size:30px;font-weight:300;letter-spacing:.02em}
@@ -176,9 +176,6 @@ button:disabled{color:var(--disabled);opacity:.6;cursor:not-allowed}
 .na{border:1px dashed var(--line-strong)!important;color:var(--disabled)!important;background:transparent!important;cursor:not-allowed}
 .na *{color:var(--disabled)!important;cursor:not-allowed}
 #recChip{position:absolute;left:12px;bottom:56px;display:flex;align-items:center;gap:8px;height:32px;padding:0 12px;border-radius:16px;background:var(--overlay);border:1px solid var(--rec);color:var(--rec-text);font-family:var(--font-value);font-weight:600;z-index:4;pointer-events:none}
-/* Star AF on: small "★AF" like the AF mode icon of newer bodies (OM-1 II manual p.101); app function */
-#starChip{position:absolute;left:12px;top:12px;display:flex;align-items:center;gap:2px;height:24px;padding:0 8px;border-radius:12px;background:var(--overlay);border:1px solid var(--accent-line);color:var(--accent);font-family:var(--font-value);font-size:var(--fs-label);font-weight:600;z-index:4;pointer-events:none}
-#starChip.run{border-color:var(--accent)}
 #recChip .dot{background:var(--rec);animation:blink 1s steps(2) infinite}
 @keyframes blink{50%{opacity:.25}}
 @media(prefers-reduced-motion:reduce){#recChip .dot{animation:none}}
@@ -415,7 +412,6 @@ body.webcam{cursor:none;display:flex;align-items:center;justify-content:center}
     <div id="blackout" aria-hidden="true"></div>
     <canvas id="levelGauge"></canvas>
     <canvas id="histCv" width="160" height="70" hidden></canvas>
-    <div id="starChip" hidden><span aria-hidden="true">★</span><span>AF</span></div>
     <div id="recChip" hidden><span class="dot"></span><span id="recText"></span></div>
     <div id="dropChip" hidden></div>
     <div id="focusChip" hidden><span class="dot"></span><span id="focusChipText"></span></div>
@@ -470,7 +466,7 @@ body.webcam{cursor:none;display:flex;align-items:center;justify-content:center}
   <div class="tb" id="starRow" hidden>
     <button class="w" id="starAuto" data-feat="mf_drive" data-i18n="star.auto">Auto Star AF</button>
     <select id="starPrio" data-feat="mf_drive" data-i18n-aria="star.prioAria" aria-label="Star AF speed or accuracy" data-i18n-title="star.prioHint" title="Speed: quicker. Accuracy: slower, but sharper."><option value="speed" data-i18n="star.speed">Speed</option><option value="accuracy" data-i18n="star.accuracy">Accuracy</option></select>
-    <label class="tog" id="starLockLab" data-feat="mf_drive"><input type="checkbox" id="starLock"> <span data-i18n="star.lock">Lock focus</span></label>
+    <label class="tog" id="starLockLab" data-feat="mf_drive"><input type="checkbox" id="starLock"> <span id="starLockTxt" data-i18n="star.lock">Lock focus</span></label>
     <span id="starHfr" class="chip" role="status" data-i18n-title="star.hfrTitle" title="Star size (HFR): smaller is sharper"></span>
     <span id="starBest" class="mut"></span>
     <span id="starHyp" class="mut"></span>
@@ -840,6 +836,9 @@ const I18N={en:{
   "star.prioAria": "Star AF speed or accuracy",
   "star.prioHint": "Speed: quicker. Accuracy: slower, but sharper.",
   "star.lock": "Lock focus",
+  "star.locked": "Focus locked",
+  "star.lockHint": "Locks Star AF, MF drive and live-view tap so accidental touches keep focus; click to unlock",
+  "star.autoMf": "AF mode set to MF for Star AF",
   "star.hfrTitle": "Star size (HFR): smaller is sharper",
   "star.hfr": "HFR {v} px",
   "star.hfrClip": "HFR {v} px · clipped",
@@ -1400,8 +1399,10 @@ function renderStrip(){
   const ec=g('expcomp'); if(ec!=null&&!mv) out.push(['',/^\d/.test(ec)&&+ec>0?'+'+ec:ec]);
   const iso=g('isospeedvalue'); if(iso&&!mv){out.push(['','ISO '+valName('isospeedvalue',iso)]); if(iso==='Auto'&&li.iso) out.push(['sub',String(li.iso)])}
   const wb=g('wbvalue'); if(wb!=null) out.push(['',tr('strip.wb')+' '+valName('wbvalue',wb)]);
+  // Star AF: show ★AF inline in the live view value strip (user 2026-11-23)
+  if(isStarActive()){const run=!!(st&&st.star_af&&st.star_af.running); out.push([run?'saf run':'saf','★AF',run?tr('star.running'):tr('star.chipTitle')])}
   s.innerHTML='';
-  for(const [c,t] of out){const e=document.createElement('span');if(c)e.className=c;e.textContent=t;s.append(e)}
+  for(const [c,t,ti] of out){const e=document.createElement('span');if(c)e.className=c;if(ti)e.title=ti;e.textContent=t;s.append(e)}
   const w=$('#live').naturalWidth;
   if(st.live&&w){const e=document.createElement('span');e.className='sz';e.textContent=w+'×'+$('#live').naturalHeight;s.append(e)}
   s.hidden=!out.length||!st.live;
@@ -2983,6 +2984,8 @@ function pickField(e){
     if(b.width>0&&b.height>0){
       starPt={x:Math.max(.05,Math.min(.95,(e.clientX-b.left)/b.width)),y:Math.max(.05,Math.min(.95,(e.clientY-b.top)/b.height))};
       starBestHfr=null; $('#starBest').textContent=''; aidTick();
+      // Over USB with write enabled and MF/S-AF+MF: tapping a star immediately runs Auto Star AF on it (user 2026-11-23)
+      if(canWrite&&features.has('mf_drive')&&isStarMfReady()&&!(st&&st.star_af&&st.star_af.running)&&!zBlock) runStarAuto();
     }
     return;
   }
@@ -2998,8 +3001,6 @@ function pickField(e){
 let focusMiss=0;
 function showNoFocus(){focusHit=null;focusMiss=Date.now()+FOCUS_SHOW;focusChipUpdate();setTimeout(focusChipUpdate,FOCUS_SHOW+50)}
 function focusChipUpdate(){
-  const sc=$('#starChip'),run=!!(st&&st.star_af&&st.star_af.running);
-  sc.hidden=!(st.live&&isStarActive()); sc.classList.toggle('run',run); sc.title=run?tr('star.running'):tr('star.chipTitle');
   const c=$('#focusChip'),ok=focusHit&&focusHit.until>Date.now(),miss=!ok&&focusMiss>Date.now();
   const working=st.live&&(focusing||st.stage>=1)&&!ok&&!miss;
   c.hidden=!(st.live&&(ok||miss||working));
@@ -3238,7 +3239,10 @@ function starStatusText(sa){
 }
 function updateStarAfUi(){
   const mv=isMovie(), mfReady=isStarMfReady();
-  const sa=(st&&st.star_af)||{}, run=!!sa.running, locked=isStarLocked();
+  const sa=(st&&st.star_af)||{}, run=!!sa.running;
+  // Auto-lock focus once Auto Star AF finishes sharply so accidental taps/MF presses keep focus (user 2026-11-23)
+  if(starWasRunning&&!run&&sa.phase==='done'&&features.has('mf_drive')) $('#starLock').checked=true;
+  const locked=isStarLocked();
   const on=!!(st&&st.live&&$('#starAfOn').checked&&!mv);
   const active=on||run;
   $('#starRow').hidden=!active;
@@ -3261,11 +3265,13 @@ function updateStarAfUi(){
   const lk=$('#starLock'), lkLab=$('#starLockLab');
   lk.disabled=!canWrite||run||mv||!mfReady;
   lkLab.classList.toggle('na',!canWrite);
-  lkLab.title=roTitle;
+  lkLab.title=roTitle||tr('star.lockHint');
+  $('#starLockTxt').textContent=tr(locked?'star.locked':'star.lock');
   $('#starHyp').textContent=active?hyperfocalText():'';
   const m=starStatusText(sa);
   $('#starMsg').textContent=m;
   $('#starMsg').className=sa.error?'warn':sa.phase==='done'?'ok':'mut';
+  if(starWasRunning!==run) renderStrip();
   if(starWasRunning&&!run&&m){
     msg(m,!!sa.error);
     if(sa.phase==='done'){focusHit={field:af?af.field:41,until:Date.now()+2000};focusChipUpdate();setTimeout(focusChipUpdate,2050)}
@@ -3275,11 +3281,23 @@ function updateStarAfUi(){
   if(sa.switched_to_mf&&!starSwitchedMf){starSwitchedMf=true;props()}
   if(!sa.switched_to_mf) starSwitchedMf=false;
 }
+async function ensureStarMf(){
+  if(!features.has('mf_drive')||!canWrite||isMovie()||isStarMfReady()) return;
+  try{
+    await api('/api/set',{prop:'focusmode',value:'1'});
+    if(lastProps&&lastProps.focusmode) lastProps.focusmode.value='1';
+    renderProps();
+    msg(tr('star.autoMf'));
+    props();
+  }catch(e){msg(e.message,true)}
+}
 async function runStarAuto(){
   const run=!!(st&&st.star_af&&st.star_af.running);
   try{
     if(run){await api('/api/staraf',{action:'stop'});return}
-    if(isStarLocked()||!isStarMfReady()) return;
+    if(isStarLocked()) return;
+    if(!isStarMfReady()) await ensureStarMf();
+    if(!isStarMfReady()) return;
     if(!$('#starAfOn').checked){$('#starAfOn').checked=true;aidSave();applyContext();drawAf()}
     const body={action:'start',zoom:true,boost:true,priority:$('#starPrio').value};
     if(!loupeOn&&starPt){body.x=starPt.x;body.y=starPt.y}
@@ -3290,7 +3308,11 @@ async function runStarAuto(){
 $('#starReset').onclick=()=>{starBestHfr=null;starPt=null;$('#starBest').textContent=''};
 $('#starAuto').onclick=runStarAuto;
 $('#starLock').onchange=updateStarAfUi;
-$('#starAfOn').addEventListener('change',()=>{applyContext();drawAf()});
+$('#starAfOn').addEventListener('change',async()=>{
+  if($('#starAfOn').checked) await ensureStarMf();
+  else $('#starLock').checked=false;
+  applyContext();drawAf();renderStrip();updateStarAfUi();
+});
 function aidTick(){
   if(quitting) return;
   const mv=isMovie();
