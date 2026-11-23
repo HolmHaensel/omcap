@@ -1103,7 +1103,17 @@ def _is_usb_sequential_drive(drive_val):
         return False
 
 
+def _focus_dry_run(change, call_args):
+    """Dry-run answer of camera_focus: what would change, and the call that applies it after the user's yes."""
+    shown = ", ".join("%s=%r" % kv for kv in sorted(call_args.items()))
+    return _text({"dry_run": True, "will_change": change,
+                  "next_step": "Tell the user what changes, then call camera_focus(%s%sconfirm=true)."
+                               % (shown, ", " if shown else "")})
+
+
 def tool_camera_focus(client, args, ctx):
+    confirm = args.get("confirm") is True
+    call_args = {k: v for k, v in args.items() if k != "confirm"}
     mf = args.get("mf")
     star_af = args.get("star_af")
     loupe = args.get("loupe")
@@ -1145,6 +1155,10 @@ def tool_camera_focus(client, args, ctx):
         payload = {"action": "start", "zoom": zoom, "boost": boost, "priority": priority}
         if x is not None:
             payload["x"], payload["y"] = float(x), float(y)
+        if not confirm:
+            return _focus_dry_run("Auto Star AF: drives the focus, may switch S-AF+MF to MF on success"
+                                  + (", temporary Live View Boost" if boost else "")
+                                  + (", Zoom AF x10 while it runs" if zoom else ""), call_args)
         res = client.post_json("/api/staraf", payload) or {}
         res["note"] = "Star AF runs asynchronously; poll camera_focus(star_af='status') or camera_status."
         return _text(res)
@@ -1168,6 +1182,8 @@ def tool_camera_focus(client, args, ctx):
             direction = args.get("direction")
             if direction not in LOUPE_DIRECTIONS:
                 raise ValueError("'direction' must be one of: %s" % ", ".join(LOUPE_DIRECTIONS))
+            if not confirm:
+                return _focus_dry_run("Zoom AF (loupe): moves the zoomed area %s" % direction, call_args)
             res = client.post_json("/api/loupe", {"move": direction}) or {}
             return _text({"loupe": bool(res.get("loupe", True)), "moved": direction, "rev": res.get("rev")})
         payload = {"on": True}
@@ -1179,6 +1195,8 @@ def tool_camera_focus(client, args, ctx):
         x, y = _check_xy(args.get("x"), args.get("y"))
         if x is not None:
             payload["x"], payload["y"] = float(x), float(y)
+        if not confirm:
+            return _focus_dry_run("Zoom AF (loupe) on" + (" at x%s" % ratio if ratio else ""), call_args)
         res = client.post_json("/api/loupe", payload) or {}
         return _text({"loupe": bool(res.get("loupe", True)), "ratio": ratio, "rev": res.get("rev")})
 
@@ -1194,6 +1212,8 @@ def tool_camera_focus(client, args, ctx):
         fm = (props.get("focusmode") or {}).get("value")
         if fm is not None and str(fm) not in ("1", "32769"):
             raise ApiError("Focus ring (MF) steps require AF mode MF or S-AF+MF (E-M1 manual, p.75).")
+        if not confirm:
+            return _focus_dry_run("Focus ring (MF): drives the lens %s, step %d" % (mf, step), call_args)
         client.post_json("/api/mfdrive", {"direction": mf, "step": step})
         return _text({"mf": mf, "step": step, "note": "Check sharpness with live_view_frame."})
 
@@ -1218,6 +1238,10 @@ def tool_camera_focus(client, args, ctx):
         if x is not None:
             info = client.get_json("/api/afarea")
             payload["field"] = _af_field(info, x, y)
+        if not confirm:
+            return _focus_dry_run("AF Area: %s" % AF_AREA_LABELS.get(mode_code, af_area)
+                                  + (", AF target field %d, then AF" % payload["field"] if "field" in payload else ""),
+                                  call_args)
         res = client.post_json("/api/afarea", payload, timeout=15.0) or {}
         out = {
             "connection": conn,
@@ -1234,6 +1258,8 @@ def tool_camera_focus(client, args, ctx):
             raise ApiError("AF Area is All Targets: the camera picks the point. Set af_area='single' "
                            "to focus on a point, or call camera_focus without x/y.")
         payload = {"field": _af_field(info, x, y)}
+        if not confirm:
+            return _focus_dry_run("AF target: field %d (of 81), then AF" % payload["field"], call_args)
     elif conn == "usb":
         payload = {"focus": True}
     else:
@@ -1649,7 +1675,10 @@ WRITE_TOOLS = {
         "Focus the camera: AF on a point (x, y as 0-1 of the live view frame), AF with the current AF point "
         "(no arguments), USB AF Area mode ('all'/'single'/'group'/'small'), USB Focus ring (MF) steps "
         "(mf='near'/'far', step 1-3), USB Auto Star AF (star_af='start'/'stop'/'status'), or USB Zoom AF "
-        "(loupe='on'/'off'/'move'). Does not release the shutter.",
+        "(loupe='on'/'off'/'move'). Does not release the shutter. Anything that changes a setting or drives the lens "
+        "(x/y, af_area, mf, star_af='start', loupe='on'/'move') is a dry-run first: show the change, then repeat "
+        "with confirm=true after the user's yes. AF with the current point, star_af='status'/'stop' and loupe='off' "
+        "run at once.",
         _schema({
             "x": {"type": "number", "minimum": 0, "maximum": 1, "description": "Horizontal point, 0 left to 1 right."},
             "y": {"type": "number", "minimum": 0, "maximum": 1, "description": "Vertical point, 0 top to 1 bottom."},
@@ -1667,6 +1696,7 @@ WRITE_TOOLS = {
             "ratio": {"type": "integer", "enum": [3, 5, 7, 10, 14], "description": "USB Zoom AF magnification."},
             "direction": {"type": "string", "enum": ["up", "down", "left", "right"],
                           "description": "USB Zoom AF move direction when loupe='move'."},
+            "confirm": {"type": "boolean", "description": "True applies the change; only after the user's yes."},
         }),
         CONTROL_ANNOTATIONS,
         tool_camera_focus,

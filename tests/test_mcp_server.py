@@ -858,11 +858,31 @@ class FocusAndLiveViewTools(unittest.TestCase):
             "/api/afarea": {"mode": 33025, "field": 41, "area": self.AREA},
         }, allow_write=True)
         c_ok.post_hook = lambda p, b: {"mode": 33025, "field": b["field"], "last_af": None, "focus_ok": True}
-        data = _json_payload(_call(c_ok, "camera_focus", {"x": 0.5, "y": 0.5}, allow_write=True))
+        data = _json_payload(_call(c_ok, "camera_focus", {"x": 0.5, "y": 0.5, "confirm": True}, allow_write=True))
         self.assertTrue(data["in_focus"])
         self.assertEqual(data["field"], 41)
         self.assertEqual(data["af_area"], "Single Target")
         self.assertEqual(c_ok.posts, [("/api/afarea", {"field": 41})])
+
+    def test_focus_changes_are_dry_run_until_confirm(self):
+        client = FakeClient(json_map={
+            "/api/status": {"type": "usb", "allow_write": True, "features": ["loupe"]},
+            "/api/state": {"live": True, "loupe": True},
+            "/api/props": {"takemode": {"value": "M"}, "focusmode": {"value": "32769"}},
+            "/api/afarea": {"mode": 33025, "field": 41, "area": self.AREA},
+        }, allow_write=True)
+        for args in ({"x": 0.5, "y": 0.5}, {"af_area": "group"}, {"mf": "near"}, {"star_af": "start"},
+                     {"loupe": "on"}, {"loupe": "move", "direction": "up"}, {"mf": "far", "confirm": "yes"}):
+            with self.subTest(args=args):
+                data = _json_payload(_call(client, "camera_focus", args, allow_write=True))
+                self.assertTrue(data["dry_run"])
+                self.assertIn("confirm=true", data["next_step"])
+        self.assertEqual(client.posts, [])
+        # AF with the current point, Star AF stop and loupe off run at once
+        client.post_hook = lambda p, b: {"mode": 33025, "field": 41, "focus_ok": True}
+        for args in ({}, {"star_af": "stop"}, {"loupe": "off"}):
+            _call(client, "camera_focus", args, allow_write=True)
+        self.assertEqual([p for p, _ in client.posts], ["/api/afarea", "/api/staraf", "/api/loupe"])
 
     def test_wifi_focus_uses_last_af_and_rejects_usb_only_controls(self):
         client = FakeClient(json_map={
@@ -889,17 +909,17 @@ class FocusAndLiveViewTools(unittest.TestCase):
         }, allow_write=True)
 
         # AF area mode + point
-        _call(client, "camera_focus", {"af_area": "small", "x": 0.5, "y": 0.5}, allow_write=True)
+        _call(client, "camera_focus", {"af_area": "small", "x": 0.5, "y": 0.5, "confirm": True}, allow_write=True)
         # MF step
-        _call(client, "camera_focus", {"mf": "far", "step": 2}, allow_write=True)
+        _call(client, "camera_focus", {"mf": "far", "step": 2, "confirm": True}, allow_write=True)
         # Star AF start / status / stop
-        _call(client, "camera_focus", {"star_af": "start", "x": 0.4, "y": 0.6, "priority": "accuracy"}, allow_write=True)
+        _call(client, "camera_focus", {"star_af": "start", "x": 0.4, "y": 0.6, "priority": "accuracy", "confirm": True}, allow_write=True)
         st = _json_payload(_call(client, "camera_focus", {"star_af": "status"}, allow_write=True))
         self.assertTrue(st["star_af"]["running"])
         _call(client, "camera_focus", {"star_af": "stop"}, allow_write=True)
         # Loupe on / move / off
-        _call(client, "camera_focus", {"loupe": "on", "ratio": 10, "x": 0.5, "y": 0.5}, allow_write=True)
-        _call(client, "camera_focus", {"loupe": "move", "direction": "right"}, allow_write=True)
+        _call(client, "camera_focus", {"loupe": "on", "ratio": 10, "x": 0.5, "y": 0.5, "confirm": True}, allow_write=True)
+        _call(client, "camera_focus", {"loupe": "move", "direction": "right", "confirm": True}, allow_write=True)
         _call(client, "camera_focus", {"loupe": "off"}, allow_write=True)
         # Live view start with size & stop
         _call(client, "live_view", {"action": "start", "size": "1024x0768"}, allow_write=True)
@@ -928,7 +948,7 @@ class FocusAndLiveViewTools(unittest.TestCase):
         # USB focus_ok=False/None never falls back to stale last_af
         client.json_map["/api/props"] = {"takemode": {"value": "M"}, "focusmode": {"value": "2"}}
         client.post_hook = lambda p, b: {"mode": 33025, "field": 41, "last_af": {"x": 640, "y": 480}, "focus_ok": False}
-        self.assertFalse(_json_payload(_call(client, "camera_focus", {"x": 0.5, "y": 0.5}, allow_write=True))["in_focus"])
+        self.assertFalse(_json_payload(_call(client, "camera_focus", {"x": 0.5, "y": 0.5, "confirm": True}, allow_write=True))["in_focus"])
         # Busy (indexing / star_af.running) blocks focus; play blocks live_view start; missing lvsize blocks size
         client.json_map["/api/state"] = {"live": True, "indexing": True}
         self.assertTrue(_call(client, "camera_focus", {"x": 0.5, "y": 0.5}, allow_write=True)["isError"])
