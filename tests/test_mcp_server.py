@@ -648,6 +648,17 @@ class ModeRulesAndRobustness(unittest.TestCase):
         _, off = self.plan("usb", props, {"drivemode": "1", "focusstacking": "2"})
         self.assertEqual([c["prop"] for c in off["changes"]], ["focusstacking", "drivemode"])
 
+    def test_pro_m_recipe_only_with_write(self):  # "set it up right for now" by voice: no prompt picked
+        def init(allow_write):
+            srv = mcp_server.McpServer(FakeClient(), allow_write=allow_write)
+            return srv.handle_message({"jsonrpc": "2.0", "id": 1, "method": "initialize",
+                                       "params": {"protocolVersion": "2024-11-05"}})["result"]["instructions"]
+        rw = init(True)
+        self.assertIn("in M mode", rw)
+        self.assertIn("apply=false", rw)
+        self.assertIn("ISO fixed", rw)
+        self.assertNotIn("in M mode", init(False))
+
     def test_usb_art_dial_step_says_it_reads_as_p(self):
         _, data = self.plan("usb", WriteSafetyAndConfigure.USB_PROPS, {"takemode": "art"})
         self.assertIn("reads iAUTO, ART", data["manual_steps"][0])

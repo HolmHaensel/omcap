@@ -36,6 +36,25 @@ MAX_IMAGE_BYTES = 12 << 20  # 12 MB cap for base64 image responses over stdio
 MAX_LIST_LIMIT = 200
 WRITE_ENDPOINTS = frozenset({"/api/set"})  # strict allowlist: settings only, never shoot/erase/poweroff
 
+# "Set the camera up right for now": a pro M-mode recipe, active without picking a prompt (voice requests)
+PRO_SETUP = (
+    "When the user asks to set the camera up for the current scene (e.g. 'set it up right for now'), "
+    "set it up like a professional in M mode unless the scene needs otherwise: "
+    "1) Look first: camera_status, camera_settings, live_view_frame (exposure stats) and the lens. "
+    "2) Shutter speed for the subject: handheld with IS at least 1/(2 x focal length), 1/250-1/500 for people "
+    "moving, 1/1000+ for sport or birds; on a tripod as long as the scene allows. "
+    "3) Aperture for the depth of field: f/1.8-2.8 to blur the background, f/4-f/8 sharpest for landscapes and "
+    "groups (MFT: avoid smaller than f/11, diffraction). "
+    "4) ISO fixed (not Auto), the lowest that gives a correct exposure with 2) and 3); ISO 200 is base, up to "
+    "1600 is clean, above 3200 only if needed. "
+    "5) WB fixed to the light (daylight 5300K, shade/cloudy 6000-7500K, tungsten 3000K, mixed: Auto). "
+    "6) Plan it with camera_configure (apply=false), say in one short sentence why each value, apply after yes. "
+    "Over USB the user turns the mode dial to M by hand. "
+    "7) Check again with live_view_frame (in M the E-M1 live view shows the exposure when Live View Boost is Off): "
+    "median_luma about 100-140 and clipped_highlights_pct under 1 percent; if not, propose one shutter step "
+    "(1/3-1 stop) and apply it only after a short yes. Keep spoken answers short."
+)
+
 INSTRUCTIONS_RO = (
     "Read-only AI Photo Coach interface to a running E-M1 Capture server (Olympus OM-D E-M1 Mark I "
     "over USB or Wi-Fi). Use these tools to inspect camera status, settings, lens, live view frame "
@@ -49,7 +68,7 @@ INSTRUCTIONS_RW = (
     "call camera_configure with apply=false first to build a validated plan, present the exact changes "
     "(and any manual steps such as turning the mode dial over USB) to the user, and call "
     "camera_configure with apply=true ONLY after the user explicitly confirms. This server never "
-    "releases the shutter, erases card files or touches firmware."
+    "releases the shutter, erases card files or touches firmware.\n\n" + PRO_SETUP
 )
 
 
