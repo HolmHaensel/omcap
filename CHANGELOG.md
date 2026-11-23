@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Star AF (REQ-F24): live star-size (HFR) focus aid and hyperfocal readout in photo modes (USB and Wi-Fi), plus USB Auto Star AF (auto-switches to MF, tap-on-star focuses and auto-locks focus) and Live View Boost (Others, P/A/S). 9×9 grid and AF Area hidden while Star AF is on and in MF; "★AF" shown in the live view value strip. Camera-tested over USB 2026-11-23.
 - MCP Photo Coach server (`em1-capture-mcp`): read-only tools and coach prompts; `--allow-write` adds a dry-run `camera_configure` (REQ-F35). USB-tested.
 - MCP cross-review fixes: WB in USB Movie, movie exposure by name, Focus stacking "ON" and Off first, 0.8 s wait after a Wi-Fi mode change (REQ-F35).
 - USB mode dial shows in under 1 s: change poll 0x9489/0x9486 as OM Capture, no session rebuild; rebuild stays the fallback (REQ-F30). USB-tested.

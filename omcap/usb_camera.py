@@ -29,7 +29,7 @@ EXPOSURE_PROGRAM = {"1": "M", "2": "P", "3": "A", "4": "S", "8": "movie", "11": 
 WB_NAMES = ["AUTO", "5300K", "7500K", "6000K", "3000K", "4000K", "Underwater", "5500K Flash",
             "One-touch 1", "One-touch 2", "One-touch 3", "One-touch 4", "CWB"]
 FEATURES = ["liveview", "af_area", "af_modes", "stages", "scp", "time_lapse", "ae_bkt",
-            "playback", "transfer", "long", "mf_drive", "movie", "erase", "loupe"]
+            "playback", "transfer", "long", "mf_drive", "movie", "erase", "loupe", "star_af"]
 
 # Movie button, PTP 0x948C (Olympus OM-D MovieRecButton): 1 press, 0 release; each press toggles recording.
 # The camera records in all shooting modes except PHOTO STORY, not during BULB / LIVE TIME / LIVECOMP,
@@ -223,12 +223,14 @@ USB_TABLES = {
     "d01a": {"0": "Face Priority Off", "32769": "Face Priority On", "32770": "Face & Eye Priority On",
              "32771": "Face & R. Eye Priority On", "32772": "Face & L. Eye Priority On"},  # 32771 inferred
     "d0cb": {"1": "On", "2": "Off"},  # Focus BKT (user's firmware: d0ce is Focus Stacking, mapped 2026-11-16)
+    "d0ea": {"2": "Off", "1": "On1", "3": "On2"},  # Live View Boost, Others row (P/A/S; E-M1 manual p.176/179)
 }
 # Focus Stacking = Bracketing On + Focus BKT + stacking flag; the camera then switches by itself to Silent Sequential H,
 # electronic shutter (1/16000 … 1/8 s) and flash off (E-M1 manual, p.174). d020 is not written: a
 # value the camera sets itself (3 with Bracketing On, 2 with Off; OM Capture never writes it, trace round C 2026-11-22;
 # named RC flash Group A there): never written by the app.
 BKT_MAIN = "d0a6"  # Bracketing On (1) / Off (2), the main switch of Shooting Menu 2 (found 2026-11-22 by diff)
+LV_BOOST = "d0ea"  # Live View Boost, Others row: 1 = On1, 2 = Off, 3 = On2 (d0e7-d0e9 for M/Bulb/LiveComp unmapped)
 STACK_FRAMES_WAIT = 6.0  # the 8 frames are on the card ~3.5 s after the release; then decide whether to wait on
 STACK_WAIT = 16.0  # 8 frames (16 files with JPG+ORF) in ~3.5 s, the merged JPG ~13.6 s after the release (2026-11-13)
 
@@ -432,8 +434,9 @@ class UsbCamera:
         "stabilizer": ("d01d", _table_names("d01d")),
         "facepriority": ("d01a", _table_names("d01a")),
         "focusstacking": ("d0cb", _table_names("d0cb")),
+        "lvboost": ("d0ea", _table_names("d0ea")),
     }
-    OPTIONAL = {"focusstacking"}  # not on every body / firmware
+    OPTIONAL = {"focusstacking", "lvboost"}  # not on every body / firmware
 
     def __init__(self, allow_write=False, backend="gphoto2"):
         """backend: "ptp" (own PTP layer, omcap/ptp_gphoto.py), "gphoto2" (libgphoto2) or "auto"
@@ -753,6 +756,11 @@ class UsbCamera:
                 raise
             if key == "focusstacking":  # On only when the camera really stacks: Bracketing, Focus BKT and d0ce (live)
                 value = "1" if self._stacking_on() else "2"
+            if key == "lvboost":  # live value so menu or Star AF boost changes reflect immediately
+                try:
+                    value = self._prop_now(LV_BOOST)
+                except (CameraError, AttributeError, TypeError, ValueError):
+                    pass
             if key == "artfilter":  # d010 also holds the kind of filter (from 34305)
                 choices = [c for c in choices if int(c) >= 34305]
             if key == "shutspeedvalue":  # M only: BULB, LIVE TIME, LIVECOMP are in d01c
@@ -1303,6 +1311,26 @@ class UsbCamera:
             self.shooting = False
             self.last_press = time.monotonic() + 5  # writing the file ends with events like the mode dial
         self._new_files = []  # the movie is no "new shot" of the shutter: card list only
+
+    def focus_mode(self):
+        """Current AF mode code as string ('1' = MF, '32769' = S-AF+MF, '2' = S-AF, '32770' = C-AF)."""
+        return self._prop_now("d003")
+
+    def take_mode(self):
+        """Current shooting mode name ('P', 'A', 'S', 'M', 'movie', or '?')."""
+        return EXPOSURE_PROGRAM.get(self._prop_now("d006"), "?")  # live: the dial may have turned
+
+    def set_lv_boost(self, value):
+        """Set Live View Boost d0ea (1 On1, 2 Off, 3 On2); returns previous int value or None if unsupported."""
+        self._need_write()
+        try:
+            before = int(float(self._prop_now(LV_BOOST)))
+        except (CameraError, ValueError):
+            return None
+        want = int(value)
+        if before != want:
+            self._set(LV_BOOST, want)
+        return before
 
     def mf_drive(self, direction, step):
         """Move the focus like turning the focus ring (MF, S-AF+MF): direction "near"/"far", step 1-3."""

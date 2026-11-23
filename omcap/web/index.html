@@ -83,6 +83,9 @@ main{display:grid;grid-template-columns:minmax(0,1044px) 340px;justify-content:c
 #lvTools{display:contents}
 #loupeTools{display:inline-flex;gap:6px;align-items:center}
 #viewport.loupe #afGrid,#viewport.loupe #afMark,#viewport.loupe #grid,#viewport.loupe #aidCv,#viewport.loupe #ovl{display:none} /* magnified picture: they would not match, and only the picture should be scaled (REQ-F54) */
+#viewport.loupe.star #aidCv{display:block} /* keep Star AF HFR reticle visible while zoomed (REQ-F24) */
+#starRow{flex-wrap:wrap;overflow-x:visible}
+#starAuto.rec{background:var(--rec);border-color:var(--rec);color:#fff;font-weight:600}
 #statusLine{display:flex;gap:var(--s4);flex-wrap:wrap;font-size:13px;color:var(--muted)}
 #statusLine #msg{margin:0;min-height:0}
 #lvSize{font-family:var(--font-value)}
@@ -126,7 +129,7 @@ button:disabled{color:var(--disabled);opacity:.6;cursor:not-allowed}
 #valStrip .sub{color:var(--muted);font-size:.8em;margin-left:-14px} /* ISO the camera picks at ISO AUTO */
 .isoAuto{display:block;font:12px var(--font-value);color:var(--muted);margin-top:2px}
 #valStrip{position:absolute;left:0;right:0;bottom:0;height:44px;display:flex;align-items:center;gap:22px;padding:0 18px;background:linear-gradient(0deg,rgba(0,0,0,.78),rgba(0,0,0,0));font-family:var(--font-value);font-size:17px;font-weight:500;pointer-events:none;z-index:2;white-space:nowrap;overflow:hidden}
-#valStrip .m{color:var(--accent);font-weight:600} #valStrip .sz{margin-left:auto;color:var(--muted);font-size:14px}
+#valStrip .m{color:var(--accent);font-weight:600} #valStrip .saf{color:var(--accent);font-weight:600} #valStrip .saf.run{color:#fff;text-shadow:0 0 8px var(--accent)} #valStrip .sz{margin-left:auto;color:var(--muted);font-size:14px}
 #start{min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:28px;padding:24px 16px}
 #stopped{min-height:100vh;display:flex;align-items:center;justify-content:center;font-size:18px}
 #start h1{font-size:30px;font-weight:300;letter-spacing:.02em}
@@ -317,7 +320,8 @@ body.webcam{cursor:none;display:flex;align-items:center;justify-content:center}
   #lastShot{bottom:46px;width:22%}
   #recChip{bottom:46px}
   .tb{overflow-x:auto;flex-wrap:nowrap;padding-bottom:4px;-webkit-overflow-scrolling:touch}
-  .tb>*{flex-shrink:0}
+  .tb>*,#lvTools>*{flex-shrink:0}
+  #starRow{flex-wrap:wrap;overflow-x:visible}
   #props{grid-template-columns:repeat(2,minmax(0,1fr))}
   #shutterBox{gap:var(--s2)}
   #timerLab{display:none}
@@ -431,6 +435,7 @@ body.webcam{cursor:none;display:flex;align-items:center;justify-content:center}
     <span id="autoLvStatus" class="chip" hidden data-feat="lvsize"></span>
     <span class="vsep"></span>
     <span id="lvTools" hidden>
+      <label class="tog" id="starAfLab" data-feat="star_af"><input type="checkbox" id="starAfOn"> <span data-i18n="lv.starAf">Star AF</span></label>
       <span data-feat="loupe"><span id="loupeTools">
         <span id="loupeLabel" class="chip" role="status" style="display:none"></span>
         <span id="loupeMove" class="seg" role="group" hidden data-i18n-aria="lv.loupeMove" aria-label="Move the zoom frame"><button class="w" data-lm="left" data-i18n-aria="lv.left" aria-label="Left">◀</button><button class="w" data-lm="up" data-i18n-aria="lv.up" aria-label="Up">▲</button><button class="w" data-lm="down" data-i18n-aria="lv.down" aria-label="Down">▼</button><button class="w" data-lm="right" data-i18n-aria="lv.right" aria-label="Right">▶</button></span>
@@ -457,6 +462,16 @@ body.webcam{cursor:none;display:flex;align-items:center;justify-content:center}
     <button id="popCam" data-i18n="lv.webcam">Webcam (OBS)</button>
     <button class="w" id="lvStart" data-i18n="lv.start">Start live view</button>
     <button id="lvStop" data-i18n="lv.stop">Stop live view</button>
+  </div>
+  <div class="tb" id="starRow" hidden>
+    <button class="w" id="starAuto" data-feat="mf_drive" data-i18n="star.auto">Auto Star AF</button>
+    <select id="starPrio" data-feat="mf_drive" data-i18n-aria="star.prioAria" aria-label="Star AF speed or accuracy" data-i18n-title="star.prioHint" title="Speed: quicker. Accuracy: slower, but sharper."><option value="speed" data-i18n="star.speed">Speed</option><option value="accuracy" data-i18n="star.accuracy">Accuracy</option></select>
+    <label class="tog" id="starLockLab" data-feat="mf_drive"><input type="checkbox" id="starLock"> <span id="starLockTxt" data-i18n="star.lock">Lock focus</span></label>
+    <span id="starHfr" class="chip" role="status" data-i18n-title="star.hfrTitle" title="Star size (HFR): smaller is sharper"></span>
+    <span id="starBest" class="mut"></span>
+    <span id="starHyp" class="mut"></span>
+    <button id="starReset" class="mini" data-i18n="star.reset">Reset</button>
+    <span id="starMsg" class="mut"></span>
   </div>
   <div class="tb" id="ovlRow" hidden>
     <label class="lab"><span data-i18n="lv.overlay">Overlay</span> <input type="range" id="ovlOp" min="0" max="100" value="50"></label>
@@ -488,7 +503,7 @@ body.webcam{cursor:none;display:flex;align-items:center;justify-content:center}
       <button class="w" data-mf="far:2" data-i18n="mf.far2">Far 2</button>
       <button class="w" data-mf="far:3" data-i18n="mf.far3">Far 3</button>
     </div></div>
-    <div class="row">
+    <div class="row" id="afShowRow">
       <label><input type="checkbox" id="afShow" checked> <span data-i18n="af.show">Show AF targets</span></label>
       <span id="afInfo" class="mut"></span>
     </div>
@@ -813,6 +828,34 @@ const I18N={en:{
   "lv.peakBlack": "Black",
   "lv.peakRed": "Red",
   "lv.peakYellow": "Yellow",
+  "lv.starAf": "Star AF",
+  "star.auto": "Auto Star AF",
+  "star.stop": "Stop Star AF",
+  "star.speed": "Speed",
+  "star.accuracy": "Accuracy",
+  "star.prioAria": "Star AF speed or accuracy",
+  "star.prioHint": "Speed: quicker. Accuracy: slower, but sharper.",
+  "star.lock": "Lock focus",
+  "star.locked": "Focus locked",
+  "star.lockHint": "Locks Star AF, MF drive and live-view tap so accidental touches keep focus; click to unlock",
+  "star.autoMf": "AF mode set to MF for Star AF",
+  "star.hfrTitle": "Star size (HFR): smaller is sharper",
+  "star.hfr": "HFR {v} px",
+  "star.hfrClip": "HFR {v} px · clipped",
+  "star.best": "Best {v} px",
+  "star.hyp": "Hyperfocal {h} m ({n} m–∞)",
+  "star.noStar": "No star",
+  "star.tooBright": "Too bright",
+  "star.reset": "Reset",
+  "star.manualHint": "Turn the focus ring until the number is smallest",
+  "star.needMf": "Switch AF mode to MF or S-AF+MF for Auto Star AF",
+  "star.running": "Star AF running",
+  "star.chipTitle": "Star AF is on",
+  "star.boostNote": "Live View Boost On2 on for night view",
+  "star.inFocus": "In focus · HFR {v} px",
+  "star.inFocusMf": "In focus · HFR {v} px · AF mode set to MF",
+  "star.noFocus": "No focus",
+  "star.stopped": "Star AF stopped",
   "lv.roll": "Horizon {a}° · Tilt {b}°",
   "lv.delta": "Δ Horizon {a}° · Δ Tilt {b}° to the held angle",
   "lv.loupeTitle": "The camera's own magnified live view (USB only; Zoom frame AF/zoom AF in the manual). Click = focus, drag = move, wheel or pinch = zoom smoothly; at rest it snaps to the camera's ratios and turns sharp. Starts at the AF target. No AF with Four Thirds lenses while zoomed (manual p.56).",
@@ -912,6 +955,7 @@ const I18N={en:{
   "prop.stabilizer": "Image stabilizer",
   "prop.facepriority": "Face priority",
   "prop.focusstacking": "Focus Stacking",
+  "prop.lvboost": "Live View Boost",
   "msg.stackOne": "Only one picture. The camera did not stack.",
   "prop.colortone": "Picture Mode",
   "prop.artfilter": "Art filter",
@@ -1204,11 +1248,13 @@ async function tick(){
   const dc=$('#dropChip'); dc.hidden=!stale&&!gone; if(stale||gone) dc.textContent=gone||tr('lv.noSignal',{s:Math.round(st.lv_age)});
   $('#lvTools').hidden=!st.live;
   // Zoom AF is not offered while the camera is busy (the server refuses it then, like other commands)
-  zBlock=st.stage>0||st.indexing||st.movie!=null||st.take!=null||!!(st.job&&st.job.running)||st.play;
+  const starRun=!!(st.star_af&&st.star_af.running);
+  zBlock=st.stage>0||st.indexing||st.movie!=null||st.take!=null||!!(st.job&&st.job.running)||starRun||st.play;
   if(usbZoom){
     $('#zoomUsb').hidden=zBlock; $('#loupeTools').style.display=zBlock?'none':''; $('#zoomMap').style.visibility=zBlock?'hidden':''; // busy camera: the map would not react
     loupePoll(ans0);
   }
+  updateStarAfUi();
   $('#reset').hidden=!(features.has('stages')&&(st.stage>0||propsFailed));
   applyContext();
   if(st.stage===0&&focusHit&&focusHit.held) focusHit=null;
@@ -1256,6 +1302,8 @@ const FEATURES={
   facepriority:{show:inMode('P','A','S','M')},
   // Focus Stacking (USB d0cb, FW 4.x): Bracketing is only in P/A/S/M (manual p.82, 174)
   focusstacking:{show:p=>inMode('P','A','S','M')(p)&&!trNoCard}, // the camera merges on the card (refused without one)
+  // Live View Boost (USB d0ea = Others row: P/A/S; E-M1 manual p.176/179; M/Bulb/LiveComp d0e7-d0e9 unmapped; no Wi-Fi CGI)
+  lvboost:{show:inMode('P','A','S')},
   colorphase:{show:p=>p.takemode.value==='ART'?p.artfilter.value==='partcolor':['P','A','S','M'].includes(p.takemode.value)&&p.colortone.value==='partcolor'},
 };
 let lastProps=null,propsFailed=false;
@@ -1354,8 +1402,10 @@ function renderStrip(){
   const ec=g('expcomp'); if(ec!=null&&!mv) out.push(['',/^\d/.test(ec)&&+ec>0?'+'+ec:ec]);
   const iso=g('isospeedvalue'); if(iso&&!mv){out.push(['','ISO '+valName('isospeedvalue',iso)]); if(iso==='Auto'&&li.iso) out.push(['sub',String(li.iso)])}
   const wb=g('wbvalue'); if(wb!=null) out.push(['',tr('strip.wb')+' '+valName('wbvalue',wb)]);
+  // Star AF: show ★AF inline in the live view value strip (user 2026-11-23)
+  if(isStarActive()){const run=!!(st&&st.star_af&&st.star_af.running); out.push([run?'saf run':'saf','★AF',run?tr('star.running'):tr('star.chipTitle')])}
   s.innerHTML='';
-  for(const [c,t] of out){const e=document.createElement('span');if(c)e.className=c;e.textContent=t;s.append(e)}
+  for(const [c,t,ti] of out){const e=document.createElement('span');if(c)e.className=c;if(ti)e.title=ti;e.textContent=t;s.append(e)}
   const w=$('#live').naturalWidth;
   if(st.live&&w){const e=document.createElement('span');e.className='sz';e.textContent=w+'×'+$('#live').naturalHeight;s.append(e)}
   s.hidden=!out.length||!st.live;
@@ -1467,6 +1517,12 @@ function applyContext(){
   // MF drive (USB 0x9487): like the focus ring, so only with AF mode MF or S-AF+MF (manual p.75)
   const fm=lastProps&&lastProps.focusmode&&lastProps.focusmode.value;
   $('#rowMf').hidden=!(features.has('mf_drive')&&canWrite&&['1','32769'].includes(fm));
+  // Star AF: photo shooting modes only, not Movie mode (REQ-F24)
+  $('#starAfLab').classList.toggle('mode-off',mv);
+  // Hide AF Area boxes and 9x9 grid in MF mode or while Star AF is active (user decision 2026-11-23: app zooms via pointer/overview map)
+  const hideAf=fm==='1'||isStarActive();
+  $('#afModes').hidden=hideAf||!features.has('af_modes');
+  $('#afShowRow').hidden=hideAf;
   renderLongSeg(m,sp);
   const sec=$('[data-id=prog]');
   sec.style.display=[...sec.querySelectorAll('.row')].some(r=>!r.hidden)?'':'none';
@@ -2758,7 +2814,7 @@ function loupeUp(e,cancel){
   if(cancel){if(loupeOn&&(d.moved||d.resume)) loupeRest(LOUPE_REST_MS); return} // no tap action
   if(d.moved){if(loupeOn) loupeRest(LOUPE_REST_MS); return}
   if(d.resume) loupeRest(LOUPE_REST_MS);
-  if(loupeOn){if(canWrite) setAf({focus:true})} // a click in the zoomed view only focuses (half press, release without a shot)
+  if(loupeOn){if(canWrite&&!isStarLocked()&&!isStarActive()) setAf({focus:true})} // a click in the zoomed view only focuses (half press, release without a shot)
   else pickField(e); // 1x: the AF target click
 }
 // Overview map: a click moves the view there (glide), a drag moves it live like a drag in the picture; one commit at rest
@@ -2925,7 +2981,18 @@ function showAf(){
   drawAf();
 }
 function pickField(e){
-  if(!af||!canWrite) return;
+  if(isStarLocked()) return;
+  if(isStarActive()){
+    const b=layer.getBoundingClientRect();
+    if(b.width>0&&b.height>0){
+      starPt={x:Math.max(.05,Math.min(.95,(e.clientX-b.left)/b.width)),y:Math.max(.05,Math.min(.95,(e.clientY-b.top)/b.height))};
+      starBestHfr=null; $('#starBest').textContent=''; aidTick();
+      // Over USB with write enabled and MF/S-AF+MF: tapping a star immediately runs Auto Star AF on it (user 2026-11-23)
+      if(canWrite&&features.has('mf_drive')&&isStarMfReady()&&!(st&&st.star_af&&st.star_af.running)&&!zBlock) runStarAuto();
+    }
+    return;
+  }
+  if(curFm()==='1'||!af||!canWrite) return;
   const b=layer.getBoundingClientRect(),a=af.area;
   const x=((e.clientX-b.left)/b.width*a.w-a.x0)/(a.x1-a.x0), y=((e.clientY-b.top)/b.height*a.h-a.y0)/(a.y1-a.y0);
   if(x<0||x>=1||y<0||y>=1){msg(tr('msg.outsideAf'),true);return}
@@ -2948,6 +3015,7 @@ function drawAf(){
   const c=$('#afGrid'),b=vp.getBoundingClientRect(),d=devicePixelRatio||1;
   if(c.width!==Math.round(b.width*d)||c.height!==Math.round(b.height*d)){c.width=Math.round(b.width*d);c.height=Math.round(b.height*d)}
   const g=c.getContext('2d'); g.clearRect(0,0,c.width,c.height);
+  if(isStarActive()||curFm()==='1') return; // no grid and no AF box while Star AF is on and in MF (user 2026-11-23)
   // without the grid ("Show AF targets" off) only the chosen frame shows for a moment after a tap (REQ-F41)
   const grid=$('#afShow').checked, tapOnly=!grid&&Date.now()<afTapShow;
   if(!af||!st.live||(!grid&&!tapOnly)) return;
@@ -3056,7 +3124,7 @@ function edgeThreshold(mag,top,floor){ // threshold such that about the fraction
   return Math.max(floor,b/k);
 }
 // lvlOn: Level gauge switch, off by default and remembered like the other live view aids (user 2026-11-14)
-const AID_KEY='omcap.aids', AID_IDS=['aidHist','aidRgb','aidClip','aidPeak','lvlOn','lvlSound','focusTone'];
+const AID_KEY='omcap.aids', AID_IDS=['aidHist','aidRgb','aidClip','aidPeak','lvlOn','starAfOn','lvlSound','focusTone'];
 const aidOff=document.createElement('canvas'), aidCtx=aidOff.getContext('2d',{willReadFrequently:true});
 const PEAK_RGB={white:[255,255,255],black:[0,0,0],red:[255,40,40],yellow:[255,230,0]};
 function aidSave(){try{const o={col:$('#aidPeakCol').value};AID_IDS.forEach(i=>o[i]=$('#'+i).checked);localStorage.setItem(AID_KEY,JSON.stringify(o))}catch{}}
@@ -3077,12 +3145,185 @@ function drawHist(data){
   g.fillStyle='rgba(255,255,255,.55)';
   for(let i=0;i<256;i++){const hh=Math.min(1,l[i]/mx)*(H-3);g.fillRect(i/255*(W-1),H-hh,Math.max(1,W/256),hh)}
 }
+let starBestHfr=null, starPt=null, starSwitchedMf=false, starWasRunning=false;
+const isMovie=()=>!!(lastProps&&lastProps.takemode&&lastProps.takemode.value==='movie');
+const curFm=()=>lastProps&&lastProps.focusmode&&lastProps.focusmode.value;
+const isStarMfReady=()=>features.has('mf_drive')&&['1','32769'].includes(curFm());
+function isStarActive(){return !isMovie()&&!!($('#starAfOn').checked||(st&&st.star_af&&st.star_af.running))}
+function isStarLocked(){return !isMovie()&&isStarMfReady()&&!!$('#starLock').checked}
+function hyperfocalText(){
+  // MFT circle of confusion 0.015 mm: H = f^2 / (N * c) + f, sharp from H/2 to infinity
+  const f=(st&&st.lvinfo&&st.lvinfo.focal&&st.lvinfo.focal[2])||(lens&&(lens.focal||(lens.focal_min&&lens.focal_min===lens.focal_max?lens.focal_min:null)));
+  const mode=lastProps&&lastProps.takemode&&lastProps.takemode.value;
+  const liveAp=st&&st.lvinfo&&st.lvinfo.aperture;
+  const ap=(liveAp&&!['A','M','B'].includes(mode))?liveAp:(lastProps&&lastProps.focalvalue&&parseFloat(lastProps.focalvalue.value))||liveAp;
+  if(!f||!ap||f<=0||ap<=0) return '';
+  const h=(f*f/(ap*0.015)+f)/1000;
+  return tr('star.hyp',{h:h.toFixed(1),n:(h/2).toFixed(1)});
+}
+function measureStarHfr(gray,w,h,pt){
+  // Search around the chosen star point (or full frame when pt is null); 3x3 mean suppresses hot pixels (REQ-F24)
+  let x0,x1,y0,y1;
+  if(pt){
+    const px=Math.round(pt.x*(w-1)), py=Math.round(pt.y*(h-1));
+    const half=Math.max(12,Math.min(96,w>>1,h>>1));
+    x0=Math.max(0,px-half); x1=Math.min(w,px+half); y0=Math.max(0,py-half); y1=Math.min(h,py+half);
+  }else{
+    const m=Math.max(8,Math.min(24,Math.floor(w/8),Math.floor(h/8)));
+    x0=m; x1=w-m; y0=m; y1=h-m;
+  }
+  const rw=x1-x0,rh=y1-y0; if(rw<11||rh<11) return null;
+  const hist=new Uint32Array(256);
+  for(let y=y0;y<y1;y++) for(let x=x0;x<x1;x++) hist[gray[y*w+x]]++;
+  const mid=(rw*rh)>>1; let acc=0,bg=0;
+  for(let i=0;i<256;i++){acc+=hist[i];if(acc>=mid){bg=i;break}}
+  // Precompute 3x3 mean inside ROI so local-max checks stay fast
+  const sm=new Float32Array(rw*rh);
+  for(let ry=1;ry<rh-1;ry++){
+    const gy=y0+ry, row=gy*w, rOut=ry*rw;
+    for(let rx=1;rx<rw-1;rx++){
+      const gx=x0+rx;
+      sm[rOut+rx]=(gray[row-w+gx-1]+gray[row-w+gx]+gray[row-w+gx+1]
+        +gray[row+gx-1]+gray[row+gx]+gray[row+gx+1]
+        +gray[row+w+gx-1]+gray[row+w+gx]+gray[row+w+gx+1])/9;
+    }
+  }
+  let bestU=0,bxU=-1,byU=-1,bestA=0,bxA=-1,byA=-1;
+  for(let ry=4;ry<rh-4;ry++) for(let rx=4;rx<rw-4;rx++){
+    const s=sm[ry*rw+rx];
+    if(s-bg<8) continue;
+    const gx=x0+rx, gy=y0+ry;
+    if(gray[gy*w+gx]-bg<12) continue;
+    if(s>bestA){bestA=s;bxA=gx;byA=gy}
+    if(!pt&&s>bestU){
+      // Full-frame auto search prefers unsaturated 5x5 local maxima clear of any clipped beacon (r=10)
+      let isPeak=true;
+      for(let dy=-2;dy<=2&&isPeak;dy++) for(let dx=-2;dx<=2;dx++) if(sm[(ry+dy)*rw+(rx+dx)]>s){isPeak=false;break}
+      if(!isPeak) continue;
+      let nearSat=false;
+      const sx0=Math.max(x0,gx-10),sx1=Math.min(x1-1,gx+10),sy0=Math.max(y0,gy-10),sy1=Math.min(y1-1,gy+10);
+      for(let yy=sy0;yy<=sy1&&!nearSat;yy++) for(let xx=sx0;xx<=sx1;xx++) if(gray[yy*w+xx]>=250){nearSat=true;break}
+      if(!nearSat){bestU=s;bxU=gx;byU=gy}
+    }
+  }
+  const useU=!pt&&bxU>=0;
+  const bx=useU?bxU:bxA, by=useU?byU:byA, best=useU?bestU:bestA;
+  if(bx<0||best-bg<8||gray[by*w+bx]-bg<12) return bg>=180?{bright:true}:null;
+  const ap=Math.min(18,bx-x0,by-y0,x1-1-bx,y1-1-by);
+  if(ap<3) return null;
+  let sum=0,sx=0,sy=0;
+  for(let dy=-ap;dy<=ap;dy++) for(let dx=-ap;dx<=ap;dx++){
+    const v=gray[(by+dy)*w+(bx+dx)]-bg; if(v>0){sum+=v;sx+=v*dx;sy+=v*dy}
+  }
+  if(sum<=1) return null;
+  const cx=sx/sum,cy=sy/sum; let rsum=0;
+  for(let dy=-ap;dy<=ap;dy++) for(let dx=-ap;dx<=ap;dx++){
+    const v=gray[(by+dy)*w+(bx+dx)]-bg; if(v>0) rsum+=v*Math.hypot(dx-cx,dy-cy);
+  }
+  let sat=false;
+  for(let dy=-1;dy<=1&&!sat;dy++) for(let dx=-1;dx<=1;dx++) if(gray[(by+dy)*w+(bx+dx)]>=250){sat=true;break}
+  return {hfr:rsum/sum,x:bx+cx,y:by+cy,ap,saturated:sat};
+}
+function starStatusText(sa){
+  if(sa.running) return tr('star.running')+(sa.boost_on?' · '+tr('star.boostNote'):'');
+  if(sa.phase==='done'){
+    const v=(sa.best_hfr!=null?sa.best_hfr:sa.hfr);
+    const key=sa.switched_to_mf?'star.inFocusMf':'star.inFocus';
+    return tr(key,{v:v!=null?Number(v).toFixed(2):'—'});
+  }
+  if(sa.phase==='stopped') return tr('star.stopped');
+  if(sa.phase==='error'){
+    if(sa.code==='bright') return tr('star.noFocus')+' · '+tr('star.tooBright');
+    if(sa.code==='no_star'||sa.code==='lost_star') return tr('star.noFocus')+' · '+tr('star.noStar');
+    return tr('star.noFocus')+(sa.error?' · '+sa.error:'');
+  }
+  if(features.has('mf_drive')) return isStarMfReady()?'':tr('star.needMf');
+  return tr('star.manualHint');
+}
+function updateStarAfUi(){
+  const mv=isMovie(), mfReady=isStarMfReady();
+  const sa=(st&&st.star_af)||{}, run=!!sa.running;
+  // Auto-lock focus once Auto Star AF finishes sharply so accidental taps/MF presses keep focus (user 2026-11-23)
+  if(starWasRunning&&!run&&sa.phase==='done'&&features.has('mf_drive')) $('#starLock').checked=true;
+  const locked=isStarLocked();
+  const on=!!(st&&st.live&&$('#starAfOn').checked&&!mv);
+  const active=on||run;
+  $('#starRow').hidden=!active;
+  $('#viewport').classList.toggle('star',active);
+  const showUsb=features.has('mf_drive')&&(mfReady||run);
+  $('#starAuto').hidden=!showUsb;
+  $('#starPrio').hidden=!showUsb;
+  $('#starLockLab').hidden=!showUsb;
+  document.querySelectorAll('[data-mf]').forEach(b=>b.disabled=!canWrite||locked||run);
+  const roTitle=!canWrite?tr('na.readOnly'):'';
+  const blocked=!canWrite||(!run&&(mv||!mfReady||locked||!st||!st.live||zBlock));
+  const btn=$('#starAuto');
+  btn.textContent=tr(run?'star.stop':'star.auto');
+  btn.classList.toggle('rec',run);
+  btn.disabled=blocked;
+  const prio=$('#starPrio');
+  prio.disabled=!canWrite||run||locked||mv||!mfReady;
+  prio.classList.toggle('na',!canWrite);
+  prio.title=roTitle||tr('star.prioHint');
+  const lk=$('#starLock'), lkLab=$('#starLockLab');
+  lk.disabled=!canWrite||run||mv||!mfReady;
+  lkLab.classList.toggle('na',!canWrite);
+  lkLab.title=roTitle||tr('star.lockHint');
+  $('#starLockTxt').textContent=tr(locked?'star.locked':'star.lock');
+  $('#starHyp').textContent=active?hyperfocalText():'';
+  const m=starStatusText(sa);
+  $('#starMsg').textContent=m;
+  $('#starMsg').className=sa.error?'warn':sa.phase==='done'?'ok':'mut';
+  if(starWasRunning!==run) renderStrip();
+  if(starWasRunning&&!run&&m){
+    msg(m,!!sa.error);
+    if(sa.phase==='done'){focusHit={field:af?af.field:41,until:Date.now()+2000};focusChipUpdate();setTimeout(focusChipUpdate,2050)}
+    else if(sa.phase==='error') showNoFocus();
+  }
+  starWasRunning=run;
+  if(sa.switched_to_mf&&!starSwitchedMf){starSwitchedMf=true;props()}
+  if(!sa.switched_to_mf) starSwitchedMf=false;
+}
+async function ensureStarMf(){
+  if(!features.has('mf_drive')||!canWrite||isMovie()||isStarMfReady()) return;
+  try{
+    await api('/api/set',{prop:'focusmode',value:'1'});
+    if(lastProps&&lastProps.focusmode) lastProps.focusmode.value='1';
+    renderProps();
+    msg(tr('star.autoMf'));
+    props();
+  }catch(e){msg(e.message,true)}
+}
+async function runStarAuto(){
+  const run=!!(st&&st.star_af&&st.star_af.running);
+  try{
+    if(run){await api('/api/staraf',{action:'stop'});return}
+    if(isStarLocked()) return;
+    if(!isStarMfReady()) await ensureStarMf();
+    if(!isStarMfReady()) return;
+    if(!$('#starAfOn').checked){$('#starAfOn').checked=true;aidSave();applyContext();drawAf()}
+    const body={action:'start',zoom:true,boost:true,priority:$('#starPrio').value};
+    if(!loupeOn&&starPt){body.x=starPt.x;body.y=starPt.y}
+    await api('/api/staraf',body);
+    tick();
+  }catch(e){msg(e.message,true)}
+}
+$('#starReset').onclick=()=>{starBestHfr=null;starPt=null;$('#starBest').textContent=''};
+$('#starAuto').onclick=runStarAuto;
+$('#starLock').onchange=updateStarAfUi;
+$('#starAfOn').addEventListener('change',async()=>{
+  if($('#starAfOn').checked) await ensureStarMf();
+  else $('#starLock').checked=false;
+  applyContext();drawAf();renderStrip();updateStarAfUi();
+});
 function aidTick(){
   if(quitting) return;
-  const wantH=$('#aidHist').checked,wantC=$('#aidClip').checked,wantP=$('#aidPeak').checked;
+  const mv=isMovie();
+  const wantH=$('#aidHist').checked,wantC=$('#aidClip').checked,wantP=$('#aidPeak').checked,wantS=$('#starAfOn').checked&&!mv;
   const hc=$('#histCv'),oc=$('#aidCv'),img=$('#live'),nw=img.naturalWidth,nh=img.naturalHeight;
   hc.hidden=!(wantH&&st.live);
-  if(!st.live||document.hidden||!(wantH||wantC||wantP)||!nw||!nh){
+  updateStarAfUi();
+  if(!st.live||document.hidden||!(wantH||wantC||wantP||wantS)||!nw||!nh){
     if(oc.width) oc.getContext('2d').clearRect(0,0,oc.width,oc.height);
     return;
   }
@@ -3094,19 +3335,36 @@ function aidTick(){
   if(wantH) drawHist(data);
   if(oc.width!==w||oc.height!==h){oc.width=w;oc.height=h}
   const og=oc.getContext('2d');
-  if(!wantC&&!wantP){og.clearRect(0,0,w,h);return}
-  const out=og.createImageData(w,h),o=out.data;
-  if(wantC){
-    const m=clipMask(data,250,5);
-    for(let j=0;j<m.length;j++) if(m[j]){const k=j*4;o[k]=m[j]===1?255:30;o[k+1]=m[j]===1?30:80;o[k+2]=m[j]===1?30:255;o[k+3]=200}
+  const gray=(wantP||wantS)?grayOf(data):null;
+  if(wantC||wantP){
+    const out=og.createImageData(w,h),o=out.data;
+    if(wantC){
+      const m=clipMask(data,250,5);
+      for(let j=0;j<m.length;j++) if(m[j]){const k=j*4;o[k]=m[j]===1?255:30;o[k+1]=m[j]===1?30:80;o[k+2]=m[j]===1?30:255;o[k+3]=200}
+    }
+    if(wantP){
+      // fixed floor 150: only really sharp edges light up, so turning the focus ring away makes them go out (a relative
+      // threshold marked the strongest 3 % in any picture, sharp or not); at most 6 % of the picture in very detailed scenes
+      const mag=edgeMagnitude(gray,w,h),t=edgeThreshold(mag,.06,150),c=PEAK_RGB[$('#aidPeakCol').value]||PEAK_RGB.white;
+      for(let j=0;j<mag.length;j++) if(mag[j]>=t){const k=j*4;o[k]=c[0];o[k+1]=c[1];o[k+2]=c[2];o[k+3]=255}
+    }
+    og.putImageData(out,0,0);
+  }else{
+    og.clearRect(0,0,w,h);
   }
-  if(wantP){
-    // fixed floor 150: only really sharp edges light up, so turning the focus ring away makes them go out (a relative
-    // threshold marked the strongest 3 % in any picture, sharp or not); at most 6 % of the picture in very detailed scenes
-    const mag=edgeMagnitude(grayOf(data),w,h),t=edgeThreshold(mag,.06,150),c=PEAK_RGB[$('#aidPeakCol').value]||PEAK_RGB.white;
-    for(let j=0;j<mag.length;j++) if(mag[j]>=t){const k=j*4;o[k]=c[0];o[k+1]=c[1];o[k+2]=c[2];o[k+3]=255}
+  if(wantS){
+    const res=measureStarHfr(gray,w,h,loupeOn?{x:0.5,y:0.5}:starPt),chip=$('#starHfr');
+    if(res&&!res.bright){
+      if(starBestHfr===null||res.hfr<starBestHfr) starBestHfr=res.hfr;
+      chip.textContent=tr(res.saturated?'star.hfrClip':'star.hfr',{v:res.hfr.toFixed(2)});
+      chip.classList.toggle('ok',!res.saturated&&res.hfr<=starBestHfr*1.1);
+      $('#starBest').textContent=tr('star.best',{v:starBestHfr.toFixed(2)});
+      og.strokeStyle=res.saturated?'#FFB020':'#3DDC84'; og.lineWidth=1.5;
+      og.beginPath(); og.arc(res.x,res.y,Math.max(8,res.hfr*2.5),0,Math.PI*2); og.stroke();
+    }else{
+      chip.textContent=tr(res&&res.bright?'star.tooBright':'star.noStar'); chip.classList.remove('ok');
+    }
   }
-  og.putImageData(out,0,0);
 }
 AID_IDS.filter(i=>i!=='lvlOn').concat('aidPeakCol').forEach(i=>$('#'+i).onchange=()=>{aidSave();aidTick()});  // lvlOn has its own handler
 setInterval(aidTick,250); // 4 frames/s are enough and keep the CPU low

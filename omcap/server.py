@@ -29,7 +29,7 @@ import webbrowser
 import xml.etree.ElementTree as ET
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
-from . import __version__, exif, qr, usb_camera
+from . import __version__, exif, qr, star_af, usb_camera
 from .camera import Camera, CameraError, WriteBlocked
 from .liveview import LiveView
 
@@ -50,7 +50,7 @@ LV_PORT = 5555
 MIN_INTERVAL = 5  # one shot takes about 4 s (focus, release, save)
 
 WIFI_FEATURES = ["liveview", "lvsize", "af_area", "stages", "scp", "time_lapse", "ae_bkt", "movie",
-                 "long", "playback", "transfer", "share_order", "poweroff", "focus_tone"]
+                 "long", "playback", "transfer", "share_order", "poweroff", "focus_tone", "star_af"]
 
 cam = None   # active connection, None before the choice on the start screen
 live = None
@@ -116,6 +116,13 @@ wifi_watch = {"gen": 0, "lost": False, "backoff": 5.0, "retry_at": 0.0, "seq": -
 connecting = threading.Lock()  # one connect at a time (auto-connect and a click came together, 2026-11-15)
 stop_job = threading.Event()
 job = {"name": None, "running": False, "done": 0, "total": 0, "error": None}
+star_af_lock = threading.Lock()  # serializes Star AF start/stop and thread lifecycle
+star_af_thread = None
+star_af_restore = {}  # what a running Star AF changed ("boost": d0ea before), for disconnect()
+star_af_state = {"running": False, "phase": "idle", "code": None, "hfr": None, "best_hfr": None,
+                 "start_hfr": None, "step": 0, "message": None, "error": None,
+                 "saturated": False, "switched_to_mf": False, "boost_on": False,
+                 "priority": "speed", "samples": []}
 state = {"transfer": "sd", "latest": None, "transfer_error": None,
          "take": None, "movie": None, "resume_live": False, "seen": None, "wifi_field": 41,
          "wifi_af": None, "pressing": False, "indexing": False, "play": None,
@@ -193,10 +200,24 @@ http_server = None  # set by main(), used by /api/quit
 
 
 def disconnect():
-    global cam, live, conn_type
+    global cam, live, conn_type, star_af_thread
     wifi_watch["gen"] += 1  # ends the Wi-Fi watchdog
     if cam is None:
         return
+    # Stop any running Star AF first so its finally restores Zoom AF and Live View Boost before closing cam
+    t = star_af_thread
+    if t is not None and t.is_alive():
+        stop_job.set()
+        t.join(timeout=3.0)
+        if t.is_alive():  # still busy: put the camera back ourselves before the session closes
+            print("Star AF did not stop within 3 s: restoring Zoom AF and Live View Boost", flush=True)
+            for undo in (lambda: cam.loupe(False),
+                         lambda: "boost" in star_af_restore and cam.set_lv_boost(star_af_restore["boost"])):
+                try:
+                    undo()
+                except Exception:
+                    pass
+    star_af_thread = None
     if conn_type == "usb" and state.get("take"):
         try:
             cam.take_stop()  # BULB: let go of the shutter button before the session closes
@@ -228,6 +249,10 @@ def disconnect():
     state.update(transfer="sd", latest=None, transfer_error=None, take=None, movie=None,
                  resume_live=False, seen=None, wifi_field=41, wifi_af=None, last_shot=None,
                  last_shot_jpeg=None)
+    star_af_state.update(running=False, phase="idle", code=None, hfr=None, best_hfr=None,
+                         start_hfr=None, step=0, message=None, error=None,
+                         saturated=False, switched_to_mf=False, boost_on=False,
+                         priority="speed", samples=[])
 
 
 def af_area():
@@ -276,7 +301,8 @@ def set_af_area(mode, field):
 def ensure_idle():
     if state["indexing"]:
         raise CameraError("Reading the card index, please wait")
-    if cam.stage or state["take"] or state["movie"] or job["running"] or state["play"] is not None:
+    if (cam.stage or state["take"] or state["movie"] or job["running"]
+            or star_af_state["running"] or state["play"] is not None):
         raise CameraError("Camera is busy")
 
 
@@ -859,6 +885,144 @@ def start_bracket(frames, step):
     run_job("Reihe", len(plan), work)
 
 
+def start_star_af(x=None, y=None, zoom=True, boost=True, priority="speed"):
+    """Automatic USB Star AF (REQ-F24): temporary LV Boost (d0ea), optional full-frame star search,
+    Zoom AF x10, coarse-to-fine V-curve via OMD_MFDrive (0x9487), and switch S-AF+MF -> MF on success."""
+    global star_af_thread
+    if conn_type != "usb":
+        raise CameraError("Auto Star AF needs a USB cable. Turn the focus ring and watch the number.")
+    if not cam.allow_write:
+        raise WriteBlocked("Read-only mode: start with --allow-write")
+    if not live.running:
+        raise CameraError("Start the live view first")
+    if state.get("movie") is not None or (hasattr(cam, "take_mode") and cam.take_mode() == "movie"):
+        raise CameraError("Star AF is only available in photo shooting modes")
+    prio = str(priority or "speed").lower()
+    if prio not in star_af.PRIORITIES:
+        raise CameraError("Unknown Star AF priority: %s" % priority)
+    frames_per_step, settle_s = star_af.PRIORITIES[prio]
+    star_af._image_deps()
+    explicit_pt = x is not None and y is not None
+    cx = max(0.05, min(0.95, float(x))) if explicit_pt else 0.5
+    cy = max(0.05, min(0.95, float(y))) if explicit_pt else 0.5
+
+    with star_af_lock:
+        if job["running"] or star_af_state["running"]:
+            raise CameraError("A series or Star AF is already running")
+        ensure_idle()
+        fm = cam.focus_mode()
+        if fm not in ("1", "32769"):  # MF (1) or S-AF+MF (32769): 0x9487 is ignored in S-AF/C-AF
+            raise CameraError("Star AF needs AF mode MF or S-AF+MF (switch AF mode first)")
+        stop_job.clear()
+        star_af_state.update(running=True, phase="coarse", code="starting", hfr=None, best_hfr=None,
+                             start_hfr=None, step=0, message="Star AF running", error=None,
+                             saturated=False, switched_to_mf=False, boost_on=False,
+                             priority=prio, samples=[])
+        cam_ref, live_ref = cam, live
+
+        def runner():
+            try:
+                with capture():
+                    boost_before = None
+                    zoomed_by_us = False
+                    try:
+                        def grab():
+                            _, frame, _ = live_ref.wait_frame(live_ref.seq, 1.5)
+                            return frame
+
+                        # d0ea is the Live View Boost of the "Others" row: it acts in P/A/S only (M has its own rows)
+                        if boost and hasattr(cam_ref, "set_lv_boost") and cam_ref.take_mode() in ("P", "A", "S"):
+                            try:
+                                boost_before = cam_ref.set_lv_boost(3)  # d0ea = 3 (On2) for dim night live view
+                                if boost_before is not None:
+                                    star_af_state["boost_on"] = True
+                                    star_af_restore["boost"] = boost_before
+                                if boost_before is not None and boost_before != 3:
+                                    if stop_job.wait(0.35):
+                                        star_af_state.update(phase="stopped", code="stopped", message="Star AF stopped")
+                                        return
+                            except (CameraError, WriteBlocked):
+                                boost_before = None
+
+                        mx, my = cx, cy
+                        if not explicit_pt and not getattr(cam_ref, "loupe_on", False):
+                            star_af_state.update(code="searching", message="Searching for a star…")
+                            f0 = grab()
+                            if stop_job.is_set():
+                                star_af_state.update(phase="stopped", code="stopped", message="Star AF stopped")
+                                return
+                            if f0:
+                                hit = star_af.find_brightest_star_jpeg(f0)
+                                if hit.get("found"):
+                                    mx, my = hit["x"], hit["y"]
+
+                        if zoom and not getattr(cam_ref, "loupe_on", False):
+                            star_af_state.update(code="zooming", message="Zooming to ×10…")
+                            cam_ref.loupe(True, 10, mx, my)
+                            zoomed_by_us = True
+                            if stop_job.wait(0.6):
+                                star_af_state.update(phase="stopped", code="stopped", message="Star AF stopped")
+                                return
+                            mx, my = 0.5, 0.5
+                        elif getattr(cam_ref, "loupe_on", False):
+                            mx, my = 0.5, 0.5
+
+                        def on_progress(info):
+                            star_af_state.update(
+                                phase=info.get("phase"),
+                                code=info.get("code"),
+                                message=info.get("message"),
+                                step=info.get("step", star_af_state["step"]),
+                                hfr=info.get("hfr"),
+                                best_hfr=info.get("best_hfr"),
+                                start_hfr=info.get("start_hfr"),
+                                saturated=bool(info.get("saturated")),
+                                samples=info.get("samples", []),
+                            )
+
+                        res = star_af.AutoStarAF(
+                            drive_fn=cam_ref.mf_drive,
+                            grab_fn=grab,
+                            stop_event=stop_job,
+                            on_progress=on_progress,
+                            cx=mx,
+                            cy=my,
+                            frames_per_step=frames_per_step,
+                            settle_s=settle_s,
+                        ).run()
+                        if res.get("phase") == "error":
+                            star_af_state["error"] = res.get("message")
+                        elif res.get("phase") == "done" and fm == "32769":
+                            # In S-AF+MF the next Take picture would refocus and lose star focus: switch to MF
+                            try:
+                                cam_ref.set_prop("focusmode", "1")
+                                star_af_state["switched_to_mf"] = True
+                                star_af_state["message"] = (star_af_state["message"] or "") + " · switched to MF"
+                            except (CameraError, WriteBlocked):
+                                star_af_state["message"] = (star_af_state["message"] or "") + " · switch to MF before shooting"
+                    finally:
+                        star_af_restore.clear()
+                        if zoomed_by_us and hasattr(cam_ref, "loupe"):
+                            try:
+                                cam_ref.loupe(False)
+                            except Exception:
+                                pass
+                        if boost_before is not None and boost_before != 3 and hasattr(cam_ref, "set_lv_boost"):
+                            try:
+                                cam_ref.set_lv_boost(boost_before)
+                            except Exception:
+                                pass
+                        star_af_state["boost_on"] = False
+            except Exception as e:
+                star_af_state.update(phase="error", code="error", error=str(e), message=str(e))
+            finally:
+                star_af_state["running"] = False
+
+        t = threading.Thread(target=runner, daemon=True)
+        star_af_thread = t
+        t.start()
+
+
 def orf_preview(path):
     """Largest embedded JPEG of an ORF file (browsers cannot show ORF)."""
     with open(path, "rb") as f:
@@ -1181,6 +1345,7 @@ def public_state():
         "loupe_x": getattr(cam, "loupe_x", None), "loupe_y": getattr(cam, "loupe_y", None),  # wanted centre, for pages that follow
         "loupe_owner": getattr(cam, "loupe_owner", None),
         "loupe_owner_live": time.monotonic() - client_seen.get(getattr(cam, "loupe_owner", None), -1e9) < CLIENT_LIVE_S,  # is that page still open?
+        "star_af": dict(star_af_state),
     }
 
 
@@ -1329,6 +1494,8 @@ class Handler(BaseHTTPRequestHandler):
                 if conn_type != "usb":
                     raise CameraError("Level gauge: the camera reports no live tilt over Wi-Fi")
                 return self._send(cam.level() or {"a": None, "b": None})  # no reading yet right after connecting
+            if u.path == "/api/staraf":
+                return self._send(dict(star_af_state))
             if u.path == "/api/afarea":
                 return self._send(af_area())
             if u.path == "/api/usbprops":  # research: read USB properties, e.g. ?codes=d003,d004
@@ -1598,6 +1765,19 @@ class Handler(BaseHTTPRequestHandler):
                 raise CameraError("Focus drive only over USB (no Wi-Fi command)")
             ensure_idle()
             cam.mf_drive(b.get("direction"), int(b.get("step", 1)))
+        elif path == "/api/staraf":
+            if b.get("action") == "stop":
+                if star_af_state["running"]:  # stop_job is shared: must not stop a series or time-lapse
+                    stop_job.set()
+            else:
+                start_star_af(
+                    b.get("x"),
+                    b.get("y"),
+                    zoom=bool(b.get("zoom", True)),
+                    boost=bool(b.get("boost", True)),
+                    priority=b.get("priority", "speed"),
+                )
+            return {"star_af": dict(star_af_state)}
         elif path == "/api/loupe":
             if conn_type != "usb":
                 raise CameraError("Zoom AF only over USB (no Wi-Fi command)")
