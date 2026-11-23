@@ -3,6 +3,7 @@
 ## Unreleased
 
 - MCP Photo Coach server (`em1-capture-mcp`): read-only tools and coach prompts; `--allow-write` adds a dry-run `camera_configure` (REQ-F35). USB-tested.
+- MCP cross-review fixes: WB in USB Movie, movie exposure by name, Focus stacking "ON" and Off first, 0.8 s wait after a Wi-Fi mode change (REQ-F35).
 - USB mode dial shows in under 1 s: change poll 0x9489/0x9486 as OM Capture, no session rebuild; rebuild stays the fallback (REQ-F30). USB-tested.
 - USB Focus Stacking sets itself up: Bracketing (d0a6), Focus BKT, stacking; no d020; waits while the camera merges; Off retries while busy; one-frame note (REQ-F69). USB-tested.
 - Quit and Open in OM Workspace only from the computer itself, hidden on a phone (REQ-Q10).

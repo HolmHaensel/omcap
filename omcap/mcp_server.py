@@ -20,6 +20,7 @@ import io
 import json
 import os
 import sys
+import time
 import traceback
 import urllib.error
 import urllib.parse
@@ -535,22 +536,24 @@ def tool_last_picture(client, args, ctx):
 PASM = ("P", "A", "S", "M")
 # Where the E-M1 lets you select a setting: (still photo modes, movie exposure modes). Same rules as FEATURES.show
 # in omcap/web/index.html (E-M1 manual p.18, 24, 38-41, 71, 82); keep both in step.
+ANY = "any"  # every movie exposure mode, also when the connection does not report it (USB)
 MODE_RULES = {
     "shutspeedvalue": (("S", "M"), ("S", "M")),
     "focalvalue": (("A", "M"), ("A", "M")),
     "expcomp": (("P", "A", "S", "ART"), ("P", "A", "S")),
     "isospeedvalue": (("P", "A", "S", "M", "ART"), ("M",)),
-    "wbvalue": (("P", "A", "S", "M", "ART"), PASM),
+    "wbvalue": (("P", "A", "S", "M", "ART"), ANY),
     "drivemode": (("iAuto", "P", "A", "S", "M", "ART", "B"), ()),
     "colortone": (PASM, ()),
     "artfilter": (("ART",), ()),
-    "exposemovie": ((), PASM),
+    "exposemovie": ((), ANY),
     "focusmode": (PASM, ()), "metering": (PASM, ()), "flashmode": (PASM, ()), "recordmode": (PASM, ()),
     "aspect": (PASM, ()), "stabilizer": (PASM, ()), "facepriority": (PASM, ()), "focusstacking": (PASM, ()),
 }
 USB_ONLY = ("focusmode", "metering", "flashmode", "recordmode", "aspect", "stabilizer", "facepriority",
             "focusstacking")  # Super Control Panel items without a Wi-Fi command
 NOT_WITH_STACKING = ("drivemode", "flashmode")  # hidden while Focus Stacking is On (as on the page)
+MODE_SETTLE = 0.8  # s after a Wi-Fi mode change before the props are read again (the page waits as long)
 LONG_SHUTTER = ("livebulb", "livetime", "livecomp")  # BULB, LIVE TIME, LIVECOMP: M only
 # The manual's terms, for text the user reads
 LABELS = {
@@ -578,7 +581,9 @@ def _mode_allows(prop, mode, movie_exp):
     photo, movie = MODE_RULES.get(prop, (None, None))
     if photo is None:
         return True  # no rule known: the camera's writable flag decides
-    return movie_exp in movie if mode == "movie" else mode in photo
+    if mode == "movie":
+        return movie == ANY or movie_exp in movie
+    return mode in photo
 
 
 def _plan_settings(status, props, wanted):
@@ -617,9 +622,11 @@ def _plan_settings(status, props, wanted):
                 changes.append({"prop": "takemode", "label": _label("takemode"), "current": cur_mode,
                                 "target": resolved})
                 mode = resolved
-    movie_exp = str(wanted.get("exposemovie") or (props.get("exposemovie") or {}).get("value"))
-    stacking = str(wanted.get("focusstacking", (props.get("focusstacking") or {}).get("value"))) in ("1", "On", "on")
-    for prop in sorted(k for k in wanted if k != "takemode"):
+    movie_exp = str(_norm_mode(wanted["exposemovie"]) if wanted.get("exposemovie")
+                    else (props.get("exposemovie") or {}).get("value"))
+    stacking = str(wanted.get("focusstacking", (props.get("focusstacking") or {}).get("value"))).strip().lower() in ("1", "on")
+    # Focus stacking first: turning it Off must reach the camera before drive or flash mode
+    for prop in sorted((k for k in wanted if k != "takemode"), key=lambda k: (k != "focusstacking", k)):
         val = wanted[prop]
         if prop not in props:
             if conn == "wifi" and prop in USB_ONLY:
@@ -702,6 +709,7 @@ def tool_camera_configure(client, args, ctx):
     if mode_change:  # Wi-Fi: the mode first, then plan the rest again on the new mode's props
         client.post_json("/api/set", {"prop": "takemode", "value": mode_change["target"]})
         applied.append(mode_change)
+        time.sleep(MODE_SETTLE)
         rest = {k: v for k, v in settings.items() if k != "takemode"}
         changes, unchanged, manual_steps, invalid, pending = (
             _plan_settings(status, client.get_json("/api/props"), rest) if rest else ([], [], [], [], []))

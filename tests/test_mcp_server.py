@@ -623,6 +623,31 @@ class ModeRulesAndRobustness(unittest.TestCase):
         _, data = self.plan("usb", props, {"drivemode": "1"})
         self.assertIn("Focus stacking", data["invalid"][0]["reason"])
 
+    def test_wb_in_usb_movie_without_movie_exposure(self):  # cross-review 2026-11-23: USB has no exposemovie
+        props = {"takemode": {"value": "movie", "writable": False, "enum": []},
+                 "wbvalue": {"value": "0", "writable": True, "enum": ["0", "18"]}}
+        _, data = self.plan("usb", props, {"wbvalue": "18"})
+        self.assertEqual((data["invalid"], [c["prop"] for c in data["changes"]]), ([], ["wbvalue"]))
+
+    def test_movie_exposure_by_name(self):
+        props = {"takemode": {"value": "movie", "writable": True, "enum": ["movie", "A"]},
+                 "exposemovie": {"value": "P", "writable": True, "enum": ["P", "A", "S", "M"]},
+                 "shutspeedvalue": {"value": "1/60", "writable": True, "enum": ["1/60", "1/125"]}}
+        _, data = self.plan("wifi", props, {"exposemovie": "M", "shutspeedvalue": "1/125"})
+        self.assertEqual(data["invalid"], [])
+        _, manual = self.plan("wifi", props, {"exposemovie": "Manual", "shutspeedvalue": "1/125"})
+        self.assertNotIn("shutspeedvalue", [i["prop"] for i in manual["invalid"]])
+
+    def test_stacking_on_in_capitals_and_off_first(self):
+        props = dict(WriteSafetyAndConfigure.USB_PROPS, drivemode={"value": "0", "writable": True, "enum": ["0", "1"]},
+                     focusstacking={"value": "2", "writable": True, "enum": ["1", "2"]})
+        _, data = self.plan("usb", props, {"drivemode": "1", "focusstacking": " ON "})
+        drive = [i for i in data["invalid"] if i["prop"] == "drivemode"]
+        self.assertIn("Focus stacking", drive[0]["reason"])
+        props["focusstacking"]["value"] = "1"
+        _, off = self.plan("usb", props, {"drivemode": "1", "focusstacking": "2"})
+        self.assertEqual([c["prop"] for c in off["changes"]], ["focusstacking", "drivemode"])
+
     def test_usb_art_dial_step_says_it_reads_as_p(self):
         _, data = self.plan("usb", WriteSafetyAndConfigure.USB_PROPS, {"takemode": "art"})
         self.assertIn("reads iAUTO, ART", data["manual_steps"][0])
@@ -630,6 +655,7 @@ class ModeRulesAndRobustness(unittest.TestCase):
         self.assertEqual(same["manual_steps"], [])  # label "aperture" = A: no needless dial turn
 
     def test_apply_after_mode_change_has_no_duplicates(self):
+        mcp_server.MODE_SETTLE = 0  # no 0.8 s wait in the test
         props_m = dict(self.WIFI_A, takemode={"value": "M", "writable": True, "enum": ["A", "M"]},
                        shutspeedvalue={"value": "1/250", "writable": True, "enum": ["1/250", "15"]})
         client = FakeClient(json_map={"/api/status": {"type": "wifi", "allow_write": True}, "/api/props": self.WIFI_A},
