@@ -151,9 +151,10 @@ def _linear_to_srgb(c):
     return np.where(c <= 0.0031308, c * 12.92, 1.055 * np.power(c, 1 / 2.4) - 0.055)
 
 
-def srgb_to_lch(rgb):
-    lin = _srgb_to_linear(np.asarray(rgb, dtype=np.float64))
-    xyz = lin @ _M.T / _D65
+def srgb_to_lch(rgb, dtype=np.float64):
+    lin = _srgb_to_linear(np.asarray(rgb, dtype=dtype))
+    with np.errstate(invalid="ignore", over="ignore", divide="ignore"):  # false Accelerate FP warnings
+        xyz = lin @ _M.T.astype(dtype) / _D65.astype(dtype)
     f = np.where(xyz > _EPS, np.cbrt(xyz), (_KAPPA * xyz + 16) / 116)
     L = 116 * f[..., 1] - 16
     a = 500 * (f[..., 0] - f[..., 1])
@@ -170,10 +171,11 @@ def lch_to_srgb(L, C, h):
     def inv(f):
         return np.where(f ** 3 > _EPS, f ** 3, (116 * f - 16) / _KAPPA)
 
-    xyz = np.stack([inv(fx), inv(fy), inv(fz)], axis=-1) * _D65
+    dt = np.asarray(L).dtype  # float32 in, float32 math (apply_hsl); float64 stays float64
+    xyz = np.stack([inv(fx), inv(fy), inv(fz)], axis=-1) * _D65.astype(dt)
     # numpy with Apple Accelerate occasionally reports false FP warnings on matmul (result checked for NaN)
     with np.errstate(invalid="ignore", over="ignore", divide="ignore"):
-        rgb = xyz @ _MI.T
+        rgb = xyz @ _MI.T.astype(dt)
     return _linear_to_srgb(rgb)
 
 
@@ -186,27 +188,30 @@ def _sector_weights(h):
     ang = np.array([SECTOR_ANGLES[i] for i in order])
     idx = np.array(order)
     pos = np.searchsorted(ang, h, side="right") - 1   # -1 = wrap around
-    lo = ang[pos % 12] - np.where(pos < 0, 360.0, 0.0)
+    ang = ang.astype(h.dtype)  # keeps float32 input in float32
+    lo = ang[pos % 12] - np.where(pos < 0, h.dtype.type(360), h.dtype.type(0))
     nxt = (pos + 1) % 12
-    hi = ang[nxt] + np.where(pos + 1 >= 12, 360.0, 0.0)
+    hi = ang[nxt] + np.where(pos + 1 >= 12, h.dtype.type(360), h.dtype.type(0))
     f = (h - lo) / (hi - lo)
-    t = (1 - np.cos(np.pi * f)) / 2
+    t = (1 - np.cos(h.dtype.type(np.pi) * f)) / 2
     return idx[pos % 12], idx[nxt], t
 
 
-def apply_hsl(rgb_float, profile):
-    """rgb_float: H x W x 3 (or ... x 3), sRGB 0..1. Returns the same shape."""
+def apply_hsl(rgb_float, profile, dtype=np.float32):
+    """rgb_float: H x W x 3 (or ... x 3), sRGB 0..1. Returns the same shape.
+
+    float32 math halves memory and time; it stays within 1 LSB of 16-bit output (tests/test_hsl.py)."""
     prof = validate_profile(profile)
-    rgb = np.asarray(rgb_float, dtype=np.float64)
+    rgb = np.asarray(rgb_float, dtype=dtype)
     if rgb.shape[-1] != 3:
         raise ValueError("last axis must be 3 (RGB)")
     sec = prof["sectors"]
-    dh = np.array([-HUE_DEG_PER_STEP * sec[s]["h"] for s in SECTORS], dtype=np.float64)
-    gain = np.array([1 + SAT_GAIN_PER_STEP * sec[s]["s"] for s in SECTORS], dtype=np.float64)
+    dh = np.array([-HUE_DEG_PER_STEP * sec[s]["h"] for s in SECTORS], dtype=dtype)
+    gain = np.array([1 + SAT_GAIN_PER_STEP * sec[s]["s"] for s in SECTORS], dtype=dtype)
     dl = np.array([L_NATIVE[sec[s]["l"] - SLIDER_MIN] / 1000.0 * L_STAR_PER_1000
-                   for s in SECTORS], dtype=np.float64)
+                   for s in SECTORS], dtype=dtype)
 
-    L, C, h = srgb_to_lch(rgb)
+    L, C, h = srgb_to_lch(rgb, dtype)
     a, b, t = _sector_weights(h)
 
     def mix(arr):
