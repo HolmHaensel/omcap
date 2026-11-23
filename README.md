@@ -85,7 +85,7 @@ More in [Start and stop](#start-and-stop).
 | "In focus" / "No focus" chip | ✅ | ✅ | Wi-Fi after a tap; USB also after Press halfway and Take picture. With S-AF the camera only releases in focus |
 | AF Area (All Targets, Single Target, Small Target, Group Target) | – | ✅ | no Wi-Fi command |
 | Focus ring (MF): Near/Far in three step sizes | – | ✅ | AF mode MF or S-AF+MF; no Wi-Fi command |
-| Star AF (manual): live star-size (HFR) focus aid, clipping/bright warning and hyperfocal readout (photo modes) | 🟡 | 🟡 | browser-side live view measurement on computer and phone; offline-tested, camera re-test pending (REQ-F24) |
+| Star AF (manual): live star-size (HFR) focus aid, clipping/bright warning and hyperfocal readout (photo modes) | 🟡 | 🟡 | browser-side live view measurement on computer and phone; while Star AF is on, tapping the live view picks the star instead of an AF target (also over Wi-Fi); offline-tested, camera re-test pending (REQ-F24) |
 | Star AF (automatic) & Focus Lock: Speed/Accuracy sweep, ×10 zoom, temporary Live View Boost, switches S-AF+MF → MF | – | 🟡 | needs photo mode, MF or S-AF+MF and `--allow-write` (no Wi-Fi focus drive command); triggerable from a phone over `--lan`; offline-tested (REQ-F24) |
 | Focus Stacking On/Off (8 frames, merged in the camera, P/A/S/M) | – | ✅ | no Wi-Fi command; USB sets Bracketing, Focus BKT and stacking together; needs a card, hidden without one |
 
