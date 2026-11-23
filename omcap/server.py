@@ -21,6 +21,7 @@ import subprocess
 import sys
 import tempfile
 import threading
+import traceback
 import time
 import urllib.parse
 import urllib.request
@@ -1408,6 +1409,7 @@ class Handler(BaseHTTPRequestHandler):
         except AttributeError:
             if cam is not None:
                 raise
+            traceback.print_exc()  # logged: an offline endpoint bug must not hide behind "Not connected"
             self._send({"error": "Not connected"}, code=409)  # a disconnect ran in parallel
 
     def _live_frame(self, seq):
@@ -1459,6 +1461,7 @@ class Handler(BaseHTTPRequestHandler):
         except AttributeError:
             if cam is not None:
                 raise
+            traceback.print_exc()  # logged: an offline endpoint bug must not hide behind "Not connected"
             self._send({"error": "Not connected"}, code=409)  # a disconnect ran in parallel
 
     def _shutter(self, stage):

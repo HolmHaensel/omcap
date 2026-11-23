@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- HSL copy in float32: half the memory, within 1 step of 16 bit.
+- `develop.py` moved to `tools/` (English).
 - Disconnecting during a running request answers "Not connected" (409) instead of an internal error; caches and live view counters are thread-safe.
 - USB Focus Stacking no longer writes d020; the camera sets it itself, like OM Capture (REQ-F69).
 - Quit and Open in OM Workspace only from the computer itself (hidden on a phone over --lan); Quit waits for a running connect (REQ-Q10).

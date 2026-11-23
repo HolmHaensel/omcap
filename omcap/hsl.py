@@ -253,10 +253,10 @@ def _read_image(path):
         with rawpy.imread(path) as raw:
             rgb = raw.postprocess(use_camera_wb=True, no_auto_bright=True,
                                   output_bps=16, output_color=rawpy.ColorSpace.sRGB)
-        return rgb.astype(np.float64) / 65535.0, True
+        return rgb.astype(np.float32) / np.float32(65535.0), True  # float32: half the RAM (16 MP)
     import imageio.v2 as imageio
     img = np.asarray(imageio.imread(path))[..., :3]
-    return img.astype(np.float64) / (65535.0 if img.dtype == np.uint16 else 255.0), False
+    return img.astype(np.float32) / np.float32(65535.0 if img.dtype == np.uint16 else 255.0), False
 
 
 def _to_u8(x):
