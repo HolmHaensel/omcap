@@ -306,6 +306,8 @@ camera through the running E-M1 Capture app and coach you (USB and Wi-Fi). It on
 - **Just say it:** with `--allow-write`, any wish in words – "set it up right for now", "aurora", "a warm Wes Anderson
   look", "it is too dark" – becomes a settings plan from what the camera offers in this mode (pro M-mode
   thinking, fixed ISO and WB, checked again on the live view); what only the body can set is named as a step.
+  It first tells you whether this works with the attached lens, with a compromise, or better with another lens
+  (from your `--lenses` bag).
 
 Start E-M1 Capture first. Claude Code (read-only):
 

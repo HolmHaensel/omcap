@@ -658,6 +658,7 @@ class ModeRulesAndRobustness(unittest.TestCase):
         self.assertIn("apply=false", rw)
         self.assertIn("ISO fixed", rw)
         self.assertIn("aurora", rw)
+        self.assertIn("better another lens", rw)  # coach verdict on the attached lens
         self.assertIn("Desert Pastel", rw)  # a look: settings plus body steps (Contrast, Saturation)
         self.assertIn("body_only", rw)
         self.assertNotIn("any wish in words", init(False))
