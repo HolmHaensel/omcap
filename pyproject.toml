@@ -21,7 +21,7 @@ classifiers = [
 [project.optional-dependencies]
 # USB (tethering) through libgphoto2
 usb = ["gphoto2"]
-# RAW development / focus stacking helper (omcap.develop, experimental)
+# RAW development / focus stacking helper (tools/develop.py, experimental)
 develop = ["rawpy", "numpy", "opencv-python"]
 # Software HSL colour profiles (omcap.hsl)
 film = ["numpy", "rawpy", "imageio"]
