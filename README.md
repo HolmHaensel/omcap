@@ -138,6 +138,7 @@ More in [Start and stop](#start-and-stop).
 | Phone view: live view size picked by itself, no computer-only windows | ✅ | 🟡 | Wi-Fi follows the screen and the signal; USB always 1024×768 at 30 fps |
 | Second monitor (live view or last picture in its own window) | ✅ | ✅ | live view window tested 2026-11-15 |
 | Webcam (OBS) | ✅ | ✅ | webcam view tested; the **Webcam (OBS)** button itself not tested; see [Use as webcam](#use-as-webcam-obs) |
+| AI Photo Coach (MCP for Claude Desktop / Claude Code) | 🟡 | ✅ | USB demo 2026-11-23: all tools and a dry-run plan; Wi-Fi not tried; see [MCP server](#mcp-server-for-ai-assistants-ai-photo-coach) |
 
 ### Connection
 
