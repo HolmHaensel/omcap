@@ -85,7 +85,8 @@ Every feature over Wi-Fi and USB, with test status and details. Short overview: 
 | Phone view: live view size picked by itself, no computer-only windows | ✅ | 🟡 | Wi-Fi follows the screen and the signal; USB always 1024×768 at 30 fps |
 | Second monitor (live view or last picture in its own window) | ✅ | ✅ | live view window tested 2026-11-15 |
 | Webcam (OBS) | ✅ | ✅ | webcam view tested; the **Webcam (OBS)** button itself not tested; see [Use as webcam](README.md#use-as-webcam-obs) |
-| AI Photo Coach (MCP for Claude Desktop / Claude Code) | ✅ | ✅ | Demo 2026-11-23 over USB and Wi-Fi: all 5 tools and a dry-run plan, nothing written; see [MCP server](README.md#ai-photo-coach-mcp) |
+| AI Photo Coach (MCP for Claude Desktop / Claude Code): read-only tools & prompts, plus `camera_configure` (`--allow-write`) | ✅ | ✅ | Demo 2026-11-23 over USB and Wi-Fi: all 5 read tools, `camera_configure` dry-run and live apply; see [MCP server](README.md#ai-photo-coach-mcp) (REQ-F35) |
+| Full MCP camera & app control in safety tiers: `camera_focus`, `live_view`, `playback`, `app_control` (`--allow-write`), `camera_shoot` (`--allow-shutter`), `card_erase` (`--allow-erase`) | 🟡 | 🟡 | Follows the app's USB/Wi-Fi and shooting-mode gating; dry-run by default for destructive/capture actions; offline-tested, USB and Wi-Fi camera tests pending (REQ-F35) |
 
 ### Connection
 

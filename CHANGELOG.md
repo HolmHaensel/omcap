@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- MCP full control in safety tiers (`REQ-F35`): `--allow-write` adds `camera_focus` (AF, USB AF Area, USB MF steps, USB Auto Star AF, USB Zoom AF), `live_view` (start/stop/size), `playback` (Playback, download, HSL, OM Workspace) and `app_control` (connect/disconnect/Wi-Fi poweroff/USB refresh/transfer/save config); `--allow-shutter` adds grouped `camera_shoot` (shot + self-timer, half-press, BULB/LIVE TIME/LIVECOMP, interval, exposure bracketing, movie, `stop_job`); `--allow-erase` adds `card_erase` (USB erase, Wi-Fi Share Order clear). All capture, erase, disconnect and poweroff actions default to dry-run and require `confirm=true`. Offline-tested; camera tests pending.
 - MCP: any wish in words (scene, look, problem) becomes a settings plan from what the camera offers now (`camera_settings choices=true`, body-only steps), pro M-mode thinking, a verdict on the attached lens and which lens fits better; WB in kelvin also over Wi-Fi (REQ-F35) USB-tested.
 - README easier to read: grouped highlights, short feature table; all details moved to FEATURES.md.
 - Star AF (REQ-F24): live star-size (HFR) focus aid and hyperfocal readout in photo modes (USB and Wi-Fi), plus USB Auto Star AF (auto-switches to MF, tap-on-star focuses and auto-locks focus) and Live View Boost (Others, P/A/S). 9×9 grid and AF Area hidden while Star AF is on and in MF; "★AF" shown in the live view value strip. Camera-tested over USB 2026-11-23.
