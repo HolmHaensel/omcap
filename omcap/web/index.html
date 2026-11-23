@@ -3491,6 +3491,7 @@ document.querySelectorAll('.quitBtn').forEach(b=>b.onclick=async()=>{
   showStopped();
 });
 function isLocalPage(){return ['127.0.0.1','localhost','::1','[::1]'].includes(location.hostname)}
+document.querySelectorAll('.quitBtn').forEach(b=>b.hidden=!isLocalPage()); // a phone over --lan cannot quit the app
 $('#phoneBtn').onclick=$('#startPhone').onclick=async()=>{
   try{const l=await api('/api/lanlink');$('#phoneQr').innerHTML=l.svg;$('#phoneUrl').textContent=l.url;$('#phoneDlg').showModal()}
   catch(e){msg(e.message,true)}
@@ -3510,7 +3511,7 @@ async function enterApp(){
     canWrite=s.allow_write;
     // Phone link (--lan, REQ-F47): only offered on the computer itself, the phone already has it
     $('#phoneBtn').hidden=!(s.lan&&isLocalPage());
-    $('#vWs').hidden=!s.om_workspace; // only when OM Workspace is installed on this computer
+    $('#vWs').hidden=!(s.om_workspace&&isLocalPage()); // installed on the computer, and only from the computer itself
     features=new Set(s.features); isUsb=s.type==='usb'; usbBackend=s.usb_backend;
     applyFeatures();
     $('#lvAutoLab').hidden=isUsb||!features.has('lvsize'); // Wi-Fi only; the phone has no choice
@@ -3536,7 +3537,10 @@ async function enterApp(){
   }catch(e){$('#status').className='warn';$('#status').textContent=e.message;$('#connChip').hidden=true}
   local(); applyLayout();
 }
-if(!view){init();setInterval(tick,1500)}
+// the poll skips while the last one still waits (a slow /api/state must not pile up); explicit tick() calls still run
+let tickBusy=false;
+function tickPoll(){if(tickBusy) return; tickBusy=true; tick().finally(()=>{tickBusy=false})}
+if(!view){init();setInterval(tickPoll,1500)}
 </script>
 </body>
 </html>

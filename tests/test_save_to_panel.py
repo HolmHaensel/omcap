@@ -370,5 +370,26 @@ class CardReviewFixes(unittest.TestCase):
         self.assertIn("$('#movStart').hidden=rec||trNoCard;", h)
 
 
+
+class LocalOnly(unittest.TestCase):
+    """Audit 2026-11-22: a phone over --lan must not quit the app or open programs on the computer."""
+
+    def test_quit_and_open_refused_from_the_lan(self):
+        for path, body in (("/api/quit", {}), ("/api/open", {"name": "P1.ORF"})):
+            with mock.patch.object(server, "disconnect") as d, mock.patch.object(server.subprocess, "run") as r:
+                with self.assertRaises(server.Forbidden):
+                    handler("192.168.1.20")._action(path, body)
+                d.assert_not_called()
+                r.assert_not_called()
+
+
+
+class PhoneHidesLocalActions(unittest.TestCase):
+    def test_quit_and_workspace_hidden_off_the_computer(self):
+        h = Path(HTML).read_text(encoding="utf-8")
+        self.assertIn("document.querySelectorAll('.quitBtn').forEach(b=>b.hidden=!isLocalPage());", h)
+        self.assertIn("$('#vWs').hidden=!(s.om_workspace&&isLocalPage());", h)
+
+
 if __name__ == "__main__":
     unittest.main()

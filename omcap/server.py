@@ -1480,8 +1480,11 @@ class Handler(BaseHTTPRequestHandler):
                 disconnect()
             return None
         if path == "/api/quit":
+            if not self._local():  # a phone over --lan must not stop the app on the computer
+                raise Forbidden("Quit only from the computer itself")
             try:
-                disconnect()
+                with connecting:  # like Disconnect: wait for a running connect
+                    disconnect()
             except (CameraError, WriteBlocked, OSError) as e:  # quit anyway
                 print("Quit: disconnecting the camera failed:", e)
             # delay so the answer is sent before main() returns
@@ -1498,6 +1501,8 @@ class Handler(BaseHTTPRequestHandler):
                 raise Forbidden("The folder dialog only opens from the computer itself")
             return {"dir": pick_folder_dialog()}
         if path == "/api/open":
+            if not self._local():  # opens a program on the computer: not from a phone over --lan
+                raise Forbidden("Open in OM Workspace only from the computer itself")
             subprocess.run(["open", "-a", "OM Workspace", capture_path(b["name"])], check=True)
             return None
         if path == "/api/hsl":
