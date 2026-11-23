@@ -1178,6 +1178,8 @@ def tool_camera_focus(client, args, ctx):
             raise ApiError("Start Live View first before using Zoom AF (loupe).")
         if _is_camera_busy(state):
             raise ApiError("The camera is busy: wait, then try again.")
+        if str(((_optional_json(client, "/api/props") or {}).get("takemode") or {}).get("value")) == "movie":
+            raise ApiError("Zoom AF (loupe) is not available in Movie mode via the MCP (not camera-tested there).")
         if loupe == "move":
             if not state.get("loupe"):
                 raise ApiError("Zoom AF (loupe) is not active. Turn it on first.")
@@ -1211,6 +1213,8 @@ def tool_camera_focus(client, args, ctx):
         if conn != "usb":
             raise ApiError("Focus ring (MF) steps work only over USB (no Wi-Fi command).")
         props = _optional_json(client, "/api/props") or {}
+        if str((props.get("takemode") or {}).get("value")) == "movie":
+            raise ApiError("Focus ring (MF) steps are not offered in Movie mode (as in the app).")
         fm = (props.get("focusmode") or {}).get("value")
         if fm is not None and str(fm) not in ("1", "32769"):
             raise ApiError("Focus ring (MF) steps require AF mode MF or S-AF+MF (E-M1 manual, p.75).")
@@ -1472,6 +1476,9 @@ def tool_camera_shoot(client, args, ctx):
     base_plan = {"connection": conn, "shooting_mode": mode, "shutter": shutter, "aperture": val("focalvalue"),
                  "iso": val("isospeedvalue"), "drive": val("drivemode")}
 
+    if action in ("shot", "half_press") and mode == "movie":
+        raise ApiError("Take picture and Press halfway are not available in Movie mode via the MCP (not camera-tested "
+                       "there): use action='movie', or set a photo Shooting mode first.")
     if action == "half_press":
         step = args.get("step", "press")
         if step != "press":
@@ -1491,6 +1498,8 @@ def tool_camera_shoot(client, args, ctx):
             raise ValueError("'step' for long_exposure must be 'prepare', 'start', or 'stop'")
         if mode != "M" or shutter not in LONG_SHUTTER:
             raise ApiError("Long exposure requires Shooting mode M and Shutter speed BULB, LIVE TIME, or LIVECOMP.")
+        if conn == "usb" and str(val("focusstacking")) == "1":
+            raise ApiError("BULB, LIVE TIME and LIVECOMP are not available while Focus Stacking is On.")
         if step == "prepare":
             if conn != "usb":
                 raise ApiError("Prepare for LIVECOMP is only used over USB; call step='start' directly over Wi-Fi.")
@@ -1586,8 +1595,6 @@ def tool_camera_shoot(client, args, ctx):
     self_timer = args.get("self_timer", 0)
     if isinstance(self_timer, bool) or not isinstance(self_timer, int) or not 0 <= self_timer <= MAX_SELF_TIMER:
         raise ValueError("'self_timer' must be an integer from 0 to %d seconds" % MAX_SELF_TIMER)
-    if self_timer and mode == "movie":
-        raise ApiError("Self-timer is not available in Movie mode.")
     if shutter in LONG_SHUTTER:
         raise ApiError("BULB, LIVE TIME and LIVECOMP need start and stop: use camera_shoot(action='long_exposure').")
     if _is_camera_busy(state):
@@ -1785,7 +1792,8 @@ SHUTTER_TOOLS = {
                        "description": "Capture action (default 'shot')."},
             "confirm": {"type": "boolean", "description": "True executes the capture; only after the user's yes."},
             "self_timer": {"type": "integer", "minimum": 0, "maximum": MAX_SELF_TIMER,
-                           "description": "Delay in seconds (0-30) before action='shot' (photo modes only)."},
+                           "description": "App self-timer: delay in seconds (0-30) before action='shot', counted by E-M1 Capture "
+                                          "(the camera's Self-timer drive mode is not changed)."},
             "step": {"type": "string", "enum": ["press", "release", "prepare", "start", "stop"],
                      "description": "Sub-step for half_press, long_exposure (prepare = USB LIVECOMP only), or movie."},
             "count": {"type": "integer", "minimum": 1, "maximum": 999,

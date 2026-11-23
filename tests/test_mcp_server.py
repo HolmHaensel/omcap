@@ -901,6 +901,26 @@ class FocusAndLiveViewTools(unittest.TestCase):
         _call(client, "live_view", {"action": "stop"}, allow_write=True)
         self.assertEqual(client.posts, [("/api/liveview", {"action": "stop"})])
 
+    def test_movie_mode_and_focus_stacking_gates(self):
+        client = FakeClient(json_map={
+            "/api/status": {"type": "usb", "allow_write": True, "features": ["loupe"]},
+            "/api/state": {"live": True, "loupe": True},
+            "/api/props": {"takemode": {"value": "movie"}, "focusmode": {"value": "32769"},
+                           "shutspeedvalue": {"value": "60"}},
+        }, allow_write=True)
+        for tool, args in (("camera_focus", {"mf": "near"}), ("camera_focus", {"loupe": "on"}),
+                           ("camera_focus", {"loupe": "move", "direction": "up"}),
+                           ("camera_shoot", {"action": "shot"}), ("camera_shoot", {"action": "half_press"})):
+            with self.subTest(tool=tool, args=args):
+                self.assertTrue(_call(client, tool, args, allow_write=True, allow_shutter=True)["isError"])
+        client.json_map["/api/props"] = {"takemode": {"value": "M"}, "shutspeedvalue": {"value": "livebulb"},
+                                         "focusstacking": {"value": "1"}}
+        res = _call(client, "camera_shoot", {"action": "long_exposure", "step": "start"},
+                    allow_write=True, allow_shutter=True)
+        self.assertTrue(res["isError"])
+        self.assertIn("Focus Stacking", res["content"][0]["text"])
+        self.assertEqual(client.posts, [])
+
     def test_wifi_movie_needs_movie_mode(self):
         client = FakeClient(json_map={
             "/api/status": {"type": "wifi", "allow_write": True},
