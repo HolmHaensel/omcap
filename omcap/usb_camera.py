@@ -101,6 +101,9 @@ DIAL_EVERY = 3.0  # seconds between event checks; each costs ~0.3 s of live view
 # Two check intervals: the camera also sends it a little after a shot, and it is only read every DIAL_EVERY s
 # (seen 3.1 s after a shot, 2026-11-13). A real dial turn in that time is missed; turn it again.
 DIAL_QUIET = 2 * DIAL_EVERY
+# Own PTP layer: the change poll 0x9486 (as OM Capture, every 0.6 s, ~26 ms) shows a mode dial turn without
+# rebuilding the session (~9 s); the event check above stays the fallback when the camera has no poll.
+POLL_EVERY = 0.6
 FOCUS_WAIT = 2.0
 FOCUS_POSITION_WAIT = 1.5
 SHOT_TIMEOUT = 20
@@ -300,15 +303,25 @@ class UsbLive:
             self._thread = None
 
     def _loop(self):
-        failures, next_dial = 0, 0.0
+        failures, next_dial, next_poll = 0, 0.0, 0.0
         while self._run:
             if self.camera.hold:  # shooting or card list: do not disturb the connection
                 failures = 0
                 time.sleep(0.05)
                 continue
+            poll = getattr(self.camera, "can_poll", False)  # (camera stand-ins in tests may lack it)
+            polled = None  # result of this pass's poll; "no" = no poll ran
+            if poll and time.monotonic() >= next_poll:
+                next_poll = time.monotonic() + POLL_EVERY
+                polled = self.camera.poll_mode()
+            else:
+                polled = "no"
             if time.monotonic() >= next_dial:
                 next_dial = time.monotonic() + DIAL_EVERY
-                if self.camera.dial_turned() and self.camera.reopen_if_idle(
+                if poll and polled == "no":
+                    polled = self.camera.poll_mode()
+                if self.camera.dial_turned() and (not poll or polled is None) \
+                        and self.camera.reopen_if_idle(
                         "mode dial turned, %s" % getattr(self.camera, "dial_reason", "?")):
                     self.camera.mode_changed_at = time.time()
                     continue
@@ -396,6 +409,10 @@ class UsbCamera:
     loupe_x = loupe_y = None  # wanted zoom centre as last requested (picture fractions, before the x gain)
     loupe_owner = None  # client id of the page that sent the last zoom request; None when the server ended the zoom
     loupe_rev = 0  # counts every change of the camera's zoom state; live frames carry it (REQ-F54)
+    mode_changed_at = None  # time.time() of the last mode dial turn (the page reloads the values)
+    _mode = None  # (d006, writable flags) seen by the last change poll
+    live = None  # UsbLive (class default: objects built without __init__)
+    _poll_failed = 0  # change polls failed in a row (3: back to the event check and session rebuild)
 
     # setting named as over Wi-Fi -> gphoto name, display names from the choice values
     PROPS = {
@@ -524,6 +541,7 @@ class UsbCamera:
             self._resync_files_locked()
             self._card_due = True  # a card may have been put in or taken out: read after the lock (_settle_card)
             self.gone = False  # also after reload (refresh) or a rebuild without live view
+            self._poll_failed = 0  # the new session sets its own poll list
             return True
         except (CameraError, self.gp.GPhoto2Error):
             return False
@@ -570,6 +588,43 @@ class UsbCamera:
         # named in the rebuild message: tells a real dial turn from an event after AF or a setting
         self.dial_reason = "%.1f s after the last command" % since
         return turned and since > DIAL_QUIET
+
+    @property
+    def can_poll(self):
+        """Own PTP layer and the camera took the poll list: camera-side changes arrive without a new session."""
+        return bool(getattr(self._c, "polling", False))
+
+    def poll_mode(self):
+        """Change poll (0x9486): the settings the page shows are current afterwards (get_single_config uses them).
+        True when the mode dial was turned (mode_changed_at is set, the page reloads), False when not,
+        None when there is no poll or it failed (the caller may rebuild the session instead).
+        A turn is d006 or a writable flag changing: iAUTO, ART, SCN and PHOTO STORY all read d006 = P but may lock
+        other settings. Choices are not compared: the aperture list also changes when zooming."""
+        if not self.can_poll:
+            return None
+        if self.hold or self.stage or self.shooting or self.gone:
+            return False
+        try:
+            descs = self._call(self._c.poll_props)
+        except CameraError as e:
+            self._poll_failed += 1
+            if self._poll_failed == 1:  # logged once per run of failures
+                print("USB: change poll failed (%s)" % e, flush=True)
+            if self._poll_failed >= 3:  # each failure can hold the lock for seconds: stop polling this session
+                print("USB: change poll off for this session, a mode dial turn rebuilds it", flush=True)
+                self._c.polling = False
+            return None
+        self._poll_failed = 0
+        mode = descs.get(0xD006, {}).get("value")
+        sig = (mode, tuple(sorted((c, d.get("writable")) for c, d in descs.items())))
+        old, self._mode = self._mode, sig
+        if old is None or mode is None or sig == old:
+            return False
+        old = old[0]
+        self.mode_changed_at = time.time()
+        print("USB: mode dial turned (%s -> %s), values from the change poll"
+              % (EXPOSURE_PROGRAM.get(str(old), old), EXPOSURE_PROGRAM.get(str(mode), mode)), flush=True)
+        return True
 
     def refresh(self):
         """Mode dial and other camera changes only arrive with a new session."""
@@ -679,6 +734,11 @@ class UsbCamera:
         return []
 
     def props(self):
+        if self.can_poll and not (self.live and self.live.running):  # nothing polls without live view: read the poll list now
+            try:
+                self._call(self._c.poll_props)
+            except CameraError:
+                pass  # descriptors as last polled or 0x1014
         out = {"takemode": {"value": EXPOSURE_PROGRAM.get(str(self._value("d006")), "?"),
                             "writable": False, "enum": []}}
         for key, (name, namer) in self.PROPS.items():

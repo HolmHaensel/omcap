@@ -1427,6 +1427,7 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("X-Seq", str(new_seq))
         self.send_header("X-Loupe", str(stamp[1]))
         self.send_header("X-Loupe-Rev", str(stamp[0]))
+        self.send_header("X-Mode-At", str(getattr(cam, "mode_changed_at", None) or ""))  # USB: dial turn, faster than the state tick
         self.end_headers()
         self.wfile.write(frame)
 
