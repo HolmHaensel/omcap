@@ -78,7 +78,7 @@ More in [Start and stop](#start-and-stop).
 | Erase pictures on the card | – | ✅ |
 | Shoot without a card, straight to the computer | – (needs a card) | ✅ |
 | Phone view, second monitor, webcam (OBS) | ✅ | ✅ |
-| AI Photo Coach (MCP) | 🟡 | ✅ |
+| AI Photo Coach (MCP) | ✅ | ✅ |
 
 Every feature with details and test notes: **[FEATURES.md](FEATURES.md)**.
 
