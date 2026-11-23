@@ -953,6 +953,9 @@ class PlaybackAndAppControlTools(unittest.TestCase):
 
         so = _json_payload(_call(client, "list_card_images", {"source": "share_order"}))
         self.assertEqual(so["images"], ["/DCIM/100OLYMP/PB220001.JPG"])
+        client.json_map["/api/state"] = {"play": False}
+        self.assertTrue(_call(client, "list_card_images", {"source": "share_order"})["isError"])
+        client.json_map.pop("/api/state")
 
         mov = _json_payload(_call(client, "last_picture", {"path": "/DCIM/100OLYMP/P1010001.MOV", "preview": "none"}))
         self.assertEqual(mov["movie_seconds"], 12.5)
@@ -1057,6 +1060,24 @@ class ShutterAndEraseTools(unittest.TestCase):
         wres = _json_payload(_call(wifi, "camera_shoot", {"confirm": True}, allow_write=True, allow_shutter=True))
         self.assertEqual(wres["new_files"], [])
         self.assertIn("note", wres)
+
+        # Wi-Fi post-shot retries when the card updates after a short delay
+        wifi2 = self._client(conn="wifi")
+        seq_lists = [
+            [{"path": "/DCIM/100OLYMP/PB220001.JPG"}],  # before
+            [{"path": "/DCIM/100OLYMP/PB220001.JPG"}],  # attempt 0 (card still writing)
+            [{"path": "/DCIM/100OLYMP/PB220002.JPG"}, {"path": "/DCIM/100OLYMP/PB220001.JPG"}],  # attempt 1
+        ]
+        orig_get = wifi2.get_json
+        def fake_get(path, query=None, timeout=None):
+            if path == "/api/images" and query == {"newest": "1"}:
+                return seq_lists.pop(0)
+            return orig_get(path, query=query, timeout=timeout)
+        wifi2.get_json = fake_get
+        with mock.patch("omcap.mcp_server.time.sleep") as slp_w:
+            wres2 = _json_payload(_call(wifi2, "camera_shoot", {"confirm": True}, allow_write=True, allow_shutter=True))
+        self.assertEqual(wres2["new_files"], ["/DCIM/100OLYMP/PB220002.JPG"])
+        slp_w.assert_called_once_with(1.5)
 
         # Read-only server refuses before sleeping or starting a job
         ro_srv = self._client(conn="usb", allow_write_srv=False)

@@ -547,6 +547,9 @@ def tool_list_card_images(client, args, ctx):
         files = client.get_json("/api/local") or []
         return _text({"source": "local", "total": len(files), "shown": min(len(files), limit), "images": files[:limit]})
     if source == "share_order":
+        state = _optional_json(client, "/api/state") or {}
+        if state.get("play") is False:
+            raise ApiError("Share Order over Wi-Fi requires Playback mode. Call playback(action='enter') first.")
         paths = client.get_json("/api/shareorder") or []
         return _text({"source": "share_order", "total": len(paths), "shown": min(len(paths), limit),
                       "images": paths[:limit]})
@@ -1562,9 +1565,15 @@ def tool_camera_shoot(client, args, ctx):
         if before is None:
             new, new_note = [], "Could not list card files before the shot; check last_picture."
         else:
-            after = _wifi_card_paths(client) or []
             before_set = set(before)
-            new, new_note = [p for p in after if p not in before_set], None
+            new = []
+            for attempt in range(3):
+                after = _wifi_card_paths(client) or []
+                new = [p for p in after if p not in before_set]
+                if new or attempt == 2:
+                    break
+                time.sleep(1.5)
+            new_note = None
     out = {"taken": True, "settings": plan, "new_files": new, "saved_to_computer": res.get("saved") or []}
     if res.get("note"):
         out["note"] = "Focus Stacking was On, the camera took one picture."
@@ -1585,6 +1594,9 @@ def tool_card_erase(client, args, ctx):
     if action == "clear_share_order":
         if conn != "wifi":
             raise ApiError("Reset Share Order is only available over Wi-Fi.")
+        state = _optional_json(client, "/api/state") or {}
+        if state.get("play") is False:
+            raise ApiError("Reset Share Order over Wi-Fi requires Playback mode. Call playback(action='enter') first.")
         marked = client.get_json("/api/shareorder") or []
         if not confirm:
             return _text({"dry_run": True, "action": "clear_share_order",
