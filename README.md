@@ -108,7 +108,7 @@ More in [Start and stop](#start-and-stop).
 | LV super control panel: shutter speed, aperture, exposure compensation, ISO, WB, drive, Picture Mode | ✅ | ✅ | |
 | Art filter | ✅ | 🟡 | USB: not tested in ART mode |
 | Partial Color colour ring (ART and Picture Mode Partial Color; 18 colours, laid out like the camera's ring) | ✅ | – | USB: the camera offers no value for the colour, only selecting Partial Color |
-| Shooting mode | ✅ | – | USB: set by the mode dial; the app follows the dial and reloads the values (tested; iAUTO, ART, SCN, PHOTO STORY show as P; change poll without reconnect: camera test open) |
+| Shooting mode | ✅ | – | USB: set by the mode dial; the app follows the dial and reloads the values (tested; iAUTO, ART, SCN, PHOTO STORY show as P; turn shown in 0.1–0.7 s without reconnect, USB-tested 2026-11-23) |
 | AF mode, Metering, Flash mode, Record mode, Aspect ratio, Image stabilizer, Face priority | – | ✅ | no Wi-Fi command |
 | Aperture list limited to the attached lens | ✅ | ✅ | USB after the first picture of the session |
 | Read-only values: Anti-Shock, Silent, Noise Reduct., BULB/TIME Timer, Digital Tele-converter | ✅ | – | no USB property known |
@@ -172,7 +172,7 @@ Measured with the E-M1 Mark I (firmware 4.6), a Mac and about 2950 pictures on t
 | Live view 1280×960 | about 8 fps | 15 fps |
 | Focus by tap | about 0.4 s | 0.4–0.6 s |
 | Take picture | 1.2–1.5 s | about 4.5 s, new files in the list at once |
-| Connect without a card | – (Wi-Fi needs a card) | up to 3 s longer, also after each mode dial turn (the app checks for a card that is still waking up; 2026-11-22) |
+| Connect without a card | – (Wi-Fi needs a card) | up to 3 s longer, also after each session rebuild (the app checks for a card that is still waking up; 2026-11-22) |
 | Shot without a card | – | 2.7 s, straight to the computer (2026-11-22) |
 | Shot with card, copy to computer | – | 11.7 s (ORF + JPG, 2026-11-22) |
 

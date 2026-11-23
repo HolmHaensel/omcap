@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- USB mode dial shows in under 1 s: change poll 0x9489/0x9486 as OM Capture, no session rebuild; rebuild stays the fallback (REQ-F30). Camera test open.
+- USB mode dial shows in under 1 s: change poll 0x9489/0x9486 as OM Capture, no session rebuild; rebuild stays the fallback (REQ-F30). USB-tested.
 - USB Focus Stacking sets itself up: Bracketing (d0a6), Focus BKT, stacking; no d020; waits while the camera merges; Off retries while busy; one-frame note (REQ-F69). USB-tested.
 - Quit and Open in OM Workspace only from the computer itself, hidden on a phone (REQ-Q10).
 - Disconnect during a request answers "Not connected" instead of an error; status poll no longer piles up.
