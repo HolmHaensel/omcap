@@ -871,18 +871,19 @@ class FocusAndLiveViewTools(unittest.TestCase):
             "/api/props": {"takemode": {"value": "M"}, "focusmode": {"value": "32769"}},
             "/api/afarea": {"mode": 33025, "field": 41, "area": self.AREA},
         }, allow_write=True)
-        for args in ({"x": 0.5, "y": 0.5}, {"af_area": "group"}, {"mf": "near"}, {"star_af": "start"},
+        for args in ({}, {"x": 0.5, "y": 0.5}, {"af_area": "group"}, {"mf": "near"}, {"star_af": "start"},
                      {"loupe": "on"}, {"loupe": "move", "direction": "up"}, {"mf": "far", "confirm": "yes"}):
             with self.subTest(args=args):
                 data = _json_payload(_call(client, "camera_focus", args, allow_write=True))
                 self.assertTrue(data["dry_run"])
                 self.assertIn("confirm=true", data["next_step"])
         self.assertEqual(client.posts, [])
-        # AF with the current point, Star AF stop and loupe off run at once
-        client.post_hook = lambda p, b: {"mode": 33025, "field": 41, "focus_ok": True}
-        for args in ({}, {"star_af": "stop"}, {"loupe": "off"}):
+        data = _json_payload(_call(client, "camera_focus", {"star_af": "start", "zoom": False}, allow_write=True))
+        self.assertIn("zoom=false", data["next_step"])  # JSON values, not Python reprs
+        # Star AF stop and loupe off run at once
+        for args in ({"star_af": "stop"}, {"loupe": "off"}):
             _call(client, "camera_focus", args, allow_write=True)
-        self.assertEqual([p for p, _ in client.posts], ["/api/afarea", "/api/staraf", "/api/loupe"])
+        self.assertEqual([p for p, _ in client.posts], ["/api/staraf", "/api/loupe"])
 
     def test_camera_state_changes_are_dry_run_until_confirm(self):
         client = FakeClient(json_map={
@@ -920,7 +921,7 @@ class FocusAndLiveViewTools(unittest.TestCase):
             "/api/afarea": {"mode": 33025, "field": 41, "area": self.AREA},
         }, allow_write=True)
         client.post_hook = lambda p, b: {"mode": 33025, "field": 41, "last_af": {"x": 640, "y": 480}}
-        data = _json_payload(_call(client, "camera_focus", {}, allow_write=True))
+        data = _json_payload(_call(client, "camera_focus", {"confirm": True}, allow_write=True))
         self.assertTrue(data["in_focus"])
         self.assertEqual(client.posts, [("/api/afarea", {"field": 41})])
 

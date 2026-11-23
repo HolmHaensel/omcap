@@ -1107,7 +1107,7 @@ def _is_usb_sequential_drive(drive_val):
 
 def _focus_dry_run(change, call_args):
     """Dry-run answer of camera_focus: what would change, and the call that applies it after the user's yes."""
-    shown = ", ".join("%s=%r" % kv for kv in sorted(call_args.items()))
+    shown = ", ".join("%s=%s" % (k, json.dumps(v)) for k, v in sorted(call_args.items()))
     return _text({"dry_run": True, "will_change": change,
                   "next_step": "Tell the user what changes, then call camera_focus(%s%sconfirm=true)."
                                % (shown, ", " if shown else "")})
@@ -1266,6 +1266,9 @@ def tool_camera_focus(client, args, ctx):
         payload = {"focus": True}
     else:
         payload = {"field": info.get("field") or 41}  # Wi-Fi focuses on a point: the last one, else the centre
+    if not confirm:
+        return _focus_dry_run("AF (Press halfway) with %s" % ("the current AF target" if "focus" in payload
+                              else "AF target field %d" % payload["field"]), call_args)
     res = client.post_json("/api/afarea", payload, timeout=15.0) or {}
     in_focus = _in_focus(conn, res)
     out = {"connection": conn, "field": res.get("field", payload.get("field")), "in_focus": in_focus}
@@ -1313,6 +1316,9 @@ def tool_playback(client, args, ctx):
     if action not in ("enter", "exit", "download", "hsl", "hsl_auto", "open_workspace"):
         raise ValueError("'action' must be one of: enter, exit, download, hsl, hsl_auto, open_workspace")
     if action in ("enter", "exit"):
+        _require_server_write(_optional_json(client, "/api/status"))
+        if _is_camera_busy(_optional_json(client, "/api/state") or {}):
+            raise ApiError("The camera is busy (shot, series, movie or Press halfway): wait, then try again.")
         if args.get("confirm") is not True:
             return _text({"dry_run": True, "will_switch_camera_to": "Playback" if action == "enter" else "shooting",
                           "next_step": "Tell the user, then call playback(action=%r, confirm=true)." % action})
@@ -1526,8 +1532,8 @@ def tool_camera_shoot(client, args, ctx):
         if _is_camera_busy(state):
             raise ApiError("The camera is busy: wait, then try again.")
         if conn == "wifi" and mode != "movie":
-            raise ApiError("Over Wi-Fi, movie recording needs Shooting mode Movie (as in the app): turn the mode dial "
-                           "to Movie, or set it with camera_configure.")
+            raise ApiError("Over Wi-Fi the MCP does not switch the Shooting mode by itself (the app does): set Movie "
+                           "with camera_configure (after the user's yes) or turn the mode dial to Movie.")
         plan = dict(base_plan, action="start")
         if not confirm:
             return _text({"dry_run": True, "will_start_movie": plan,
@@ -1691,10 +1697,9 @@ WRITE_TOOLS = {
         "Focus the camera: AF on a point (x, y as 0-1 of the live view frame), AF with the current AF point "
         "(no arguments), USB AF Area mode ('all'/'single'/'group'/'small'), USB Focus ring (MF) steps "
         "(mf='near'/'far', step 1-3), USB Auto Star AF (star_af='start'/'stop'/'status'), or USB Zoom AF "
-        "(loupe='on'/'off'/'move'). Does not release the shutter. Anything that changes a setting or drives the lens "
-        "(x/y, af_area, mf, star_af='start', loupe='on'/'move') is a dry-run first: show the change, then repeat "
-        "with confirm=true after the user's yes. AF with the current point, star_af='status'/'stop' and loupe='off' "
-        "run at once.",
+        "(loupe='on'/'off'/'move'). Does not release the shutter. Anything that focuses, changes a setting or drives "
+        "the lens (AF, x/y, af_area, mf, star_af='start', loupe='on'/'move') is a dry-run first: show the change, then "
+        "repeat with confirm=true after the user's yes. star_af='status'/'stop' and loupe='off' run at once.",
         _schema({
             "x": {"type": "number", "minimum": 0, "maximum": 1, "description": "Horizontal point, 0 left to 1 right."},
             "y": {"type": "number", "minimum": 0, "maximum": 1, "description": "Vertical point, 0 top to 1 bottom."},
