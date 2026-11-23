@@ -20,6 +20,7 @@ All names follow the camera's instruction manual.
 - **The LV super control panel** – shooting mode, shutter speed, aperture, ISO, WB, Picture Mode, Art filter and more.
 - **Focus Stacking, focus ring and level gauge** from the computer (USB).
 - **Playback** with Index and Calendar display, shooting data and saving to the computer.
+- **AI photo coach** – an MCP server lets Claude or other AI assistants look at the live view and the last shot and suggest settings (read only unless you allow changes).
 - **Works on a phone, too** – open the app on your phone in the home network.
 - **Safe by default:** never touches the firmware, starts read only, stays on your computer unless you start it with `--lan`.
 
