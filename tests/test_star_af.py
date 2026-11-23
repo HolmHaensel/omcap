@@ -143,6 +143,17 @@ class AutoStarAfVcurve(unittest.TestCase):
         self.assertEqual(res["phase"], "error")
         self.assertIn("No star", res["message"])
 
+    def test_reports_bright_scene_error(self):
+        daylight = np.full((160, 200), 210.0, dtype=np.float32)
+        m = star_af.measure_star(daylight)
+        self.assertFalse(m["found"])
+        self.assertTrue(m["bright"])
+        af = star_af.AutoStarAF(lambda d, s: None, lambda: daylight, threading.Event(),
+                                frames_per_step=1, settle_s=0.0)
+        res = af.run()
+        self.assertEqual(res["phase"], "error")
+        self.assertIn("Too bright", res["message"])
+
 
 class ServerGuards(unittest.TestCase):
     def setUp(self):
@@ -158,12 +169,13 @@ class ServerGuards(unittest.TestCase):
         server.job.update(job0)
         server.star_af_state.update(sa0)
 
-    def _setup_cam(self, conn="usb", allow_write=True, live_on=True, fm="1"):
+    def _setup_cam(self, conn="usb", allow_write=True, live_on=True, fm="1", mode="M"):
         cam = mock.MagicMock()
         cam.allow_write = allow_write
         cam.stage = 0
         cam.loupe_on = False
         cam.focus_mode.return_value = fm
+        cam.take_mode.return_value = mode
         live = mock.MagicMock()
         live.running = live_on
         live.seq = 1
@@ -194,6 +206,34 @@ class ServerGuards(unittest.TestCase):
             with self.assertRaises(CameraError) as ctx:
                 server.start_star_af()
             self.assertIn("MF", str(ctx.exception))
+
+    def test_refused_in_movie_mode_and_bad_priority(self):
+        self._setup_cam(mode="movie")
+        with self.assertRaises(CameraError) as ctx:
+            server.start_star_af()
+        self.assertIn("photo", str(ctx.exception))
+        self._setup_cam(mode="M")
+        with self.assertRaises(CameraError) as ctx:
+            server.start_star_af(priority="turbo")
+        self.assertIn("priority", str(ctx.exception))
+
+    def test_accuracy_priority_uses_more_frames_and_longer_settle(self):
+        self._setup_cam(fm="1", mode="M")
+        seen = {}
+        orig_init = star_af.AutoStarAF.__init__
+        def spy_init(af_self, *args, **kwargs):
+            seen["frames_per_step"] = kwargs.get("frames_per_step")
+            seen["settle_s"] = kwargs.get("settle_s")
+            orig_init(af_self, *args, **kwargs)
+        with mock.patch.object(star_af.AutoStarAF, "__init__", spy_init), \
+             mock.patch.object(star_af.AutoStarAF, "run", return_value={"phase": "done", "message": "Focused"}):
+            server.start_star_af(x=0.5, y=0.5, zoom=False, boost=False, priority="accuracy")
+            for _ in range(100):
+                if not server.star_af_state["running"]:
+                    break
+                threading.Event().wait(0.01)
+        self.assertEqual(server.star_af_state["priority"], "accuracy")
+        self.assertEqual((seen["frames_per_step"], seen["settle_s"]), star_af.PRIORITIES["accuracy"])
 
     def test_usb_and_wifi_expose_star_af_feature(self):
         self.assertIn("star_af", usb_camera.FEATURES)
@@ -240,13 +280,15 @@ class ServerGuards(unittest.TestCase):
 class PageMarkup(unittest.TestCase):
     def test_star_af_controls_and_i18n_keys_present(self):
         h = HTML.read_text(encoding="utf-8")
-        for frag in ('id="starAfOn"', 'id="starRow"', 'id="starHfr"', 'id="starBest"',
-                     'id="starHyp"', 'id="starLock"', 'id="starPanelLock"',
-                     'id="starReset"', 'id="starAuto"', 'data-feat="star_af"', 'data-feat="mf_drive"'):
+        for frag in ('id="starAfOn"', 'id="starAfLab"', 'id="starRow"', 'id="starPrio"',
+                     'id="starHfr"', 'id="starBest"', 'id="starHyp"', 'id="starLock"',
+                     'id="starPanelLock"', 'id="starReset"', 'id="starAuto"',
+                     'data-feat="star_af"', 'data-feat="mf_drive"', 'lvboost:'):
             self.assertIn(frag, h)
-        for key in ("lv.starAf", "star.auto", "star.stop", "star.lock", "star.locked",
-                    "star.hfr", "star.hfrClip", "star.best", "star.hyp",
-                    "star.noStar", "star.reset", "star.manualHint"):
+        for key in ("lv.starAf", "star.auto", "star.stop", "star.speed", "star.accuracy",
+                    "star.prioHint", "star.lock", "star.locked", "star.hfr", "star.hfrClip",
+                    "star.best", "star.hyp", "star.noStar", "star.tooBright",
+                    "star.reset", "star.manualHint", "prop.lvboost"):
             self.assertIn('"%s":' % key, h)
         self.assertIn("'/api/staraf'", h)
 

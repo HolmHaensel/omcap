@@ -219,6 +219,7 @@ USB_TABLES = {
     "d01a": {"0": "Face Priority Off", "32769": "Face Priority On", "32770": "Face & Eye Priority On",
              "32771": "Face & R. Eye Priority On", "32772": "Face & L. Eye Priority On"},  # 32771 inferred
     "d0cb": {"1": "On", "2": "Off"},  # Focus BKT (user's firmware: d0ce is Focus Stacking, mapped 2026-11-16)
+    "d0ea": {"2": "Off", "1": "On1", "3": "On2"},  # Live View Boost (E-M1 manual p.176; traces B & C, 2026-11-16/22)
 }
 # Bracketing kind d020: 2 = Off, 3 = Focus BKT (mapped 2026-11-13). Focus Stacking needs Focus BKT; the camera then
 # switches by itself to Silent Sequential H, electronic shutter (1/16000 … 1/8 s) and flash off (E-M1 manual, p.174).
@@ -414,8 +415,9 @@ class UsbCamera:
         "stabilizer": ("d01d", _table_names("d01d")),
         "facepriority": ("d01a", _table_names("d01a")),
         "focusstacking": ("d0cb", _table_names("d0cb")),
+        "lvboost": ("d0ea", _table_names("d0ea")),
     }
-    OPTIONAL = {"focusstacking"}  # not on every body / firmware
+    OPTIONAL = {"focusstacking", "lvboost"}  # not on every body / firmware
 
     def __init__(self, allow_write=False, backend="gphoto2"):
         """backend: "ptp" (own PTP layer, omcap/ptp_gphoto.py), "gphoto2" (libgphoto2) or "auto"
@@ -692,6 +694,8 @@ class UsbCamera:
                 raise
             if key == "focusstacking":  # On only when the camera really stacks: Bracketing, Focus BKT and d0ce (live)
                 value = "1" if self._stacking_on() else "2"
+            if key == "lvboost":  # live value so menu or Star AF boost changes reflect immediately
+                value = self._prop_now(LV_BOOST)
             if key == "artfilter":  # d010 also holds the kind of filter (from 34305)
                 choices = [c for c in choices if int(c) >= 34305]
             if key == "shutspeedvalue":  # M only: BULB, LIVE TIME, LIVECOMP are in d01c
@@ -1237,6 +1241,10 @@ class UsbCamera:
     def focus_mode(self):
         """Current AF mode code as string ('1' = MF, '32769' = S-AF+MF, '2' = S-AF, '32770' = C-AF)."""
         return self._prop_now("d003")
+
+    def take_mode(self):
+        """Current shooting mode name ('P', 'A', 'S', 'M', 'movie', or '?')."""
+        return EXPOSURE_PROGRAM.get(str(self._value("d006")), "?")
 
     def set_lv_boost(self, value):
         """Set Live View Boost d0ea (1 On1, 2 Off, 3 On2); returns previous int value or None if unsupported."""

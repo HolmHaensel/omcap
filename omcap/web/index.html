@@ -435,7 +435,7 @@ body.webcam{cursor:none;display:flex;align-items:center;justify-content:center}
     <span id="autoLvStatus" class="chip" hidden data-feat="lvsize"></span>
     <span class="vsep"></span>
     <span id="lvTools" hidden>
-      <label class="tog" data-feat="star_af"><input type="checkbox" id="starAfOn"> <span data-i18n="lv.starAf">Star AF</span></label>
+      <label class="tog" id="starAfLab" data-feat="star_af"><input type="checkbox" id="starAfOn"> <span data-i18n="lv.starAf">Star AF</span></label>
       <span data-feat="loupe"><span id="loupeTools">
         <span id="loupeLabel" class="chip" role="status" style="display:none"></span>
         <span id="loupeMove" class="seg" role="group" hidden data-i18n-aria="lv.loupeMove" aria-label="Move the zoom frame"><button class="w" data-lm="left" data-i18n-aria="lv.left" aria-label="Left">◀</button><button class="w" data-lm="up" data-i18n-aria="lv.up" aria-label="Up">▲</button><button class="w" data-lm="down" data-i18n-aria="lv.down" aria-label="Down">▼</button><button class="w" data-lm="right" data-i18n-aria="lv.right" aria-label="Right">▶</button></span>
@@ -465,6 +465,7 @@ body.webcam{cursor:none;display:flex;align-items:center;justify-content:center}
   </div>
   <div class="tb" id="starRow" hidden>
     <button class="w" id="starAuto" data-feat="mf_drive" data-i18n="star.auto">Auto Star AF</button>
+    <select id="starPrio" data-feat="mf_drive" data-i18n-title="star.prioHint" title="Speed: faster sweep. Accuracy: more frames and longer settle for tripod / Live View Boost On2"><option value="speed" data-i18n="star.speed">Speed</option><option value="accuracy" data-i18n="star.accuracy">Accuracy</option></select>
     <label class="tog" data-feat="mf_drive"><input type="checkbox" id="starLock"> <span data-i18n="star.lock">Lock focus</span></label>
     <span id="starHfr" class="chip" role="status"></span>
     <span id="starBest" class="mut"></span>
@@ -835,6 +836,9 @@ const I18N={en:{
   "lv.starAf": "Star AF",
   "star.auto": "Auto Star AF",
   "star.stop": "Stop Star AF",
+  "star.speed": "Speed",
+  "star.accuracy": "Accuracy",
+  "star.prioHint": "AF Priority (OM-1 II style): Speed = faster sweep; Accuracy = more frames and longer settle for tripod and Live View Boost On2",
   "star.lock": "Lock focus",
   "star.locked": "Focus locked",
   "star.hfr": "HFR {v} px",
@@ -842,6 +846,7 @@ const I18N={en:{
   "star.best": "Best {v} px",
   "star.hyp": "Hyperfocal {h} m ({n} m–∞)",
   "star.noStar": "No star",
+  "star.tooBright": "Too bright",
   "star.reset": "Reset",
   "star.manualHint": "Turn the focus ring to minimise HFR",
   "lv.roll": "Horizon {a}° · Tilt {b}°",
@@ -943,6 +948,7 @@ const I18N={en:{
   "prop.stabilizer": "Image stabilizer",
   "prop.facepriority": "Face priority",
   "prop.focusstacking": "Focus Stacking",
+  "prop.lvboost": "Live View Boost",
   "msg.stackOne": "Only one picture. The camera did not stack.",
   "prop.colortone": "Picture Mode",
   "prop.artfilter": "Art filter",
@@ -1287,6 +1293,8 @@ const FEATURES={
   facepriority:{show:inMode('P','A','S','M')},
   // Focus Stacking (USB d0cb, FW 4.x): Bracketing is only in P/A/S/M (manual p.82, 174)
   focusstacking:{show:p=>inMode('P','A','S','M')(p)&&!trNoCard}, // the camera merges on the card (refused without one)
+  // Live View Boost (USB d0ea, FW 4.x): Off / On1 / On2 in photo modes (E-M1 manual p.95, 176; no Wi-Fi CGI)
+  lvboost:{show:inMode('P','A','S','M')},
   colorphase:{show:p=>p.takemode.value==='ART'?p.artfilter.value==='partcolor':['P','A','S','M'].includes(p.takemode.value)&&p.colortone.value==='partcolor'},
 };
 let lastProps=null,propsFailed=false;
@@ -1498,8 +1506,11 @@ function applyContext(){
   // MF drive (USB 0x9487): like the focus ring, so only with AF mode MF or S-AF+MF (manual p.75)
   const fm=lastProps&&lastProps.focusmode&&lastProps.focusmode.value;
   $('#rowMf').hidden=!(features.has('mf_drive')&&canWrite&&['1','32769'].includes(fm));
+  // Star AF: photo shooting modes only, not Movie mode (OM-1 II manual p.101; REQ-F24)
+  $('#starAfLab').classList.toggle('mode-off',mv);
+  $('#rowStar').classList.toggle('mode-off',mv);
   // Hide AF Area boxes and target grid toggle in MF mode or while Star AF is active (REQ-F24)
-  const hideAf=fm==='1'||isStarActive();
+  const hideAf=fm==='1'||(!mv&&isStarActive());
   $('#afModes').hidden=hideAf||!features.has('af_modes');
   $('#afShowRow').hidden=hideAf;
   renderLongSeg(m,sp);
@@ -3121,7 +3132,7 @@ function drawHist(data){
   g.fillStyle='rgba(255,255,255,.55)';
   for(let i=0;i<256;i++){const hh=Math.min(1,l[i]/mx)*(H-3);g.fillRect(i/255*(W-1),H-hh,Math.max(1,W/256),hh)}
 }
-let starBestHfr=null, starPt=null, starSwitchedMf=false;
+let starBestHfr=null, starPt=null, starSwitchedMf=false, starWasRunning=false;
 function isStarActive(){return !!($('#starAfOn').checked||(st&&st.star_af&&st.star_af.running))}
 function hyperfocalText(){
   // MFT circle of confusion 0.015 mm: H = f^2 / (N * c) + f, sharp from H/2 to infinity
@@ -3180,7 +3191,7 @@ function measureStarHfr(gray,w,h,pt){
   }
   const useU=!pt&&bxU>=0;
   const bx=useU?bxU:bxA, by=useU?byU:byA, best=useU?bestU:bestA;
-  if(bx<0||best-bg<8||gray[by*w+bx]-bg<12) return null;
+  if(bx<0||best-bg<8||gray[by*w+bx]-bg<12) return bg>=180?{bright:true}:null;
   const ap=Math.min(18,bx-x0,by-y0,x1-1-bx,y1-1-by);
   if(ap<3) return null;
   let sum=0,sx=0,sy=0;
@@ -3197,7 +3208,8 @@ function measureStarHfr(gray,w,h,pt){
   return {hfr:rsum/sum,x:bx+cx,y:by+cy,ap,saturated:sat};
 }
 function updateStarAfUi(){
-  const on=!!(st&&st.live&&$('#starAfOn').checked);
+  const mv=!!(lastProps&&lastProps.takemode&&lastProps.takemode.value==='movie');
+  const on=!!(st&&st.live&&$('#starAfOn').checked&&!mv);
   const sa=(st&&st.star_af)||{}, run=!!sa.running, locked=!!$('#starLock').checked;
   const active=on||run;
   $('#starRow').hidden=!active;
@@ -3208,7 +3220,8 @@ function updateStarAfUi(){
   $('#starPanelLock').setAttribute('aria-pressed',locked?'true':'false');
   $('#starPanelLock').textContent=tr(locked?'star.locked':'star.lock');
   document.querySelectorAll('[data-mf]').forEach(b=>b.disabled=!canWrite||locked||run);
-  const blocked=!canWrite||(!run&&(locked||!st||!st.live||zBlock));
+  const blocked=!canWrite||(!run&&(mv||locked||!st||!st.live||zBlock));
+  $('#starPrio').disabled=!canWrite||run||locked||mv;
   for(const btn of [$('#starAuto'),$('#starPanelAuto')]){
     btn.textContent=tr(run?'star.stop':'star.auto');
     btn.classList.toggle('rec',run);
@@ -3217,7 +3230,9 @@ function updateStarAfUi(){
   $('#starHyp').textContent=active?hyperfocalText():'';
   const m=sa.message||(features.has('mf_drive')?'':tr('star.manualHint'));
   $('#starMsg').textContent=m;
-  $('#starMsg').className=sa.error?'warn':'mut';
+  $('#starMsg').className=sa.error?'warn':sa.phase==='done'?'ok':'mut';
+  if(starWasRunning&&!run&&sa.message) msg(sa.message,!!sa.error);
+  starWasRunning=run;
   if(sa.switched_to_mf&&!starSwitchedMf){starSwitchedMf=true;props()}
   if(!sa.switched_to_mf) starSwitchedMf=false;
 }
@@ -3227,7 +3242,7 @@ async function runStarAuto(){
     if(run){await api('/api/staraf',{action:'stop'});return}
     if($('#starLock').checked) return;
     if(!$('#starAfOn').checked){$('#starAfOn').checked=true;aidSave();applyContext();drawAf()}
-    const body={action:'start',zoom:true,boost:true};
+    const body={action:'start',zoom:true,boost:true,priority:$('#starPrio').value};
     if(!loupeOn&&starPt){body.x=starPt.x;body.y=starPt.y}
     await api('/api/staraf',body);
     tick();
@@ -3242,7 +3257,8 @@ $('#starPanelTog').onclick=()=>{$('#starAfOn').checked=!$('#starAfOn').checked;a
 $('#starAfOn').addEventListener('change',()=>{applyContext();drawAf()});
 function aidTick(){
   if(quitting) return;
-  const wantH=$('#aidHist').checked,wantC=$('#aidClip').checked,wantP=$('#aidPeak').checked,wantS=$('#starAfOn').checked;
+  const mv=!!(lastProps&&lastProps.takemode&&lastProps.takemode.value==='movie');
+  const wantH=$('#aidHist').checked,wantC=$('#aidClip').checked,wantP=$('#aidPeak').checked,wantS=$('#starAfOn').checked&&!mv;
   const hc=$('#histCv'),oc=$('#aidCv'),img=$('#live'),nw=img.naturalWidth,nh=img.naturalHeight;
   hc.hidden=!(wantH&&st.live);
   updateStarAfUi();
@@ -3277,7 +3293,7 @@ function aidTick(){
   }
   if(wantS){
     const res=measureStarHfr(gray,w,h,loupeOn?{x:0.5,y:0.5}:starPt),chip=$('#starHfr');
-    if(res){
+    if(res&&!res.bright){
       if(starBestHfr===null||res.hfr<starBestHfr) starBestHfr=res.hfr;
       chip.textContent=tr(res.saturated?'star.hfrClip':'star.hfr',{v:res.hfr.toFixed(2)});
       chip.classList.toggle('ok',!res.saturated&&res.hfr<=starBestHfr*1.1);
@@ -3285,7 +3301,7 @@ function aidTick(){
       og.strokeStyle=res.saturated?'#FFB020':'#3DDC84'; og.lineWidth=1.5;
       og.beginPath(); og.arc(res.x,res.y,Math.max(8,res.hfr*2.5),0,Math.PI*2); og.stroke();
     }else{
-      chip.textContent=tr('star.noStar'); chip.classList.remove('ok');
+      chip.textContent=tr(res&&res.bright?'star.tooBright':'star.noStar'); chip.classList.remove('ok');
     }
   }
 }

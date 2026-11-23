@@ -114,7 +114,7 @@ stop_job = threading.Event()
 job = {"name": None, "running": False, "done": 0, "total": 0, "error": None}
 star_af_state = {"running": False, "phase": "idle", "hfr": None, "best_hfr": None,
                  "start_hfr": None, "step": 0, "message": None, "error": None,
-                 "saturated": False, "switched_to_mf": False, "samples": []}
+                 "saturated": False, "switched_to_mf": False, "priority": "speed", "samples": []}
 state = {"transfer": "sd", "latest": None, "transfer_error": None,
          "take": None, "movie": None, "resume_live": False, "seen": None, "wifi_field": 41,
          "wifi_af": None, "pressing": False, "indexing": False, "play": None,
@@ -228,7 +228,7 @@ def disconnect():
                  last_shot_jpeg=None)
     star_af_state.update(running=False, phase="idle", hfr=None, best_hfr=None,
                          start_hfr=None, step=0, message=None, error=None,
-                         saturated=False, switched_to_mf=False, samples=[])
+                         saturated=False, switched_to_mf=False, priority="speed", samples=[])
 
 
 def af_area():
@@ -860,7 +860,7 @@ def start_bracket(frames, step):
     run_job("Reihe", len(plan), work)
 
 
-def start_star_af(x=None, y=None, zoom=True, boost=True):
+def start_star_af(x=None, y=None, zoom=True, boost=True, priority="speed"):
     """Automatic USB Star AF (REQ-F24): temporary LV Boost (d0ea), optional full-frame star search,
     Zoom AF x10, coarse-to-fine V-curve via OMD_MFDrive (0x9487), and switch S-AF+MF -> MF on success."""
     if conn_type != "usb":
@@ -869,8 +869,14 @@ def start_star_af(x=None, y=None, zoom=True, boost=True):
         raise WriteBlocked("Read-only mode: start with --allow-write")
     if not live.running:
         raise CameraError("Start the live view first")
+    if state.get("movie") is not None or (hasattr(cam, "take_mode") and cam.take_mode() == "movie"):
+        raise CameraError("Star AF is only available in photo shooting modes")
     if job["running"] or star_af_state["running"]:
         raise CameraError("A series or Star AF is already running")
+    prio = str(priority or "speed").lower()
+    if prio not in star_af.PRIORITIES:
+        raise CameraError("Unknown Star AF priority: %s" % priority)
+    frames_per_step, settle_s = star_af.PRIORITIES[prio]
     ensure_idle()
     fm = cam.focus_mode()
     if fm not in ("1", "32769"):  # MF (1) or S-AF+MF (32769): 0x9487 is ignored in S-AF/C-AF
@@ -882,7 +888,7 @@ def start_star_af(x=None, y=None, zoom=True, boost=True):
     stop_job.clear()
     star_af_state.update(running=True, phase="coarse", hfr=None, best_hfr=None, start_hfr=None,
                          step=0, message="Starting Star AF…", error=None,
-                         saturated=False, switched_to_mf=False, samples=[])
+                         saturated=False, switched_to_mf=False, priority=prio, samples=[])
 
     def runner():
         try:
@@ -944,6 +950,8 @@ def start_star_af(x=None, y=None, zoom=True, boost=True):
                         on_progress=on_progress,
                         cx=mx,
                         cy=my,
+                        frames_per_step=frames_per_step,
+                        settle_s=settle_s,
                     ).run()
                     if res.get("phase") == "error":
                         star_af_state["error"] = res.get("message")
@@ -1694,7 +1702,13 @@ class Handler(BaseHTTPRequestHandler):
             if b.get("action") == "stop":
                 stop_job.set()
             else:
-                start_star_af(b.get("x"), b.get("y"), zoom=bool(b.get("zoom", True)), boost=bool(b.get("boost", True)))
+                start_star_af(
+                    b.get("x"),
+                    b.get("y"),
+                    zoom=bool(b.get("zoom", True)),
+                    boost=bool(b.get("boost", True)),
+                    priority=b.get("priority", "speed"),
+                )
             return {"star_af": dict(star_af_state)}
         elif path == "/api/loupe":
             if conn_type != "usb":

@@ -40,6 +40,13 @@ def decode_luma(jpeg_bytes):
     return arr
 
 
+BRIGHT_BG_LIMIT = 180.0  # OM-1 II manual p.102: Starry Sky AF cannot focus in bright/daylight scenes
+PRIORITIES = {  # AF Priority (OM-1 II manual p.119): (frames_per_step, settle_s)
+    "speed": (2, 0.25),
+    "accuracy": (4, 0.45),  # tripod + slower Live View Boost On2 (E-M1 manual p.176)
+}
+
+
 def measure_star(luma, cx=None, cy=None, box=96, aperture=18):
     """Find the brightest non-hotpixel star near (cx, cy) and compute its Half-Flux Radius (HFR).
 
@@ -85,7 +92,11 @@ def measure_star(luma, cx=None, cy=None, box=96, aperture=18):
     raw_peak = float(roi[sy_roi, sx_roi]) - bg
     snr = smooth_peak / sigma
     if smooth_peak < 8.0 or raw_peak < 12.0 or snr < 3.5:
-        return {"found": False, "bg": round(bg, 1), "noise": round(sigma, 2), "snr": round(snr, 1)}
+        bright = bg >= BRIGHT_BG_LIMIT
+        out = {"found": False, "bg": round(bg, 1), "noise": round(sigma, 2), "snr": round(snr, 1), "bright": bright}
+        if bright:
+            out["reason"] = "Too bright for Star AF"
+        return out
 
     ap = min(int(aperture), sx_roi, sy_roi, roi.shape[1] - 1 - sx_roi, roi.shape[0] - 1 - sy_roi)
     if ap < 3:
@@ -213,7 +224,11 @@ def find_brightest_star(luma, margin=24):
     raw_peak = float(center[sy_rel, sx_rel]) - bg
     snr = smooth_peak / sigma
     if smooth_peak < 8.0 or raw_peak < 12.0 or snr < 3.5:
-        return {"found": False, "bg": round(bg, 1), "noise": round(sigma, 2), "snr": round(snr, 1)}
+        bright = bg >= BRIGHT_BG_LIMIT
+        out = {"found": False, "bg": round(bg, 1), "noise": round(sigma, 2), "snr": round(snr, 1), "bright": bright}
+        if bright:
+            out["reason"] = "Too bright for Star AF"
+        return out
 
     sx = m + sx_rel + 1
     sy = m + sy_rel + 1
@@ -364,6 +379,8 @@ class AutoStarAF:
         if self._stopped():
             return self._finish("stopped", "Star AF stopped")
         if not m0 or not m0.get("found"):
+            if m0 and m0.get("bright"):
+                return self._finish("error", "Too bright for Star AF (use in dark sky / night).")
             return self._finish("error", "No star found near the centre. Aim at a bright star or LED first.")
 
         # --- Pass 1: coarse search ---

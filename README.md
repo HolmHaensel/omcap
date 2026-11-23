@@ -85,7 +85,7 @@ More in [Start and stop](#start-and-stop).
 | "In focus" / "No focus" chip | ✅ | ✅ | Wi-Fi after a tap; USB also after Press halfway and Take picture. With S-AF the camera only releases in focus |
 | AF Area (All Targets, Single Target, Small Target, Group Target) | – | ✅ | no Wi-Fi command |
 | Focus ring (MF): Near/Far in three step sizes | – | ✅ | AF mode MF or S-AF+MF; no Wi-Fi command |
-| Star AF: live star sharpness (HFR) aid, hyperfocal readout, focus lock and automatic USB Star AF (temporary Live View Boost, full-frame star finder, ×10 zoom, two-pass V-curve, switches S-AF+MF → MF on success; triggerable from a phone over `--lan`) | 🟡 | 🟡 | Wi-Fi: manual HFR focus aid + hyperfocal readout (no focus drive command); USB: live HFR aid + Auto Star AF (needs MF or S-AF+MF and `--allow-write`); offline-tested, camera re-test pending (REQ-F24) |
+| Star AF: live star sharpness (HFR) aid, hyperfocal readout, focus lock, bright-scene warning and automatic USB Star AF (Speed/Accuracy priority, temporary Live View Boost, full-frame star finder, ×10 zoom, S-AF+MF → MF; photo modes only, phone-ready over `--lan`) | 🟡 | 🟡 | Wi-Fi: manual HFR focus aid + hyperfocal readout (no focus drive command); USB: live HFR aid + Auto Star AF (needs photo mode, MF or S-AF+MF and `--allow-write`); offline-tested, camera re-test pending (REQ-F24) |
 | Focus Stacking On/Off (8 frames, merged in the camera, P/A/S/M) | – | ✅ | no Wi-Fi command; USB sets Bracketing, Focus BKT and stacking together; needs a card, hidden without one |
 
 ### Shooting
@@ -111,6 +111,7 @@ More in [Start and stop](#start-and-stop).
 | Partial Color colour ring (ART and Picture Mode Partial Color; 18 colours, laid out like the camera's ring) | ✅ | – | USB: the camera offers no value for the colour, only selecting Partial Color |
 | Shooting mode | ✅ | – | USB: set by the mode dial; the app follows the dial and reloads the values (tested; iAUTO, ART, SCN, PHOTO STORY show as P) |
 | AF mode, Metering, Flash mode, Record mode, Aspect ratio, Image stabilizer, Face priority | – | ✅ | no Wi-Fi command |
+| Live View Boost (Off / On1 / On2, photo modes P/A/S/M) | – | 🟡 | no Wi-Fi command; offline-tested, camera test pending (REQ-F24) |
 | Aperture list limited to the attached lens | ✅ | ✅ | USB after the first picture of the session |
 | Read-only values: Anti-Shock, Silent, Noise Reduct., BULB/TIME Timer, Digital Tele-converter | ✅ | – | no USB property known |
 | Turn off camera (click twice) | ✅ | – | Wi-Fi only |
