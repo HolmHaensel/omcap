@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Wi-Fi: outer AF grid fields focus where tapped instead of 1–2 fields further in; the camera accepts points outside its touch area (REQ-F04). Probe-tested 2026-11-24, branch not camera-tested.
+
 ## 0.8.0 – 2026-11-24
 
 - MCP full control (REQ-F35): with `--allow-write`, `--allow-shutter`, `--allow-erase` an assistant can focus, run live view, Playback, connect, shoot, record and erase; every camera change is a dry-run first and needs `confirm=true`. USB- and Wi-Fi-tested; time lapse, AE BKT, long exposure and erase offline-tested.

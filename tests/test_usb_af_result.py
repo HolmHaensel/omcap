@@ -98,7 +98,7 @@ class MeasuredGrid(unittest.TestCase):
 
 
 class WifiOuterFields(unittest.TestCase):
-    """Over Wi-Fi the camera takes taps only inside its touch frame (~60 %); the grid is the real one (~91 x 79 %)."""
+    """Over Wi-Fi the camera also takes taps outside its touch frame (~47-60 %), so every field of the real grid (~91 x 79 %) is used as tapped."""
 
     def setUp(self):
         from omcap import server
@@ -111,13 +111,15 @@ class WifiOuterFields(unittest.TestCase):
             "x": 135, "y": 100, "w": 527, "h": 397, "base_w": 797, "base_h": 597}),
             af_focus=mock.Mock(return_value={"ok": True, "x": None, "y": None}))
 
-    def test_outer_fields_move_into_the_touch_frame(self):
-        for field in (1, 9, 73, 81):
+    def test_outer_fields_focus_where_tapped(self):
+        a = self.server.af_area()["area"]
+        for field in (1, 9, 37, 73, 81):
             self.server.set_af_area(None, field)
             fx, fy = self.server.cam.af_focus.call_args[0]
-            self.assertTrue(135 / 797 - 1e-9 <= fx <= 662 / 797 + 1e-9, field)
-            self.assertTrue(100 / 597 - 1e-9 <= fy <= 497 / 597 + 1e-9, field)
-            self.assertNotEqual(self.server.state["wifi_field"], field)  # shown where the camera focused
+            row, col = divmod(field - 1, 9)
+            self.assertAlmostEqual(fx * a["w"], a["x0"] + (col + .5) / 9 * (a["x1"] - a["x0"]), places=6)
+            self.assertAlmostEqual(fy * a["h"], a["y0"] + (row + .5) / 9 * (a["y1"] - a["y0"]), places=6)
+            self.assertEqual(self.server.state["wifi_field"], field)
 
     def test_centre_field_stays(self):
         self.server.set_af_area(None, 41)

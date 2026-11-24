@@ -23,7 +23,7 @@ Every feature over Wi-Fi and USB, with test status and details. Short overview: 
 
 | Feature | Wi-Fi | USB | Note |
 |---|---|---|---|
-| Tap the 9×9 AF grid to focus, AF target in green | ✅ | ✅ | grid in the camera's real size (read 2026-11-22); Wi-Fi: outer fields focus at the edge of the camera's touch area |
+| Tap the 9×9 AF grid to focus, AF target in green | ✅ | ✅ | grid in the camera's real size (read 2026-11-22); Wi-Fi: outer fields focus where tapped (the camera takes points outside its touch area) |
 | AF frame on tap (white focusing, green in focus, red no focus) | ✅ | ✅ | |
 | Focus tone in the app after a tap focus (high = in focus, low = no focus; switch "Focus tone", off by default) | ✅ | – | over USB the camera beeps itself on the half press (menu "Beep"), so no app tone; over Wi-Fi a tap sets the AF frame without a camera beep, a half press would need mode "shutter" and pause the live view; tried over Wi-Fi 2026-11-22 (user: works) (REQ-F59) |
 | "In focus" / "No focus" chip | ✅ | ✅ | Wi-Fi after a tap; USB also after Press halfway and Take picture. With S-AF the camera only releases in focus |

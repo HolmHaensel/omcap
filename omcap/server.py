@@ -281,17 +281,14 @@ def set_af_area(mode, field):
     field = int(field)
     if not 1 <= field <= 81:
         raise CameraError("AF point must be between 1 and 81")
-    info = af_area()
-    a, t = info["area"], info["touch"]
+    a = af_area()["area"]
     row, col = divmod(field - 1, 9)
     state["wifi_af"] = None
-    # outer fields lie outside the touch frame: focus at the nearest point the camera takes
-    x = min(max(a["x0"] + (col + .5) / 9 * (a["x1"] - a["x0"]), t["x0"]), t["x1"])
-    y = min(max(a["y0"] + (row + .5) / 9 * (a["y1"] - a["y0"]), t["y0"]), t["y1"])
+    # the camera also takes points outside touchactiveframe (affocus ok at 0061x0239 of 638x478, tested 2026-11-24)
+    x = a["x0"] + (col + .5) / 9 * (a["x1"] - a["x0"])
+    y = a["y0"] + (row + .5) / 9 * (a["y1"] - a["y0"])
     res = cam.af_focus(x / a["w"], y / a["h"])
-    # the field the camera really used (an outer field moves inward), so the target and the green field agree
-    state["wifi_field"] = 9 * min(int((y - a["y0"]) * 9 / (a["y1"] - a["y0"])), 8) \
-        + min(int((x - a["x0"]) * 9 / (a["x1"] - a["x0"])), 8) + 1
+    state["wifi_field"] = field
     # Report the frame centre only for affocus=ok; the UI then colours the field green
     if res["ok"] and res["x"] is not None:
         state["wifi_af"] = {"x": res["x"], "y": res["y"]}
