@@ -495,13 +495,27 @@ input[type=number]{width:72px}
 }
 /* phone: two columns of tiles, tighter chrome */
 @media(max-width:599px){
+  /* the image scrolls away instead of eating half the screen: panels get the full height */
+  #liveCol{position:static}
+  #viewport{width:100%}
   #props{grid-template-columns:repeat(2,minmax(0,1fr))}
-  #app>header{height:40px;min-height:40px;padding:0 10px;gap:6px;flex-wrap:nowrap;
-    overflow-x:auto;overflow-y:hidden;scrollbar-width:none}
-  #app>header::-webkit-scrollbar{display:none}
+  #app>header{height:auto;min-height:40px;padding:5px 10px;gap:6px;flex-wrap:wrap;
+    overflow:visible;row-gap:5px}
   #app>header>*{flex:none}
+  #app>header #connText{display:none} /* just the green dot: the model name costs a whole row */
+  #app>header h1{display:none}        /* the phone is already inside the app */
+  #app>header .quitBtn{display:none}  /* quitting is a computer action */
+  #app>header .chip{padding:0 6px}
+  #status{display:none}
   #app>header h1{font-size:10.5px;letter-spacing:.12em}
-  #modeBox .seg button{width:auto;flex:1;font-size:10px;letter-spacing:.03em;padding:0 2px}
+  #app>header .hbtn{height:26px;min-height:26px;padding:0 7px;font-size:9.5px}
+  #hdrLocal{display:none!important} /* listing files on the computer is a desktop action */
+  .tb{flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch;
+    mask-image:linear-gradient(to right,#000 calc(100% - 22px),transparent 100%)}
+  .tb>*{flex:none}
+  #modeBox .seg{flex-wrap:nowrap}
+  #modeBox .seg button{width:auto;flex:0 0 auto;min-width:0;font-size:10px;letter-spacing:0;padding:0 7px}
+  #valStrip .sub{margin-left:-8px;opacity:.8}
   #props label>.v{font-size:17px}
   #valStrip{font-size:13px;height:34px;gap:12px}
 }
