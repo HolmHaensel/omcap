@@ -1209,10 +1209,12 @@ function modeSeen(at){ // USB: mode dial turned (state tick or X-Mode-At of a li
   if(modeAt===undefined) modeAt=at||null; // first look after loading: no message for an old turn
   else if(at&&at!==modeAt){modeAt=at;usbShotMode=null;props();msg(tr('msg.modeDial'))}
 }
-function propsRevSeen(rev){ // not while the camera is busy: the value stays unseen and is looked at again on the next tick
+function propsRevSeen(rev){ // camera busy or a setting list open: the value stays unseen and is looked at again on the next tick
   if(rev===undefined) return;
-  if(propsRev===undefined) propsRev=rev; // first look after loading: the page loads the settings itself
-  else if(rev!==propsRev&&!(st.stage>0||st.busy||st.play)){propsRev=rev;props()}
+  if(propsRev===undefined){propsRev=rev;return} // first look after loading: the page loads the settings itself
+  const busy=st.stage>0||st.busy||st.indexing||st.movie!=null||st.take!=null||(st.job&&st.job.running)||st.play;
+  const editing=document.activeElement&&document.activeElement.matches('#props select'); // a rebuild would close the open list
+  if(rev!==propsRev&&!busy&&!editing){propsRev=rev;setTimeout(()=>{props();loadAf()},800)} // Wi-Fi: after a takemode change the camera needs a moment for the new values
 }
 async function tick(){
   if(view||!connected||quitting) return;

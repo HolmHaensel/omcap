@@ -1722,6 +1722,7 @@ class Handler(BaseHTTPRequestHandler):
                 cam.focus()
             else:
                 set_af_area(b.get("mode"), b.get("field"))
+                state["props_rev"] += 1  # AF mode / MF is shown in the settings (e.g. set by MCP)
             return af_area()
         if path == "/api/playback":
             playback(b.get("action") == "enter")

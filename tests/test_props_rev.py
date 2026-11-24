@@ -25,12 +25,15 @@ class PropsRev(unittest.TestCase):
     def test_page_reloads_settings_on_change(self):
         html = open(server.__file__.replace("server.py", "web/index.html"), encoding="utf-8").read()
         self.assertIn("propsRevSeen(st.props_rev)", html)
-        self.assertIn("rev!==propsRev&&!(st.stage>0||st.busy||st.play)", html)
+        self.assertIn("rev!==propsRev&&!busy&&!editing", html)
+        self.assertIn("(st.job&&st.job.running)||st.play", html)
 
     def test_set_prop_counts_up(self):
         src = open(server.__file__, encoding="utf-8").read()
         i = src.index('elif path == "/api/set":')
         self.assertIn('state["props_rev"] += 1', src[i:i + 400])
+        j = src.index('if path == "/api/afarea":')
+        self.assertIn('state["props_rev"] += 1', src[j:j + 400])
 
 
 if __name__ == "__main__":
