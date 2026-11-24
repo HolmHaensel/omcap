@@ -7,7 +7,7 @@ from unittest import mock
 
 import numpy as np
 
-from omcap import server, star_af, usb_camera
+from omcap import server, star_af
 from omcap.camera import CameraError, WriteBlocked
 
 HTML = Path(__file__).resolve().parent.parent / "omcap" / "web" / "index.html"
@@ -228,15 +228,23 @@ class ServerGuards(unittest.TestCase):
         self.assertEqual(server.star_af_state["priority"], "accuracy")
         self.assertEqual((seen["frames_per_step"], seen["settle_s"]), star_af.PRIORITIES["accuracy"])
 
-    def test_usb_and_wifi_expose_star_af_feature(self):
-        self.assertIn("star_af", usb_camera.FEATURES)
-        self.assertIn("star_af", server.WIFI_FEATURES)
-
     def test_star_af_endpoint_works_from_phone_without_local_gate(self):
-        # /api/staraf must work over --lan from a phone (unlike /api/pickfolder which calls _local())
-        src = Path(server.__file__).read_text(encoding="utf-8")
-        block = src[src.index('elif path == "/api/staraf":'):][:300]
-        self.assertNotIn("_local()", block)
+        # /api/staraf must work over --lan from a phone (unlike /api/pickfolder, which is local only)
+        self._setup_cam()
+        h = server.Handler.__new__(server.Handler)
+        h.client_address = ("192.168.1.20", 50000)
+        with mock.patch.object(server, "start_star_af") as start:
+            h._action("/api/staraf", {"x": 0.5, "y": 0.5})
+        start.assert_called_once()
+
+    def test_boost_only_in_p_a_s(self):
+        # in M the camera ignores Live View Boost: Star AF must not touch it there
+        cam, _ = self._setup_cam(mode="M")
+        with mock.patch.object(server.stop_job, "wait", return_value=False), \
+             mock.patch.object(star_af.AutoStarAF, "run", return_value={"phase": "done", "message": "ok"}):
+            server.start_star_af(x=0.5, y=0.5, zoom=False, boost=True)
+            server.star_af_thread.join(timeout=2.0)
+        cam.set_lv_boost.assert_not_called()
 
     def test_auto_star_af_boosts_finds_star_switches_to_mf_and_restores_boost(self):
         cam, live = self._setup_cam(fm="32769", mode="A")  # S-AF+MF; boost acts in P/A/S only
@@ -323,8 +331,6 @@ class PageMarkup(unittest.TestCase):
                      'id="starLockLab"', 'id="starReset"', 'id="starAuto"',
                      'data-feat="star_af"', 'data-feat="mf_drive"', "lvboost:{show:inMode('P','A','S')}"):
             self.assertIn(frag, h)
-        self.assertNotIn('id="rowStar"', h)
-        self.assertNotIn('#starPanelAuto', h)
         draw = h[h.index("function drawAf(){"):h.index("function drawAf(){") + 900]
         self.assertIn("if(isStarActive()||curFm()==='1') return;", draw)  # grid hidden with Star AF and in MF (user 2026-11-23)
         for key in ("lv.starAf", "star.auto", "star.stop", "star.speed", "star.accuracy",
@@ -335,7 +341,6 @@ class PageMarkup(unittest.TestCase):
                     "star.noFocus", "star.stopped", "prop.lvboost"):
             self.assertIn('"%s":' % key, h)
         self.assertIn("'/api/staraf'", h)
-
 
 
 class ReReviewFixes(unittest.TestCase):
@@ -351,16 +356,6 @@ class ReReviewFixes(unittest.TestCase):
             h._action("/api/staraf", {"action": "stop"})
         self.assertFalse(server.stop_job.is_set())  # a running series or time-lapse keeps going
 
-    def test_boost_only_in_p_a_s(self):
-        src = open(server_path()).read()
-        self.assertIn('cam_ref.take_mode() in ("P", "A", "S")', src)
-
-
-def server_path():
-    import os
-    from omcap import server
-    return os.path.join(os.path.dirname(server.__file__), "server.py")
-
 
 
 class StarChip(unittest.TestCase):
@@ -368,7 +363,6 @@ class StarChip(unittest.TestCase):
         import os
         from omcap import server
         h = open(os.path.join(os.path.dirname(server.__file__), "web", "index.html"), encoding="utf-8").read()
-        self.assertNotIn('id="starChip"', h)
         self.assertIn("out.push([run?'saf run':'saf','★AF'", h)
         self.assertIn("async function ensureStarMf()", h)
         self.assertIn("if(starWasRunning&&!run&&sa.phase==='done'&&features.has('mf_drive')) $('#starLock').checked=true;", h)

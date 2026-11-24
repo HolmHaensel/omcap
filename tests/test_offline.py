@@ -182,7 +182,6 @@ class PowerOff(unittest.TestCase):
             server.cam, server.live, server.conn_type = old
 
 
-
 class PowerOffGuards(unittest.TestCase):
     def test_missing_command_is_not_swallowed(self):
         class Live:
@@ -275,10 +274,6 @@ class ShareOrderAndMovieLength(unittest.TestCase):
         finally:
             server.cam, server.conn_type, server.state["play"] = old
             server.movtime_cache.clear()
-
-    def test_feature_flag(self):
-        self.assertIn("share_order", server.WIFI_FEATURES)
-        self.assertNotIn("share_order", server.usb_camera.FEATURES)
 
 
 if __name__ == "__main__":

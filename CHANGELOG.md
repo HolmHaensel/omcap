@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Tests tidied (audit 2026-11-24): 4 duplicates dropped, feature flags in one USB/Wi-Fi table (`tests/test_features.py`), 6 source-text checks now run the code (Star AF phone/boost, props reload, quit on phone, no-card focus stacking, focus tone); bulb-stop wait patchable (`TAKE_STOP_EVENTS`), suite 15.5 s → 13.9 s (REQ-F24, REQ-F35, REQ-F53, REQ-Q10). No behaviour change.
 - Partial Color: press and drag around the colour ring, the camera follows live (Wi-Fi about 0.1 s per colour, measured 2026-11-24); only the newest colour is sent (REQ-F42). Browser-tested without camera.
 - MCP actions show on the page: the control the MCP used looks pressed for a moment and the value changes, as if an invisible user worked the app; a message "MCP: …" and a list of the last 10 actions, failures in red (REQ-F35). Offline- and browser-tested, not camera-tested.
 - Wi-Fi zoom stays sharp while focusing: with Auto the sharp live view size (1024/1280) falls back only when the picture nearly stands (under 4 fps), not at the usual 8–15 fps of 1280×960 (REQ-F55). Offline-tested.
