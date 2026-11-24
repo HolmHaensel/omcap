@@ -24,6 +24,17 @@ class CameraParsing(unittest.TestCase):
         self.cam.write = lambda cgi, data=None, **q: AF_REPLY if q.get("com") == "assignafframe" else b""
         self.assertEqual(self.cam.af_focus(0.5, 0.5), {"ok": True, "x": 316.5, "y": 236.5})
 
+    def test_af_focus_outside_touch_frame_is_sent(self):
+        sent = []
+        self.cam.write = lambda cgi, data=None, **q: (sent.append(q.get("point")), AF_REPLY)[1]
+        self.cam.af_focus(0.05, 0.5)  # x 40 of 797, left of the touch frame (135)
+        self.assertEqual(sent[0], "0040x0298")
+
+    def test_af_focus_outside_picture_raises(self):
+        self.cam.write = lambda *a, **q: AF_REPLY
+        with self.assertRaisesRegex(CameraError, "outside the picture"):
+            self.cam.af_focus(1.2, 0.5)
+
     def test_af_focus_broken_reply(self):
         self.cam.write = lambda *a, **q: b"not xml"
         self.assertEqual(self.cam.af_focus(0.5, 0.5), {"ok": False, "x": None, "y": None})

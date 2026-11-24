@@ -128,7 +128,7 @@ class Camera:
         self._lock = threading.Lock()
         self._commands = None
         self._touch = None  # (lvqty, touch_frame()); the camera only changes it together with lvqty
-        self.af_point = None  # last tapped AF point "XXXXxYYYY" (touch frame grid), used by shoot()
+        self.af_point = None  # last tapped AF point "XXXXxYYYY" (base_w x base_h grid), used by shoot()
 
     # --- Transport -------------------------------------------------------
     def _open(self, cgi, query=None, data=None, timeout=None):
@@ -341,8 +341,9 @@ class Camera:
         """
         f = self.touch_frame()
         x, y = round(float(fx) * f["base_w"]), round(float(fy) * f["base_h"])
-        if not (f["x"] <= x <= f["x"] + f["w"] and f["y"] <= y <= f["y"] + f["h"]):
-            raise CameraError("AF point is outside the active area")
+        # touchactiveframe is narrower than the AF grid; the camera also takes points outside it (tested 2026-11-24)
+        if not (0 <= x <= f["base_w"] and 0 <= y <= f["base_h"]):
+            raise CameraError("AF point is outside the picture")
         point = "%04dx%04d" % (x, y)
         self.af_point = point
         reply = self.write("exec_takemotion", com="assignafframe", point=point)
