@@ -1352,7 +1352,7 @@ def public_state():
     }
 
 
-mcp_lock = threading.Lock()
+mcp_lock = threading.Condition()  # also wakes pages waiting in /api/mcpwait
 
 
 def note_mcp(path, body, err=None):
@@ -1362,6 +1362,7 @@ def note_mcp(path, body, err=None):
         state["mcp_n"] += 1
         state["mcp_log"] = (state["mcp_log"] + [{"n": state["mcp_n"], "t": round(time.time()), "path": path.split("?")[0],
                                                  "body": keep, "error": err and err[:120]}])[-10:]
+        mcp_lock.notify_all()
 
 
 # --- HTTP --------------------------------------------------------------------
@@ -1472,6 +1473,11 @@ class Handler(BaseHTTPRequestHandler):
                 # Lets a second start recognise that this app already runs on the port.
                 return self._send({"app": APP_ID, "version": __version__,
                                    "allow_write": options.get("allow_write", False)})
+            if u.path == "/api/mcpwait":  # long poll: answers as soon as the MCP does something (at most 20 s)
+                after = int(q.get("after", -1))
+                with mcp_lock:
+                    mcp_lock.wait_for(lambda: state["mcp_n"] != after, timeout=20)
+                    return self._send({"mcp_n": state["mcp_n"]})
             if u.path == "/api/connections":
                 return self._send(connections())
             if u.path == "/api/savecfg":

@@ -23,6 +23,18 @@ class McpActivity(unittest.TestCase):
         server.note_mcp("/api/afarea", {"field": 37}, "x" * 300)
         self.assertEqual(len(server.state["mcp_log"][0]["error"]), 120)
 
+    def test_note_wakes_waiting_pages(self):
+        import threading, time
+        got = []
+
+        def wait():
+            with server.mcp_lock:
+                got.append(server.mcp_lock.wait_for(lambda: server.state["mcp_n"] != 0, timeout=2))
+        t = threading.Thread(target=wait); t.start(); time.sleep(0.1)
+        t0 = time.monotonic(); server.note_mcp("/api/set", {"prop": "isospeedvalue", "value": "400"}); t.join()
+        self.assertEqual(got, [True])
+        self.assertLess(time.monotonic() - t0, 0.5)  # at once, not after the timeout
+
     def test_mcp_client_marks_its_posts(self):
         seen = {}
 
@@ -38,7 +50,7 @@ class McpActivity(unittest.TestCase):
 
     def test_page_shows_and_activates_the_control(self):
         html = open(server.__file__.replace("server.py", "web/index.html"), encoding="utf-8").read()
-        for needle in ("mcpSeen(st.mcp_n,st.mcp_log)", 'id="mcpBox"', "function mcpActive(e)", "b.dataset.mode=o"):
+        for needle in ("mcpSeen(st.mcp_n,st.mcp_log)", 'id="mcpBox"', "function mcpActive(e)", "b.dataset.mode=o", "/api/mcpwait?after="):
             self.assertIn(needle, html)
 
 

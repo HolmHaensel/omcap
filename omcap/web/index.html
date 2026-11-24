@@ -90,7 +90,7 @@ main{display:grid;grid-template-columns:minmax(0,1044px) 340px;justify-content:c
 #statusLine #msg{margin:0;min-height:0}
 #mcpBox{font-size:13px;color:var(--muted);margin-top:var(--s1)}
 /* MCP actions: the control it used looks active for a moment, as if an invisible user pressed it (user 2026-11-24) */
-button.remote,.seg button.remote{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+button.remote,.seg button.remote{background:var(--surface-raised);border-color:var(--accent)}
 #mcpBox summary{cursor:pointer;width:max-content}
 #mcpLog{margin:var(--s1) 0 0;padding-left:var(--s5);font-family:var(--font-value);overflow-wrap:anywhere}
 #mcpLog .warn{color:var(--rec-text)}
@@ -158,8 +158,8 @@ button:disabled{color:var(--disabled);opacity:.6;cursor:not-allowed}
 #props label{display:flex;flex-direction:column;gap:2px;font-size:var(--fs-label);color:var(--muted);min-width:0;padding:8px 10px;background:var(--ground);border:1px solid var(--line);border-radius:var(--r-md);transition:background var(--t-fast),border-color var(--t-fast)}
 #props label:focus-within{background:var(--surface-raised);border-color:var(--accent)}
 /* a setting changed by another client (MCP) looks tapped for a moment, so you see where */
-#props label.remote{background:var(--accent-soft);border-color:var(--accent);box-shadow:0 0 0 2px var(--accent)} /* changed by MCP: clearly visible (user 2026-11-24) */
-#modeBox.remote{outline:2px solid var(--accent);outline-offset:2px;border-radius:var(--r-md)}
+#props label.remote{background:var(--surface-raised);border-color:var(--accent)} /* changed by MCP: looks as if tapped (user 2026-11-24: normal is enough) */
+#modeBox.remote{outline:1px solid var(--accent);outline-offset:2px;border-radius:var(--r-md)}
 @media(prefers-reduced-motion:no-preference){#props label,#modeBox{transition:background .6s,border-color .6s,outline-color .6s}}
 #props select{width:100%;padding:0;border:0;background:transparent;color:var(--text);font-family:var(--font-value);font-size:18px;font-weight:500;appearance:none;-webkit-appearance:none;cursor:pointer}
 #props select option{font-size:14px}
@@ -3901,7 +3901,19 @@ async function enterApp(){
 // the poll skips while the last one still waits (a slow /api/state must not pile up); explicit tick() calls still run
 let tickBusy=false;
 function tickPoll(){if(tickBusy) return; tickBusy=true; tick().finally(()=>{tickBusy=false})}
-if(!view){init();setInterval(tickPoll,1500)}
+async function mcpWait(){ // the server answers the moment the MCP acts: the page follows at once, like a magic surface
+  const pause=ms=>new Promise(f=>setTimeout(f,ms));
+  let seen=-1;
+  for(;;){
+    try{
+      const r=await fetch('/api/mcpwait?after='+seen); if(!r.ok){await pause(3000);continue}
+      const n=(await r.json()).mcp_n;
+      if(n!==seen&&seen!==-1&&connected) tickPoll(); // tick shows the action (mcpSeen) and its value
+      seen=n;
+    }catch{await pause(3000)} // server gone: try again later
+  }
+}
+if(!view){init();setInterval(tickPoll,1500);mcpWait()}
 </script>
 </body>
 </html>
