@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- Wi-Fi: outer AF grid fields focus where tapped instead of 1–2 fields further in; the camera accepts points outside its touch area (REQ-F04). Probe-tested 2026-11-24, branch not camera-tested.
+- Wi-Fi: outer AF grid fields focus where tapped instead of 1–2 fields further in; the camera accepts points outside its touch area (REQ-F04). Wi-Fi camera-tested (corners at 800×600 and 1280×960, Take picture at an outer field).
 
 ## 0.8.0 – 2026-11-24
 
