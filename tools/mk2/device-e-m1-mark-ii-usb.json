@@ -4998,5 +4998,6 @@
    },
    "poll_seconds": 0.6
   }
- }
+ },
+ "_note": "device_version_ptp is PTP DeviceInfo.DeviceVersion (1.00 on any firmware) and is NOT the firmware. The firmware value is owner-reported from the camera menu and was not readable over the protocol."
 }
