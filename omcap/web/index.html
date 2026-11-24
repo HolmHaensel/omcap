@@ -151,6 +151,10 @@ button:disabled{color:var(--disabled);opacity:.6;cursor:not-allowed}
 #props{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--s2)}
 #props label{display:flex;flex-direction:column;gap:2px;font-size:var(--fs-label);color:var(--muted);min-width:0;padding:8px 10px;background:var(--ground);border:1px solid var(--line);border-radius:var(--r-md);transition:background var(--t-fast),border-color var(--t-fast)}
 #props label:focus-within{background:var(--surface-raised);border-color:var(--accent)}
+/* a setting changed by another client (MCP) looks tapped for a moment, so you see where */
+#props label.remote{background:var(--surface-raised);border-color:var(--accent)}
+#modeBox.remote{outline:1px solid var(--accent);outline-offset:2px;border-radius:var(--r-md)}
+@media(prefers-reduced-motion:no-preference){#props label,#modeBox{transition:background .6s,border-color .6s,outline-color .6s}}
 #props select{width:100%;padding:0;border:0;background:transparent;color:var(--text);font-family:var(--font-value);font-size:18px;font-weight:500;appearance:none;-webkit-appearance:none;cursor:pointer}
 #props select option{font-size:14px}
 #props select:disabled{color:var(--disabled);cursor:not-allowed}
@@ -1214,7 +1218,16 @@ function propsRevSeen(rev){ // camera busy or a setting list open: the value sta
   if(propsRev===undefined){propsRev=rev;return} // first look after loading: the page loads the settings itself
   const busy=st.stage>0||st.busy||st.indexing||st.movie!=null||st.take!=null||(st.job&&st.job.running)||st.play;
   const editing=document.activeElement&&document.activeElement.matches('#props select'); // a rebuild would close the open list
-  if(rev!==propsRev&&!busy&&!editing){propsRev=rev;setTimeout(()=>{props();loadAf()},800)} // Wi-Fi: after a takemode change the camera needs a moment for the new values
+  if(rev!==propsRev&&!busy&&!editing){propsRev=rev;setTimeout(()=>{const old=lastProps;props().then(()=>flashChanged(old));loadAf()},800)} // Wi-Fi: after a takemode change the camera needs a moment for the new values
+}
+function flashChanged(old){ // settings another client changed look tapped for 1.5 s (the page's own changes are already in lastProps)
+  if(!old||!lastProps||lastProps===old) return;
+  for(const k of Object.keys(lastProps)){
+    if(!old[k]||old[k].value===lastProps[k].value) continue;
+    const el=k==='takemode'?$('#modeBox'):document.querySelector('#props label[data-id="'+k+'"]');
+    if(!el) continue;
+    el.classList.add('remote'); setTimeout(()=>el.classList.remove('remote'),1500);
+  }
 }
 async function tick(){
   if(view||!connected||quitting) return;
