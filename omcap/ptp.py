@@ -15,6 +15,7 @@ import glob
 import os
 import struct
 import subprocess
+import sys
 import time
 
 # Container types and response codes (PTP 1.0)
@@ -22,7 +23,10 @@ CMD, DATA, RESP, EVENT = 1, 2, 3, 4
 RC_OK, RC_BUSY, RC_SESSION_OPEN = 0x2001, 0x2019, 0x201E
 
 OLYMPUS_VID = 0x07B4
-KNOWN_PIDS = (0x0130,)  # E-M1 Mark I; other OM-D bodies to be added when tested
+# Olympus reuses product IDs across bodies (libgphoto2: 0x0130 is E-M5 II, E-M1 and E-M1 II at once), so this is
+# a list of PIDs worth trying, never a model check: the body is identified from GetDeviceInfo afterwards.
+# 0x012E = E-M1 Mark II in Storage (mass storage) mode, seen on the wire 2026-11-24.
+KNOWN_PIDS = (0x0130, 0x0135, 0x012E, 0x0136, 0x012F, 0x0131)
 
 # Data type codes (PTP) -> struct format
 DTYPES = {1: "b", 2: "B", 3: "h", 4: "H", 5: "i", 6: "I", 7: "q", 8: "Q"}
@@ -99,9 +103,16 @@ def read_string(buf, off):
     return text, off + 2 * n
 
 
+# PTP array data types: a u32 count followed by values of the element type. The E-M1 Mark II advertises
+# properties of these types (0xD405 = UINT8 array), which read_value used to reject with a KeyError.
+ARRAYS = {0x4001: "b", 0x4002: "B", 0x4003: "h", 0x4004: "H", 0x4005: "i", 0x4006: "I", 0x4007: "q", 0x4008: "Q"}
+
+
 def read_value(buf, off, dtype):
     if dtype == DT_STRING:
         return read_string(buf, off)
+    if dtype in ARRAYS:
+        return read_array(buf, off, ARRAYS[dtype])
     fmt = "<" + DTYPES[dtype]
     return struct.unpack_from(fmt, buf, off)[0], off + struct.calcsize(fmt)
 
@@ -112,6 +123,23 @@ def read_array(buf, off, fmt):
     off += 4
     size = struct.calcsize("<" + fmt)
     return list(struct.unpack_from("<%d%s" % (n, fmt), buf, off)), off + n * size
+
+
+def trim_jpeg(data):
+    """The JPEG up to its EOI marker, dropping whatever the camera appends after it.
+
+    The E-M1 Mark II sends an extra "AddIndex" block behind every live view picture (800x600: 49408 bytes,
+    of which the JPEG ends at byte 49277), where the Mark I sends the bare JPEG. Anything that tested for
+    \\xff\\xd9 at the very end therefore called every Mark II frame incomplete (2026-11-24). The *last* FFD9
+    is the main image's EOI - a thumbnail inside the EXIF block ends earlier. Returns the data unchanged
+    when no EOI is found, so the caller's own check still fails loudly.
+    """
+    if not data or data[:2] != b"\xff\xd8":
+        return data
+    if data[-2:] == b"\xff\xd9":
+        return data
+    end = data.rfind(b"\xff\xd9")
+    return data[:end + 2] if end > 1 else data
 
 
 def parse_device_info(buf):
@@ -213,13 +241,21 @@ def parse_event(raw):
 
 
 def _libusb():
-    """libusb-1.0: the copy bundled with python-gphoto2, else Homebrew or the system."""
+    """libusb-1.0: the copy bundled with python-gphoto2, else Homebrew, the system, or libusb-package."""
     candidates = []
     try:
         import gphoto2
         candidates += glob.glob(os.path.join(os.path.dirname(gphoto2.__file__), ".dylibs", "libusb-1.0*.dylib"))
     except ImportError:
         pass
+    try:  # Windows: libusb-package ships a working libusb-1.0.dll, python-gphoto2 has no wheel there
+        import libusb_package
+        candidates.append(libusb_package.get_library_path())
+    except Exception:
+        pass
+    if os.name == "nt":
+        candidates += [os.path.join(os.environ.get("SystemRoot", r"C:\Windows"), "System32", "libusb-1.0.dll"),
+                       "libusb-1.0.dll"]
     candidates += ["/opt/homebrew/lib/libusb-1.0.dylib", "/usr/local/lib/libusb-1.0.dylib"]
     found = ctypes.util.find_library("usb-1.0")
     if found:
@@ -268,8 +304,9 @@ class UsbTransport:
         self._buf = None
         self._events, self._irq, self._irq_live = [], None, False
         for _ in range(tries):
-            # macOS: the ptpcamerad service claims the camera as soon as it is plugged in
-            subprocess.run(["killall", "-9", "ptpcamerad"], capture_output=True)
+            if sys.platform == "darwin":
+                # macOS: the ptpcamerad service claims the camera as soon as it is plugged in
+                subprocess.run(["killall", "-9", "ptpcamerad"], capture_output=True)
             for pid in pids:
                 h = self.lib.libusb_open_device_with_vid_pid(self.ctx, OLYMPUS_VID, pid)
                 if h and self.lib.libusb_claim_interface(h, 0) == 0:
@@ -656,7 +693,7 @@ class PtpCamera:
                     raise
                 data, self.lv_reason = None, "camera busy"
             if data and len(data) >= 1024 and data[:2] == b"\xff\xd8":
-                return data
+                return trim_jpeg(data)
             if time.monotonic() > end:
                 return None
             time.sleep(0.005)
@@ -667,3 +704,31 @@ class PtpCamera:
 
     def event(self, timeout=10):
         return self.t.read_event(timeout)
+
+
+_MODEL_AT = (0.0, None)  # (monotonic time, model name) of the last usb_model_name() probe
+
+
+def usb_model_name(max_age=5.0):
+    """Model name of the Olympus body on the bus, or None. Opens and closes a short PTP session.
+
+    Only for the start screen: libgphoto2 answers that question on macOS and Linux, but Windows has none, so
+    the page showed "not found" for a camera the app drives fine (E-M1 Mark II, 2026-11-24). The answer is
+    cached for `max_age` seconds because the page asks about once a second and every probe builds a session.
+    Raises nothing: a camera already in use by another program answers None.
+    """
+    global _MODEL_AT
+    ts, name = _MODEL_AT
+    if name and time.monotonic() - ts < max_age:
+        return name
+    try:
+        cam = PtpCamera(UsbTransport(tries=1))
+        cam.open()
+        try:
+            name = cam.device_info().get("model") or None
+        finally:
+            cam.close()
+    except Exception:
+        return None
+    _MODEL_AT = (time.monotonic(), name)
+    return name
