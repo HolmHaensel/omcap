@@ -1291,7 +1291,7 @@ function mcpSeen(n,log){ // REQ-F35: the user follows on the page what the MCP d
   for(const e of fresh){
     const what=line(e);
     msg(e.error?tr('mcp.failed',{what,e:tr('srv.'+e.error,null,e.error)}):tr('mcp.did',{what}),!!e.error);
-    if(!e.error&&e.path==='/api/set'&&lastProps&&lastProps[e.body.prop]&&!(st.stage>0||st.busy||st.play)){ // show the new value at once;
+    if(!e.error&&e.path==='/api/set'&&lastProps&&lastProps[e.body.prop]&&!ringDrag&&!(st.stage>0||st.busy||st.play)){ // show the new value at once;
       lastProps[e.body.prop].value=String(e.body.value); renderProps(); // the props_rev reload confirms it a moment later
     }
     if(!e.error) mcpActive(e);
@@ -1562,7 +1562,10 @@ function colorRing(value,opts,sel){
     (s?s.name:'').split(/[\s-]+/).forEach((w,j,ws)=>{const l=document.createElementNS(NS,'tspan');l.setAttribute('x','0');l.setAttribute('y',String((j-(ws.length-1)/2)*8.5+2.5));l.textContent=w;t.append(l)});
   };
   show(value);
-  svg.addEventListener('click',e=>e.preventDefault()); // a click on the ring must not activate the label (it would focus the list)
+  svg.addEventListener('click',e=>{e.preventDefault(); // a click on the ring must not activate the label (it would focus the list)
+    const s=Object.values(segs).find(x=>x.seg===e.target);
+    if(canWrite&&s&&e.detail===0){show(s.o); want=s.o; pump()} // a screen reader activates a segment (no pointer): set it
+  });
   if(!canWrite) return svg;
   // press and drag around the ring: the camera follows (Wi-Fi: about 0.1 s per colour, 12 per second, measured 2026-11-24);
   // only the newest colour is sent and one request at a time, so nothing piles up and the colour is right when you let go
@@ -1586,12 +1589,12 @@ function colorRing(value,opts,sel){
   svg.style.touchAction='none'; // the finger turns the ring, it does not scroll the page
   svg.addEventListener('pointerdown',e=>{
     const b=svg.getBoundingClientRect(), d=Math.hypot(e.clientX-b.left-b.width/2,e.clientY-b.top-b.height/2)/(b.width/2)*50;
-    if(d<r*.8||d>R+3) return; // the centre (colour name) is no handle
+    if(e.button!==0||d<r*.8||d>R+3) return; // main button only; the centre (colour name) is no handle
     e.preventDefault(); ringDrag=true; svg.setPointerCapture(e.pointerId); pick(e);
   });
   svg.addEventListener('pointermove',e=>{if(ringDrag&&svg.hasPointerCapture(e.pointerId)) pick(e)});
   const end=()=>{if(!ringDrag) return; ringDrag=false; if(!busy) done()};
-  svg.addEventListener('pointerup',end); svg.addEventListener('pointercancel',end);
+  svg.addEventListener('pointerup',end); svg.addEventListener('pointercancel',end); svg.addEventListener('lostpointercapture',end); // also when a rebuild detaches the ring
   return svg;
 }
 function renderProps(){

@@ -12,7 +12,7 @@ class RingDrag(unittest.TestCase):
 
     def test_drag_sends_the_newest_colour_one_at_a_time(self):
         for needle in ("pointerdown", "pointermove", "setPointerCapture", "while(want!==null&&want!==sent)",
-                       "touchAction='none'"):
+                       "touchAction='none'", "lostpointercapture", "e.button!==0", "e.detail===0"):
             self.assertIn(needle, self.ring)
 
     def test_no_rebuild_while_dragging(self):
