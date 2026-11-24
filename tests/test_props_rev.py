@@ -28,6 +28,11 @@ class PropsRev(unittest.TestCase):
         self.assertIn("rev!==propsRev&&!busy&&!editing", html)
         self.assertIn("(st.job&&st.job.running)||st.play", html)
 
+    def test_remote_changes_flash(self):
+        html = open(server.__file__.replace("server.py", "web/index.html"), encoding="utf-8").read()
+        self.assertIn("props().then(()=>flashChanged(old))", html)
+        self.assertIn("#props label.remote", html)
+
     def test_set_prop_counts_up(self):
         src = open(server.__file__, encoding="utf-8").read()
         i = src.index('elif path == "/api/set":')
