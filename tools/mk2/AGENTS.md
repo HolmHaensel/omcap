@@ -1,8 +1,9 @@
 # Agent brief — E-M1 Mark II, Wi-Fi side
 
 You are picking up work on **E-M1 Capture** (repo `HolmHaensel/omcap`) for an **Olympus OM-D E-M1 Mark II**
-(firmware **3.7**, confirmed in the camera menu — see the note in `README.md`: `GetDeviceInfo`'s
-`DeviceVersion` is `1.00` on every firmware and is not the firmware version, so never quote it as one).
+(firmware reported by its owner as **3.7** — verify it yourself on the camera, Menu → Setup → Firmware, and
+record what you see; see the note in `README.md`: `GetDeviceInfo`'s `DeviceVersion` is `1.00` on every
+firmware and is *not* the firmware version, so never quote it as one).
 Someone already took it as far as it goes over USB on Windows; this machine has Wi-Fi, so your job is the
 **Wi-Fi half**, which is still completely untested on this body.
 

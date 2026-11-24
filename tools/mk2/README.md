@@ -1,14 +1,15 @@
 # E-M1 Mark II — USB test report and handoff
 
-First working session with an **Olympus OM-D E-M1 Mark II** (firmware **3.7**, read from the camera's own
-menu) on the 0.8.0 codebase, over USB on Windows 11. The body was not in the supported set, and four real
-incompatibilities stood between "enumerates on the bus" and "live view + settings + AF in the browser". All
-four are fixed on this branch.
+First working session with an **Olympus OM-D E-M1 Mark II** (firmware **3.7**) on the 0.8.0 codebase, over
+USB on Windows 11. The body was not in the supported set, and four real incompatibilities stood between
+"enumerates on the bus" and "live view + settings + AF in the browser". All four are fixed on this branch.
 
-> **Firmware is not what `GetDeviceInfo` says.** It answers `DeviceVersion = 1.00`, which is the PTP/software
-> version — it stays 1.00 whatever firmware is installed. None of the 282 properties exposes the firmware
-> either, so the only reliable source is the camera menu (or OM Workspace). Do not record `1.00` as the
-> firmware in a report.
+> **Firmware is not what `GetDeviceInfo` says.** It answers `DeviceVersion = 1.00`, which is the
+> PTP/software version — it stays 1.00 whatever firmware is installed — and none of the 282 properties
+> exposes the firmware. The **3.7** above comes from the camera's own menu, reported by its owner; it is
+> consistent with 3.7 being the current release for this body (OM System, 19 Jan 2023), but it was not
+> read over the protocol and the body was flat before it could be double-checked. Verify on the camera
+> (Menu → Setup → Firmware) before quoting it. Do not record `1.00` as a firmware version.
 
 Everything below was measured on the camera. Nothing here is inferred from the Mark I's behaviour.
 
