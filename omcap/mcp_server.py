@@ -242,7 +242,7 @@ class HttpClient:
         req = urllib.request.Request(
             self._build_url(path),
             data=body,
-            headers={"Content-Type": "application/json"},
+            headers={"Content-Type": "application/json", "X-Client": "mcp"},  # the app shows MCP actions on its page
             method="POST",
         )
         status, data, _ = self._open(req, timeout=timeout)

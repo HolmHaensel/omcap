@@ -88,6 +88,12 @@ main{display:grid;grid-template-columns:minmax(0,1044px) 340px;justify-content:c
 #starAuto.rec{background:var(--rec);border-color:var(--rec);color:#fff;font-weight:600}
 #statusLine{display:flex;gap:var(--s4);flex-wrap:wrap;font-size:13px;color:var(--muted)}
 #statusLine #msg{margin:0;min-height:0}
+#mcpBox{font-size:13px;color:var(--muted);margin-top:var(--s1)}
+/* MCP actions: the control it used looks active for a moment, as if an invisible user pressed it (user 2026-11-24) */
+button.remote,.seg button.remote{background:var(--surface-raised);border-color:var(--accent)}
+#mcpBox summary{cursor:pointer;width:max-content}
+#mcpLog{margin:var(--s1) 0 0;padding-left:var(--s5);font-family:var(--font-value);overflow-wrap:anywhere}
+#mcpLog .warn{color:var(--rec-text)}
 #lvSize{font-family:var(--font-value)}
 section{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-lg);padding:var(--s3)}
 #panels{display:flex;flex-direction:column;gap:10px}
@@ -152,7 +158,7 @@ button:disabled{color:var(--disabled);opacity:.6;cursor:not-allowed}
 #props label{display:flex;flex-direction:column;gap:2px;font-size:var(--fs-label);color:var(--muted);min-width:0;padding:8px 10px;background:var(--ground);border:1px solid var(--line);border-radius:var(--r-md);transition:background var(--t-fast),border-color var(--t-fast)}
 #props label:focus-within{background:var(--surface-raised);border-color:var(--accent)}
 /* a setting changed by another client (MCP) looks tapped for a moment, so you see where */
-#props label.remote{background:var(--surface-raised);border-color:var(--accent)}
+#props label.remote{background:var(--surface-raised);border-color:var(--accent)} /* changed by MCP: looks as if tapped (user 2026-11-24: normal is enough) */
 #modeBox.remote{outline:1px solid var(--accent);outline-offset:2px;border-radius:var(--r-md)}
 @media(prefers-reduced-motion:no-preference){#props label,#modeBox{transition:background .6s,border-color .6s,outline-color .6s}}
 #props select{width:100%;padding:0;border:0;background:transparent;color:var(--text);font-family:var(--font-value);font-size:18px;font-weight:500;appearance:none;-webkit-appearance:none;cursor:pointer}
@@ -482,6 +488,7 @@ body.webcam{cursor:none;display:flex;align-items:center;justify-content:center}
     <button id="ovlOff" data-i18n="lv.overlayRemove">Remove</button>
   </div>
   <div id="statusLine"><span id="lvSize" class="mut"></span><p id="msg" class="mut" data-i18n="msg.ready">Ready.</p></div>
+  <details id="mcpBox" hidden><summary data-i18n="mcp.title">MCP activity</summary><ol id="mcpLog"></ol></details>
 </div>
 <div id="panels">
   <section data-id="scp" data-label="LV super control panel" data-i18n-label="panel.scp">
@@ -675,6 +682,16 @@ const $=s=>document.querySelector(s);
       Server messages are English; with a key 'srv.<message>' they can be translated.
       Language: localStorage 'omcap.lang', else browser language, else en. */
 const I18N={en:{
+  "mcp.title": "MCP activity",
+  "mcp.did": "MCP: {what}",
+  "mcp.failed": "MCP failed: {what} – {e}",
+  "mcp.liveStart": "Live view started",
+  "mcp.liveStop": "Live view stopped",
+  "mcp.playEnter": "Playback opened",
+  "mcp.playLeave": "Playback closed",
+  "mcp.afField": "AF target row {r}, column {c}",
+  "mcp.starStop": "Star AF stopped",
+  "mcp.shoot": "Take picture",
   "exif.prog.1": "M",
   "exif.prog.2": "P",
   "exif.prog.3": "A",
@@ -1147,6 +1164,8 @@ $('#popPhoto').onclick=()=>popup('photo');
 let leavingPlay=false, wasIndexing=false;
 let fastSeen; // USB: last fast picture number shown
 let propsRev; // last state.props_rev seen: another client (MCP) changed settings, the page reloads them
+let mcpN; // last state.mcp_n seen: the page shows each new MCP action once
+const remoteUntil={}; // setting -> time its tile stops looking changed (renderProps rebuilds the tiles meanwhile)
 let modeAt; // USB: last mode dial turn seen (state.mode_at); undefined until the first tick
 /* USB reports iAUTO, ART, SCN and PHOTO STORY as P (d006 = 2, tested 2026-11-12); they are shown as P
    (maintainer decision). Only the EXIF of the newest shot tells iAUTO apart (ExposureProgram 5) */
@@ -1220,13 +1239,68 @@ function propsRevSeen(rev){ // camera busy or a setting list open: the value sta
   const editing=document.activeElement&&document.activeElement.matches('#props select'); // a rebuild would close the open list
   if(rev!==propsRev&&!busy&&!editing){propsRev=rev;setTimeout(()=>{const old=lastProps;props().then(()=>flashChanged(old));loadAf()},800)} // Wi-Fi: after a takemode change the camera needs a moment for the new values
 }
+function mcpText(e){ // one MCP action in words, with the page's own names
+  const b=e.body||{}, p=e.path.replace('/api/','');
+  if(p==='set') return tr('prop.'+b.prop,null,b.prop)+' → '+valName(b.prop,String(b.value));
+  if(p==='liveview') return tr(b.action==='start'?'mcp.liveStart':'mcp.liveStop');
+  if(p==='playback') return tr(b.action==='enter'?'mcp.playEnter':'mcp.playLeave');
+  if(p==='afarea'&&b.field){const [r,c]=fieldRC(b.field); return tr('mcp.afField',{r:r+1,c:c+1})}
+  if(p==='afarea'&&b.mode) return tr('panel.af',null,'AF')+' → '+tr('af.'+b.mode,null,b.mode);
+  if(p==='mfdrive') return tr('mf.title')+' → '+tr('mf.'+b.direction+(b.step||1),null,b.direction+' '+(b.step||1));
+  if(p==='staraf') return tr(b.action==='stop'?'mcp.starStop':'star.auto');
+  if(p==='shoot'||(p==='take'&&b.action==='start')) return tr('mcp.shoot');
+  return p+(Object.keys(b).length?' '+Object.entries(b).map(([k,v])=>k+'='+v).join(' '):'');
+}
+function mcpControl(e){ // the control a user would have pressed for this action
+  const b=e.body||{}, p=e.path.replace('/api/',''), q=x=>document.querySelector(x);
+  if(p==='set') return b.prop==='takemode'?q('#modeBox [data-mode="'+b.value+'"]')||$('#modeBox'):q('#props label[data-id="'+b.prop+'"]');
+  if(p==='liveview') return $(b.action==='start'?'#lvStart':'#lvStop');
+  if(p==='playback') return $('#hdrPlay');
+  if(p==='afarea'&&b.mode) return q('[data-af="'+b.mode+'"]');
+  if(p==='mfdrive') return q('[data-mf="'+b.direction+':'+(b.step||1)+'"]');
+  if(p==='staraf') return $('#starAuto');
+  if(p==='shoot'||(p==='take'&&b.action==='start')) return $('#shoot');
+  return null; // an AF field shows in the grid itself (the page reloads the AF area)
+}
+function markRemote(k,ms){remoteUntil[k]=Date.now()+ms; setTimeout(reRemote,ms+20); reRemote()}
+function reRemote(){ // (re)apply the highlight to the current tiles; called after every rebuild
+  const now=Date.now();
+  for(const [k,t] of Object.entries(remoteUntil)){
+    const el=k==='takemode'?$('#modeBox'):document.querySelector('#props label[data-id="'+k+'"]');
+    if(t<=now) delete remoteUntil[k];
+    if(el) el.classList.toggle('remote',t>now);
+  }
+}
+function mcpActive(e){
+  if(e.path==='/api/set'&&e.body.prop){markRemote(e.body.prop,2000);if(e.body.prop!=='takemode')return}
+  const el=mcpControl(e);
+  if(!el||!el.getClientRects().length) return; // hidden control: the message and the list still tell
+  el.classList.add('remote'); setTimeout(()=>el.classList.remove('remote'),2000);
+}
+function mcpSeen(n,log){ // REQ-F35: the user follows on the page what the MCP does to the camera
+  if(n===undefined) return;
+  const ol=$('#mcpLog'), line=e=>{const li=document.createElement('li'), what=mcpText(e);
+    li.textContent=new Date(e.t*1000).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit',second:'2-digit'})+'  '+what+(e.error?' – '+tr('srv.'+e.error,null,e.error):'');
+    if(e.error) li.className='warn'; ol.prepend(li); return what};
+  if(mcpN===undefined){mcpN=n; (log||[]).forEach(line); $('#mcpBox').hidden=!ol.children.length; return} // after loading: the list, no messages
+  if(n===mcpN) return;
+  const fresh=(log||[]).filter(e=>e.n>mcpN); mcpN=n;
+  for(const e of fresh){
+    const what=line(e);
+    msg(e.error?tr('mcp.failed',{what,e:tr('srv.'+e.error,null,e.error)}):tr('mcp.did',{what}),!!e.error);
+    if(!e.error&&e.path==='/api/set'&&lastProps&&lastProps[e.body.prop]&&!(st.stage>0||st.busy||st.play)){ // show the new value at once;
+      lastProps[e.body.prop].value=String(e.body.value); renderProps(); // the props_rev reload confirms it a moment later
+    }
+    if(!e.error) mcpActive(e);
+  }
+  while(ol.children.length>10) ol.lastChild.remove();
+  $('#mcpBox').hidden=false;
+}
 function flashChanged(old){ // settings another client changed look tapped for 1.5 s (the page's own changes are already in lastProps)
   if(!old||!lastProps||lastProps===old) return;
   for(const k of Object.keys(lastProps)){
     if(!old[k]||old[k].value===lastProps[k].value) continue;
-    const el=k==='takemode'?$('#modeBox'):document.querySelector('#props label[data-id="'+k+'"]');
-    if(!el) continue;
-    el.classList.add('remote'); setTimeout(()=>el.classList.remove('remote'),1500);
+    markRemote(k,1500);
   }
 }
 async function tick(){
@@ -1238,6 +1312,7 @@ async function tick(){
   if(!st.live&&lvl){lvl=null;lvlShown=null;drawLevel()} // live view stopped: clear the level gauge
   modeSeen(st.mode_at);
   propsRevSeen(st.props_rev);
+  mcpSeen(st.mcp_n,st.mcp_log);
   if(fastSeen===undefined) fastSeen=st.fast_n||0; // first tick after loading: an old shot is not new
   else if(isUsb&&st.fast_n&&st.fast_n!==fastSeen){fastSeen=st.fast_n;showFast()} // REQ-F60: JPEG of the shot before the card lists it
   $('#half').classList.toggle('on',st.stage>=1); $('#half').setAttribute('aria-pressed',st.stage>=1?'true':'false');
@@ -1449,7 +1524,7 @@ function renderModeBox(p){
   const seg=document.createElement('div'); seg.className='seg'; seg.setAttribute('role','group'); seg.setAttribute('aria-label',tr('prop.takemode'));
   for(const o of v.enum){
     const b=document.createElement('button'); b.type='button'; b.textContent=MODE_SHORT[o]||valName('takemode',o); b.title=valName('takemode',o);
-    b.classList.toggle('on',o===v.value); b.disabled=!canWrite;
+    b.classList.toggle('on',o===v.value); b.disabled=!canWrite; b.dataset.mode=o;
     b.onclick=()=>api('/api/set',{prop:'takemode',value:o}).then(()=>{v.value=o;msg(tr('prop.takemode')+': '+valName('takemode',o));renderProps();setTimeout(props,800)})
       .catch(e=>msg(tr('prop.takemode')+': '+e.message,true));
     seg.append(b);
@@ -1515,6 +1590,7 @@ function renderProps(){
     if(k==='isospeedvalue'){const a=document.createElement('span');a.id='isoAuto';a.className='isoAuto';l.append(a);updateIsoAuto()}
   }
   applyLayout();
+  reRemote();
   applyContext();
 }
 /* Show and hide shooting options depending on the mode (manual p.41, 85) */
@@ -3825,7 +3901,19 @@ async function enterApp(){
 // the poll skips while the last one still waits (a slow /api/state must not pile up); explicit tick() calls still run
 let tickBusy=false;
 function tickPoll(){if(tickBusy) return; tickBusy=true; tick().finally(()=>{tickBusy=false})}
-if(!view){init();setInterval(tickPoll,1500)}
+async function mcpWait(){ // the server answers the moment the MCP acts: the page follows at once, like a magic surface
+  const pause=ms=>new Promise(f=>setTimeout(f,ms));
+  let seen=-1;
+  for(;;){
+    try{
+      const r=await fetch('/api/mcpwait?after='+seen); if(!r.ok){await pause(3000);continue}
+      const n=(await r.json()).mcp_n;
+      if(n!==seen&&seen!==-1&&connected) tickPoll(); // tick shows the action (mcpSeen) and its value
+      seen=n;
+    }catch{await pause(3000)} // server gone: try again later
+  }
+}
+if(!view){init();setInterval(tickPoll,1500);mcpWait()}
 </script>
 </body>
 </html>

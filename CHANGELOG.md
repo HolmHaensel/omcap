@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- MCP actions show on the page: the control the MCP used looks pressed for a moment and the value changes, as if an invisible user worked the app; a message "MCP: …" and a list of the last 10 actions, failures in red (REQ-F35). Offline- and browser-tested, not camera-tested.
 - Settings changed by the MCP server look tapped on the page for 1.5 s, so you see what changed (REQ-F35). Wi-Fi camera-tested (ISO and exposure compensation).
 - MCP `camera_settings`: in P, A and other modes where the camera picks the time, `shutspeedvalue` carries `shutter_live` (time in use from the Wi-Fi live view) and a note; without a fresh live view (USB, live view off) `shutter_live` is null with a note (REQ-F35). Offline-tested.
 - Settings changed by the MCP server (or another page) appear on the open page within about 2 s: `/api/state` carries `props_rev`; not while busy or a setting list is open (REQ-F35). Wi-Fi camera-tested.
