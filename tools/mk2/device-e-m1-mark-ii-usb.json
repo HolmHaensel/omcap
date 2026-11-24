@@ -1,0 +1,5003 @@
+{
+ "model": "E-M1MarkII",
+ "firmware": "3.7 (owner-reported from the camera menu, not readable over PTP; verify on the body)",
+ "device_version_ptp": "1.00",
+ "manufacturer": "OLYMPUS",
+ "usb_mode": "PC control (camera+monitor entry), PID 0x0130",
+ "operations": [
+  "0x1001",
+  "0x1002",
+  "0x1003",
+  "0x1004",
+  "0x1005",
+  "0x1006",
+  "0x1007",
+  "0x1008",
+  "0x1009",
+  "0x100A",
+  "0x100B",
+  "0x100F",
+  "0x1014",
+  "0x1015",
+  "0x1016",
+  "0x101B",
+  "0x9120",
+  "0x9801",
+  "0x9802",
+  "0x9803",
+  "0x9805",
+  "0x9481",
+  "0x9482",
+  "0x9483",
+  "0x9484",
+  "0x9485",
+  "0x9486",
+  "0x9487",
+  "0x9488",
+  "0x9489",
+  "0x948A",
+  "0x948B",
+  "0x948C",
+  "0x948D",
+  "0x9493",
+  "0x9494",
+  "0x9495",
+  "0x94A0"
+ ],
+ "events": [
+  "0x4004",
+  "0x4005",
+  "0x4002",
+  "0x4009",
+  "0x4006",
+  "0xC101",
+  "0xC102",
+  "0xC103",
+  "0xC104",
+  "0xC105",
+  "0xC106",
+  "0xC108",
+  "0xC110"
+ ],
+ "property_count": 282,
+ "properties": {
+  "0x5001": {
+   "label": null,
+   "writable": false,
+   "type": 2,
+   "enum": [],
+   "range": [
+    1,
+    100,
+    1
+   ],
+   "value": 43
+  },
+  "0x5011": {
+   "label": null,
+   "writable": true,
+   "type": 65535,
+   "enum": [],
+   "range": null,
+   "value": "20261124T111200"
+  },
+  "0xD002": {
+   "label": null,
+   "writable": true,
+   "type": 4,
+   "enum": [
+    10,
+    11,
+    12,
+    14,
+    16,
+    18,
+    20,
+    22,
+    25,
+    28,
+    32,
+    35,
+    40,
+    45,
+    50,
+    56,
+    63,
+    71,
+    80,
+    90,
+    100,
+    110,
+    130,
+    140
+   ],
+   "range": null,
+   "value": 0
+  },
+  "0xD003": {
+   "label": null,
+   "writable": true,
+   "type": 4,
+   "enum": [
+    32769,
+    32773,
+    1,
+    32774,
+    32772
+   ],
+   "range": null,
+   "value": 32773
+  },
+  "0xD004": {
+   "label": null,
+   "writable": true,
+   "type": 4,
+   "enum": [
+    32769,
+    2,
+    4,
+    32785,
+    32786
+   ],
+   "range": null,
+   "value": 32769
+  },
+  "0xD005": {
+   "label": null,
+   "writable": true,
+   "type": 4,
+   "enum": [
+    3,
+    32784,
+    2,
+    32787,
+    32786,
+    32788,
+    40960
+   ],
+   "range": null,
+   "value": 3
+  },
+  "0xD006": {
+   "label": "shooting mode (mode dial)",
+   "writable": false,
+   "type": 4,
+   "enum": [
+    1,
+    2,
+    3,
+    4,
+    8
+   ],
+   "range": null,
+   "value": 3
+  },
+  "0xD007": {
+   "label": null,
+   "writable": true,
+   "type": 4,
+   "enum": [
+    65535,
+    64,
+    100,
+    200,
+    250,
+    320,
+    400,
+    500,
+    640,
+    800,
+    1000,
+    1250,
+    1600,
+    2000,
+    2500,
+    3200,
+    4000,
+    5000,
+    6400,
+    8000,
+    10000,
+    12800,
+    16000,
+    20000
+   ],
+   "range": null,
+   "value": 65535
+  },
+  "0xD008": {
+   "label": null,
+   "writable": true,
+   "type": 4,
+   "enum": [
+    60536,
+    60836,
+    61236,
+    61536,
+    61836,
+    62236,
+    62536,
+    62836,
+    63236,
+    63536,
+    63836,
+    64236,
+    64536,
+    64836,
+    65236,
+    0,
+    300,
+    700,
+    1000,
+    1300,
+    1700,
+    2000,
+    2300,
+    2700
+   ],
+   "range": null,
+   "value": 0
+  },
+  "0xD009": {
+   "label": null,
+   "writable": true,
+   "type": 4,
+   "enum": [
+    1,
+    33,
+    3,
+    35,
+    65,
+    2,
+    34,
+    66,
+    4,
+    6,
+    48
+   ],
+   "range": null,
+   "value": 33
+  },
+  "0xD00C": {
+   "label": "AF mode",
+   "writable": true,
+   "type": 4,
+   "enum": [
+    33024,
+    33025,
+    33027,
+    33028,
+    33026,
+    33029
+   ],
+   "range": null,
+   "value": 33024
+  },
+  "0xD00D": {
+   "label": null,
+   "writable": true,
+   "type": 4,
+   "enum": [
+    32,
+    257,
+    258,
+    259,
+    260,
+    289,
+    290,
+    291,
+    292
+   ],
+   "range": null,
+   "value": 289
+  },
+  "0xD00E": {
+   "label": null,
+   "writable": true,
+   "type": 4,
+   "enum": [
+    2000,
+    2050,
+    2100,
+    2150,
+    2200,
+    2250,
+    2300,
+    2350,
+    2400,
+    2450,
+    2500,
+    2550,
+    2600,
+    2650,
+    2700,
+    2750,
+    2800,
+    2900,
+    3000,
+    3100,
+    3200,
+    3300,
+    3400,
+    3500
+   ],
+   "range": null,
+   "value": 5400
+  },
+  "0xD00F": {
+   "label": null,
+   "writable": true,
+   "type": 4,
+   "enum": [
+    62536,
+    62836,
+    63236,
+    63536,
+    63836,
+    64236,
+    64536,
+    64836,
+    65236,
+    0,
+    300,
+    700,
+    1000,
+    1300,
+    1700,
+    2000,
+    2300,
+    2700,
+    3000
+   ],
+   "range": null,
+   "value": 0
+  },
+  "0xD010": {
+   "label": "picture mode",
+   "writable": true,
+   "type": 4,
+   "enum": [
+    33281,
+    33537,
+    2,
+    1,
+    32771,
+    32769,
+    33025,
+    33793,
+    34561,
+    34049,
+    34305,
+    34306,
+    34307,
+    34308,
+    34309,
+    34310,
+    34311,
+    34312,
+    34313,
+    34314,
+    34315,
+    34316,
+    34317,
+    34318
+   ],
+   "range": null,
+   "value": 2
+  },
+  "0xD011": {
+   "label": null,
+   "writable": true,
+   "type": 4,
+   "enum": [
+    0,
+    1
+   ],
+   "range": null,
+   "value": 0
+  },
+  "0xD013": {
+   "label": null,
+   "writable": true,
+   "type": 4,
+   "enum": [
+    1,
+    2,
+    3,
+    4
+   ],
+   "range": null,
+   "value": 1
+  },
+  "0xD014": {
+   "label": null,
+   "writable": true,
+   "type": 4,
+   "enum": [
+    2
+   ],
+   "range": null,
+   "value": 2
+  },
+  "0xD018": {
+   "label": null,
+   "writable": true,
+   "type": 4,
+   "enum": [
+    65535,
+    0,
+    1
+   ],
+   "range": null,
+   "value": 65535
+  },
+  "0xD01A": {
+   "label": null,
+   "writable": true,
+   "type": 4,
+   "enum": [
+    32769,
+    0,
+    32770,
+    32771,
+    32772
+   ],
+   "range": null,
+   "value": 32770
+  },
+  "0xD01B": {
+   "label": null,
+   "writable": true,
+   "type": 6,
+   "enum": [
+    262147,
+    1048585,
+    196610,
+    65537,
+    196612
+   ],
+   "range": null,
+   "value": 262147
+  },
+  "0xD01C": {
+   "label": "exposure time",
+   "writable": true,
+   "type": 6,
+   "enum": [
+    4294967290,
+    4294967293,
+    4294967292,
+    39321610,
+    32768010,
+    26214410,
+    19660810,
+    16384010,
+    13107210,
+    9830410,
+    8519690,
+    6553610,
+    5242890,
+    3932170,
+    3276810,
+    2621450,
+    2097162,
+    1638410,
+    1310730,
+    1048586,
+    851978,
+    655370,
+    655373,
+    655376
+   ],
+   "range": null,
+   "value": 65596
+  },
+  "0xD01D": {
+   "label": "aperture",
+   "writable": true,
+   "type": 4,
+   "enum": [
+    0,
+    4,
+    1,
+    2,
+    3
+   ],
+   "range": null,
+   "value": 4
+  },
+  "0xD01E": {
+   "label": "ISO",
+   "writable": true,
+   "type": 4,
+   "enum": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10,
+    11,
+    12,
+    13
+   ],
+   "range": null,
+   "value": 2
+  },
+  "0xD01F": {
+   "label": null,
+   "writable": true,
+   "type": 4,
+   "enum": [
+    2,
+    1
+   ],
+   "range": null,
+   "value": 1
+  },
+  "0xD020": {
+   "label": "white balance",
+   "writable": true,
+   "type": 4,
+   "enum": [
+    2,
+    1,
+    3,
+    0
+   ],
+   "range": null,
+   "value": 2
+  },
+  "0xD021": {
+   "label": null,
+   "writable": true,
+   "type": 4,
+   "enum": [
+    2,
+    1,
+    3,
+    0
+   ],
+   "range": null,
+   "value": 0
+  },
+  "0xD022": {
+   "label": null,
+   "writable": true,
+   "type": 4,
+   "enum": [
+    2,
+    1,
+    3,
+    0
+   ],
+   "range": null,
+   "value": 0
+  },
+  "0xD023": {
+   "label": null,
+   "writable": true,
+   "type": 4,
+   "enum": [
+    2,
+    3,
+    0
+   ],
+   "range": null,
+   "value": 0
+  },
+  "0xD024": {
+   "label": null,
+   "writable": true,
+   "type": 4,
+   "enum": [
+    2,
+    3,
+    0
+   ],
+   "range": null,
+   "value": 0
+  },
+  "0xD025": {
+   "label": null,
+   "writable": true,
+   "type": 4,
+   "enum": [
+    60536,
+    60836,
+    61236,
+    61536,
+    61836,
+    62236,
+    62536,
+    62836,
+    63236,
+    63536,
+    63836,
+    64236,
+    64536,
+    64836,
+    65236,
+    0,
+    300,
+    700,
+    1000,
+    1300,
+    1700,
+    2000,
+    2300,
+    2700
+   ],
+   "range": null,
+   "value": 0
+  },
+  "0xD026": {
+   "label": null,
+   "writable": true,
+   "type": 4,
+   "enum": [
+    60536,
+    60836,
+    61236,
+    61536,
+    61836,
+    62236,
+    62536,
+    62836,
+    63236,
+    63536,
+    63836,
+    64236,
+    64536,
+    64836,
+    65236,
+    0,
+    300,
+    700,
+    1000,
+    1300,
+    1700,
+    2000,
+    2300,
+    2700
+   ],
+   "range": null,
+   "value": 0
+  },
+  "0xD027": {
+   "label": null,
+   "writable": true,
+   "type": 4,
+   "enum": [
+    60536,
+    60836,
+    61236,
+    61536,
+    61836,
+    62236,
+    62536,
+    62836,
+    63236,
+    63536,
+    63836,
+    64236,
+    64536,
+    64836,
+    65236,
+    0,
+    300,
+    700,
+    1000,
+    1300,
+    1700,
+    2000,
+    2300,
+    2700
+   ],
+   "range": null,
+   "value": 0
+  },
+  "0xD028": {
+   "label": null,
+   "writable": true,
+   "type": 4,
+   "enum": [
+    60536,
+    60836,
+    61236,
+    61536,
+    61836,
+    62236,
+    62536,
+    62836,
+    63236,
+    63536,
+    63836,
+    64236,
+    64536,
+    64836,
+    65236,
+    0,
+    300,
+    700,
+    1000,
+    1300,
+    1700,
+    2000,
+    2300,
+    2700
+   ],
+   "range": null,
+   "value": 0
+  },
+  "0xD029": {
+   "label": null,
+   "writable": true,
+   "type": 6,
+   "enum": [
+    65537,
+    655373,
+    655376,
+    65538,
+    655385,
+    65539,
+    65540,
+    65541,
+    65542,
+    65544,
+    65546,
+    65549,
+    65552,
+    65556,
+    65561,
+    65568,
+    65576,
+    65586,
+    65600,
+    65616,
+    65636,
+    65664
+   ],
+   "range": null,
+   "value": 65537
+  },
+  "0xD02A": {
+   "label": null,
+   "writable": true,
+   "type": 6,
+   "enum": [
+    65537,
+    655373,
+    655376,
+    65538,
+    655385,
+    65539,
+    65540,
+    65541,
+    65542,
+    65544,
+    65546,
+    65549,
+    65552,
+    65556,
+    65561,
+    65568,
+    65576,
+    65586,
+    65600,
+    65616,
+    65636,
+    65664
+   ],
+   "range": null,
+   "value": 65537
+  },
+  "0xD02B": {
+   "label": null,
+   "writable": true,
+   "type": 6,
+   "enum": [
+    65537,
+    655373,
+    655376,
+    65538,
+    655385,
+    65539,
+    65540,
+    65541,
+    65542,
+    65544,
+    65546,
+    65549,
+    65552,
+    65556,
+    65561,
+    65568,
+    65576,
+    65586,
+    65600,
+    65616,
+    65636,
+    65664
+   ],
+   "range": null,
+   "value": 65537
+  },
+  "0xD02C": {
+   "label": null,
+   "writable": true,
+   "type": 6,
+   "enum": [
+    65537,
+    655373,
+    655376,
+    65538,
+    655385,
+    65539,
+    65540,
+    65541,
+    65542,
+    65544,
+    65546,
+    65549,
+    65552,
+    65556,
+    65561,
+    65568,
+    65576,
+    65586,
+    65600,
+    65616,
+    65636,
+    65664
+   ],
+   "range": null,
+   "value": 65537
+  },
+  "0xD02D": {
+   "label": null,
+   "writable": true,
+   "type": 4,
+   "enum": [
+    0,
+    17,
+    18,
+    19,
+    20,
+    33,
+    34,
+    35,
+    36,
+    49,
+    50,
+    51,
+    52
+   ],
+   "range": null,
+   "value": 51
+  },
+  "0xD02E": {
+   "label": null,
+   "writable": true,
+   "type": 4,
+   "enum": [
+    0,
+    17,
+    18,
+    19,
+    20,
+    33,
+    34,
+    35,
+    36,
+    49,
+    50,
+    51,
+    52
+   ],
+   "range": null,
+   "value": 50
+  },
+  "0xD02F": {
+   "label": null,
+   "writable": true,
+   "type": 4,
+   "enum": [
+    0,
+    17,
+    18,
+    19,
+    20,
+    33,
+    34,
+    35,
+    36,
+    49,
+    50,
+    51,
+    52
+   ],
+   "range": null,
+   "value": 34
+  },
+  "0xD030": {
+   "label": null,
+   "writable": true,
+   "type": 4,
+   "enum": [
+    0,
+    17,
+    18,
+    19,
+    20,
+    33,
+    34,
+    35,
+    36,
+    49,
+    50,
+    51,
+    52
+   ],
+   "range": null,
+   "value": 18
+  },
+  "0xD031": {
+   "label": null,
+   "writable": true,
+   "type": 4,
+   "enum": [
+    65529,
+    65530,
+    65531,
+    65532,
+    65533,
+    65534,
+    65535,
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7
+   ],
+   "range": null,
+   "value": 0
+  },
+  "0xD032": {
+   "label": null,
+   "writable": true,
+   "type": 4,
+   "enum": [
+    65529,
+    65530,
+    65531,
+    65532,
+    65533,
+    65534,
+    65535,
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7
+   ],
+   "range": null,
+   "value": 0
+  },
+  "0xD033": {
+   "label": null,
+   "writable": true,
+   "type": 4,
+   "enum": [
+    65529,
+    65530,
+    65531,
+    65532,
+    65533,
+    65534,
+    65535,
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7
+   ],
+   "range": null,
+   "value": 2
+  },
+  "0xD034": {
+   "label": null,
+   "writable": true,
+   "type": 4,
+   "enum": [
+    65529,
+    65530,
+    65531,
+    65532,
+    65533,
+    65534,
+    65535,
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7
+   ],
+   "range": null,
+   "value": 1
+  },
+  "0xD035": {
+   "label": null,
+   "writable": true,
+   "type": 4,
+   "enum": [
+    65529,
+    65530,
+    65531,
+    65532,
+    65533,
+    65534,
+    65535,
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7
+   ],
+   "range": null,
+   "value": 0
+  },
+  "0xD036": {
+   "label": null,
+   "writable": true,
+   "type": 4,
+   "enum": [
+    65529,
+    65530,
+    65531,
+    65532,
+    65533,
+    65534,
+    65535,
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7
+   ],
+   "range": null,
+   "value": 0
+  },
+  "0xD037": {
+   "label": null,
+   "writable": true,
+   "type": 4,
+   "enum": [
+    65529,
+    65530,
+    65531,
+    65532,
+    65533,
+    65534,
+    65535,
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7
+   ],
+   "range": null,
+   "value": 0
+  },
+  "0xD038": {
+   "label": null,
+   "writable": true,
+   "type": 4,
+   "enum": [
+    65529,
+    65530,
+    65531,
+    65532,
+    65533,
+    65534,
+    65535,
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7
+   ],
+   "range": null,
+   "value": 0
+  },
+  "0xD039": {
+   "label": null,
+   "writable": true,
+   "type": 4,
+   "enum": [
+    65529,
+    65530,
+    65531,
+    65532,
+    65533,
+    65534,
+    65535,
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7
+   ],
+   "range": null,
+   "value": 0
+  },
+  "0xD03A": {
+   "label": null,
+   "writable": true,
+   "type": 4,
+   "enum": [
+    65529,
+    65530,
+    65531,
+    65532,
+    65533,
+    65534,
+    65535,
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7
+   ],
+   "range": null,
+   "value": 0
+  },
+  "0xD03B": {
+   "label": null,
+   "writable": true,
+   "type": 4,
+   "enum": [
+    65529,
+    65530,
+    65531,
+    65532,
+    65533,
+    65534,
+    65535,
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7
+   ],
+   "range": null,
+   "value": 0
+  },
+  "0xD03C": {
+   "label": null,
+   "writable": true,
+   "type": 4,
+   "enum": [
+    65529,
+    65530,
+    65531,
+    65532,
+    65533,
+    65534,
+    65535,
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7
+   ],
+   "range": null,
+   "value": 0
+  },
+  "0xD03D": {
+   "label": null,
+   "writable": true,
+   "type": 4,
+   "enum": [
+    65529,
+    65530,
+    65531,
+    65532,
+    65533,
+    65534,
+    65535,
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7
+   ],
+   "range": null,
+   "value": 0
+  },
+  "0xD03E": {
+   "label": null,
+   "writable": true,
+   "type": 4,
+   "enum": [
+    65529,
+    65530,
+    65531,
+    65532,
+    65533,
+    65534,
+    65535,
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7
+   ],
+   "range": null,
+   "value": 0
+  },
+  "0xD03F": {
+   "label": null,
+   "writable": true,
+   "type": 4,
+   "enum": [
+    65529,
+    65530,
+    65531,
+    65532,
+    65533,
+    65534,
+    65535,
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7
+   ],
+   "range": null,
+   "value": 0
+  },
+  "0xD040": {
+   "label": null,
+   "writable": true,
+   "type": 4,
+   "enum": [
+    65529,
+    65530,
+    65531,
+    65532,
+    65533,
+    65534,
+    65535,
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7
+   ],
+   "range": null,
+   "value": 0
+  },
+  "0xD041": {
+   "label": null,
+   "writable": true,
+   "type": 4,
+   "enum": [
+    65529,
+    65530,
+    65531,
+    65532,
+    65533,
+    65534,
+    65535,
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7
+   ],
+   "range": null,
+   "value": 0
+  },
+  "0xD042": {
+   "label": null,
+   "writable": true,
+   "type": 4,
+   "enum": [
+    65529,
+    65530,
+    65531,
+    65532,
+    65533,
+    65534,
+    65535,
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7
+   ],
+   "range": null,
+   "value": 0
+  },
+  "0xD043": {
+   "label": null,
+   "writable": true,
+   "type": 4,
+   "enum": [
+    65529,
+    65530,
+    65531,
+    65532,
+    65533,
+    65534,
+    65535,
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7
+   ],
+   "range": null,
+   "value": 0
+  },
+  "0xD044": {
+   "label": null,
+   "writable": true,
+   "type": 4,
+   "enum": [
+    65529,
+    65530,
+    65531,
+    65532,
+    65533,
+    65534,
+    65535,
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7
+   ],
+   "range": null,
+   "value": 0
+  },
+  "0xD045": {
+   "label": null,
+   "writable": true,
+   "type": 4,
+   "enum": [
+    65529,
+    65530,
+    65531,
+    65532,
+    65533,
+    65534,
+    65535,
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7
+   ],
+   "range": null,
+   "value": 0
+  },
+  "0xD046": {
+   "label": null,
+   "writable": true,
+   "type": 4,
+   "enum": [
+    65529,
+    65530,
+    65531,
+    65532,
+    65533,
+    65534,
+    65535,
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7
+   ],
+   "range": null,
+   "value": 0
+  },
+  "0xD047": {
+   "label": null,
+   "writable": true,
+   "type": 4,
+   "enum": [
+    65529,
+    65530,
+    65531,
+    65532,
+    65533,
+    65534,
+    65535,
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7
+   ],
+   "range": null,
+   "value": 0
+  },
+  "0xD048": {
+   "label": null,
+   "writable": true,
+   "type": 4,
+   "enum": [
+    65529,
+    65530,
+    65531,
+    65532,
+    65533,
+    65534,
+    65535,
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7
+   ],
+   "range": null,
+   "value": 0
+  },
+  "0xD049": {
+   "label": null,
+   "writable": true,
+   "type": 4,
+   "enum": [
+    8,
+    9,
+    10,
+    12,
+    15,
+    16,
+    175,
+    18,
+    21,
+    24,
+    250,
+    28,
+    30,
+    35,
+    40,
+    425,
+    48,
+    50,
+    55,
+    65,
+    70,
+    75,
+    80,
+    85
+   ],
+   "range": null,
+   "value": 9
+  },
+  "0xD04A": {
+   "label": null,
+   "writable": false,
+   "type": 4,
+   "enum": [],
+   "range": [
+    0,
+    0,
+    1
+   ],
+   "value": 0
+  },
+  "0xD04B": {
+   "label": "loupe on/off",
+   "writable": true,
+   "type": 4,
+   "enum": [
+    1,
+    2,
+    3
+   ],
+   "range": null,
+   "value": 2
+  },
+  "0xD04C": {
+   "label": null,
+   "writable": true,
+   "type": 6,
+   "enum": [
+    4294967295,
+    655373,
+    655376,
+    65538,
+    655385,
+    65539,
+    65540,
+    65541,
+    65542,
+    65544,
+    65546,
+    65549,
+    65552,
+    65556,
+    65561,
+    65568,
+    65576,
+    65586,
+    65600
+   ],
+   "range": null,
+   "value": 4294967295
+  },
+  "0xD04D": {
+   "label": null,
+   "writable": true,
+   "type": 4,
+   "enum": [
+    1,
+    2,
+    3
+   ],
+   "range": null,
+   "value": 1
+  },
+  "0xD04E": {
+   "label": null,
+   "writable": true,
+   "type": 4,
+   "enum": [
+    1,
+    2,
+    3,
+    4
+   ],
+   "range": null,
+   "value": 2
+  },
+  "0xD04F": {
+   "label": null,
+   "writable": true,
+   "type": 4,
+   "enum": [
+    1,
+    2,
+    3
+   ],
+   "range": null,
+   "value": 1
+  },
+  "0xD050": {
+   "label": null,
+   "writable": true,
+   "type": 4,
+   "enum": [
+    2,
+    1
+   ],
+   "range": null,
+   "value": 2
+  },
+  "0xD051": {
+   "label": "AF field",
+   "writable": true,
+   "type": 4,
+   "enum": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10,
+    11,
+    12,
+    13,
+    14,
+    15,
+    16,
+    17,
+    18,
+    19,
+    20,
+    21,
+    22,
+    23,
+    24
+   ],
+   "range": null,
+   "value": 61
+  },
+  "0xD052": {
+   "label": "control mode (PC/camera)",
+   "writable": true,
+   "type": 4,
+   "enum": [
+    1,
+    2
+   ],
+   "range": null,
+   "value": 2
+  },
+  "0xD053": {
+   "label": "roll (level)",
+   "writable": false,
+   "type": 4,
+   "enum": [],
+   "range": [
+    64636,
+    900,
+    1
+   ],
+   "value": 28
+  },
+  "0xD054": {
+   "label": null,
+   "writable": false,
+   "type": 4,
+   "enum": [
+    1,
+    2
+   ],
+   "range": null,
+   "value": 2
+  },
+  "0xD055": {
+   "label": "pitch (level)",
+   "writable": false,
+   "type": 4,
+   "enum": [],
+   "range": [
+    64636,
+    900,
+    1
+   ],
+   "value": 65527
+  },
+  "0xD056": {
+   "label": null,
+   "writable": false,
+   "type": 4,
+   "enum": [
+    1,
+    2
+   ],
+   "range": null,
+   "value": 2
+  },
+  "0xD057": {
+   "label": null,
+   "writable": false,
+   "type": 4,
+   "enum": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6
+   ],
+   "range": null,
+   "value": 1
+  },
+  "0xD058": {
+   "label": null,
+   "writable": false,
+   "type": 4,
+   "enum": [],
+   "range": [
+    0,
+    9999,
+    1
+   ],
+   "value": 3473
+  },
+  "0xD059": {
+   "label": null,
+   "writable": false,
+   "type": 6,
+   "enum": [],
+   "range": [
+    0,
+    4294967295,
+    1
+   ],
+   "value": 8745
+  },
+  "0xD05A": {
+   "label": null,
+   "writable": false,
+   "type": 4,
+   "enum": [],
+   "range": [
+    0,
+    639,
+    1
+   ],
+   "value": 0
+  },
+  "0xD05B": {
+   "label": null,
+   "writable": false,
+   "type": 4,
+   "enum": [],
+   "range": [
+    0,
+    639,
+    1
+   ],
+   "value": 0
+  },
+  "0xD05C": {
+   "label": null,
+   "writable": false,
+   "type": 4,
+   "enum": [
+    1,
+    2,
+    3
+   ],
+   "range": null,
+   "value": 3
+  },
+  "0xD05D": {
+   "label": null,
+   "writable": false,
+   "type": 4,
+   "enum": [],
+   "range": [
+    0,
+    639,
+    1
+   ],
+   "value": 0
+  },
+  "0xD05E": {
+   "label": null,
+   "writable": false,
+   "type": 4,
+   "enum": [],
+   "range": [
+    0,
+    479,
+    1
+   ],
+   "value": 0
+  },
+  "0xD05F": {
+   "label": null,
+   "writable": false,
+   "type": 4,
+   "enum": [
+    6400
+   ],
+   "range": null,
+   "value": 6400
+  },
+  "0xD060": {
+   "label": null,
+   "writable": false,
+   "type": 4,
+   "enum": [
+    200
+   ],
+   "range": null,
+   "value": 200
+  },
+  "0xD061": {
+   "label": null,
+   "writable": false,
+   "type": 4,
+   "enum": [
+    1,
+    2
+   ],
+   "range": null,
+   "value": 1
+  },
+  "0xD062": {
+   "label": null,
+   "writable": false,
+   "type": 4,
+   "enum": [
+    1,
+    2
+   ],
+   "range": null,
+   "value": 2
+  },
+  "0xD063": {
+   "label": null,
+   "writable": false,
+   "type": 4,
+   "enum": [
+    3,
+    4
+   ],
+   "range": null,
+   "value": 4
+  },
+  "0xD064": {
+   "label": null,
+   "writable": false,
+   "type": 4,
+   "enum": [
+    1,
+    2,
+    3,
+    4
+   ],
+   "range": null,
+   "value": 3
+  },
+  "0xD065": {
+   "label": null,
+   "writable": true,
+   "type": 4,
+   "enum": [
+    1,
+    2
+   ],
+   "range": null,
+   "value": 2
+  },
+  "0xD066": {
+   "label": null,
+   "writable": false,
+   "type": 4,
+   "enum": [
+    1,
+    2
+   ],
+   "range": null,
+   "value": 2
+  },
+  "0xD067": {
+   "label": null,
+   "writable": false,
+   "type": 4,
+   "enum": [
+    1,
+    2
+   ],
+   "range": null,
+   "value": 2
+  },
+  "0xD068": {
+   "label": null,
+   "writable": false,
+   "type": 4,
+   "enum": [],
+   "range": [
+    0,
+    65535,
+    1
+   ],
+   "value": 509
+  },
+  "0xD069": {
+   "label": null,
+   "writable": true,
+   "type": 4,
+   "enum": [
+    2,
+    1
+   ],
+   "range": null,
+   "value": 1
+  },
+  "0xD06A": {
+   "label": null,
+   "writable": true,
+   "type": 6,
+   "enum": [
+    339742512
+   ],
+   "range": null,
+   "value": 339742512
+  },
+  "0xD06B": {
+   "label": null,
+   "writable": true,
+   "type": 6,
+   "enum": [
+    209717600,
+    167774080,
+    125830560,
+    104858800
+   ],
+   "range": null,
+   "value": 209717600
+  },
+  "0xD06C": {
+   "label": null,
+   "writable": true,
+   "type": 6,
+   "enum": [
+    83887040,
+    67109632
+   ],
+   "range": null,
+   "value": 83887040
+  },
+  "0xD06D": {
+   "label": "live view size",
+   "writable": true,
+   "type": 6,
+   "enum": [
+    0,
+    52429400,
+    83887040,
+    20971760,
+    41943520,
+    67109632
+   ],
+   "range": null,
+   "value": 0
+  },
+  "0xD070": {
+   "label": null,
+   "writable": true,
+   "type": 4,
+   "enum": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6
+   ],
+   "range": null,
+   "value": 3
+  },
+  "0xD071": {
+   "label": null,
+   "writable": false,
+   "type": 4,
+   "enum": [],
+   "range": [
+    0,
+    479,
+    1
+   ],
+   "value": 0
+  },
+  "0xD072": {
+   "label": null,
+   "writable": false,
+   "type": 4,
+   "enum": [],
+   "range": [
+    0,
+    479,
+    1
+   ],
+   "value": 0
+  },
+  "0xD073": {
+   "label": null,
+   "writable": false,
+   "type": 4,
+   "enum": [
+    1,
+    2,
+    3,
+    4,
+    5
+   ],
+   "range": null,
+   "value": 5
+  },
+  "0xD074": {
+   "label": null,
+   "writable": false,
+   "type": 4,
+   "enum": [],
+   "range": [
+    0,
+    639,
+    1
+   ],
+   "value": 0
+  },
+  "0xD075": {
+   "label": null,
+   "writable": false,
+   "type": 4,
+   "enum": [],
+   "range": [
+    0,
+    479,
+    1
+   ],
+   "value": 0
+  },
+  "0xD077": {
+   "label": null,
+   "writable": false,
+   "type": 4,
+   "enum": [
+    512
+   ],
+   "range": null,
+   "value": 512
+  },
+  "0xD078": {
+   "label": null,
+   "writable": true,
+   "type": 4,
+   "enum": [
+    1
+   ],
+   "range": null,
+   "value": 1
+  },
+  "0xD079": {
+   "label": null,
+   "writable": false,
+   "type": 4,
+   "enum": [
+    1,
+    2
+   ],
+   "range": null,
+   "value": 2
+  },
+  "0xD07A": {
+   "label": null,
+   "writable": true,
+   "type": 6,
+   "enum": [
+    65786,
+    65736,
+    65696,
+    65661,
+    65636,
+    65616,
+    65596
+   ],
+   "range": null,
+   "value": 65786
+  },
+  "0xD07B": {
+   "label": null,
+   "writable": true,
+   "type": 6,
+   "enum": [
+    65786,
+    65736,
+    65696,
+    65661,
+    65636,
+    65616,
+    65596,
+    65586,
+    65576,
+    65566,
+    65561,
+    65556,
+    65551,
+    65549,
+    65546,
+    65544,
+    65542,
+    65541,
+    65540,
+    65539,
+    655385,
+    655380,
+    655376,
+    655373
+   ],
+   "range": null,
+   "value": 65596
+  },
+  "0xD07C": {
+   "label": null,
+   "writable": true,
+   "type": 4,
+   "enum": [
+    2,
+    1
+   ],
+   "range": null,
+   "value": 2
+  },
+  "0xD07D": {
+   "label": null,
+   "writable": false,
+   "type": 4,
+   "enum": [
+    62536,
+    62836,
+    63236,
+    63536,
+    63836,
+    64236,
+    64536,
+    64836,
+    65236,
+    0,
+    300,
+    700,
+    1000,
+    1300,
+    1700,
+    2000,
+    2300,
+    2700,
+    3000
+   ],
+   "range": null,
+   "value": 0
+  },
+  "0xD07F": {
+   "label": null,
+   "writable": false,
+   "type": 4,
+   "enum": [
+    0
+   ],
+   "range": null,
+   "value": 0
+  },
+  "0xD080": {
+   "label": null,
+   "writable": false,
+   "type": 4,
+   "enum": [
+    0
+   ],
+   "range": null,
+   "value": 0
+  },
+  "0xD081": {
+   "label": null,
+   "writable": false,
+   "type": 4,
+   "enum": [
+    1,
+    2
+   ],
+   "range": null,
+   "value": 2
+  },
+  "0xD082": {
+   "label": null,
+   "writable": false,
+   "type": 4,
+   "enum": [
+    1,
+    2
+   ],
+   "range": null,
+   "value": 2
+  },
+  "0xD083": {
+   "label": null,
+   "writable": false,
+   "type": 4,
+   "enum": [
+    1,
+    2
+   ],
+   "range": null,
+   "value": 2
+  },
+  "0xD084": {
+   "label": null,
+   "writable": false,
+   "type": 4,
+   "enum": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9
+   ],
+   "range": null,
+   "value": 8
+  },
+  "0xD085": {
+   "label": null,
+   "writable": false,
+   "type": 4,
+   "enum": [
+    1,
+    2
+   ],
+   "range": null,
+   "value": 2
+  },
+  "0xD086": {
+   "label": null,
+   "writable": false,
+   "type": 6,
+   "enum": [
+    97536
+   ],
+   "range": null,
+   "value": 97536
+  },
+  "0xD087": {
+   "label": null,
+   "writable": false,
+   "type": 6,
+   "enum": [
+    39321610
+   ],
+   "range": null,
+   "value": 39321610
+  },
+  "0xD08B": {
+   "label": null,
+   "writable": true,
+   "type": 4,
+   "enum": [
+    17,
+    18,
+    19,
+    20,
+    21
+   ],
+   "range": null,
+   "value": 17
+  },
+  "0xD08C": {
+   "label": null,
+   "writable": true,
+   "type": 4,
+   "enum": [
+    1,
+    2,
+    3,
+    4
+   ],
+   "range": null,
+   "value": 1
+  },
+  "0xD08E": {
+   "label": null,
+   "writable": true,
+   "type": 4,
+   "enum": [
+    1,
+    3,
+    4
+   ],
+   "range": null,
+   "value": 3
+  },
+  "0xD08F": {
+   "label": null,
+   "writable": false,
+   "type": 4,
+   "enum": [
+    1,
+    2
+   ],
+   "range": null,
+   "value": 1
+  },
+  "0xD097": {
+   "label": null,
+   "writable": true,
+   "type": 4,
+   "enum": [
+    1,
+    2
+   ],
+   "range": null,
+   "value": 2
+  },
+  "0xD09F": {
+   "label": null,
+   "writable": false,
+   "type": 4,
+   "enum": [
+    1,
+    2
+   ],
+   "range": null,
+   "value": 1
+  },
+  "0xD0A2": {
+   "label": null,
+   "writable": true,
+   "type": 4,
+   "enum": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9
+   ],
+   "range": null,
+   "value": 1
+  },
+  "0xD0A3": {
+   "label": null,
+   "writable": true,
+   "type": 4,
+   "enum": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9
+   ],
+   "range": null,
+   "value": 2
+  },
+  "0xD0A4": {
+   "label": null,
+   "writable": true,
+   "type": 4,
+   "enum": [
+    22,
+    21,
+    20,
+    19,
+    18,
+    17,
+    16,
+    15,
+    14,
+    13,
+    12,
+    11,
+    10,
+    9,
+    8,
+    7,
+    6,
+    5,
+    4,
+    3,
+    2,
+    1
+   ],
+   "range": null,
+   "value": 4
+  },
+  "0xD0A6": {
+   "label": null,
+   "writable": true,
+   "type": 4,
+   "enum": [
+    2,
+    1
+   ],
+   "range": null,
+   "value": 2
+  },
+  "0xD0A7": {
+   "label": null,
+   "writable": true,
+   "type": 4,
+   "enum": [
+    1,
+    2,
+    4,
+    5,
+    6,
+    8,
+    9,
+    10,
+    12,
+    13,
+    14,
+    16
+   ],
+   "range": null,
+   "value": 1
+  },
+  "0xD0A8": {
+   "label": null,
+   "writable": true,
+   "type": 4,
+   "enum": [
+    1,
+    2,
+    3,
+    4
+   ],
+   "range": null,
+   "value": 1
+  },
+  "0xD0A9": {
+   "label": null,
+   "writable": true,
+   "type": 4,
+   "enum": [
+    1,
+    2,
+    3,
+    4
+   ],
+   "range": null,
+   "value": 1
+  },
+  "0xD0AA": {
+   "label": null,
+   "writable": true,
+   "type": 4,
+   "enum": [
+    1,
+    2,
+    3,
+    4
+   ],
+   "range": null,
+   "value": 1
+  },
+  "0xD0AB": {
+   "label": null,
+   "writable": true,
+   "type": 4,
+   "enum": [
+    1,
+    2,
+    4,
+    5
+   ],
+   "range": null,
+   "value": 1
+  },
+  "0xD0AC": {
+   "label": null,
+   "writable": true,
+   "type": 4,
+   "enum": [
+    2,
+    1
+   ],
+   "range": null,
+   "value": 2
+  },
+  "0xD0AD": {
+   "label": null,
+   "writable": true,
+   "type": 4,
+   "enum": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8
+   ],
+   "range": null,
+   "value": 1
+  },
+  "0xD0AE": {
+   "label": null,
+   "writable": true,
+   "type": 4,
+   "enum": [
+    2,
+    1
+   ],
+   "range": null,
+   "value": 2
+  },
+  "0xD0B2": {
+   "label": null,
+   "writable": true,
+   "type": 4,
+   "enum": [
+    3,
+    1,
+    2
+   ],
+   "range": null,
+   "value": 3
+  },
+  "0xD0B3": {
+   "label": null,
+   "writable": true,
+   "type": 4,
+   "enum": [
+    3,
+    1,
+    2
+   ],
+   "range": null,
+   "value": 1
+  },
+  "0xD0B4": {
+   "label": null,
+   "writable": true,
+   "type": 4,
+   "enum": [
+    3,
+    1,
+    2
+   ],
+   "range": null,
+   "value": 1
+  },
+  "0xD0B5": {
+   "label": null,
+   "writable": true,
+   "type": 4,
+   "enum": [
+    3,
+    1,
+    2
+   ],
+   "range": null,
+   "value": 1
+  },
+  "0xD0B6": {
+   "label": null,
+   "writable": true,
+   "type": 4,
+   "enum": [
+    1,
+    2,
+    3,
+    4
+   ],
+   "range": null,
+   "value": 3
+  },
+  "0xD0B7": {
+   "label": null,
+   "writable": true,
+   "type": 4,
+   "enum": [
+    1,
+    2,
+    3,
+    4
+   ],
+   "range": null,
+   "value": 2
+  },
+  "0xD0B8": {
+   "label": null,
+   "writable": true,
+   "type": 4,
+   "enum": [
+    1,
+    2,
+    3,
+    4
+   ],
+   "range": null,
+   "value": 3
+  },
+  "0xD0B9": {
+   "label": null,
+   "writable": true,
+   "type": 4,
+   "enum": [
+    1,
+    2,
+    3,
+    4
+   ],
+   "range": null,
+   "value": 4
+  },
+  "0xD0BA": {
+   "label": null,
+   "writable": true,
+   "type": 4,
+   "enum": [
+    1,
+    2,
+    3,
+    4
+   ],
+   "range": null,
+   "value": 3
+  },
+  "0xD0BC": {
+   "label": null,
+   "writable": true,
+   "type": 4,
+   "enum": [
+    1,
+    2,
+    3
+   ],
+   "range": null,
+   "value": 3
+  },
+  "0xD0BD": {
+   "label": null,
+   "writable": true,
+   "type": 4,
+   "enum": [
+    1,
+    2,
+    3,
+    4,
+    5
+   ],
+   "range": null,
+   "value": 4
+  },
+  "0xD0BE": {
+   "label": null,
+   "writable": true,
+   "type": 4,
+   "enum": [
+    1,
+    2,
+    3,
+    4,
+    5
+   ],
+   "range": null,
+   "value": 4
+  },
+  "0xD0BF": {
+   "label": null,
+   "writable": true,
+   "type": 4,
+   "enum": [
+    1,
+    2,
+    3,
+    4,
+    5
+   ],
+   "range": null,
+   "value": 4
+  },
+  "0xD0C0": {
+   "label": null,
+   "writable": true,
+   "type": 4,
+   "enum": [
+    1
+   ],
+   "range": null,
+   "value": 1
+  },
+  "0xD0C4": {
+   "label": null,
+   "writable": true,
+   "type": 4,
+   "enum": [
+    1,
+    2
+   ],
+   "range": null,
+   "value": 2
+  },
+  "0xD0C5": {
+   "label": null,
+   "writable": true,
+   "type": 4,
+   "enum": [
+    2,
+    32770,
+    1,
+    32769,
+    32771,
+    32772
+   ],
+   "range": null,
+   "value": 32770
+  },
+  "0xD0C6": {
+   "label": null,
+   "writable": false,
+   "type": 4,
+   "enum": [
+    1,
+    2
+   ],
+   "range": null,
+   "value": 1
+  },
+  "0xD0C7": {
+   "label": null,
+   "writable": true,
+   "type": 4,
+   "enum": [
+    262,
+    263,
+    294,
+    295
+   ],
+   "range": null,
+   "value": 262
+  },
+  "0xD0C8": {
+   "label": null,
+   "writable": true,
+   "type": 4,
+   "enum": [
+    2,
+    1
+   ],
+   "range": null,
+   "value": 1
+  },
+  "0xD0C9": {
+   "label": null,
+   "writable": true,
+   "type": 6,
+   "enum": [
+    0,
+    65544,
+    65540,
+    655380,
+    655370,
+    1310730,
+    2621450,
+    5242890,
+    9830410,
+    19660810
+   ],
+   "range": null,
+   "value": 0
+  },
+  "0xD0CB": {
+   "label": null,
+   "writable": true,
+   "type": 4,
+   "enum": [
+    2,
+    1
+   ],
+   "range": null,
+   "value": 1
+  },
+  "0xD0CC": {
+   "label": null,
+   "writable": true,
+   "type": 4,
+   "enum": [],
+   "range": [
+    3,
+    999,
+    1
+   ],
+   "value": 8
+  },
+  "0xD0CD": {
+   "label": null,
+   "writable": true,
+   "type": 4,
+   "enum": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10
+   ],
+   "range": null,
+   "value": 10
+  },
+  "0xD0CE": {
+   "label": null,
+   "writable": true,
+   "type": 4,
+   "enum": [
+    2,
+    1
+   ],
+   "range": null,
+   "value": 1
+  },
+  "0xD0CF": {
+   "label": "loupe ratio",
+   "writable": true,
+   "type": 4,
+   "enum": [
+    1,
+    2,
+    3,
+    4,
+    5
+   ],
+   "range": null,
+   "value": 2
+  },
+  "0xD0D0": {
+   "label": null,
+   "writable": false,
+   "type": 4,
+   "enum": [],
+   "range": [
+    0,
+    639,
+    1
+   ],
+   "value": 0
+  },
+  "0xD0D1": {
+   "label": null,
+   "writable": false,
+   "type": 4,
+   "enum": [],
+   "range": [
+    0,
+    479,
+    1
+   ],
+   "value": 0
+  },
+  "0xD0D2": {
+   "label": null,
+   "writable": false,
+   "type": 4,
+   "enum": [],
+   "range": [
+    0,
+    639,
+    1
+   ],
+   "value": 0
+  },
+  "0xD0D3": {
+   "label": null,
+   "writable": false,
+   "type": 4,
+   "enum": [],
+   "range": [
+    0,
+    479,
+    1
+   ],
+   "value": 0
+  },
+  "0xD0D4": {
+   "label": null,
+   "writable": false,
+   "type": 6,
+   "enum": [],
+   "range": [
+    0,
+    41877983,
+    1
+   ],
+   "value": 0
+  },
+  "0xD0D5": {
+   "label": null,
+   "writable": false,
+   "type": 6,
+   "enum": [],
+   "range": [
+    0,
+    41877983,
+    1
+   ],
+   "value": 41877504
+  },
+  "0xD0D6": {
+   "label": null,
+   "writable": false,
+   "type": 6,
+   "enum": [],
+   "range": [
+    0,
+    41877983,
+    1
+   ],
+   "value": 478
+  },
+  "0xD0D7": {
+   "label": null,
+   "writable": false,
+   "type": 6,
+   "enum": [],
+   "range": [
+    0,
+    41877983,
+    1
+   ],
+   "value": 41877982
+  },
+  "0xD0D8": {
+   "label": null,
+   "writable": false,
+   "type": 6,
+   "enum": [],
+   "range": [
+    0,
+    41877983,
+    1
+   ],
+   "value": 0
+  },
+  "0xD0D9": {
+   "label": null,
+   "writable": false,
+   "type": 6,
+   "enum": [],
+   "range": [
+    0,
+    41877983,
+    1
+   ],
+   "value": 41877504
+  },
+  "0xD0DA": {
+   "label": null,
+   "writable": false,
+   "type": 6,
+   "enum": [],
+   "range": [
+    0,
+    41877983,
+    1
+   ],
+   "value": 478
+  },
+  "0xD0DB": {
+   "label": null,
+   "writable": false,
+   "type": 6,
+   "enum": [],
+   "range": [
+    0,
+    41877983,
+    1
+   ],
+   "value": 41877982
+  },
+  "0xD0DC": {
+   "label": null,
+   "writable": true,
+   "type": 4,
+   "enum": [
+    3,
+    2,
+    1
+   ],
+   "range": null,
+   "value": 2
+  },
+  "0xD0DD": {
+   "label": null,
+   "writable": false,
+   "type": 4,
+   "enum": [
+    1,
+    2
+   ],
+   "range": null,
+   "value": 1
+  },
+  "0xD0DE": {
+   "label": null,
+   "writable": false,
+   "type": 4,
+   "enum": [
+    0,
+    1
+   ],
+   "range": null,
+   "value": 0
+  },
+  "0xD0E1": {
+   "label": null,
+   "writable": false,
+   "type": 6,
+   "enum": [],
+   "range": [
+    0,
+    4294967295,
+    1
+   ],
+   "value": 1142
+  },
+  "0xD0E2": {
+   "label": null,
+   "writable": false,
+   "type": 6,
+   "enum": [],
+   "range": [
+    0,
+    29,
+    1
+   ],
+   "value": 14
+  },
+  "0xD0E3": {
+   "label": null,
+   "writable": true,
+   "type": 4,
+   "enum": [
+    1,
+    2
+   ],
+   "range": null,
+   "value": 2
+  },
+  "0xD0E4": {
+   "label": null,
+   "writable": true,
+   "type": 4,
+   "enum": [
+    1,
+    2
+   ],
+   "range": null,
+   "value": 1
+  },
+  "0xD0E5": {
+   "label": null,
+   "writable": true,
+   "type": 4,
+   "enum": [
+    1,
+    2
+   ],
+   "range": null,
+   "value": 1
+  },
+  "0xD0E6": {
+   "label": null,
+   "writable": true,
+   "type": 4,
+   "enum": [
+    2,
+    1,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10,
+    11,
+    12,
+    13,
+    14,
+    15,
+    16,
+    17,
+    18,
+    19,
+    20,
+    21,
+    22,
+    23,
+    24
+   ],
+   "range": null,
+   "value": 4
+  },
+  "0xD0E7": {
+   "label": null,
+   "writable": true,
+   "type": 4,
+   "enum": [
+    1,
+    2,
+    3
+   ],
+   "range": null,
+   "value": 2
+  },
+  "0xD0E8": {
+   "label": null,
+   "writable": true,
+   "type": 4,
+   "enum": [
+    2,
+    3
+   ],
+   "range": null,
+   "value": 3
+  },
+  "0xD0E9": {
+   "label": null,
+   "writable": true,
+   "type": 4,
+   "enum": [
+    1,
+    2,
+    3
+   ],
+   "range": null,
+   "value": 1
+  },
+  "0xD0EA": {
+   "label": null,
+   "writable": true,
+   "type": 4,
+   "enum": [
+    1,
+    2,
+    3
+   ],
+   "range": null,
+   "value": 1
+  },
+  "0xD0EC": {
+   "label": null,
+   "writable": true,
+   "type": 4,
+   "enum": [
+    1,
+    2,
+    4,
+    8,
+    15,
+    20,
+    25,
+    30
+   ],
+   "range": null,
+   "value": 8
+  },
+  "0xD0ED": {
+   "label": null,
+   "writable": false,
+   "type": 4,
+   "enum": [
+    0
+   ],
+   "range": null,
+   "value": 0
+  },
+  "0xD0EF": {
+   "label": null,
+   "writable": true,
+   "type": 4,
+   "enum": [
+    65516,
+    65517,
+    65518,
+    65519,
+    65520,
+    65521,
+    65522,
+    65523,
+    65524,
+    65525,
+    65526,
+    65527,
+    65528,
+    65529,
+    65530,
+    65531,
+    65532,
+    65533,
+    65534,
+    65535,
+    0,
+    1,
+    2,
+    3
+   ],
+   "range": null,
+   "value": 0
+  },
+  "0xD0F0": {
+   "label": "battery",
+   "writable": true,
+   "type": 4,
+   "enum": [
+    65516,
+    65517,
+    65518,
+    65519,
+    65520,
+    65521,
+    65522,
+    65523,
+    65524,
+    65525,
+    65526,
+    65527,
+    65528,
+    65529,
+    65530,
+    65531,
+    65532,
+    65533,
+    65534,
+    65535,
+    0,
+    1,
+    2,
+    3
+   ],
+   "range": null,
+   "value": 0
+  },
+  "0xD0F1": {
+   "label": null,
+   "writable": true,
+   "type": 4,
+   "enum": [
+    65523,
+    65524,
+    65525,
+    65526,
+    65527,
+    65528,
+    65529,
+    65530,
+    65531,
+    65532,
+    65533,
+    65534,
+    65535,
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10
+   ],
+   "range": null,
+   "value": 0
+  },
+  "0xD0F2": {
+   "label": null,
+   "writable": true,
+   "type": 4,
+   "enum": [
+    65523,
+    65524,
+    65525,
+    65526,
+    65527,
+    65528,
+    65529,
+    65530,
+    65531,
+    65532,
+    65533,
+    65534,
+    65535,
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10
+   ],
+   "range": null,
+   "value": 0
+  },
+  "0xD0F3": {
+   "label": null,
+   "writable": true,
+   "type": 4,
+   "enum": [
+    4,
+    3,
+    1,
+    2
+   ],
+   "range": null,
+   "value": 4
+  },
+  "0xD0F4": {
+   "label": null,
+   "writable": true,
+   "type": 4,
+   "enum": [
+    1,
+    2,
+    3,
+    4
+   ],
+   "range": null,
+   "value": 3
+  },
+  "0xD0F5": {
+   "label": null,
+   "writable": true,
+   "type": 4,
+   "enum": [
+    2,
+    1
+   ],
+   "range": null,
+   "value": 1
+  },
+  "0xD0F6": {
+   "label": null,
+   "writable": true,
+   "type": 4,
+   "enum": [
+    65526,
+    65527,
+    65528,
+    65529,
+    65530,
+    65531,
+    65532,
+    65533,
+    65534,
+    65535,
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10
+   ],
+   "range": null,
+   "value": 0
+  },
+  "0xD0F7": {
+   "label": null,
+   "writable": true,
+   "type": 4,
+   "enum": [
+    65526,
+    65527,
+    65528,
+    65529,
+    65530,
+    65531,
+    65532,
+    65533,
+    65534,
+    65535,
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10
+   ],
+   "range": null,
+   "value": 0
+  },
+  "0xD0F8": {
+   "label": null,
+   "writable": true,
+   "type": 4,
+   "enum": [
+    1,
+    2,
+    3,
+    4
+   ],
+   "range": null,
+   "value": 1
+  },
+  "0xD0F9": {
+   "label": null,
+   "writable": true,
+   "type": 4,
+   "enum": [
+    2,
+    1
+   ],
+   "range": null,
+   "value": 1
+  },
+  "0xD0FA": {
+   "label": null,
+   "writable": true,
+   "type": 4,
+   "enum": [
+    2,
+    1
+   ],
+   "range": null,
+   "value": 2
+  },
+  "0xD0FB": {
+   "label": null,
+   "writable": true,
+   "type": 4,
+   "enum": [
+    1,
+    2
+   ],
+   "range": null,
+   "value": 1
+  },
+  "0xD0FC": {
+   "label": null,
+   "writable": true,
+   "type": 4,
+   "enum": [
+    2,
+    1
+   ],
+   "range": null,
+   "value": 2
+  },
+  "0xD0FD": {
+   "label": null,
+   "writable": true,
+   "type": 4,
+   "enum": [
+    2,
+    1
+   ],
+   "range": null,
+   "value": 2
+  },
+  "0xD0FE": {
+   "label": null,
+   "writable": true,
+   "type": 4,
+   "enum": [
+    16,
+    15,
+    14,
+    13,
+    12,
+    11,
+    10,
+    9,
+    8,
+    7,
+    6,
+    5,
+    4,
+    3,
+    2,
+    1
+   ],
+   "range": null,
+   "value": 8
+  },
+  "0xD0FF": {
+   "label": null,
+   "writable": true,
+   "type": 4,
+   "enum": [],
+   "range": [
+    0,
+    9999,
+    1
+   ],
+   "value": 1494
+  },
+  "0xD100": {
+   "label": null,
+   "writable": true,
+   "type": 4,
+   "enum": [
+    2,
+    1
+   ],
+   "range": null,
+   "value": 2
+  },
+  "0xD101": {
+   "label": null,
+   "writable": true,
+   "type": 4,
+   "enum": [
+    1,
+    2,
+    3
+   ],
+   "range": null,
+   "value": 1
+  },
+  "0xD102": {
+   "label": null,
+   "writable": true,
+   "type": 4,
+   "enum": [
+    2,
+    1
+   ],
+   "range": null,
+   "value": 1
+  },
+  "0xD103": {
+   "label": null,
+   "writable": true,
+   "type": 4,
+   "enum": [
+    1,
+    2,
+    3
+   ],
+   "range": null,
+   "value": 1
+  },
+  "0xD104": {
+   "label": null,
+   "writable": true,
+   "type": 4,
+   "enum": [
+    10,
+    20,
+    30,
+    40,
+    50,
+    60,
+    70,
+    80,
+    90,
+    100
+   ],
+   "range": null,
+   "value": 100
+  },
+  "0xD105": {
+   "label": null,
+   "writable": true,
+   "type": 4,
+   "enum": [
+    2,
+    1
+   ],
+   "range": null,
+   "value": 2
+  },
+  "0xD106": {
+   "label": null,
+   "writable": true,
+   "type": 4,
+   "enum": [],
+   "range": [
+    2,
+    99,
+    1
+   ],
+   "value": 25
+  },
+  "0xD107": {
+   "label": null,
+   "writable": true,
+   "type": 4,
+   "enum": [
+    10,
+    20,
+    30,
+    40,
+    50,
+    60,
+    70,
+    80,
+    90,
+    100,
+    150,
+    180
+   ],
+   "range": null,
+   "value": 180
+  },
+  "0xD108": {
+   "label": null,
+   "writable": true,
+   "type": 4,
+   "enum": [
+    2,
+    1
+   ],
+   "range": null,
+   "value": 2
+  },
+  "0xD109": {
+   "label": null,
+   "writable": true,
+   "type": 4,
+   "enum": [],
+   "range": [
+    2,
+    99,
+    1
+   ],
+   "value": 25
+  },
+  "0xD10A": {
+   "label": null,
+   "writable": true,
+   "type": 4,
+   "enum": [
+    100,
+    150,
+    180
+   ],
+   "range": null,
+   "value": 180
+  },
+  "0xD10B": {
+   "label": null,
+   "writable": true,
+   "type": 4,
+   "enum": [
+    2,
+    1
+   ],
+   "range": null,
+   "value": 1
+  },
+  "0xD10C": {
+   "label": null,
+   "writable": true,
+   "type": 4,
+   "enum": [],
+   "range": [
+    2,
+    99,
+    1
+   ],
+   "value": 25
+  },
+  "0xD10D": {
+   "label": null,
+   "writable": true,
+   "type": 4,
+   "enum": [],
+   "range": [
+    0,
+    14,
+    1
+   ],
+   "value": 8
+  },
+  "0xD10E": {
+   "label": null,
+   "writable": true,
+   "type": 4,
+   "enum": [
+    100,
+    110,
+    120,
+    130,
+    140,
+    150
+   ],
+   "range": null,
+   "value": 150
+  },
+  "0xD10F": {
+   "label": null,
+   "writable": true,
+   "type": 4,
+   "enum": [
+    2,
+    1
+   ],
+   "range": null,
+   "value": 2
+  },
+  "0xD110": {
+   "label": null,
+   "writable": true,
+   "type": 4,
+   "enum": [],
+   "range": [
+    2,
+    99,
+    1
+   ],
+   "value": 25
+  },
+  "0xD111": {
+   "label": null,
+   "writable": true,
+   "type": 4,
+   "enum": [
+    150,
+    200,
+    300,
+    600
+   ],
+   "range": null,
+   "value": 600
+  },
+  "0xD112": {
+   "label": null,
+   "writable": true,
+   "type": 4,
+   "enum": [
+    2,
+    1
+   ],
+   "range": null,
+   "value": 2
+  },
+  "0xD113": {
+   "label": null,
+   "writable": true,
+   "type": 4,
+   "enum": [],
+   "range": [
+    2,
+    99,
+    1
+   ],
+   "value": 25
+  },
+  "0xD114": {
+   "label": null,
+   "writable": true,
+   "type": 4,
+   "enum": [
+    150,
+    200,
+    300,
+    600
+   ],
+   "range": null,
+   "value": 600
+  },
+  "0xD115": {
+   "label": null,
+   "writable": true,
+   "type": 4,
+   "enum": [
+    2,
+    1
+   ],
+   "range": null,
+   "value": 1
+  },
+  "0xD116": {
+   "label": null,
+   "writable": true,
+   "type": 4,
+   "enum": [],
+   "range": [
+    2,
+    99,
+    1
+   ],
+   "value": 25
+  },
+  "0xD117": {
+   "label": null,
+   "writable": true,
+   "type": 4,
+   "enum": [],
+   "range": [
+    0,
+    14,
+    1
+   ],
+   "value": 14
+  },
+  "0xD118": {
+   "label": null,
+   "writable": true,
+   "type": 4,
+   "enum": [
+    1,
+    2
+   ],
+   "range": null,
+   "value": 1
+  },
+  "0xD119": {
+   "label": null,
+   "writable": true,
+   "type": 6,
+   "enum": [
+    19660810,
+    16384010,
+    13107210,
+    9830410,
+    8519690,
+    6553610,
+    5242890,
+    3932170,
+    3276810,
+    2621450,
+    2097162,
+    1638410,
+    1310730,
+    1048586,
+    851978,
+    655370,
+    655373,
+    655376,
+    655380,
+    655385,
+    65539,
+    65540,
+    65541,
+    65542
+   ],
+   "range": null,
+   "value": 65786
+  },
+  "0xD11A": {
+   "label": null,
+   "writable": true,
+   "type": 4,
+   "enum": [
+    1,
+    2,
+    3,
+    4
+   ],
+   "range": null,
+   "value": 3
+  },
+  "0xD11B": {
+   "label": null,
+   "writable": true,
+   "type": 4,
+   "enum": [
+    1,
+    4
+   ],
+   "range": null,
+   "value": 1
+  },
+  "0xD11C": {
+   "label": null,
+   "writable": true,
+   "type": 4,
+   "enum": [
+    1
+   ],
+   "range": null,
+   "value": 1
+  },
+  "0xD11D": {
+   "label": null,
+   "writable": true,
+   "type": 4,
+   "enum": [
+    1
+   ],
+   "range": null,
+   "value": 1
+  },
+  "0xD11E": {
+   "label": null,
+   "writable": true,
+   "type": 4,
+   "enum": [
+    1
+   ],
+   "range": null,
+   "value": 1
+  },
+  "0xD11F": {
+   "label": null,
+   "writable": true,
+   "type": 4,
+   "enum": [
+    2,
+    1
+   ],
+   "range": null,
+   "value": 2
+  },
+  "0xD120": {
+   "label": null,
+   "writable": true,
+   "type": 4,
+   "enum": [],
+   "range": [
+    0,
+    999,
+    1
+   ],
+   "value": 0
+  },
+  "0xD121": {
+   "label": null,
+   "writable": false,
+   "type": 4,
+   "enum": [
+    1
+   ],
+   "range": null,
+   "value": 1
+  },
+  "0xD122": {
+   "label": null,
+   "writable": false,
+   "type": 4,
+   "enum": [
+    1
+   ],
+   "range": null,
+   "value": 1
+  },
+  "0xD123": {
+   "label": null,
+   "writable": false,
+   "type": 4,
+   "enum": [
+    1
+   ],
+   "range": null,
+   "value": 1
+  },
+  "0xD124": {
+   "label": null,
+   "writable": false,
+   "type": 4,
+   "enum": [
+    1,
+    2
+   ],
+   "range": null,
+   "value": 2
+  },
+  "0xD125": {
+   "label": null,
+   "writable": false,
+   "type": 4,
+   "enum": [
+    1,
+    2,
+    3,
+    4,
+    5
+   ],
+   "range": null,
+   "value": 1
+  },
+  "0xD126": {
+   "label": null,
+   "writable": false,
+   "type": 4,
+   "enum": [],
+   "range": [
+    0,
+    9999,
+    1
+   ],
+   "value": 0
+  },
+  "0xD127": {
+   "label": null,
+   "writable": false,
+   "type": 6,
+   "enum": [],
+   "range": [
+    0,
+    4294967295,
+    1
+   ],
+   "value": 0
+  },
+  "0xD128": {
+   "label": null,
+   "writable": false,
+   "type": 4,
+   "enum": [
+    1,
+    2
+   ],
+   "range": null,
+   "value": 1
+  },
+  "0xD12D": {
+   "label": null,
+   "writable": false,
+   "type": 4,
+   "enum": [
+    1,
+    2,
+    3
+   ],
+   "range": null,
+   "value": 1
+  },
+  "0xD12E": {
+   "label": null,
+   "writable": false,
+   "type": 4,
+   "enum": [
+    1,
+    2,
+    3,
+    4,
+    5
+   ],
+   "range": null,
+   "value": 5
+  },
+  "0xD12F": {
+   "label": null,
+   "writable": false,
+   "type": 4,
+   "enum": [],
+   "range": [
+    0,
+    101,
+    1
+   ],
+   "value": 43
+  },
+  "0xD130": {
+   "label": null,
+   "writable": false,
+   "type": 6,
+   "enum": [],
+   "range": [
+    0,
+    4294967295,
+    1
+   ],
+   "value": 43
+  },
+  "0xD131": {
+   "label": null,
+   "writable": false,
+   "type": 4,
+   "enum": [
+    1,
+    2
+   ],
+   "range": null,
+   "value": 2
+  },
+  "0xD132": {
+   "label": null,
+   "writable": true,
+   "type": 4,
+   "enum": [
+    32,
+    257,
+    258,
+    259,
+    260,
+    289,
+    290,
+    291,
+    292
+   ],
+   "range": null,
+   "value": 289
+  },
+  "0xD133": {
+   "label": null,
+   "writable": true,
+   "type": 4,
+   "enum": [
+    262,
+    263,
+    294,
+    295
+   ],
+   "range": null,
+   "value": 262
+  },
+  "0xD134": {
+   "label": null,
+   "writable": false,
+   "type": 6,
+   "enum": [],
+   "range": [
+    0,
+    4294967295,
+    1
+   ],
+   "value": 4294967295
+  },
+  "0xD135": {
+   "label": null,
+   "writable": false,
+   "type": 6,
+   "enum": [],
+   "range": [
+    0,
+    4294967295,
+    1
+   ],
+   "value": 4294967295
+  },
+  "0xD136": {
+   "label": null,
+   "writable": false,
+   "type": 6,
+   "enum": [],
+   "range": [
+    0,
+    4294967295,
+    1
+   ],
+   "value": 4294967295
+  },
+  "0xD137": {
+   "label": null,
+   "writable": false,
+   "type": 6,
+   "enum": [],
+   "range": [
+    0,
+    4294967295,
+    1
+   ],
+   "value": 4294967295
+  },
+  "0xD138": {
+   "label": null,
+   "writable": false,
+   "type": 6,
+   "enum": [],
+   "range": [
+    0,
+    4294967295,
+    1
+   ],
+   "value": 4294967295
+  },
+  "0xD139": {
+   "label": null,
+   "writable": false,
+   "type": 6,
+   "enum": [],
+   "range": [
+    0,
+    4294967295,
+    1
+   ],
+   "value": 4294967295
+  },
+  "0xD13A": {
+   "label": null,
+   "writable": false,
+   "type": 4,
+   "enum": [
+    60536,
+    60836,
+    61236,
+    61536,
+    61836,
+    62236,
+    62536,
+    62836,
+    63236,
+    63536,
+    63836,
+    64236,
+    64536,
+    64836,
+    65236,
+    0,
+    300,
+    700,
+    1000,
+    1300,
+    1700,
+    2000,
+    2300,
+    2700
+   ],
+   "range": null,
+   "value": 0
+  },
+  "0xD151": {
+   "label": null,
+   "writable": true,
+   "type": 6,
+   "enum": [
+    10,
+    65546,
+    131082,
+    327690,
+    655370,
+    1310730,
+    2621450,
+    5242890,
+    9830410,
+    19660810
+   ],
+   "range": null,
+   "value": 10
+  },
+  "0xD152": {
+   "label": null,
+   "writable": true,
+   "type": 6,
+   "enum": [
+    10,
+    65546,
+    131082,
+    327690,
+    655370,
+    1310730,
+    2621450,
+    5242890,
+    9830410,
+    19660810
+   ],
+   "range": null,
+   "value": 10
+  },
+  "0xD15A": {
+   "label": null,
+   "writable": false,
+   "type": 6,
+   "enum": [
+    1,
+    2,
+    3
+   ],
+   "range": null,
+   "value": 1
+  },
+  "0xD15C": {
+   "label": null,
+   "writable": true,
+   "type": 4,
+   "enum": [],
+   "range": [
+    3,
+    15,
+    1
+   ],
+   "value": 8
+  },
+  "0xD15D": {
+   "label": null,
+   "writable": true,
+   "type": 4,
+   "enum": [
+    2,
+    1
+   ],
+   "range": null,
+   "value": 2
+  },
+  "0xD15E": {
+   "label": null,
+   "writable": true,
+   "type": 4,
+   "enum": [
+    2,
+    1
+   ],
+   "range": null,
+   "value": 2
+  },
+  "0xD15F": {
+   "label": null,
+   "writable": true,
+   "type": 4,
+   "enum": [
+    2,
+    1
+   ],
+   "range": null,
+   "value": 2
+  },
+  "0xD160": {
+   "label": null,
+   "writable": true,
+   "type": 4,
+   "enum": [
+    2,
+    1
+   ],
+   "range": null,
+   "value": 2
+  },
+  "0xD161": {
+   "label": null,
+   "writable": true,
+   "type": 4,
+   "enum": [
+    65529,
+    65530,
+    65531,
+    65532,
+    65533,
+    65534,
+    65535,
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7
+   ],
+   "range": null,
+   "value": 0
+  },
+  "0xD162": {
+   "label": null,
+   "writable": true,
+   "type": 4,
+   "enum": [
+    65529,
+    65530,
+    65531,
+    65532,
+    65533,
+    65534,
+    65535,
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7
+   ],
+   "range": null,
+   "value": 0
+  },
+  "0xD163": {
+   "label": null,
+   "writable": false,
+   "type": 6,
+   "enum": [],
+   "range": [
+    0,
+    4294967295,
+    1
+   ],
+   "value": 7
+  },
+  "0xD174": {
+   "label": null,
+   "writable": false,
+   "type": 4,
+   "enum": [
+    1,
+    2,
+    3,
+    32769
+   ],
+   "range": null,
+   "value": 1
+  },
+  "0xD405": {
+   "label": null,
+   "writable": false,
+   "type": 16386,
+   "enum": [],
+   "range": null,
+   "value": "<74752-byte array>"
+  },
+  "0xD406": {
+   "label": null,
+   "writable": true,
+   "type": 65535,
+   "enum": [],
+   "range": null,
+   "value": "Windows/6.0.5330.0 MTPClassDriver/6.0.5330.0"
+  },
+  "0xD407": {
+   "label": null,
+   "writable": false,
+   "type": 6,
+   "enum": [],
+   "range": null,
+   "value": 1
+  }
+ },
+ "suite": {
+  "lv": {
+   "model": "E-M1MarkII",
+   "ops": 38,
+   "lv": {
+    "320x240": {
+     "frames": 47,
+     "seconds": 3.05,
+     "fps": 15.1
+    },
+    "640x480": {
+     "frames": 47,
+     "seconds": 3.04,
+     "fps": 15.1
+    },
+    "800x600": {
+     "frames": 46,
+     "seconds": 3.0,
+     "fps": 15.0
+    },
+    "1024x768": {
+     "frames": 92,
+     "seconds": 3.02,
+     "fps": 30.1
+    },
+    "1280x960": {
+     "frames": 46,
+     "seconds": 2.99,
+     "fps": 15.0
+    }
+   },
+   "lv_seconds": 16.5
+  },
+  "props": {
+   "model": "E-M1MarkII",
+   "ops": 38,
+   "props": {
+    "0xD006": {
+     "label": "mode dial",
+     "value": 3,
+     "writable": false,
+     "enum": [
+      1,
+      2,
+      3,
+      4,
+      8
+     ],
+     "range": null
+    },
+    "0xD00C": {
+     "label": "AF mode",
+     "value": 33024,
+     "writable": true,
+     "enum": [
+      33024,
+      33025,
+      33027,
+      33028,
+      33026,
+      33029
+     ],
+     "range": null
+    },
+    "0xD051": {
+     "label": "AF field",
+     "value": 61,
+     "writable": true,
+     "enum": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12,
+      13,
+      14,
+      15,
+      16,
+      17,
+      18,
+      19,
+      20,
+      21,
+      22,
+      23,
+      24,
+      25,
+      26,
+      27,
+      28,
+      29,
+      30,
+      31,
+      32,
+      33,
+      34,
+      35,
+      36,
+      37,
+      38,
+      39,
+      40,
+      41,
+      42,
+      43,
+      44,
+      45,
+      46,
+      47,
+      48,
+      49,
+      50,
+      51,
+      52,
+      53,
+      54,
+      55,
+      56,
+      57,
+      58,
+      59,
+      60,
+      61,
+      62,
+      63,
+      64,
+      65,
+      66,
+      67,
+      68,
+      69,
+      70,
+      71,
+      72,
+      73,
+      74,
+      75,
+      76,
+      77,
+      78,
+      79,
+      80,
+      81,
+      82,
+      83,
+      84,
+      85,
+      86,
+      87,
+      88,
+      89,
+      90,
+      91,
+      92,
+      93,
+      94,
+      95,
+      96,
+      97,
+      98,
+      99,
+      100,
+      101,
+      102,
+      103,
+      104,
+      105,
+      106,
+      107,
+      108,
+      109,
+      110,
+      111,
+      112,
+      113,
+      114,
+      115,
+      116,
+      117,
+      118,
+      119,
+      120,
+      121
+     ],
+     "range": null
+    },
+    "0xD010": {
+     "label": "picture mode",
+     "value": 2,
+     "writable": true,
+     "enum": [
+      33281,
+      33537,
+      2,
+      1,
+      32771,
+      32769,
+      33025,
+      33793,
+      34561,
+      34049,
+      34305,
+      34306,
+      34307,
+      34308,
+      34309,
+      34310,
+      34311,
+      34312,
+      34313,
+      34314,
+      34315,
+      34316,
+      34317,
+      34318,
+      34319,
+      34320
+     ],
+     "range": null
+    },
+    "0xD01C": {
+     "label": "exposure time",
+     "value": 65596,
+     "writable": true,
+     "enum": [
+      4294967290,
+      4294967293,
+      4294967292,
+      39321610,
+      32768010,
+      26214410,
+      19660810,
+      16384010,
+      13107210,
+      9830410,
+      8519690,
+      6553610,
+      5242890,
+      3932170,
+      3276810,
+      2621450,
+      2097162,
+      1638410,
+      1310730,
+      1048586,
+      851978,
+      655370,
+      655373,
+      655376,
+      655380,
+      655385,
+      65539,
+      65540,
+      65541,
+      65542,
+      65544,
+      65546,
+      65549,
+      65551,
+      65556,
+      65561,
+      65566,
+      65576,
+      65586,
+      65596,
+      65616,
+      65636,
+      65661,
+      65696,
+      65736,
+      65786,
+      65856,
+      65936,
+      66036,
+      66176,
+      66336,
+      66536,
+      66786,
+      67136,
+      67536,
+      68036,
+      68736,
+      69536,
+      70536,
+      71936,
+      73536,
+      75536,
+      78336,
+      81536,
+      85536,
+      91136,
+      97536
+     ],
+     "range": null
+    },
+    "0xD01D": {
+     "label": "aperture",
+     "value": 4,
+     "writable": true,
+     "enum": [
+      0,
+      4,
+      1,
+      2,
+      3
+     ],
+     "range": null
+    },
+    "0xD01E": {
+     "label": "ISO",
+     "value": 2,
+     "writable": true,
+     "enum": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12,
+      13
+     ],
+     "range": null
+    },
+    "0xD020": {
+     "label": "WB",
+     "value": 2,
+     "writable": true,
+     "enum": [
+      2,
+      1,
+      3,
+      0
+     ],
+     "range": null
+    },
+    "0xD04B": {
+     "label": "loupe",
+     "value": 2,
+     "writable": true,
+     "enum": [
+      1,
+      2,
+      3
+     ],
+     "range": null
+    },
+    "0xD06D": {
+     "label": "live view size",
+     "value": 0,
+     "writable": true,
+     "enum": [
+      0,
+      52429400,
+      83887040,
+      20971760,
+      41943520,
+      67109632
+     ],
+     "range": null
+    },
+    "0xD053": {
+     "label": "roll",
+     "value": 11,
+     "writable": false,
+     "enum": null,
+     "range": [
+      64636,
+      900,
+      1
+     ]
+    },
+    "0xD055": {
+     "label": "pitch",
+     "value": 65534,
+     "writable": false,
+     "enum": null,
+     "range": [
+      64636,
+      900,
+      1
+     ]
+    },
+    "0xD0F0": {
+     "label": "battery",
+     "value": 0,
+     "writable": true,
+     "enum": [
+      65516,
+      65517,
+      65518,
+      65519,
+      65520,
+      65521,
+      65522,
+      65523,
+      65524,
+      65525,
+      65526,
+      65527,
+      65528,
+      65529,
+      65530,
+      65531,
+      65532,
+      65533,
+      65534,
+      65535,
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12,
+      13,
+      14,
+      15,
+      16,
+      17,
+      18,
+      19,
+      20
+     ],
+     "range": null
+    },
+    "0xD052": {
+     "label": "control mode",
+     "value": 1,
+     "writable": true,
+     "enum": [
+      1,
+      2
+     ],
+     "range": null
+    }
+   },
+   "props_seconds": 0.2
+  },
+  "poll": {
+   "model": "E-M1MarkII",
+   "ops": 38,
+   "poll": {
+    "list": [
+     "0xD006",
+     "0xD01C",
+     "0xD01D",
+     "0xD01E",
+     "0xD020",
+     "0xD051",
+     "0xD052"
+    ],
+    "set_poll_list": "ok in 0.00 s",
+    "poll_0": {
+     "ms": 5.0,
+     "props": [
+      "0xD006=3",
+      "0xD01C=65596",
+      "0xD01D=4",
+      "0xD01E=2",
+      "0xD020=2",
+      "0xD051=61",
+      "0xD052=1"
+     ]
+    },
+    "poll_1": {
+     "ms": 5.2,
+     "props": [
+      "0xD006=3",
+      "0xD01C=65596",
+      "0xD01D=4",
+      "0xD01E=2",
+      "0xD020=2",
+      "0xD051=61",
+      "0xD052=1"
+     ]
+    },
+    "poll_2": {
+     "ms": 8.5,
+     "props": [
+      "0xD006=3",
+      "0xD01C=65596",
+      "0xD01D=4",
+      "0xD01E=2",
+      "0xD020=2",
+      "0xD051=61",
+      "0xD052=1"
+     ]
+    }
+   },
+   "poll_seconds": 0.6
+  }
+ },
+ "_note": "device_version_ptp is PTP DeviceInfo.DeviceVersion (1.00 on any firmware) and is NOT the firmware. The firmware value is owner-reported from the camera menu and was not readable over the protocol."
+}

@@ -55,7 +55,8 @@ WIFI_FEATURES = ["liveview", "lvsize", "af_area", "stages", "scp", "time_lapse",
 cam = None   # active connection, None before the choice on the start screen
 live = None
 conn_type = None
-options = {"host": "192.168.0.10", "allow_write": False, "usb_backend": "gphoto2"}
+options = {"host": "192.168.0.10", "allow_write": False,
+           "usb_backend": "ptp" if os.name == "nt" else "gphoto2"}  # no libgphoto2 on Windows
 allowed_hosts = set()
 # Phone in the home network (--lan, REQ-F47): a fresh random key per start; another device needs it once from the
 # QR code, then keeps it as a cookie. The computer itself (loopback) needs no key.
@@ -585,7 +586,7 @@ def set_save_cfg(b):
     cfg = {"dir": validate_save_dir(b.get("dir")), "scheme": scheme, "prefix": prefix}
     tmp = SETTINGS_FILE + ".tmp"
     os.makedirs(os.path.dirname(SETTINGS_FILE) or ".", exist_ok=True)
-    with open(tmp, "w") as f:
+    with open(tmp, "w", encoding="utf-8") as f:
         json.dump(cfg, f, indent=1)
     os.replace(tmp, SETTINGS_FILE)
     save_cfg.update(cfg)
@@ -595,7 +596,7 @@ def set_save_cfg(b):
 def load_save_cfg():
     """Read the settings file at start; a broken or now-invalid file falls back to defaults."""
     try:
-        with open(SETTINGS_FILE) as f:
+        with open(SETTINGS_FILE, encoding="utf-8") as f:
             c = json.load(f)
         cfg = {"dir": validate_save_dir(c.get("dir")), "scheme": c.get("scheme", "original"),
                "prefix": str(c.get("prefix") or "")}
@@ -1114,10 +1115,34 @@ def hsl_auto_run(dest):
     threading.Thread(target=run, daemon=True).start()
 
 
+# OM Workspace (OM System's free raw developer) for "Open in OM Workspace": the macOS app bundle and the
+# Windows program folder. All of them are checked on every system - a path that does not exist is one stat.
+OM_WORKSPACE_DIRS = (
+    "/Applications/OM Workspace.app",
+    os.path.expanduser("~/Applications/OM Workspace.app"),
+    os.path.join(os.environ.get("ProgramFiles", r"C:\Program Files"), "OM System", "OM Workspace"),
+    os.path.join(os.environ.get("ProgramFiles", r"C:\Program Files"), "OM Digital Solutions", "OM Workspace"),
+    os.path.join(os.environ.get("ProgramFiles(x86)", r"C:\Program Files (x86)"), "OM System", "OM Workspace"),
+    os.path.join(os.environ.get("ProgramFiles(x86)", r"C:\Program Files (x86)"),
+                 "OM Digital Solutions", "OM Workspace"),
+)
+
+
 def om_workspace_installed():
-    """OM Workspace (OM System's free raw developer) on this Mac, for "Open in OM Workspace"."""
-    return any(os.path.isdir(os.path.join(d, "OM Workspace.app"))
-               for d in ("/Applications", os.path.expanduser("~/Applications")))
+    """OM Workspace on this computer, for "Open in OM Workspace"."""
+    return any(os.path.isdir(d) for d in OM_WORKSPACE_DIRS)
+
+
+def om_workspace_exe():
+    """The Windows program in one of those folders, or None (macOS starts the bundle with `open -a`)."""
+    for d in OM_WORKSPACE_DIRS:
+        if d.endswith(".app") or not os.path.isdir(d):
+            continue
+        for name in ("OM Workspace.exe", "OMWorkspace.exe", "OMWorkspaceWin.exe"):
+            exe = os.path.join(d, name)
+            if os.path.isfile(exe):
+                return exe
+    return None
 
 
 def capture_path(name):
@@ -1133,12 +1158,13 @@ def card_cache(kind, imgs=None):
     path = os.path.join(os.path.dirname(PREVIEW_CACHE), "cardlist_%s.json" % kind)
     if imgs is not None:
         os.makedirs(os.path.dirname(path), exist_ok=True)
-        with tempfile.NamedTemporaryFile("w", dir=os.path.dirname(path), suffix=".part", delete=False) as f:
+        with tempfile.NamedTemporaryFile("w", dir=os.path.dirname(path), suffix=".part", delete=False,
+                                         encoding="utf-8") as f:
             json.dump(imgs, f)  # own temp file per request: two tabs may save at once
         os.replace(f.name, path)
         return imgs
     try:
-        with open(path) as f:
+        with open(path, encoding="utf-8") as f:
             return json.load(f)
     except (OSError, ValueError):
         return None
@@ -1698,7 +1724,14 @@ class Handler(BaseHTTPRequestHandler):
         if path == "/api/open":
             if not self._local():  # opens a program on the computer: not from a phone over --lan
                 raise Forbidden("Open in OM Workspace only from the computer itself")
-            subprocess.run(["open", "-a", "OM Workspace", capture_path(b["name"])], check=True)
+            file = capture_path(b["name"])
+            if sys.platform == "darwin":
+                subprocess.run(["open", "-a", "OM Workspace", file], check=True)
+            else:
+                exe = om_workspace_exe()
+                if not exe:
+                    raise ValueError("OM Workspace not found; open the file from the program itself")
+                subprocess.run([exe, file], check=True)
             return None
         if path == "/api/hsl":
             return hsl_apply(b["name"], b.get("profile"), bool(b.get("tiff")))
@@ -1887,6 +1920,22 @@ def open_browser(url, delay=0.6):
     threading.Timer(delay, webbrowser.open, (url,)).start()
 
 
+class _LocalServer(ThreadingHTTPServer):
+    """The app's web server. macOS and Linux reuse the address; on Windows that also lets a second process
+    bind the same port, so a second start would never reach the "already running" message and two servers
+    would share 8765. Without SO_REUSEADDR Windows refuses the second bind (tested 2026-11-24: 10048), and a
+    restart after a client connection still binds at once."""
+    allow_reuse_address = os.name != "nt"
+
+
+def _port_taken(e):
+    """True if bind() failed because another program holds the port. Unix: EADDRINUSE. Windows: WSAEADDRINUSE
+    (10048) or WSAEACCES (10013, PermissionError) when that program did not share the address."""
+    if e.errno == errno.EADDRINUSE:
+        return True
+    return os.name == "nt" and (getattr(e, "winerror", None) in (10048, 10013) or e.errno == errno.EACCES)
+
+
 def main(argv=None):
     global CAPTURES, PREVIEW_CACHE, SETTINGS_FILE, HSL_OUT, http_server
     p = argparse.ArgumentParser(prog="em1-capture", description="Local web app to control an Olympus OM-D E-M1 over Wi-Fi or USB.")
@@ -1903,17 +1952,17 @@ def main(argv=None):
                    help="also open the app on a phone in the home network: shows a QR code with a one-time key "
                         "(button Phone); other devices need that key")
     p.add_argument("--usb-backend", choices=("auto", "ptp", "gphoto2"),
-                   default="auto" if sys.platform == "darwin" else "gphoto2",
+                   default=("auto" if sys.platform == "darwin" else "ptp" if os.name == "nt" else "gphoto2"),
                    help="USB: own PTP layer (ptp), libgphoto2 (gphoto2) or the PTP layer with libgphoto2 as fallback "
-                        "(auto, default on macOS; Linux uses libgphoto2)")
+                        "(auto, default on macOS; Windows has no libgphoto2 and uses the PTP layer; Linux uses libgphoto2)")
     a = p.parse_args(argv)
     Handler.timing = a.timing
     url = "http://127.0.0.1:%d/" % a.port
     try:
         lan_ip = lan_address() if a.lan else None  # no home network address: stay on this computer only
-        server = ThreadingHTTPServer(("0.0.0.0" if lan_ip else "127.0.0.1", a.port), Handler)
+        server = _LocalServer(("0.0.0.0" if lan_ip else "127.0.0.1", a.port), Handler)
     except OSError as e:
-        if e.errno != errno.EADDRINUSE:
+        if not _port_taken(e):
             raise
         info = running_app(a.port)
         if info is None:

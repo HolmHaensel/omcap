@@ -1,41 +1,35 @@
-/* E-M1 Capture design tokens (dark theme first).
-   Source: Live View design canvas, 2026-11-11. Use these custom properties instead of raw values. */
+/* E-M1 Capture design tokens.
+   Source: Live View design canvas 2026-11-11; retuned 2026-11-24 to the OM-1 style skin. */
 :root {
-  /* Colour */
-  --ground: #0E0F11;          /* page */
-  --surface: #16181B;         /* panels, tiles */
-  --surface-raised: #1E2125;  /* tile being edited */
-  --line: #2A2E33;            /* borders, dividers */
-  --line-strong: #4A4F55;     /* dashed "not available" outlines */
-  --text: #ECEEF0;            /* primary text */
-  --muted: #9AA1A9;           /* labels and hints, 6.8:1 on --surface */
-  --disabled: #8A9199;        /* disabled text, still >= 4.5:1 on --ground */
-  --accent: #F5B841;          /* selected, working, shutter */
-  --accent-ink: #1A1300;      /* text on --accent */
-  --accent-line: #6B5320;     /* accent outlines */
-  --accent-soft: rgba(245, 184, 65, 0.12);
-  --focus: #3DDC84;           /* in focus, connected */
+  /* Colour: one neutral scale, white selection, green focus, red record only */
+  --ground: #0B0B0C;          /* page */
+  --surface: #131315;         /* panels, tiles */
+  --surface-raised: #1B1B1E;  /* tile under the pointer */
+  --line: #26262A;            /* borders, dividers */
+  --line-strong: #3A3B40;     /* dashed "not available" outlines */
+  --text: #F2F2F3;            /* primary text */
+  --muted: #909099;           /* labels and hints */
+  --disabled: #6A6B72;        /* disabled text, still >= 4.5:1 on --ground */
+  --accent: #EDEDF0;          /* selected, working, shutter: white, not amber */
+  --accent-ink: #0A0A0B;      /* text on --accent */
+  --accent-line: #55565C;     /* accent outlines */
+  --accent-soft: rgba(255, 255, 255, 0.08);
+  --focus: #59D18D;           /* in focus, connected */
   --focus-line: #1F6B45;
   --rec: #FF5A4F;             /* recording, turn off camera; never decoration */
   --rec-text: #FF7A70;
-  --overlay: rgba(14, 15, 17, 0.78); /* chips on top of the live view */
+  --overlay: rgba(11, 11, 12, 0.74); /* chips on top of the live view */
 
   /* Type */
-  --font-ui: Inter, system-ui, -apple-system, "Segoe UI", sans-serif;
-  --font-value: "IBM Plex Mono", ui-monospace, Menlo, monospace; /* camera values: 1/250 F4.0 ISO 200 */
-  --fs-title: 16px; --fs-body: 14px; --fs-label: 12px; --fs-value: 22px; --fs-shutter: 18px;
+  --font-ui: "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-value: "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; /* camera values, tabular */
+  --fs-title: 13px; --fs-body: 13px; --fs-label: 10px; --fs-value: 17px; --fs-shutter: 12px;
 
-  /* Space and shape */
+  /* Space and shape: square corners, hairline rows */
   --s1: 4px; --s2: 8px; --s3: 12px; --s4: 16px; --s5: 20px; --s6: 32px;
-  --r-sm: 8px; --r-md: 10px; --r-lg: 12px; --r-pill: 999px;
-  --touch: 44px;              /* minimum touch target */
-  --shutter-h: 64px;
+  --r-sm: 2px; --r-md: 2px; --r-lg: 3px; --r-pill: 2px;
 
   /* Motion */
-  --t-fast: 120ms;            /* state changes */
-  --t-sheet: 200ms;           /* sheets, panels */
-}
-
-@media (prefers-color-scheme: light) {
-  /* Light theme is optional; shooting stays dark by default. */
+  --t-fast: 120ms;
+  --t-sheet: 200ms;
 }
