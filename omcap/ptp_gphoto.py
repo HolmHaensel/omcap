@@ -194,7 +194,7 @@ class CardIndex:
         if not self.cache_path:
             return {}
         try:
-            with open(self.cache_path) as f:
+            with open(self.cache_path, encoding="utf-8") as f:
                 data = json.load(f)
             if data.get("version") != INDEX_VERSION:
                 return {}
@@ -208,7 +208,7 @@ class CardIndex:
         try:
             os.makedirs(os.path.dirname(self.cache_path), exist_ok=True)
             fd, tmp = tempfile.mkstemp(dir=os.path.dirname(self.cache_path), suffix=".tmp")
-            with os.fdopen(fd, "w") as f:
+            with os.fdopen(fd, "w", encoding="utf-8") as f:
                 json.dump({"version": INDEX_VERSION, "objects": {str(h): list(v) for h, v in self.objects.items()}}, f)
             os.replace(tmp, self.cache_path)
         except OSError:

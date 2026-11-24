@@ -586,7 +586,7 @@ def set_save_cfg(b):
     cfg = {"dir": validate_save_dir(b.get("dir")), "scheme": scheme, "prefix": prefix}
     tmp = SETTINGS_FILE + ".tmp"
     os.makedirs(os.path.dirname(SETTINGS_FILE) or ".", exist_ok=True)
-    with open(tmp, "w") as f:
+    with open(tmp, "w", encoding="utf-8") as f:
         json.dump(cfg, f, indent=1)
     os.replace(tmp, SETTINGS_FILE)
     save_cfg.update(cfg)
@@ -596,7 +596,7 @@ def set_save_cfg(b):
 def load_save_cfg():
     """Read the settings file at start; a broken or now-invalid file falls back to defaults."""
     try:
-        with open(SETTINGS_FILE) as f:
+        with open(SETTINGS_FILE, encoding="utf-8") as f:
             c = json.load(f)
         cfg = {"dir": validate_save_dir(c.get("dir")), "scheme": c.get("scheme", "original"),
                "prefix": str(c.get("prefix") or "")}
@@ -1115,10 +1115,34 @@ def hsl_auto_run(dest):
     threading.Thread(target=run, daemon=True).start()
 
 
+# OM Workspace (OM System's free raw developer) for "Open in OM Workspace": the macOS app bundle and the
+# Windows program folder. All of them are checked on every system - a path that does not exist is one stat.
+OM_WORKSPACE_DIRS = (
+    "/Applications/OM Workspace.app",
+    os.path.expanduser("~/Applications/OM Workspace.app"),
+    os.path.join(os.environ.get("ProgramFiles", r"C:\Program Files"), "OM System", "OM Workspace"),
+    os.path.join(os.environ.get("ProgramFiles", r"C:\Program Files"), "OM Digital Solutions", "OM Workspace"),
+    os.path.join(os.environ.get("ProgramFiles(x86)", r"C:\Program Files (x86)"), "OM System", "OM Workspace"),
+    os.path.join(os.environ.get("ProgramFiles(x86)", r"C:\Program Files (x86)"),
+                 "OM Digital Solutions", "OM Workspace"),
+)
+
+
 def om_workspace_installed():
-    """OM Workspace (OM System's free raw developer) on this Mac, for "Open in OM Workspace"."""
-    return any(os.path.isdir(os.path.join(d, "OM Workspace.app"))
-               for d in ("/Applications", os.path.expanduser("~/Applications")))
+    """OM Workspace on this computer, for "Open in OM Workspace"."""
+    return any(os.path.isdir(d) for d in OM_WORKSPACE_DIRS)
+
+
+def om_workspace_exe():
+    """The Windows program in one of those folders, or None (macOS starts the bundle with `open -a`)."""
+    for d in OM_WORKSPACE_DIRS:
+        if d.endswith(".app") or not os.path.isdir(d):
+            continue
+        for name in ("OM Workspace.exe", "OMWorkspace.exe", "OMWorkspaceWin.exe"):
+            exe = os.path.join(d, name)
+            if os.path.isfile(exe):
+                return exe
+    return None
 
 
 def capture_path(name):
@@ -1134,12 +1158,13 @@ def card_cache(kind, imgs=None):
     path = os.path.join(os.path.dirname(PREVIEW_CACHE), "cardlist_%s.json" % kind)
     if imgs is not None:
         os.makedirs(os.path.dirname(path), exist_ok=True)
-        with tempfile.NamedTemporaryFile("w", dir=os.path.dirname(path), suffix=".part", delete=False) as f:
+        with tempfile.NamedTemporaryFile("w", dir=os.path.dirname(path), suffix=".part", delete=False,
+                                         encoding="utf-8") as f:
             json.dump(imgs, f)  # own temp file per request: two tabs may save at once
         os.replace(f.name, path)
         return imgs
     try:
-        with open(path) as f:
+        with open(path, encoding="utf-8") as f:
             return json.load(f)
     except (OSError, ValueError):
         return None
@@ -1699,7 +1724,14 @@ class Handler(BaseHTTPRequestHandler):
         if path == "/api/open":
             if not self._local():  # opens a program on the computer: not from a phone over --lan
                 raise Forbidden("Open in OM Workspace only from the computer itself")
-            subprocess.run(["open", "-a", "OM Workspace", capture_path(b["name"])], check=True)
+            file = capture_path(b["name"])
+            if sys.platform == "darwin":
+                subprocess.run(["open", "-a", "OM Workspace", file], check=True)
+            else:
+                exe = om_workspace_exe()
+                if not exe:
+                    raise ValueError("OM Workspace not found; open the file from the program itself")
+                subprocess.run([exe, file], check=True)
             return None
         if path == "/api/hsl":
             return hsl_apply(b["name"], b.get("profile"), bool(b.get("tiff")))
