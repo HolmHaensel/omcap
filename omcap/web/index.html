@@ -149,15 +149,20 @@ button:disabled{color:var(--disabled);opacity:.6;cursor:not-allowed}
 #lastShot{transition:opacity .6s;position:absolute;right:12px;bottom:56px;width:14%;min-width:96px;max-height:30%;object-fit:contain;background:#000;border:2px solid rgba(236,238,240,.85);border-radius:var(--r-sm);cursor:pointer;z-index:3}
 #msg{margin:8px 0 0;min-height:1.3em}
 #props{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--s2)}
-#props label{display:flex;flex-direction:column;gap:2px;font-size:var(--fs-label);color:var(--muted);min-width:0;padding:8px 10px;background:var(--ground);border:1px solid var(--line);border-radius:var(--r-md);transition:background var(--t-fast),border-color var(--t-fast)}
+#props label{position:relative;cursor:pointer;display:flex;flex-direction:column;gap:2px;font-size:var(--fs-label);color:var(--muted);min-width:0;padding:8px 10px;background:var(--ground);border:1px solid var(--line);border-radius:var(--r-md);transition:background var(--t-fast),border-color var(--t-fast)}
 #props label:focus-within{background:var(--surface-raised);border-color:var(--accent)}
-#props select{width:100%;padding:0;border:0;background:transparent;color:var(--text);font-family:var(--font-value);font-size:18px;font-weight:500;appearance:none;-webkit-appearance:none;cursor:pointer}
+/* The whole tile is the hit area: an invisible select covers it, the value is drawn by the span below.
+   Before, only the label text forwarded a click to the 18 px select line. */
+#props label>.v{display:block;font-family:var(--font-value);font-size:18px;font-weight:500;color:var(--text);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#props select{position:absolute;inset:0;width:100%;height:100%;padding:0;border:0;background:transparent;
+  color:transparent;font-size:18px;appearance:none;-webkit-appearance:none;opacity:0;cursor:pointer}
 #props select option{font-size:14px}
 #props select:disabled{color:var(--disabled);cursor:not-allowed}
 #props label.ro strong{font-family:var(--font-value);font-size:18px;font-weight:500;color:var(--text)}
-#props label.ro{grid-column:1/-1;border-style:dashed;border-color:var(--line-strong)}
+#props label.ro{cursor:default;grid-column:1/-1;border-style:dashed;border-color:var(--line-strong)}
 #props label.wide{grid-column:1/-1}
-.cring{display:block;width:min(200px,100%);margin:6px auto 2px} /* Partial Color: colour ring like on the camera (REQ-F42) */
+.cring{display:block;width:min(200px,100%);margin:6px auto 2px;position:relative;z-index:2} /* Partial Color: colour ring like on the camera (REQ-F42) */
 .cring .seg{stroke:var(--ground);stroke-width:1;cursor:pointer}
 .cring .seg:hover{opacity:.8}
 .cring .seg.on{stroke:#fff;stroke-width:3}
@@ -1478,17 +1483,19 @@ function renderProps(){
     // Value names: table (val.<setting>.<value>) before the camera names and from FEATURES
     const name=o=>tr('val.'+k+'.'+o,null,'')||(v.names&&v.names[o])||(f.names&&f.names[o])||o;
     const l=document.createElement('label'); l.textContent=tr('prop.'+k); l.dataset.id=k; l.dataset.label=tr('prop.'+k);
+    const val=document.createElement('span'); val.className='v'; val.textContent=name(v.value);
     const sel=document.createElement('select'); sel.disabled=!canWrite;
     const opts=v.enum.filter(o=>!(f.skip&&f.skip(o,p)));
     if(!opts.includes(v.value)) opts.unshift(v.value);
     for(const o of opts) sel.add(new Option(name(o),o));
     sel.value=v.value;
     sel.onchange=()=>api('/api/set',{prop:k,value:sel.value}).then(()=>{
-      v.value=sel.value; msg(tr('prop.'+k)+': '+name(sel.value)); renderProps();
+      v.value=sel.value; val.textContent=name(sel.value);
+      msg(tr('prop.'+k)+': '+name(sel.value)); renderProps();
       if(k==='takemode') setTimeout(props,800);
     }).catch(e=>{msg(tr('prop.'+k)+': '+e.message,true);sel.value=v.value});
     if(['drivemode','colortone','artfilter','exposemovie'].includes(k)) l.classList.add('wide');
-    l.append(sel); box.append(l);
+    l.append(val,sel); box.append(l);
     if(k==='colorphase'){l.classList.add('wide');l.insertBefore(colorRing(v.value,opts,sel),sel)}
     if(k==='isospeedvalue'){const a=document.createElement('span');a.id='isoAuto';a.className='isoAuto';l.append(a);updateIsoAuto()}
   }
