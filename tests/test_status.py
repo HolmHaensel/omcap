@@ -11,7 +11,7 @@ class Capacity(unittest.TestCase):
     def test_variants(self):
         cases = [
             (b'<?xml version="1.0"?><response><unusedcapacity>1234567</unusedcapacity></response>', 1234567),
-            (b'<?xml version="1.0"?>\n<unused>4294967295</unused>', 4294967295),
+            (b'<?xml version="1.0"?>\n<unused>12345678901</unused>', 12345678901),
             (b'<unusedcapacity>42</unusedcapacity>', 42),
             (b'<?xml version="1.0"?><response><capacity> 99 </capacity></response>', 99),
             (b"123456789\r\n", 123456789),
