@@ -326,6 +326,35 @@ class CameraSettingsTool(unittest.TestCase):
         self.assertIn("focusmode", res["content"][0]["text"])
 
 
+class ShutterLive(unittest.TestCase):
+    """In P/A shutspeedvalue is stale (Wi-Fi 2026-11-24); the time in use is lvinfo.shutter, as on the page."""
+
+    def _settings(self, mode, shutter, args=None, movie_exp=None):
+        props = dict(CameraSettingsTool.PROPS, takemode={"value": mode, "writable": True, "enum": []})
+        if movie_exp:
+            props["exposemovie"] = {"value": movie_exp, "writable": True, "enum": []}
+        state = {"lvinfo": {"shutter": shutter}} if shutter else {"lvinfo": None}
+        res = _call(FakeClient(json_map={"/api/props": props, "/api/state": state}), "camera_settings", args or {})
+        self.assertFalse(res["isError"])
+        return _json_payload(res)["shutspeedvalue"]
+
+    def test_p_and_a_add_the_time_in_use(self):
+        self.assertEqual(self._settings("P", [1, 15])["shutter_live"], "1/15")
+        self.assertEqual(self._settings("A", [10, 16])["shutter_live"], '0.6"')
+        self.assertEqual(self._settings("A", [2, 1], {"prop": "shutspeedvalue"})["shutter_live"], '2"')
+
+    def test_s_m_and_movie_s_keep_the_set_value(self):
+        for mode in ("S", "M"):
+            self.assertNotIn("shutter_live", self._settings(mode, [1, 15]))
+        self.assertNotIn("shutter_live", self._settings("movie", [1, 50], movie_exp="S"))
+        self.assertEqual(self._settings("movie", [1, 50], movie_exp="P")["shutter_live"], "1/50")
+
+    def test_usb_or_no_live_view_adds_nothing(self):
+        self.assertNotIn("shutter_live", self._settings("P", None))
+        res = _call(FakeClient(json_map={"/api/props": CameraSettingsTool.PROPS}), "camera_settings")
+        self.assertNotIn("shutter_live", _json_payload(res)["shutspeedvalue"])
+
+
 class LiveViewFrameTool(unittest.TestCase):
     def test_returns_jpeg_and_metadata_when_running(self):
         client = FakeClient(
