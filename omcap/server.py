@@ -127,7 +127,8 @@ state = {"transfer": "sd", "latest": None, "transfer_error": None,
          "take": None, "movie": None, "resume_live": False, "seen": None, "wifi_field": 41,
          "wifi_af": None, "pressing": False, "indexing": False, "play": None,
          "last_shot": None, "last_shot_jpeg": None, "fast_n": 0,
-         "props_rev": 0}  # props_rev: counts /api/set calls, so pages see changes made by another client (MCP)
+         "props_rev": 0,  # props_rev: counts /api/set calls, so pages see changes made by another client (MCP)
+         "mcp_n": 0, "mcp_log": []}  # POSTs from the MCP server (header X-Client: mcp), newest last, shown on the page
 
 
 DEVICE_TTL = 30  # seconds; do not query card space and battery on every tick
@@ -1347,7 +1348,16 @@ def public_state():
         "loupe_owner_live": time.monotonic() - client_seen.get(getattr(cam, "loupe_owner", None), -1e9) < CLIENT_LIVE_S,  # is that page still open?
         "star_af": dict(star_af_state),
         "props_rev": state["props_rev"],  # a page reloads the settings when this changes (e.g. set by MCP)
+        "mcp_n": state["mcp_n"], "mcp_log": state["mcp_log"],
     }
+
+
+def note_mcp(path, body, err=None):
+    """Remember a POST of the MCP server so the page can show what it did (the user follows it there)."""
+    keep = {k: v for k, v in (body or {}).items() if isinstance(v, (str, int, float, bool)) and len(str(v)) <= 40}
+    state["mcp_n"] += 1
+    state["mcp_log"] = (state["mcp_log"] + [{"n": state["mcp_n"], "t": round(time.time()), "path": path.split("?")[0],
+                                             "body": keep, "error": err and err[:120]}])[-10:]
 
 
 # --- HTTP --------------------------------------------------------------------
@@ -1616,6 +1626,7 @@ class Handler(BaseHTTPRequestHandler):
         self._t0 = time.monotonic()
         if not self._trusted():
             return self._send({"error": "Access denied"}, code=403)
+        b, err = {}, None
         try:
             b = self._body()
             extra = self._action(self.path, b)
@@ -1623,15 +1634,21 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send({"error": "not found"}, code=404)
             self._send({"ok": True, **(extra or {})})
         except (WriteBlocked, Forbidden) as e:
-            self._send({"error": str(e)}, code=403)
+            err = str(e)
+            self._send({"error": err}, code=403)
         except (CameraError, KeyError, OSError, ValueError, TypeError,
                 ET.ParseError, subprocess.SubprocessError) as e:
-            self._send({"error": str(e)}, code=502)
+            err = str(e)
+            self._send({"error": err}, code=502)
         except AttributeError:
             if cam is not None:
                 raise
             traceback.print_exc()  # logged: an offline endpoint bug must not hide behind "Not connected"
-            self._send({"error": "Not connected"}, code=409)  # a disconnect ran in parallel
+            err = "Not connected"
+            self._send({"error": err}, code=409)  # a disconnect ran in parallel
+        finally:
+            if self.headers.get("X-Client") == "mcp":
+                note_mcp(self.path, b, err)
 
     def _shutter(self, stage):
         """Set shutter stage: 0 release, 1 half, 2 full."""

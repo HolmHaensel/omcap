@@ -88,6 +88,14 @@ main{display:grid;grid-template-columns:minmax(0,1044px) 340px;justify-content:c
 #starAuto.rec{background:var(--rec);border-color:var(--rec);color:#fff;font-weight:600}
 #statusLine{display:flex;gap:var(--s4);flex-wrap:wrap;font-size:13px;color:var(--muted)}
 #statusLine #msg{margin:0;min-height:0}
+#mcpBox{font-size:13px;color:var(--muted);margin-top:var(--s1)}
+/* MCP actions: an invisible finger taps the control first, then the value changes (user 2026-11-24) */
+.ghostTap{position:absolute;width:44px;height:44px;margin:-22px 0 0 -22px;border-radius:50%;border:2px solid var(--accent);background:var(--accent-soft);pointer-events:none;z-index:50;animation:ghostTap .7s ease-out forwards}
+@keyframes ghostTap{0%{transform:scale(.4);opacity:.95}100%{transform:scale(1.5);opacity:0}}
+@media(prefers-reduced-motion:reduce){.ghostTap{animation:ghostFade .9s linear forwards}@keyframes ghostFade{0%{opacity:.9}100%{opacity:0}}}
+#mcpBox summary{cursor:pointer;width:max-content}
+#mcpLog{margin:var(--s1) 0 0;padding-left:var(--s5);font-family:var(--font-value)}
+#mcpLog .warn{color:var(--rec-text)}
 #lvSize{font-family:var(--font-value)}
 section{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-lg);padding:var(--s3)}
 #panels{display:flex;flex-direction:column;gap:10px}
@@ -482,6 +490,7 @@ body.webcam{cursor:none;display:flex;align-items:center;justify-content:center}
     <button id="ovlOff" data-i18n="lv.overlayRemove">Remove</button>
   </div>
   <div id="statusLine"><span id="lvSize" class="mut"></span><p id="msg" class="mut" data-i18n="msg.ready">Ready.</p></div>
+  <details id="mcpBox" hidden><summary data-i18n="mcp.title">MCP activity</summary><ol id="mcpLog"></ol></details>
 </div>
 <div id="panels">
   <section data-id="scp" data-label="LV super control panel" data-i18n-label="panel.scp">
@@ -675,6 +684,15 @@ const $=s=>document.querySelector(s);
       Server messages are English; with a key 'srv.<message>' they can be translated.
       Language: localStorage 'omcap.lang', else browser language, else en. */
 const I18N={en:{
+  "mcp.title": "MCP activity",
+  "mcp.did": "MCP: {what}",
+  "mcp.failed": "MCP failed: {what} – {e}",
+  "mcp.liveStart": "Live view started",
+  "mcp.liveStop": "Live view stopped",
+  "mcp.playEnter": "Playback opened",
+  "mcp.playLeave": "Playback closed",
+  "mcp.afField": "AF target row {r}, column {c}",
+  "mcp.shoot": "Take picture",
   "exif.prog.1": "M",
   "exif.prog.2": "P",
   "exif.prog.3": "A",
@@ -1147,6 +1165,7 @@ $('#popPhoto').onclick=()=>popup('photo');
 let leavingPlay=false, wasIndexing=false;
 let fastSeen; // USB: last fast picture number shown
 let propsRev; // last state.props_rev seen: another client (MCP) changed settings, the page reloads them
+let mcpN; // last state.mcp_n seen: the page shows each new MCP action once
 let modeAt; // USB: last mode dial turn seen (state.mode_at); undefined until the first tick
 /* USB reports iAUTO, ART, SCN and PHOTO STORY as P (d006 = 2, tested 2026-11-12); they are shown as P
    (maintainer decision). Only the EXIF of the newest shot tells iAUTO apart (ExposureProgram 5) */
@@ -1220,6 +1239,48 @@ function propsRevSeen(rev){ // camera busy or a setting list open: the value sta
   const editing=document.activeElement&&document.activeElement.matches('#props select'); // a rebuild would close the open list
   if(rev!==propsRev&&!busy&&!editing){propsRev=rev;setTimeout(()=>{const old=lastProps;props().then(()=>flashChanged(old));loadAf()},800)} // Wi-Fi: after a takemode change the camera needs a moment for the new values
 }
+function mcpText(e){ // one MCP action in words; settings with the names the panel uses
+  const b=e.body||{}, p=e.path.replace('/api/','');
+  if(p==='set'){const k=b.prop,v=String(b.value),f=FEATURES[k]||{},pv=lastProps&&lastProps[k];
+    return tr('prop.'+k,null,k)+' → '+(tr('val.'+k+'.'+v,null,'')||(pv&&pv.names&&pv.names[v])||(f.names&&f.names[v])||v)}
+  if(p==='liveview') return tr(b.action==='start'?'mcp.liveStart':'mcp.liveStop');
+  if(p==='playback') return tr(b.action==='enter'?'mcp.playEnter':'mcp.playLeave');
+  if(p==='afarea'&&b.field) return tr('mcp.afField',{r:Math.ceil(b.field/9),c:(b.field-1)%9+1});
+  if(p==='shoot'||p==='take') return tr('mcp.shoot');
+  return p+(Object.keys(b).length?' '+Object.entries(b).map(([k,v])=>k+'='+v).join(' '):'');
+}
+function ghostAt(x,y){ // page coordinates of the "tap"
+  const d=document.createElement('div'); d.className='ghostTap'; d.style.left=x+'px'; d.style.top=y+'px';
+  document.body.append(d); setTimeout(()=>d.remove(),1000);
+}
+function ghostTap(e){ // show where the MCP "touched" the page: the control, or the AF field in the picture
+  const b=e.body||{}, p=e.path.replace('/api/','');
+  if(p==='afarea'&&b.field&&af&&af.area){
+    const r=$('#viewport').getBoundingClientRect(), a=af.area, row=Math.ceil(b.field/9)-1, col=(b.field-1)%9;
+    return ghostAt(r.left+scrollX+(a.x0+(col+.5)*(a.x1-a.x0)/9)/a.w*r.width, r.top+scrollY+(a.y0+(row+.5)*(a.y1-a.y0)/9)/a.h*r.height);
+  }
+  const el=p==='set'?(b.prop==='takemode'?document.querySelector('#modeBox [data-mode="'+b.value+'"]')||$('#modeBox'):document.querySelector('#props label[data-id="'+b.prop+'"]'))
+    :p==='liveview'?$(b.action==='start'?'#lvStart':'#lvStop'):p==='playback'?$('#hdrPlay'):(p==='shoot'||p==='take')?$('#shoot'):null;
+  if(!el||!el.getClientRects().length) return; // hidden control: the message and the list still tell
+  const r=el.getBoundingClientRect(); ghostAt(r.left+scrollX+r.width/2,r.top+scrollY+r.height/2);
+}
+function mcpSeen(n,log){ // REQ-F35: the user follows on the page what the MCP does to the camera
+  if(n===undefined) return;
+  if(mcpN===undefined){mcpN=n;return} // first look after loading: old actions are not news
+  if(n===mcpN) return;
+  const fresh=(log||[]).filter(e=>e.n>mcpN); mcpN=n;
+  const ol=$('#mcpLog');
+  for(const e of fresh){
+    const what=mcpText(e), li=document.createElement('li');
+    li.textContent=new Date(e.t*1000).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit',second:'2-digit'})+'  '+what+(e.error?' – '+e.error:'');
+    if(e.error) li.className='warn';
+    ol.prepend(li);
+    msg(e.error?tr('mcp.failed',{what,e:e.error}):tr('mcp.did',{what}),!!e.error);
+    if(!e.error) ghostTap(e);
+  }
+  while(ol.children.length>10) ol.lastChild.remove();
+  $('#mcpBox').hidden=false;
+}
 function flashChanged(old){ // settings another client changed look tapped for 1.5 s (the page's own changes are already in lastProps)
   if(!old||!lastProps||lastProps===old) return;
   for(const k of Object.keys(lastProps)){
@@ -1238,6 +1299,7 @@ async function tick(){
   if(!st.live&&lvl){lvl=null;lvlShown=null;drawLevel()} // live view stopped: clear the level gauge
   modeSeen(st.mode_at);
   propsRevSeen(st.props_rev);
+  mcpSeen(st.mcp_n,st.mcp_log);
   if(fastSeen===undefined) fastSeen=st.fast_n||0; // first tick after loading: an old shot is not new
   else if(isUsb&&st.fast_n&&st.fast_n!==fastSeen){fastSeen=st.fast_n;showFast()} // REQ-F60: JPEG of the shot before the card lists it
   $('#half').classList.toggle('on',st.stage>=1); $('#half').setAttribute('aria-pressed',st.stage>=1?'true':'false');
@@ -1449,7 +1511,7 @@ function renderModeBox(p){
   const seg=document.createElement('div'); seg.className='seg'; seg.setAttribute('role','group'); seg.setAttribute('aria-label',tr('prop.takemode'));
   for(const o of v.enum){
     const b=document.createElement('button'); b.type='button'; b.textContent=MODE_SHORT[o]||valName('takemode',o); b.title=valName('takemode',o);
-    b.classList.toggle('on',o===v.value); b.disabled=!canWrite;
+    b.classList.toggle('on',o===v.value); b.disabled=!canWrite; b.dataset.mode=o;
     b.onclick=()=>api('/api/set',{prop:'takemode',value:o}).then(()=>{v.value=o;msg(tr('prop.takemode')+': '+valName('takemode',o));renderProps();setTimeout(props,800)})
       .catch(e=>msg(tr('prop.takemode')+': '+e.message,true));
     seg.append(b);
