@@ -1142,6 +1142,7 @@ $('#popPhoto').onclick=()=>popup('photo');
 /* State */
 let leavingPlay=false, wasIndexing=false;
 let fastSeen; // USB: last fast picture number shown
+let propsRev; // last state.props_rev seen: another client (MCP) changed settings, the page reloads them
 let modeAt; // USB: last mode dial turn seen (state.mode_at); undefined until the first tick
 /* USB reports iAUTO, ART, SCN and PHOTO STORY as P (d006 = 2, tested 2026-11-12); they are shown as P
    (maintainer decision). Only the EXIF of the newest shot tells iAUTO apart (ExposureProgram 5) */
@@ -1208,6 +1209,13 @@ function modeSeen(at){ // USB: mode dial turned (state tick or X-Mode-At of a li
   if(modeAt===undefined) modeAt=at||null; // first look after loading: no message for an old turn
   else if(at&&at!==modeAt){modeAt=at;usbShotMode=null;props();msg(tr('msg.modeDial'))}
 }
+function propsRevSeen(rev){ // camera busy or a setting list open: the value stays unseen and is looked at again on the next tick
+  if(rev===undefined) return;
+  if(propsRev===undefined){propsRev=rev;return} // first look after loading: the page loads the settings itself
+  const busy=st.stage>0||st.busy||st.indexing||st.movie!=null||st.take!=null||(st.job&&st.job.running)||st.play;
+  const editing=document.activeElement&&document.activeElement.matches('#props select'); // a rebuild would close the open list
+  if(rev!==propsRev&&!busy&&!editing){propsRev=rev;setTimeout(()=>{props();loadAf()},800)} // Wi-Fi: after a takemode change the camera needs a moment for the new values
+}
 async function tick(){
   if(view||!connected||quitting) return;
   const liOld=JSON.stringify(st&&st.lvinfo);
@@ -1216,6 +1224,7 @@ async function tick(){
   if(JSON.stringify(st.lvinfo)!==liOld) showStatus();
   if(!st.live&&lvl){lvl=null;lvlShown=null;drawLevel()} // live view stopped: clear the level gauge
   modeSeen(st.mode_at);
+  propsRevSeen(st.props_rev);
   if(fastSeen===undefined) fastSeen=st.fast_n||0; // first tick after loading: an old shot is not new
   else if(isUsb&&st.fast_n&&st.fast_n!==fastSeen){fastSeen=st.fast_n;showFast()} // REQ-F60: JPEG of the shot before the card lists it
   $('#half').classList.toggle('on',st.stage>=1); $('#half').setAttribute('aria-pressed',st.stage>=1?'true':'false');
