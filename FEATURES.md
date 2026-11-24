@@ -53,7 +53,7 @@ Every feature over Wi-Fi and USB, with test status and details. Short overview: 
 |---|---|---|---|
 | LV super control panel: shutter speed, aperture, exposure compensation, ISO, WB, drive, Picture Mode | ✅ | ✅ | |
 | Art filter | ✅ | 🟡 | USB: not tested in ART mode |
-| Partial Color colour ring (ART and Picture Mode Partial Color; 18 colours, laid out like the camera's ring) | ✅ | – | USB: the camera offers no value for the colour, only selecting Partial Color |
+| Partial Color colour ring (ART and Picture Mode Partial Color; 18 colours, laid out like the camera's ring; press and drag, the camera follows live) | ✅ | – | USB: the camera offers no value for the colour, only selecting Partial Color |
 | Shooting mode | ✅ | – | USB: set by the mode dial; the app follows the dial and reloads the values (tested; iAUTO, ART, SCN, PHOTO STORY show as P; turn shown in 0.1–0.7 s without reconnect, USB-tested 2026-11-23) |
 | AF mode, Metering, Flash mode, Record mode, Aspect ratio, Image stabilizer, Face priority | – | ✅ | no Wi-Fi command |
 | Live View Boost (Off / On1 / On2, Others row: P/A/S) | – | ✅ | no Wi-Fi command; M / Bulb / Live Composite rows pending camera mapping; P/A/S and restore USB-tested 2026-11-23 (REQ-F24) |
