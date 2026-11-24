@@ -1887,6 +1887,22 @@ def open_browser(url, delay=0.6):
     threading.Timer(delay, webbrowser.open, (url,)).start()
 
 
+class _LocalServer(ThreadingHTTPServer):
+    """The app's web server. macOS and Linux reuse the address; on Windows that also lets a second process
+    bind the same port, so a second start would never reach the "already running" message and two servers
+    would share 8765. Without SO_REUSEADDR Windows refuses the second bind (tested 2026-11-24: 10048), and a
+    restart after a client connection still binds at once."""
+    allow_reuse_address = os.name != "nt"
+
+
+def _port_taken(e):
+    """True if bind() failed because another program holds the port. Unix: EADDRINUSE. Windows: WSAEADDRINUSE
+    (10048) or WSAEACCES (10013, PermissionError) when that program did not share the address."""
+    if e.errno == errno.EADDRINUSE:
+        return True
+    return os.name == "nt" and (getattr(e, "winerror", None) in (10048, 10013) or e.errno == errno.EACCES)
+
+
 def main(argv=None):
     global CAPTURES, PREVIEW_CACHE, SETTINGS_FILE, HSL_OUT, http_server
     p = argparse.ArgumentParser(prog="em1-capture", description="Local web app to control an Olympus OM-D E-M1 over Wi-Fi or USB.")
@@ -1911,9 +1927,9 @@ def main(argv=None):
     url = "http://127.0.0.1:%d/" % a.port
     try:
         lan_ip = lan_address() if a.lan else None  # no home network address: stay on this computer only
-        server = ThreadingHTTPServer(("0.0.0.0" if lan_ip else "127.0.0.1", a.port), Handler)
+        server = _LocalServer(("0.0.0.0" if lan_ip else "127.0.0.1", a.port), Handler)
     except OSError as e:
-        if e.errno != errno.EADDRINUSE:
+        if not _port_taken(e):
             raise
         info = running_app(a.port)
         if info is None:
