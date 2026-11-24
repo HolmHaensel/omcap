@@ -89,12 +89,11 @@ main{display:grid;grid-template-columns:minmax(0,1044px) 340px;justify-content:c
 #statusLine{display:flex;gap:var(--s4);flex-wrap:wrap;font-size:13px;color:var(--muted)}
 #statusLine #msg{margin:0;min-height:0}
 #mcpBox{font-size:13px;color:var(--muted);margin-top:var(--s1)}
-/* MCP actions: an invisible finger taps the control first, then the value changes (user 2026-11-24) */
-.ghostTap{position:absolute;width:44px;height:44px;margin:-22px 0 0 -22px;border-radius:50%;border:2px solid var(--accent);background:var(--accent-soft);pointer-events:none;z-index:50;animation:ghostTap .7s ease-out forwards}
-@keyframes ghostTap{0%{transform:scale(.4);opacity:.95}100%{transform:scale(1.5);opacity:0}}
-@media(prefers-reduced-motion:reduce){.ghostTap{animation:ghostFade .9s linear forwards}@keyframes ghostFade{0%{opacity:.9}100%{opacity:0}}}
+/* MCP actions: the control it used looks active for a moment, as if an invisible user pressed it (user 2026-11-24) */
+button.remote,.seg button.remote{background:var(--accent-soft);border-color:var(--accent);color:var(--text)}
+#modeBox.remote{outline:1px solid var(--accent);outline-offset:2px;border-radius:var(--r-md)}
 #mcpBox summary{cursor:pointer;width:max-content}
-#mcpLog{margin:var(--s1) 0 0;padding-left:var(--s5);font-family:var(--font-value)}
+#mcpLog{margin:var(--s1) 0 0;padding-left:var(--s5);font-family:var(--font-value);overflow-wrap:anywhere}
 #mcpLog .warn{color:var(--rec-text)}
 #lvSize{font-family:var(--font-value)}
 section{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-lg);padding:var(--s3)}
@@ -692,6 +691,7 @@ const I18N={en:{
   "mcp.playEnter": "Playback opened",
   "mcp.playLeave": "Playback closed",
   "mcp.afField": "AF target row {r}, column {c}",
+  "mcp.starStop": "Star AF stopped",
   "mcp.shoot": "Take picture",
   "exif.prog.1": "M",
   "exif.prog.2": "P",
@@ -1239,44 +1239,46 @@ function propsRevSeen(rev){ // camera busy or a setting list open: the value sta
   const editing=document.activeElement&&document.activeElement.matches('#props select'); // a rebuild would close the open list
   if(rev!==propsRev&&!busy&&!editing){propsRev=rev;setTimeout(()=>{const old=lastProps;props().then(()=>flashChanged(old));loadAf()},800)} // Wi-Fi: after a takemode change the camera needs a moment for the new values
 }
-function mcpText(e){ // one MCP action in words; settings with the names the panel uses
+function mcpText(e){ // one MCP action in words, with the page's own names
   const b=e.body||{}, p=e.path.replace('/api/','');
-  if(p==='set'){const k=b.prop,v=String(b.value),f=FEATURES[k]||{},pv=lastProps&&lastProps[k];
-    return tr('prop.'+k,null,k)+' → '+(tr('val.'+k+'.'+v,null,'')||(pv&&pv.names&&pv.names[v])||(f.names&&f.names[v])||v)}
+  if(p==='set') return tr('prop.'+b.prop,null,b.prop)+' → '+valName(b.prop,String(b.value));
   if(p==='liveview') return tr(b.action==='start'?'mcp.liveStart':'mcp.liveStop');
   if(p==='playback') return tr(b.action==='enter'?'mcp.playEnter':'mcp.playLeave');
-  if(p==='afarea'&&b.field) return tr('mcp.afField',{r:Math.ceil(b.field/9),c:(b.field-1)%9+1});
-  if(p==='shoot'||p==='take') return tr('mcp.shoot');
+  if(p==='afarea'&&b.field){const [r,c]=fieldRC(b.field); return tr('mcp.afField',{r:r+1,c:c+1})}
+  if(p==='afarea'&&b.mode) return tr('panel.af',null,'AF')+' → '+tr('af.'+b.mode,null,b.mode);
+  if(p==='mfdrive') return tr('mf.title')+' → '+tr('mf.'+b.direction+(b.step||1),null,b.direction+' '+(b.step||1));
+  if(p==='staraf') return tr(b.action==='stop'?'mcp.starStop':'star.auto');
+  if(p==='shoot'||(p==='take'&&b.action==='start')) return tr('mcp.shoot');
   return p+(Object.keys(b).length?' '+Object.entries(b).map(([k,v])=>k+'='+v).join(' '):'');
 }
-function ghostAt(x,y){ // page coordinates of the "tap"
-  const d=document.createElement('div'); d.className='ghostTap'; d.style.left=x+'px'; d.style.top=y+'px';
-  document.body.append(d); setTimeout(()=>d.remove(),1000);
+function mcpControl(e){ // the control a user would have pressed for this action
+  const b=e.body||{}, p=e.path.replace('/api/',''), q=x=>document.querySelector(x);
+  if(p==='set') return b.prop==='takemode'?q('#modeBox [data-mode="'+b.value+'"]')||$('#modeBox'):q('#props label[data-id="'+b.prop+'"]');
+  if(p==='liveview') return $(b.action==='start'?'#lvStart':'#lvStop');
+  if(p==='playback') return $('#hdrPlay');
+  if(p==='afarea'&&b.mode) return q('[data-af="'+b.mode+'"]');
+  if(p==='mfdrive') return q('[data-mf="'+b.direction+':'+(b.step||1)+'"]');
+  if(p==='staraf') return $('#starAuto');
+  if(p==='shoot'||(p==='take'&&b.action==='start')) return $('#shoot');
+  return null; // an AF field shows in the grid itself (the page reloads the AF area)
 }
-function ghostTap(e){ // show where the MCP "touched" the page: the control, or the AF field in the picture
-  const b=e.body||{}, p=e.path.replace('/api/','');
-  if(p==='afarea'&&b.field&&af&&af.area){
-    const r=$('#viewport').getBoundingClientRect(), a=af.area, row=Math.ceil(b.field/9)-1, col=(b.field-1)%9;
-    return ghostAt(r.left+scrollX+(a.x0+(col+.5)*(a.x1-a.x0)/9)/a.w*r.width, r.top+scrollY+(a.y0+(row+.5)*(a.y1-a.y0)/9)/a.h*r.height);
-  }
-  const el=p==='set'?(b.prop==='takemode'?document.querySelector('#modeBox [data-mode="'+b.value+'"]')||$('#modeBox'):document.querySelector('#props label[data-id="'+b.prop+'"]'))
-    :p==='liveview'?$(b.action==='start'?'#lvStart':'#lvStop'):p==='playback'?$('#hdrPlay'):(p==='shoot'||p==='take')?$('#shoot'):null;
+function mcpActive(e){
+  const el=mcpControl(e);
   if(!el||!el.getClientRects().length) return; // hidden control: the message and the list still tell
-  const r=el.getBoundingClientRect(); ghostAt(r.left+scrollX+r.width/2,r.top+scrollY+r.height/2);
+  el.classList.add('remote'); setTimeout(()=>el.classList.remove('remote'),1500);
 }
 function mcpSeen(n,log){ // REQ-F35: the user follows on the page what the MCP does to the camera
   if(n===undefined) return;
-  if(mcpN===undefined){mcpN=n;return} // first look after loading: old actions are not news
+  const ol=$('#mcpLog'), line=e=>{const li=document.createElement('li'), what=mcpText(e);
+    li.textContent=new Date(e.t*1000).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit',second:'2-digit'})+'  '+what+(e.error?' – '+tr('srv.'+e.error,null,e.error):'');
+    if(e.error) li.className='warn'; ol.prepend(li); return what};
+  if(mcpN===undefined){mcpN=n; (log||[]).forEach(line); $('#mcpBox').hidden=!ol.children.length; return} // after loading: the list, no messages
   if(n===mcpN) return;
   const fresh=(log||[]).filter(e=>e.n>mcpN); mcpN=n;
-  const ol=$('#mcpLog');
   for(const e of fresh){
-    const what=mcpText(e), li=document.createElement('li');
-    li.textContent=new Date(e.t*1000).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit',second:'2-digit'})+'  '+what+(e.error?' – '+e.error:'');
-    if(e.error) li.className='warn';
-    ol.prepend(li);
-    msg(e.error?tr('mcp.failed',{what,e:e.error}):tr('mcp.did',{what}),!!e.error);
-    if(!e.error) ghostTap(e);
+    const what=line(e);
+    msg(e.error?tr('mcp.failed',{what,e:tr('srv.'+e.error,null,e.error)}):tr('mcp.did',{what}),!!e.error);
+    if(!e.error) mcpActive(e);
   }
   while(ol.children.length>10) ol.lastChild.remove();
   $('#mcpBox').hidden=false;

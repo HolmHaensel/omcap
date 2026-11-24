@@ -1352,12 +1352,16 @@ def public_state():
     }
 
 
+mcp_lock = threading.Lock()
+
+
 def note_mcp(path, body, err=None):
     """Remember a POST of the MCP server so the page can show what it did (the user follows it there)."""
     keep = {k: v for k, v in (body or {}).items() if isinstance(v, (str, int, float, bool)) and len(str(v)) <= 40}
-    state["mcp_n"] += 1
-    state["mcp_log"] = (state["mcp_log"] + [{"n": state["mcp_n"], "t": round(time.time()), "path": path.split("?")[0],
-                                             "body": keep, "error": err and err[:120]}])[-10:]
+    with mcp_lock:  # handler threads run in parallel
+        state["mcp_n"] += 1
+        state["mcp_log"] = (state["mcp_log"] + [{"n": state["mcp_n"], "t": round(time.time()), "path": path.split("?")[0],
+                                                 "body": keep, "error": err and err[:120]}])[-10:]
 
 
 # --- HTTP --------------------------------------------------------------------
@@ -1631,7 +1635,8 @@ class Handler(BaseHTTPRequestHandler):
             b = self._body()
             extra = self._action(self.path, b)
             if extra is False:
-                return self._send({"error": "not found"}, code=404)
+                err = "not found"
+                return self._send({"error": err}, code=404)
             self._send({"ok": True, **(extra or {})})
         except (WriteBlocked, Forbidden) as e:
             err = str(e)

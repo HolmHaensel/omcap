@@ -36,9 +36,9 @@ class McpActivity(unittest.TestCase):
             c.post_json("/api/set", {"prop": "isospeedvalue", "value": "400"})
         self.assertEqual(seen.get("X-client"), "mcp")
 
-    def test_page_shows_and_taps(self):
+    def test_page_shows_and_activates_the_control(self):
         html = open(server.__file__.replace("server.py", "web/index.html"), encoding="utf-8").read()
-        for needle in ("mcpSeen(st.mcp_n,st.mcp_log)", 'id="mcpBox"', "function ghostTap(e)", "b.dataset.mode=o"):
+        for needle in ("mcpSeen(st.mcp_n,st.mcp_log)", 'id="mcpBox"', "function mcpActive(e)", "b.dataset.mode=o"):
             self.assertIn(needle, html)
 
 
