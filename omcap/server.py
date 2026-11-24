@@ -126,7 +126,8 @@ star_af_state = {"running": False, "phase": "idle", "code": None, "hfr": None, "
 state = {"transfer": "sd", "latest": None, "transfer_error": None,
          "take": None, "movie": None, "resume_live": False, "seen": None, "wifi_field": 41,
          "wifi_af": None, "pressing": False, "indexing": False, "play": None,
-         "last_shot": None, "last_shot_jpeg": None, "fast_n": 0}
+         "last_shot": None, "last_shot_jpeg": None, "fast_n": 0,
+         "props_rev": 0}  # props_rev: counts /api/set calls, so pages see changes made by another client (MCP)
 
 
 DEVICE_TTL = 30  # seconds; do not query card space and battery on every tick
@@ -1346,6 +1347,7 @@ def public_state():
         "loupe_owner": getattr(cam, "loupe_owner", None),
         "loupe_owner_live": time.monotonic() - client_seen.get(getattr(cam, "loupe_owner", None), -1e9) < CLIENT_LIVE_S,  # is that page still open?
         "star_af": dict(star_af_state),
+        "props_rev": state["props_rev"],  # a page reloads the settings when this changes (e.g. set by MCP)
     }
 
 
@@ -1741,6 +1743,7 @@ class Handler(BaseHTTPRequestHandler):
             if b["prop"] == "focusstacking":
                 ensure_idle()  # switching rebuilds the USB session
             cam.set_prop(b["prop"], b["value"])
+            state["props_rev"] += 1
         elif path == "/api/shoot":
             ensure_idle()
             with capture():
