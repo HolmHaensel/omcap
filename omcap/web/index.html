@@ -1239,7 +1239,7 @@ function propsRevSeen(rev){ // camera busy or a setting list open: the value sta
   if(rev===undefined) return;
   if(propsRev===undefined){propsRev=rev;return} // first look after loading: the page loads the settings itself
   const busy=st.stage>0||st.busy||st.indexing||st.movie!=null||st.take!=null||(st.job&&st.job.running)||st.play;
-  const editing=document.activeElement&&document.activeElement.matches('#props select'); // a rebuild would close the open list
+  const editing=ringDrag||document.activeElement&&document.activeElement.matches('#props select'); // a rebuild would close the open list or end a ring drag
   if(rev!==propsRev&&!busy&&!editing){propsRev=rev;setTimeout(()=>{const old=lastProps;props().then(()=>flashChanged(old));loadAf()},800)} // Wi-Fi: after a takemode change the camera needs a moment for the new values
 }
 function mcpText(e){ // one MCP action in words, with the page's own names
@@ -1538,29 +1538,60 @@ function renderModeBox(p){
    REQ-F42): yellow at the top, red right, blue at the bottom, green left (photos of the camera ring 2026-11-15).
    Wi-Fi only (colorphase; not over USB, probe 2026-11-15). Camera-checked over Wi-Fi 2026-11-15: step0 at the top
    (yellow), steps clockwise by 20°, step15 green at 10 o'clock. */
+let ringDrag=false; // a finger or the mouse is on the Partial Color ring: no tile rebuild meanwhile
 function colorRing(value,opts,sel){
   const NS='http://www.w3.org/2000/svg',N=opts.length,svg=document.createElementNS(NS,'svg');
   svg.setAttribute('viewBox','-50 -50 100 100'); svg.setAttribute('class','cring');
   svg.setAttribute('role','radiogroup'); svg.setAttribute('aria-label',tr('prop.colorphase'));
   const pt=(r,a)=>(r*Math.cos(a)).toFixed(2)+' '+(r*Math.sin(a)).toFixed(2), R=47, r=31;
-  let on=null;
+  const segs={}, stepOf=(o,i)=>{const n=parseInt(String(o).replace(/\D/g,''),10); return isNaN(n)?i:n};
   opts.forEach((o,i)=>{
-    const n=parseInt(String(o).replace(/\D/g,''),10), k=isNaN(n)?i:n; // segment centred on its step angle: step0 yellow at 0° (top), step9 blue at 180°
-    const a0=(k-.5)/N*2*Math.PI-Math.PI/2, a1=(k+.5)/N*2*Math.PI-Math.PI/2;
-    const step=k, seg=document.createElementNS(NS,'path');
+    const k=stepOf(o,i); // segment centred on its step angle: step0 yellow at 0° (top), step9 blue at 180°
+    const a0=(k-.5)/N*2*Math.PI-Math.PI/2, a1=(k+.5)/N*2*Math.PI-Math.PI/2, seg=document.createElementNS(NS,'path');
     seg.setAttribute('d',`M${pt(R,a0)}A${R} ${R} 0 0 1 ${pt(R,a1)}L${pt(r,a1)}A${r} ${r} 0 0 0 ${pt(r,a0)}Z`);
-    seg.setAttribute('fill',`hsl(${(60-step*360/N+720)%360} 85% 55%)`); // clockwise from yellow, like the camera
-    seg.setAttribute('class','seg'+(o===value?' on':'')); seg.setAttribute('role','radio');
-    seg.setAttribute('aria-checked',String(o===value)); seg.setAttribute('aria-label',sel.options[i]?sel.options[i].text:String(step));
-    if(canWrite) seg.onclick=e=>{e.preventDefault();e.stopPropagation();sel.value=o;sel.onchange()}; // not the label's own click (it would focus the list)
-    if(o===value) on=seg;
+    seg.setAttribute('fill',`hsl(${(60-k*360/N+720)%360} 85% 55%)`); // clockwise from yellow, like the camera
+    seg.setAttribute('class','seg'); seg.setAttribute('role','radio');
+    seg.setAttribute('aria-label',sel.options[i]?sel.options[i].text:String(k));
+    segs[k]={o,seg,name:sel.options[i]?sel.options[i].text:String(k)};
     svg.append(seg);
   });
-  if(on) svg.append(on); // selected segment on top so its outline is not covered
-  svg.addEventListener('click',e=>e.preventDefault()); // a click between segments must not activate the label either
-  const t=document.createElementNS(NS,'text'), words=(sel.options[sel.selectedIndex]?sel.options[sel.selectedIndex].text:'').split(/[\s-]+/);
-  words.forEach((w,j)=>{const l=document.createElementNS(NS,'tspan');l.setAttribute('x','0');l.setAttribute('y',String((j-(words.length-1)/2)*8.5+2.5));l.textContent=w;t.append(l)});
-  svg.append(t);
+  const t=document.createElementNS(NS,'text'); svg.append(t);
+  const show=o=>{ // mark the colour and write its name in the centre, without rebuilding the ring
+    for(const {o:x,seg} of Object.values(segs)){const on=x===o; seg.classList.toggle('on',on); seg.setAttribute('aria-checked',String(on)); if(on) svg.insertBefore(seg,t)}
+    const s=Object.values(segs).find(x=>x.o===o); t.textContent='';
+    (s?s.name:'').split(/[\s-]+/).forEach((w,j,ws)=>{const l=document.createElementNS(NS,'tspan');l.setAttribute('x','0');l.setAttribute('y',String((j-(ws.length-1)/2)*8.5+2.5));l.textContent=w;t.append(l)});
+  };
+  show(value);
+  svg.addEventListener('click',e=>e.preventDefault()); // a click on the ring must not activate the label (it would focus the list)
+  if(!canWrite) return svg;
+  // press and drag around the ring: the camera follows (Wi-Fi: about 0.1 s per colour, 12 per second, measured 2026-11-24);
+  // only the newest colour is sent and one request at a time, so nothing piles up and the colour is right when you let go
+  let sent=value, want=null, busy=false;
+  const pump=async()=>{
+    if(busy) return; busy=true;
+    while(want!==null&&want!==sent){const o=want; try{await api('/api/set',{prop:'colorphase',value:o}); sent=o}catch(e){msg(tr('prop.colorphase')+': '+e.message,true); want=null}}
+    busy=false; want=null;
+    if(!ringDrag) done();
+  };
+  const done=()=>{ // after the drag: keep the page's value and say what it is now
+    if(lastProps&&lastProps.colorphase) lastProps.colorphase.value=sent;
+    sel.value=sent; const s=Object.values(segs).find(x=>x.o===sent); if(s) msg(tr('prop.colorphase')+': '+s.name);
+    show(sent);
+  };
+  const pick=e=>{
+    const b=svg.getBoundingClientRect(), x=e.clientX-b.left-b.width/2, y=e.clientY-b.top-b.height/2;
+    const k=((Math.round((Math.atan2(y,x)+Math.PI/2)/(2*Math.PI)*N)%N)+N)%N, s=segs[k];
+    if(!s) return; show(s.o); want=s.o; pump();
+  };
+  svg.style.touchAction='none'; // the finger turns the ring, it does not scroll the page
+  svg.addEventListener('pointerdown',e=>{
+    const b=svg.getBoundingClientRect(), d=Math.hypot(e.clientX-b.left-b.width/2,e.clientY-b.top-b.height/2)/(b.width/2)*50;
+    if(d<r*.8||d>R+3) return; // the centre (colour name) is no handle
+    e.preventDefault(); ringDrag=true; svg.setPointerCapture(e.pointerId); pick(e);
+  });
+  svg.addEventListener('pointermove',e=>{if(ringDrag&&svg.hasPointerCapture(e.pointerId)) pick(e)});
+  const end=()=>{if(!ringDrag) return; ringDrag=false; if(!busy) done()};
+  svg.addEventListener('pointerup',end); svg.addEventListener('pointercancel',end);
   return svg;
 }
 function renderProps(){
