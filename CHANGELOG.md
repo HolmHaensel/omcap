@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Settings changed by the MCP server (or another page) appear on the open page within about 2 s: `/api/state` carries `props_rev`; not while busy or a setting list is open (REQ-F35). Offline- and browser-tested, not camera-tested.
+
 ## 0.8.0 – 2026-11-24
 
 - MCP full control (REQ-F35): with `--allow-write`, `--allow-shutter`, `--allow-erase` an assistant can focus, run live view, Playback, connect, shoot, record and erase; every camera change is a dry-run first and needs `confirm=true`. USB- and Wi-Fi-tested; time lapse, AE BKT, long exposure and erase offline-tested.
