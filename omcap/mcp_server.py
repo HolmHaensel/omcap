@@ -496,16 +496,21 @@ def _shutter_live(props, state):
     mode = str((props.get("takemode") or {}).get("value"))
     if mode == "movie":
         mode = str((props.get("exposemovie") or {}).get("value"))
-    sv = ((state or {}).get("lvinfo") or {}).get("shutter")
-    if mode in ("S", "M", "B") or not (isinstance(sv, list) and len(sv) == 2 and all(isinstance(n, int) and n > 0 for n in sv)):
+    if mode in ("S", "M", "B"):
         return None
+    state = state or {}
+    fresh = state.get("live") and (state.get("lv_age") or 0) <= 3  # the page treats older values as lost too
+    sv = (state.get("lvinfo") or {}).get("shutter") if fresh else None
+    if not (isinstance(sv, list) and len(sv) == 2 and all(isinstance(n, int) and n > 0 for n in sv)):
+        return {"shutter_live": None, "note": "the camera picks the time in this mode; shutspeedvalue is the last "
+                "S/M value; the time in use is only known with a running Wi-Fi live view"}
     text = "1/%d" % sv[1] if sv[0] == 1 else '%d"' % sv[0] if sv[1] == 1 else '%.1f"' % (sv[0] / sv[1])
     return {"shutter_live": text, "note": "shutspeedvalue is not the shutter time in use in this mode; shutter_live is"}
 
 
 def tool_camera_settings(client, args, ctx):
     props = client.get_json("/api/props")
-    live = _shutter_live(props, _optional_json(client, "/api/state"))
+    live = lambda: _shutter_live(props, _optional_json(client, "/api/state"))  # only where shutspeedvalue is shown
     prop = args.get("prop")
     if prop is not None:
         if not isinstance(prop, str) or not prop.strip():
@@ -514,8 +519,8 @@ def tool_camera_settings(client, args, ctx):
         if prop not in props:
             raise ApiError("Unknown setting %r. Available: %s" % (prop, ", ".join(sorted(props))))
         out = {prop: _format_prop(_with_names(prop, props[prop]), include_enum=True)}
-        if prop == "shutspeedvalue" and live:
-            out[prop].update(live)
+        if prop == "shutspeedvalue":
+            out[prop].update(live() or {})
         return _text(out)
     if args.get("choices") is True:  # the map an assistant needs to turn a wish into settings
         mode = str((props.get("takemode") or {}).get("value"))
@@ -526,8 +531,8 @@ def tool_camera_settings(client, args, ctx):
                 out[k] = dict(_format_prop(_with_names(k, v), include_enum=True), setting=_label(k))
         return _text({"shooting_mode": mode, "selectable": out, "body_only": BODY_ONLY})
     out = {k: _format_prop(_with_names(k, v), include_enum=False) for k, v in props.items()}
-    if live and "shutspeedvalue" in out:
-        out["shutspeedvalue"].update(live)
+    if "shutspeedvalue" in out:
+        out["shutspeedvalue"].update(live() or {})
     return _text(out)
 
 
@@ -1020,7 +1025,8 @@ READ_TOOLS = {
         "Read the camera's LV super control panel settings (mode, shutter speed, aperture, ISO, WB, "
         "drive, Picture Mode, AF mode, IS, etc.). Omit 'prop' for a compact overview of all settings; "
         "pass 'prop' to also receive its allowed values (enum); pass choices=true for every setting selectable in "
-        "the current mode with its values and readable labels, plus what only the camera body can set (body_only).",
+        "the current mode with its values and readable labels, plus what only the camera body can set (body_only). "
+        "Outside S/M shutspeedvalue is the last S/M value: read shutter_live (time in use, Wi-Fi live view only).",
         _schema({"prop": {"type": "string", "description": "Optional setting name, e.g. shutspeedvalue, isospeedvalue."},
                  "choices": {"type": "boolean", "description": "All settings selectable now, with values and labels."}}),
         READ_ONLY_ANNOTATIONS,

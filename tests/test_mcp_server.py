@@ -333,7 +333,7 @@ class ShutterLive(unittest.TestCase):
         props = dict(CameraSettingsTool.PROPS, takemode={"value": mode, "writable": True, "enum": []})
         if movie_exp:
             props["exposemovie"] = {"value": movie_exp, "writable": True, "enum": []}
-        state = {"lvinfo": {"shutter": shutter}} if shutter else {"lvinfo": None}
+        state = {"live": True, "lv_age": 0.2, "lvinfo": {"shutter": shutter}} if shutter else {"lvinfo": None}
         res = _call(FakeClient(json_map={"/api/props": props, "/api/state": state}), "camera_settings", args or {})
         self.assertFalse(res["isError"])
         return _json_payload(res)["shutspeedvalue"]
@@ -349,10 +349,19 @@ class ShutterLive(unittest.TestCase):
         self.assertNotIn("shutter_live", self._settings("movie", [1, 50], movie_exp="S"))
         self.assertEqual(self._settings("movie", [1, 50], movie_exp="P")["shutter_live"], "1/50")
 
-    def test_usb_or_no_live_view_adds_nothing(self):
-        self.assertNotIn("shutter_live", self._settings("P", None))
-        res = _call(FakeClient(json_map={"/api/props": CameraSettingsTool.PROPS}), "camera_settings")
-        self.assertNotIn("shutter_live", _json_payload(res)["shutspeedvalue"])
+    def test_usb_or_no_live_view_warns_without_a_time(self):
+        out = self._settings("P", None)
+        self.assertIsNone(out["shutter_live"])
+        self.assertIn("last S/M value", out["note"])
+        res = _call(FakeClient(json_map={"/api/props": CameraSettingsTool.PROPS}), "camera_settings")  # mode A
+        self.assertIsNone(_json_payload(res)["shutspeedvalue"]["shutter_live"])
+
+    def test_stale_live_view_is_not_used(self):
+        props = dict(CameraSettingsTool.PROPS, takemode={"value": "P", "writable": True, "enum": []})
+        for state in ({"live": True, "lv_age": 9, "lvinfo": {"shutter": [1, 15]}},
+                      {"live": False, "lv_age": 0, "lvinfo": {"shutter": [1, 15]}}):
+            res = _call(FakeClient(json_map={"/api/props": props, "/api/state": state}), "camera_settings")
+            self.assertIsNone(_json_payload(res)["shutspeedvalue"]["shutter_live"])
 
 
 class LiveViewFrameTool(unittest.TestCase):
