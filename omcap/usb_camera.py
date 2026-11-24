@@ -113,6 +113,7 @@ DIRECT_EVENT = re.compile(r"PTP Event c004\b|PTP Property d0de changed", re.I)
 DIRECT_GRACE = 0.5  # after the event: a card file may still be announced (then the card path stays the truth)
 SECOND_FORMAT_WAIT = 1.5  # s to wait for the second format (ORF or JPG) of a card shot
 DIRECT_NEXT_WAIT = 1.0  # seconds without a new event after a non-JPG file (ORF): no JPG follows; after a JPG we stop at once
+TAKE_STOP_EVENTS = 2.0  # s of events read after a long-exposure Stop with a card (the card announces the file)
 
 
 def _gp():
@@ -1260,7 +1261,7 @@ class UsbCamera:
                 finally:
                     self._hold_add(-1)
             else:
-                self._events(2.0)
+                self._events(TAKE_STOP_EVENTS)
         finally:
             self._direct_wait = False
             self.shooting = False

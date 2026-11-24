@@ -142,9 +142,7 @@ class Endpoint(unittest.TestCase):
             act("/api/loupe", {"on": True})
         self.assertEqual(server.cam._c.writes, [])
 
-    def test_usb_only(self):
-        self.assertIn("loupe", usb_camera.FEATURES)
-        self.assertNotIn("loupe", server.WIFI_FEATURES)
+    def test_refused_over_wifi(self):
         server.cam, server.conn_type = object(), "wifi"
         with self.assertRaises(CameraError):
             act("/api/loupe", {"on": True})

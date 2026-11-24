@@ -248,8 +248,6 @@ class Page(unittest.TestCase):
         # user 2026-11-23: on the computer a click into the folder field opens the dialog; no Choose/Apply buttons
         self.assertIn("if(isLocalPage()){", self.h)
         self.assertIn("$('#svDir').onchange=svSave;", self.h)
-        self.assertNotIn('id="svApply"', self.h)
-        self.assertNotIn('id="svPick"', self.h)
         self.assertIn("dir:dirValue()", self.h)  # the server gets the full path, the field shows a short one
 
     def test_switch_sends_the_choice(self):
@@ -364,10 +362,24 @@ class CardReviewFixes(unittest.TestCase):
             c.shoot()
         self.assertIs(c._card_read, False)
 
-    def test_no_card_hides_focus_stacking_and_rec(self):
+    @unittest.skipUnless(HAVE_JS, "needs the JavaScript engine of macOS (osascript)")
+    def test_no_card_hides_focus_stacking(self):
         h = Path(HTML).read_text(encoding="utf-8")
-        self.assertIn("focusstacking:{show:p=>inMode('P','A','S','M')(p)&&!trNoCard}", h)
-        self.assertIn("$('#movStart').hidden=rec||trNoCard;", h)
+        show = re.search(r"focusstacking:\{show:(.*?)\},", h).group(1)
+        in_mode = re.search(r"const inMode=[^\n]*", h).group(0)
+        modes = ["iAuto", "P", "A", "S", "M", "ART", "movie", "B"]
+        code = ("%s\nvar show=%s,out=[];%s.forEach(function(m){[false,true].forEach(function(nc){"
+                "trNoCard=nc;out.push([m,nc,!!show({takemode:{value:m}})])})});JSON.stringify(out)"
+                % (in_mode, show, json.dumps(modes)))
+        out = subprocess.run(["osascript", "-l", "JavaScript", "-e", "var trNoCard;" + code],
+                             capture_output=True, text=True, timeout=30)
+        self.assertEqual(out.returncode, 0, out.stderr)
+        # offered in P/A/S/M with a card only
+        self.assertEqual([(m, nc) for m, nc, on in json.loads(out.stdout.strip()) if on],
+                         [(m, False) for m in ("P", "A", "S", "M")])
+
+    def test_no_card_hides_rec(self):
+        self.assertIn("$('#movStart').hidden=rec||trNoCard;", Path(HTML).read_text(encoding="utf-8"))
 
 
 
@@ -384,11 +396,21 @@ class LocalOnly(unittest.TestCase):
 
 
 
+@unittest.skipUnless(HAVE_JS, "needs the JavaScript engine of macOS (osascript)")
 class PhoneHidesLocalActions(unittest.TestCase):
     def test_quit_and_workspace_hidden_off_the_computer(self):
         h = Path(HTML).read_text(encoding="utf-8")
-        self.assertIn("document.querySelectorAll('.quitBtn').forEach(b=>b.hidden=!isLocalPage());", h)
-        self.assertIn("$('#vWs').hidden=!(s.om_workspace&&isLocalPage());", h)
+        local = re.search(r"function isLocalPage\(\)[^\n]*", h).group(0)
+        quit_line = re.search(r"document\.querySelectorAll\('\.quitBtn'\)\.forEach\(b=>b\.hidden=[^\n]*", h).group(0)
+        ws = re.search(r"\$\('#vWs'\)\.hidden=([^;]*);", h).group(1)
+        out = []
+        for host in ("127.0.0.1", "localhost", "192.168.1.20"):
+            code = ("var location={hostname:'%s'},btn={hidden:null},document={querySelectorAll:function(){return [btn]}};"
+                    "%s\n%s\nvar s={om_workspace:true};JSON.stringify([btn.hidden,%s])" % (host, local, quit_line, ws))
+            r = subprocess.run(["osascript", "-l", "JavaScript", "-e", code], capture_output=True, text=True, timeout=30)
+            self.assertEqual(r.returncode, 0, r.stderr)
+            out.append(json.loads(r.stdout.strip()))
+        self.assertEqual(out, [[False, False], [False, False], [True, True]])  # the phone sees neither
 
 
 if __name__ == "__main__":

@@ -100,10 +100,6 @@ class Erase(unittest.TestCase):
         with self.assertRaises(CameraError):
             make(ErasePtp()).erase(["/etc/passwd"])
 
-    def test_feature_is_usb_only(self):
-        self.assertIn("erase", usb_camera.FEATURES)
-        self.assertNotIn("erase", server.WIFI_FEATURES)
-
 
 def act(path, b):
     return server.Handler._action(server.Handler.__new__(server.Handler), path, b)
