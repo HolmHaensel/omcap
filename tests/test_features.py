@@ -8,7 +8,7 @@ PARITY = {
     "liveview": (True, True), "af_area": (True, True), "stages": (True, True), "scp": (True, True),
     "time_lapse": (True, True), "ae_bkt": (True, True), "movie": (True, True), "long": (True, True),
     "playback": (True, True), "transfer": (True, True), "star_af": (True, True),
-    "af_modes": (True, False),
+    "af_modes": (True, False),     # AF target mode d00c (All/Single/Small/Group) over PTP; no Wi-Fi command
     "mf_drive": (True, False),     # PTP 0x9487, no Wi-Fi command
     "erase": (True, False),        # card erase over PTP only
     "loupe": (True, False),        # camera Zoom AF over PTP; Wi-Fi zooms on the screen (REQ-F55)

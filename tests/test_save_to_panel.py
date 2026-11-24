@@ -363,9 +363,9 @@ class CardReviewFixes(unittest.TestCase):
         self.assertIs(c._card_read, False)
 
     @unittest.skipUnless(HAVE_JS, "needs the JavaScript engine of macOS (osascript)")
-    def test_no_card_hides_focus_stacking_and_rec(self):
+    def test_no_card_hides_focus_stacking(self):
         h = Path(HTML).read_text(encoding="utf-8")
-        show = re.search(r"focusstacking:\{show:(.*?)\}, //", h).group(1)
+        show = re.search(r"focusstacking:\{show:(.*?)\},", h).group(1)
         in_mode = re.search(r"const inMode=[^\n]*", h).group(0)
         code = ("%s\nvar show=%s,out=[];[['M',false],['M',true],['ART',false]].forEach(function(c){"
                 "trNoCard=c[1];out.push(show({takemode:{value:c[0]}}))});JSON.stringify(out)" % (in_mode, show))
@@ -373,7 +373,9 @@ class CardReviewFixes(unittest.TestCase):
                              capture_output=True, text=True, timeout=30)
         self.assertEqual(out.returncode, 0, out.stderr)
         self.assertEqual(json.loads(out.stdout.strip()), [True, False, False])  # no card: no focus stacking
-        self.assertIn("$('#movStart').hidden=rec||trNoCard;", h)
+
+    def test_no_card_hides_rec(self):
+        self.assertIn("$('#movStart').hidden=rec||trNoCard;", Path(HTML).read_text(encoding="utf-8"))
 
 
 

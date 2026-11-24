@@ -26,10 +26,13 @@ class PropsRev(unittest.TestCase):
         finally:
             server.cam, server.live, server.conn_type, server.state["props_rev"] = old
 
+    def test_page_looks_at_props_rev(self):
+        html = open(server.__file__.replace("server.py", "web/index.html"), encoding="utf-8").read()
+        self.assertIn("propsRevSeen(st.props_rev)", html)
+
     @unittest.skipUnless(shutil.which("osascript"), "needs the JavaScript engine of macOS (osascript)")
     def test_page_reloads_settings_on_change(self):
         html = open(server.__file__.replace("server.py", "web/index.html"), encoding="utf-8").read()
-        self.assertIn("propsRevSeen(st.props_rev)", html)
         fn = html[html.index("function propsRevSeen("):]
         fn = fn[:fn.index("\n}\n") + 3]
         code = """var propsRev,st={stage:0},ringDrag=false,document={activeElement:null},lastProps=null,loads=0,out=[];
@@ -41,11 +44,12 @@ class PropsRev(unittest.TestCase):
         st.job={running:true}; look(3); st.job=null;  // busy: waits
         st.play=true; look(3); st.play=false;         // Playback: waits
         ringDrag=true; look(3); ringDrag=false;       // ring drag: waits
+        document.activeElement={matches:function(){return true}}; look(3); document.activeElement=null;  // list open
         look(3);                                      // idle again: reloads once
         JSON.stringify(out)""" % fn
         r = subprocess.run(["osascript", "-l", "JavaScript", "-e", code], capture_output=True, text=True, timeout=30)
         self.assertEqual(r.returncode, 0, r.stderr)
-        self.assertEqual(json.loads(r.stdout.strip()), [0, 0, 1, 0, 0, 0, 1])
+        self.assertEqual(json.loads(r.stdout.strip()), [0, 0, 1, 0, 0, 0, 0, 1])
 
     def test_remote_changes_flash(self):
         html = open(server.__file__.replace("server.py", "web/index.html"), encoding="utf-8").read()
