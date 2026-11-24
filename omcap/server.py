@@ -55,7 +55,8 @@ WIFI_FEATURES = ["liveview", "lvsize", "af_area", "stages", "scp", "time_lapse",
 cam = None   # active connection, None before the choice on the start screen
 live = None
 conn_type = None
-options = {"host": "192.168.0.10", "allow_write": False, "usb_backend": "gphoto2"}
+options = {"host": "192.168.0.10", "allow_write": False,
+           "usb_backend": "ptp" if os.name == "nt" else "gphoto2"}  # no libgphoto2 on Windows
 allowed_hosts = set()
 # Phone in the home network (--lan, REQ-F47): a fresh random key per start; another device needs it once from the
 # QR code, then keeps it as a cookie. The computer itself (loopback) needs no key.
@@ -1919,9 +1920,9 @@ def main(argv=None):
                    help="also open the app on a phone in the home network: shows a QR code with a one-time key "
                         "(button Phone); other devices need that key")
     p.add_argument("--usb-backend", choices=("auto", "ptp", "gphoto2"),
-                   default="auto" if sys.platform == "darwin" else "gphoto2",
+                   default=("auto" if sys.platform == "darwin" else "ptp" if os.name == "nt" else "gphoto2"),
                    help="USB: own PTP layer (ptp), libgphoto2 (gphoto2) or the PTP layer with libgphoto2 as fallback "
-                        "(auto, default on macOS; Linux uses libgphoto2)")
+                        "(auto, default on macOS; Windows has no libgphoto2 and uses the PTP layer; Linux uses libgphoto2)")
     a = p.parse_args(argv)
     Handler.timing = a.timing
     url = "http://127.0.0.1:%d/" % a.port
