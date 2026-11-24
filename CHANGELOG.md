@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- Settings changed by the MCP server (or another page) appear on the open page within about 2 s: `/api/state` carries `props_rev`; not while busy or a setting list is open (REQ-F35). Offline- and browser-tested, not camera-tested.
+- Settings changed by the MCP server (or another page) appear on the open page within about 2 s: `/api/state` carries `props_rev`; not while busy or a setting list is open (REQ-F35). Wi-Fi camera-tested.
 
 ## 0.8.0 – 2026-11-24
 
