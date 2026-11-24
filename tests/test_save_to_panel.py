@@ -367,12 +367,16 @@ class CardReviewFixes(unittest.TestCase):
         h = Path(HTML).read_text(encoding="utf-8")
         show = re.search(r"focusstacking:\{show:(.*?)\},", h).group(1)
         in_mode = re.search(r"const inMode=[^\n]*", h).group(0)
-        code = ("%s\nvar show=%s,out=[];[['M',false],['M',true],['ART',false]].forEach(function(c){"
-                "trNoCard=c[1];out.push(show({takemode:{value:c[0]}}))});JSON.stringify(out)" % (in_mode, show))
+        modes = ["iAuto", "P", "A", "S", "M", "ART", "movie", "B"]
+        code = ("%s\nvar show=%s,out=[];%s.forEach(function(m){[false,true].forEach(function(nc){"
+                "trNoCard=nc;out.push([m,nc,!!show({takemode:{value:m}})])})});JSON.stringify(out)"
+                % (in_mode, show, json.dumps(modes)))
         out = subprocess.run(["osascript", "-l", "JavaScript", "-e", "var trNoCard;" + code],
                              capture_output=True, text=True, timeout=30)
         self.assertEqual(out.returncode, 0, out.stderr)
-        self.assertEqual(json.loads(out.stdout.strip()), [True, False, False])  # no card: no focus stacking
+        # offered in P/A/S/M with a card only
+        self.assertEqual([(m, nc) for m, nc, on in json.loads(out.stdout.strip()) if on],
+                         [(m, False) for m in ("P", "A", "S", "M")])
 
     def test_no_card_hides_rec(self):
         self.assertIn("$('#movStart').hidden=rec||trNoCard;", Path(HTML).read_text(encoding="utf-8"))
