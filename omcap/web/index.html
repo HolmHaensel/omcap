@@ -1189,8 +1189,11 @@ function prepareAutoLiveSize(){
   autoLvLabel(size);
   return true;
 }
-function lvSlowNow(){ // too few frames, too many lost, or stalled
-  const perf=st.lvperf||{}, stale=st.lv_age!=null&&st.lv_age>1.5;
+function lvSlowNow(zoomed){ // too few frames, too many lost, or stalled
+  // zoomed (sharp size): sharpness for focusing beats frame rate; 1280x960 over Wi-Fi gives only about 8-15 fps,
+  // so fall back only when the picture nearly stands (user 2026-11-24: Auto kept the zoom blurry while focusing)
+  const perf=st.lvperf||{}, stale=st.lv_age!=null&&st.lv_age>(zoomed?3:1.5);
+  if(zoomed) return stale||(perf.sample_seconds>=4&&perf.fps!=null&&perf.fps<4);
   return stale||(perf.sample_seconds>=4&&((perf.fps!=null&&perf.fps<12)||(perf.drop_ratio!=null&&perf.drop_ratio>.18)));
 }
 async function reduceAutoLiveSize(){
@@ -1198,7 +1201,7 @@ async function reduceAutoLiveSize(){
   if(st.stage>0||st.busy||st.indexing||st.movie!=null||st.take!=null||(st.job&&st.job.running)) return;
   const current=st.lvqty||$('#lvqty').value, i=AUTO_LV_SIZES.indexOf(current);
   if(i<=0) return;
-  if(!lvSlowNow()){autoLvSlowSince=0;return}
+  if(!lvSlowNow(wzSharp())){autoLvSlowSince=0;return}
   if(!autoLvSlowSince){autoLvSlowSince=Date.now();return}
   if(Date.now()-autoLvSlowSince<AUTO_LV_SLOW_MS) return;
   autoLvSlowSince=0;
