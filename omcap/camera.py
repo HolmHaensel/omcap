@@ -128,7 +128,7 @@ class Camera:
         self._lock = threading.Lock()
         self._commands = None
         self._touch = None  # (lvqty, touch_frame()); the camera only changes it together with lvqty
-        self.af_point = None  # last tapped AF point "XXXXxYYYY" (touch frame grid), used by shoot()
+        self.af_point = None  # last tapped AF point "XXXXxYYYY" (base_w x base_h grid), used by shoot()
 
     # --- Transport -------------------------------------------------------
     def _open(self, cgi, query=None, data=None, timeout=None):

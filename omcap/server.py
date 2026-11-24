@@ -261,11 +261,10 @@ def af_area():
         return {**cam.af_area(), "modes": True}
     f = cam.touch_frame()
     bw, bh = f["base_w"], f["base_h"]
-    g = usb_camera.AF_GRID  # the camera's real 9x9 grid; the touch frame (where taps are taken) is smaller
+    g = usb_camera.AF_GRID  # the camera's real 9x9 grid in the base_w x base_h space
     return {"mode": 33025, "field": state["wifi_field"], "modes": False, "last_af": state["wifi_af"],
             "area": {"x0": round(g[0] * bw), "x1": bw - round(g[0] * bw), "y0": round(g[2] * bh),
-                     "y1": bh - round(g[2] * bh), "w": bw, "h": bh},
-            "touch": {"x0": f["x"], "x1": f["x"] + f["w"], "y0": f["y"], "y1": f["y"] + f["h"]}}
+                     "y1": bh - round(g[2] * bh), "w": bw, "h": bh}}
 
 
 def set_af_area(mode, field):
@@ -292,6 +291,9 @@ def set_af_area(mode, field):
     # Report the frame centre only for affocus=ok; the UI then colours the field green
     if res["ok"] and res["x"] is not None:
         state["wifi_af"] = {"x": res["x"], "y": res["y"]}
+        # the field of the frame the camera really placed, so the target and the green field agree
+        state["wifi_field"] = 9 * min(max(int((res["y"] - a["y0"]) * 9 / (a["y1"] - a["y0"])), 0), 8) \
+            + min(max(int((res["x"] - a["x0"]) * 9 / (a["x1"] - a["x0"])), 0), 8) + 1
 
 
 # --- Shooting sequences ------------------------------------------------------

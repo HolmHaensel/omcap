@@ -121,6 +121,14 @@ class WifiOuterFields(unittest.TestCase):
             self.assertAlmostEqual(fy * a["h"], a["y0"] + (row + .5) / 9 * (a["y1"] - a["y0"]), places=6)
             self.assertEqual(self.server.state["wifi_field"], field)
 
+    def test_field_follows_the_frame_the_camera_placed(self):
+        a = self.server.af_area()["area"]
+        cx = a["x0"] + 8.5 / 9 * (a["x1"] - a["x0"])  # camera put the frame into the last column, row 1
+        cy = a["y0"] + .5 / 9 * (a["y1"] - a["y0"])
+        self.server.cam.af_focus.return_value = {"ok": True, "x": cx, "y": cy}
+        self.server.set_af_area(None, 8)
+        self.assertEqual(self.server.state["wifi_field"], 9)
+
     def test_centre_field_stays(self):
         self.server.set_af_area(None, 41)
         self.assertEqual(self.server.state["wifi_field"], 41)
