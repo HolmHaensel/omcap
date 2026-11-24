@@ -1,8 +1,10 @@
 # Agent brief — E-M1 Mark II, Wi-Fi side
 
 You are picking up work on **E-M1 Capture** (repo `HolmHaensel/omcap`) for an **Olympus OM-D E-M1 Mark II**
-(firmware 1.00). Someone already took it as far as it goes over USB on Windows; this machine has Wi-Fi, so
-your job is the **Wi-Fi half**, which is still completely untested on this body.
+(firmware **3.7**, confirmed in the camera menu — see the note in `README.md`: `GetDeviceInfo`'s
+`DeviceVersion` is `1.00` on every firmware and is not the firmware version, so never quote it as one).
+Someone already took it as far as it goes over USB on Windows; this machine has Wi-Fi, so your job is the
+**Wi-Fi half**, which is still completely untested on this body.
 
 Read `README.md` in this folder first — it lists the measurements and the four USB bugs already fixed.
 Do not re-derive them; reproduce only if you need to confirm a regression.
@@ -53,6 +55,12 @@ curl -s -H 'User-Agent: OlympusCameraKit' http://192.168.0.10/get_caminfo.cgi
 
 Save the model string — it is the evidence that this is the Mark II and not a cached answer from the
 Mark I. If the ping fails, stop: that is "camera not in AP mode", not a tool failure.
+
+**Also check what the body says about its own firmware here.** `get_caminfo` over Wi-Fi may carry a
+firmware field that the USB side does not have: print the whole XML, not just `<model>`, and if a firmware
+element exists, note its exact tag name — the app currently shows no firmware anywhere, and with a tag name
+it could. The camera menu says **3.7**; if Wi-Fi disagrees, the menu wins and the tag is worth reporting as
+wrong/misleading. Never use `DeviceInfo.DeviceVersion` (`1.00`) for this.
 
 ### 2. Capture the body's own capability list (read-only, do this first)
 

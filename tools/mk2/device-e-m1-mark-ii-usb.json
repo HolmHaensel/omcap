@@ -1,7 +1,8 @@
 {
  "model": "E-M1MarkII",
+ "firmware": "3.7 (camera menu; not exposed over PTP)",
+ "device_version_ptp": "1.00",
  "manufacturer": "OLYMPUS",
- "version": "1.00",
  "usb_mode": "PC control (camera+monitor entry), PID 0x0130",
  "operations": [
   "0x1001",
