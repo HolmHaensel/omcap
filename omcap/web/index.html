@@ -357,6 +357,154 @@ body.webcam{cursor:none;display:flex;align-items:center;justify-content:center}
   #shutRow #half{height:var(--touch)}
   .tb{flex-wrap:wrap}
 }
+/* ============================================================================
+   OM-1 style skin (2026-11-24)
+   Visual layer only: every id, class, handler and layout rule above still does
+   the work. Flat panels, hairline dividers, one orange accent, camera typography.
+   ========================================================================== */
+:root{
+  --ground:#0B0B0C; --surface:#131315; --surface-raised:#1B1B1E;
+  --line:#26262A; --line-strong:#3A3B40;
+  --text:#F2F2F3; --muted:#909099; --disabled:#6A6B72;
+  /* OM System look: white selection, green focus, red record - no colour as decoration */
+  --accent:#EDEDF0; --accent-ink:#0A0A0B; --accent-line:#55565C;
+  --accent-soft:rgba(255,255,255,.08);
+  --focus:#59D18D; --focus-line:#1F6B45;
+  --rec:#FF5A4F; --rec-text:#FF7A70;
+  --overlay:rgba(11,11,12,.74);
+  --r-sm:2px; --r-md:2px; --r-lg:3px; --r-pill:2px;
+  --font-ui:"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+  --font-value:"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+  --fs-title:13px; --fs-body:13px; --fs-label:10px; --fs-value:17px; --fs-shutter:12px;
+  --touch:40px; --shutter-h:56px;
+}
+body{font-size:var(--fs-body)}
+/* ---- header: one compact instrument row ---- */
+#app>header{height:auto;min-height:44px;padding:5px 14px;gap:8px;flex-wrap:wrap;overflow:visible;
+  border-bottom:1px solid var(--line);row-gap:4px}
+#app>header h1{font-size:12px;font-weight:600;letter-spacing:.16em;text-transform:uppercase;white-space:nowrap}
+#app>header .chip{border-radius:2px;background:transparent;border-color:var(--line);padding:3px 7px;
+  font-size:10px;letter-spacing:.08em;text-transform:uppercase;white-space:nowrap}
+#app>header .chip.ok{border-color:var(--focus-line);color:var(--focus)}
+#status{font-size:11px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:34ch}
+#hdrInfo,#hdrCard,#hdrBat{font-size:11px;letter-spacing:.04em}
+#app>header .hbtn{height:28px;padding:0 9px;font-size:10px;letter-spacing:.07em;text-transform:uppercase;border-radius:2px}
+#app>header .hbtn.icon{width:28px}
+/* ---- panels: no cards, hairline sections ---- */
+#panels{gap:0;padding-left:16px;border-left:1px solid var(--line)}
+section{background:transparent;border:0;border-top:1px solid var(--line);border-radius:0;padding:12px 0 14px}
+#panels>section:first-child{border-top:0;padding-top:2px}
+#panels h2{font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--muted);font-weight:600;margin:0 0 10px}
+#panels>[data-id=shutter]{box-shadow:none;background:var(--ground)}
+/* ---- controls ---- */
+button,select,input[type=number],input[type=text]{border-radius:2px;font-size:12px;border-color:var(--line)}
+button{letter-spacing:.05em}
+button.w{border-color:var(--line-strong)}
+/* selected = highlighted, not inverted: OM menus mark the active item with a light wash and a hairline */
+button.on{background:rgba(255,255,255,.12);border-color:var(--accent);color:var(--text);font-weight:600}
+.seg button.on{box-shadow:inset 0 0 0 1px var(--accent)}
+#writeChip{font-size:9.5px;letter-spacing:.1em;color:var(--muted);border-color:var(--line)}
+#writeChip.amber{color:var(--disabled);border-color:var(--line)}
+.chip{border-radius:2px;font-size:10.5px;letter-spacing:.06em;padding:3px 8px}
+.tog{border-radius:2px;font-size:11.5px;letter-spacing:.03em}
+.seg{border-radius:2px}
+.seg button{letter-spacing:.06em}
+.mini{font-size:10px;letter-spacing:.08em;text-transform:uppercase;border-radius:2px}
+.lab{border-radius:2px;font-size:11px;letter-spacing:.04em}
+/* ---- super control panel: 3-column camera grid with hairline gaps ---- */
+#props{grid-template-columns:repeat(3,minmax(0,1fr));gap:1px;background:var(--line);
+  border:1px solid var(--line);border-radius:2px;overflow:hidden}
+#props label{background:var(--surface);border:0;border-radius:0;min-height:58px;padding:8px 9px 9px;
+  font-size:9.5px;letter-spacing:.11em;text-transform:uppercase;color:var(--muted);
+  justify-content:flex-start}
+#props label>.v{margin-top:auto}
+#props label:hover{background:var(--surface-raised)}
+#props label:focus-within{background:var(--accent-soft);box-shadow:inset 0 0 0 1px var(--accent);color:var(--accent)}
+/* a tile with a list says so: small caret in the corner, the whole tile opens it */
+#props label:not(.ro)::after{content:"";position:absolute;right:7px;bottom:8px;width:5px;height:5px;
+  border-right:1px solid var(--disabled);border-bottom:1px solid var(--disabled);opacity:.55;
+  transform:rotate(45deg) translateY(-2px);pointer-events:none}
+#props label>.v{font-size:16.5px;font-weight:500;line-height:1.15;letter-spacing:0;text-transform:none;color:var(--text);
+  font-variant-numeric:tabular-nums;padding-right:12px}
+#props label.ro{grid-column:1/-1;border-top:1px solid var(--line);border-style:solid;padding-top:10px}
+#props label.ro strong{font-size:16.5px;font-weight:500}
+#modeBox .seg button{height:34px;font-size:11.5px;letter-spacing:.08em}
+#modeBox .seg button.on{background:rgba(255,255,255,.12);border-color:var(--accent);color:var(--text)}
+/* ---- live view: viewfinder frame with corner ticks ---- */
+#viewport{border:1px solid var(--line-strong);border-radius:2px}
+#viewport::after{content:"";position:absolute;inset:13px;pointer-events:none;z-index:1;
+  background:
+    linear-gradient(#ffffffaa,#ffffffaa) left top/16px 1px no-repeat,
+    linear-gradient(#ffffffaa,#ffffffaa) left top/1px 16px no-repeat,
+    linear-gradient(#ffffffaa,#ffffffaa) right top/16px 1px no-repeat,
+    linear-gradient(#ffffffaa,#ffffffaa) right top/1px 16px no-repeat,
+    linear-gradient(#ffffffaa,#ffffffaa) left bottom/16px 1px no-repeat,
+    linear-gradient(#ffffffaa,#ffffffaa) left bottom/1px 16px no-repeat,
+    linear-gradient(#ffffffaa,#ffffffaa) right bottom/16px 1px no-repeat,
+    linear-gradient(#ffffffaa,#ffffffaa) right bottom/1px 16px no-repeat}
+#valStrip{height:40px;font-size:15px;gap:18px;padding:0 14px;
+  background:linear-gradient(0deg,rgba(0,0,0,.86),rgba(0,0,0,0))}
+#valStrip .sz{font-size:12px}
+#afGrid{opacity:.55} /* the 81-field grid is a reference, not the subject */
+#roProps{font-size:10.5px;line-height:1.6;color:var(--disabled);margin-top:10px;padding-top:10px;
+  border-top:1px solid var(--line)}
+#focusChip,#levelChip,#recChip,#dropChip{border-radius:2px;font-size:11px;letter-spacing:.06em}
+#lvSize,#statusLine,#msg{font-size:11px;letter-spacing:.03em}
+/* ---- shutter: the camera's business end ---- */
+#timerSeg button{height:36px;font-size:11px;letter-spacing:.08em}
+#shutRow{gap:1px}
+#shutRow button{height:var(--shutter-h);border-radius:2px;text-transform:uppercase;letter-spacing:.12em;font-size:11px}
+#shutRow #half{background:transparent;border-color:var(--line-strong);color:var(--muted)}
+#shutRow #half.on{background:var(--accent-soft);border-color:var(--accent);color:var(--accent)}
+#shutRow #shoot{background:var(--accent);border-color:var(--accent);color:var(--accent-ink);font-weight:700;font-size:12px}
+/* ---- playback, dialogs, start screen ---- */
+dialog{border-radius:2px;border-color:var(--line-strong)}
+.galbar{border-color:var(--line)}
+.tile,.cal0,#gal img{border-radius:2px}
+#gal .tile .cap{font-size:10px;letter-spacing:.02em}
+.dayh{font-size:10px;letter-spacing:.16em;text-transform:uppercase}
+#start h1{font-size:26px;font-weight:600;letter-spacing:.18em;text-transform:uppercase}
+.ctile{border-radius:2px;border-width:1px;background:var(--surface);padding:26px 14px 18px;font-size:14px}
+.ctile.sel{border-color:var(--accent)}
+.ctile svg{width:104px;height:58px}
+#startMsg,#startAutoText{font-size:12px}
+#vPanel{border-color:var(--line);background:var(--surface)}
+#vStrip{font-size:15px}
+#hslBox .lbl{border-radius:2px}
+/* ---- one control size everywhere: 34 px rows, 28 px header, 24 px tags ---- */
+button,select,input[type=text],input[type=number],.tog,.lab{height:34px;min-height:34px;line-height:1}
+button{padding:0 12px}
+.tb button,.tb select,.tb .tog,.tb .lab,.tb input{height:34px;min-height:34px}
+.seg button{height:34px;width:38px;padding:0 8px}
+#app>header .hbtn{height:28px;min-height:28px;padding:0 9px}
+#app>header .chip,.chip{height:24px;min-height:24px;padding:0 8px}
+.mini{height:24px;min-height:24px;padding:0 8px}
+#props label{min-height:58px}
+#shutRow button{height:56px}
+#timerSeg button{height:34px}
+#afModes button{height:34px}
+input[type=number]{width:72px}
+.ctile{height:auto}
+#local button{height:26px;min-height:26px;padding:0 6px}
+#gal button,#galOv .galbar button,#viewer .galbar button{font-size:10.5px}
+.row{gap:8px;margin-bottom:8px}
+#props{gap:1px}
+/* narrow windows: the live view sticks, but smaller, so the panels stay usable */
+@media(max-width:1100px) and (min-width:600px){
+  #viewport{width:min(100%,calc(36vh * 4 / 3))}
+}
+/* phone: two columns of tiles, tighter chrome */
+@media(max-width:599px){
+  #props{grid-template-columns:repeat(2,minmax(0,1fr))}
+  #app>header{height:40px;min-height:40px;padding:0 10px;gap:6px;flex-wrap:nowrap;
+    overflow-x:auto;overflow-y:hidden;scrollbar-width:none}
+  #app>header::-webkit-scrollbar{display:none}
+  #app>header>*{flex:none}
+  #app>header h1{font-size:10.5px;letter-spacing:.12em}
+  #modeBox .seg button{width:auto;flex:1;font-size:10px;letter-spacing:.03em;padding:0 2px}
+  #props label>.v{font-size:17px}
+  #valStrip{font-size:13px;height:34px;gap:12px}
+}
 </style>
 </head>
 <body>
