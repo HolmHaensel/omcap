@@ -10,6 +10,7 @@
 - MCP `camera_settings`: in P, A and other modes where the camera picks the time, `shutspeedvalue` carries `shutter_live` (time in use from the Wi-Fi live view) and a note; without a fresh live view (USB, live view off) `shutter_live` is null with a note (REQ-F35). Offline-tested.
 - Settings changed by the MCP server (or another page) appear on the open page within about 2 s: `/api/state` carries `props_rev`; not while busy or a setting list is open (REQ-F35). Wi-Fi camera-tested.
 - Wi-Fi: outer AF grid fields focus where tapped instead of 1–2 fields further in; the camera accepts points outside its touch area (REQ-F04). Wi-Fi camera-tested (corners at 800×600 and 1280×960, Take picture at an outer field).
+- HSL over USB tested: HSL button (JPG 2.1 s, ORF + 16-bit TIFF 2.6 s) and the automatic copy on save (REQ-I01, I04).
 
 ## 0.8.0 – 2026-11-24
 
