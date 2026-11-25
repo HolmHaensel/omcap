@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.8.1 – 2026-11-26
 
 - Tests tidied: duplicates dropped, USB/Wi-Fi flag table, 6 source-text checks now run the code; suite 15.5 → 13.9 s (REQ-F24, REQ-F35, REQ-F53, REQ-Q10). No behaviour change.
 - Partial Color: press and drag around the colour ring, the camera follows live (Wi-Fi about 0.1 s per colour, measured 2026-11-24); only the newest colour is sent (REQ-F42). Browser-tested without camera.
