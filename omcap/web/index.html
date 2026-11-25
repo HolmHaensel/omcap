@@ -479,6 +479,8 @@ body.webcam{cursor:none;display:flex;align-items:center;justify-content:center}
     <label class="tog" id="starLockLab" data-feat="mf_drive"><input type="checkbox" id="starLock"> <span id="starLockTxt" data-i18n="star.lock">Lock focus</span></label>
     <span id="starHfr" class="chip" role="status" data-i18n-title="star.hfrTitle" title="Star size (HFR): smaller is sharper"></span>
     <span id="starBest" class="mut"></span>
+    <label class="tog" data-i18n-title="star.toneHint" title="While you turn the focus ring: the smaller the star, the higher the tone; two beeps at the best value"><input type="checkbox" id="starTone"> <span data-i18n="star.tone">HFR tone</span></label>
+    <span id="starTrend" class="mut" aria-live="polite"></span>
     <span id="starHyp" class="mut"></span>
     <button id="starReset" class="mini" data-i18n="star.reset">Reset</button>
     <span id="starMsg" class="mut"></span>
@@ -864,6 +866,11 @@ const I18N={en:{
   "star.hfr": "HFR {v} px",
   "star.hfrClip": "HFR {v} px · clipped",
   "star.best": "Best {v} px",
+  "star.tone": "HFR tone",
+  "star.toneHint": "While you turn the focus ring: the smaller the star, the higher the tone; two beeps at the best value",
+  "star.sharper": "Sharper",
+  "star.softer": "Softer – turn back",
+  "star.atBest": "At best",
   "star.hyp": "Hyperfocal {h} m ({n} m–∞)",
   "star.noStar": "No star",
   "star.tooBright": "Too bright",
@@ -3121,7 +3128,7 @@ function pickField(e){
     const b=layer.getBoundingClientRect();
     if(b.width>0&&b.height>0){
       starPt={x:Math.max(.05,Math.min(.95,(e.clientX-b.left)/b.width)),y:Math.max(.05,Math.min(.95,(e.clientY-b.top)/b.height))};
-      starBestHfr=null; $('#starBest').textContent=''; aidTick();
+      starBestHfr=null; $('#starBest').textContent=''; starAidReset(); aidTick();
       // Over USB with write enabled and MF/S-AF+MF: tapping a star immediately runs Auto Star AF on it (user 2026-11-23)
       if(canWrite&&features.has('mf_drive')&&isStarMfReady()&&!(st&&st.star_af&&st.star_af.running)&&!zBlock) runStarAuto();
     }
@@ -3443,7 +3450,33 @@ async function runStarAuto(){
     tick();
   }catch(e){msg(e.message,true)}
 }
-$('#starReset').onclick=()=>{starBestHfr=null;starPt=null;$('#starBest').textContent=''};
+$('#starReset').onclick=()=>{starBestHfr=null;starPt=null;$('#starBest').textContent='';starAidReset()};
+$('#starTone').onchange=()=>{if($('#starTone').checked) lvlAudioInit()}; // browsers allow sound only after a click
+// Manual Star AF by ear (REQ-F24): while the focus ring turns, tone and words say whether the star gets smaller
+let starHist=[],starWorst=0,starBeepAt=0,starWord='';
+const median=a=>[...a].sort((x,y)=>x-y)[a.length>>1];
+function starFreq(hfr){return Math.round(Math.max(220,Math.min(1760,1760/Math.pow(Math.max(hfr,1),.9))))} // smaller star, higher tone
+function starTrendOf(hist,best,worst){ // hist: the last HFR samples, newest last; '' while nothing clearly changes
+  if(hist.length<6) return '';
+  const now=median(hist.slice(-3)), before=median(hist.slice(-6,-3));
+  if(now<=best*1.05&&worst>best*1.25) return 'atBest'; // only after a clearly softer value was seen, else any first value is "best"
+  if(now<before*.95) return 'sharper';
+  if(now>before*1.05) return 'softer';
+  return '';
+}
+function starAidReset(){starHist=[];starWorst=0;starWord='';$('#starTrend').textContent=''}
+function starAid(hfr){ // one valid star sample (4 per second); null: no usable star
+  if(hfr===null||(st&&st.star_af&&st.star_af.running)){starAidReset();return}
+  starHist.push(hfr); if(starHist.length>6) starHist.shift();
+  starWorst=Math.max(starWorst,hfr);
+  const w=starTrendOf(starHist,starBestHfr,starWorst);
+  if(w) starWord=w; else if(starWord==='atBest'&&median(starHist.slice(-3))>starBestHfr*1.05) starWord=''; // else the last word stays
+  $('#starTrend').textContent=starWord?tr('star.'+starWord):'';
+  if(!$('#starTone').checked||Date.now()-starBeepAt<450) return;
+  starBeepAt=Date.now();
+  const f=starFreq(median(starHist.slice(-3))); lvlBeep(f,.09);
+  if(starWord==='atBest') setTimeout(()=>lvlBeep(f,.09),140);
+}
 $('#starAuto').onclick=runStarAuto;
 $('#starLock').onchange=updateStarAfUi;
 $('#starAfOn').addEventListener('change',async()=>{
@@ -3458,6 +3491,7 @@ function aidTick(){
   const hc=$('#histCv'),oc=$('#aidCv'),img=$('#live'),nw=img.naturalWidth,nh=img.naturalHeight;
   hc.hidden=!(wantH&&st.live);
   updateStarAfUi();
+  if((!wantS||!st.live)&&starHist.length) starAidReset();
   if(!st.live||document.hidden||!(wantH||wantC||wantP||wantS)||!nw||!nh){
     if(oc.width) oc.getContext('2d').clearRect(0,0,oc.width,oc.height);
     return;
@@ -3496,8 +3530,9 @@ function aidTick(){
       $('#starBest').textContent=tr('star.best',{v:starBestHfr.toFixed(2)});
       og.strokeStyle=res.saturated?'#FFB020':'#3DDC84'; og.lineWidth=1.5;
       og.beginPath(); og.arc(res.x,res.y,Math.max(8,res.hfr*2.5),0,Math.PI*2); og.stroke();
+      starAid(res.saturated?null:res.hfr); // a clipped star says nothing about focus
     }else{
-      chip.textContent=tr(res&&res.bright?'star.tooBright':'star.noStar'); chip.classList.remove('ok');
+      chip.textContent=tr(res&&res.bright?'star.tooBright':'star.noStar'); chip.classList.remove('ok'); starAid(null);
     }
   }
 }

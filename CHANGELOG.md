@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Star AF by ear: **HFR tone** (smaller star = higher tone, two beeps at the best value) and the words Sharper / Softer – turn back / At best while you turn the focus ring (USB and Wi-Fi, REQ-F24). Offline- and browser-tested, not camera-tested.
 - Tests tidied: duplicates dropped, USB/Wi-Fi flag table, 6 source-text checks now run the code; suite 15.5 → 13.9 s (REQ-F24, REQ-F35, REQ-F53, REQ-Q10). No behaviour change.
 - Partial Color: press and drag around the colour ring, the camera follows live (Wi-Fi about 0.1 s per colour, measured 2026-11-24); only the newest colour is sent (REQ-F42). Browser-tested without camera.
 - MCP actions show on the page: the control the MCP used looks pressed for a moment and the value changes, as if an invisible user worked the app; a message "MCP: …" and a list of the last 10 actions, failures in red (REQ-F35). Offline- and browser-tested, not camera-tested.
