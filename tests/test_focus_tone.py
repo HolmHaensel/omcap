@@ -1,11 +1,12 @@
 """Focus tone (REQ-F59) and silent half press over Wi-Fi: page markup and server logic, no camera."""
 import json
 import os
+import re
 import shutil
 import subprocess
 import unittest
 
-from omcap import camera, server, usb_camera
+from omcap import camera, server
 
 from tests.web_path import HTML_PATH as WEB
 HAVE_JS = shutil.which("osascript")
@@ -67,13 +68,9 @@ class Page(unittest.TestCase):
             self.assertRegex(self.html, r'"%s": "' % key.replace(".", r"\."))
 
     def test_tone_after_tap_focus_only(self):
-        self.assertIn("if(f) focusTone(!!hit);", self.html)
-        self.assertEqual(self.html.count("focusTone("), 2)  # definition + the tap-focus call, nothing else
+        calls = [m.start() for m in re.finditer(r"(?<!function )\bfocusTone\(", self.html)]
+        self.assertEqual([self.html[i - 6:i + 16] for i in calls], ["if(f) focusTone(!!hit)"])  # tap focus only
         self.assertIn("features.has('focus_tone')", self.html)
-
-    def test_wifi_only(self):
-        self.assertIn("focus_tone", server.WIFI_FEATURES)
-        self.assertNotIn("focus_tone", usb_camera.FEATURES)
 
 
 class HalfPress(unittest.TestCase):

@@ -147,7 +147,8 @@ class Shoot(unittest.TestCase):
     def setUp(self):
         # short waits: the behaviour is the same, only the real-time sleeps shrink
         for name, value in (("DIRECT_GRACE", 0.02), ("DIRECT_NEXT_WAIT", 0.2), ("SHOT_TIMEOUT", 0.4),
-                            ("STACK_WAIT", 0.0), ("SECOND_FORMAT_WAIT", 0.1), ("STACK_FRAMES_WAIT", 0.1)):
+                            ("STACK_WAIT", 0.0), ("SECOND_FORMAT_WAIT", 0.1), ("STACK_FRAMES_WAIT", 0.1),
+                            ("TAKE_STOP_EVENTS", 0.1)):
             p = mock.patch.object(usb_camera, name, value)
             p.start()
             self.addCleanup(p.stop)

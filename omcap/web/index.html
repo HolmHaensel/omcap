@@ -85,8 +85,17 @@ main{display:grid;grid-template-columns:minmax(0,1044px) 340px;justify-content:c
 #lvTools{display:contents}
 #loupeTools{display:inline-flex;gap:6px;align-items:center}
 #viewport.loupe #afGrid,#viewport.loupe #afMark,#viewport.loupe #grid,#viewport.loupe #aidCv,#viewport.loupe #ovl{display:none} /* magnified picture: they would not match, and only the picture should be scaled (REQ-F54) */
+#viewport.loupe.star #aidCv{display:block} /* keep Star AF HFR reticle visible while zoomed (REQ-F24) */
+#starRow{flex-wrap:wrap;overflow-x:visible}
+#starAuto.rec{background:var(--rec);border-color:var(--rec);color:#fff;font-weight:600}
 #statusLine{display:flex;gap:var(--s4);flex-wrap:wrap;font-size:13px;color:var(--muted)}
 #statusLine #msg{margin:0;min-height:0}
+#mcpBox{font-size:13px;color:var(--muted);margin-top:var(--s1)}
+/* MCP actions: the control it used looks active for a moment, as if an invisible user pressed it (user 2026-11-24) */
+button.remote,.seg button.remote{background:var(--surface-raised);border-color:var(--accent)}
+#mcpBox summary{cursor:pointer;width:max-content}
+#mcpLog{margin:var(--s1) 0 0;padding-left:var(--s5);font-family:var(--font-value);overflow-wrap:anywhere}
+#mcpLog .warn{color:var(--rec-text)}
 #lvSize{font-family:var(--font-value)}
 section{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-lg);padding:var(--s3)}
 #panels{display:flex;flex-direction:column;gap:10px}
@@ -128,7 +137,7 @@ button:disabled{color:var(--disabled);opacity:.6;cursor:not-allowed}
 #valStrip .sub{color:var(--muted);font-size:.8em;margin-left:-14px} /* ISO the camera picks at ISO AUTO */
 .isoAuto{display:block;font:12px var(--font-value);color:var(--muted);margin-top:2px}
 #valStrip{position:absolute;left:0;right:0;bottom:0;height:44px;display:flex;align-items:center;gap:22px;padding:0 18px;background:linear-gradient(0deg,rgba(0,0,0,.78),rgba(0,0,0,0));font-family:var(--font-value);font-size:17px;font-weight:500;pointer-events:none;z-index:2;white-space:nowrap;overflow:hidden}
-#valStrip .m{color:var(--accent);font-weight:600} #valStrip .sz{margin-left:auto;color:var(--muted);font-size:14px}
+#valStrip .m{color:var(--accent);font-weight:600} #valStrip .saf{color:var(--accent);font-weight:600} #valStrip .saf.run{color:#fff;text-shadow:0 0 8px var(--accent)} #valStrip .sz{margin-left:auto;color:var(--muted);font-size:14px}
 #start{min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:28px;padding:24px 16px}
 #stopped{min-height:100vh;display:flex;align-items:center;justify-content:center;font-size:18px}
 #start h1{font-size:30px;font-weight:300;letter-spacing:.02em}
@@ -150,6 +159,10 @@ button:disabled{color:var(--disabled);opacity:.6;cursor:not-allowed}
 #props{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--s2)}
 #props label{display:flex;flex-direction:column;gap:2px;font-size:var(--fs-label);color:var(--muted);min-width:0;padding:8px 10px;background:var(--ground);border:1px solid var(--line);border-radius:var(--r-md);transition:background var(--t-fast),border-color var(--t-fast)}
 #props label:focus-within{background:var(--surface-raised);border-color:var(--accent)}
+/* a setting changed by another client (MCP) looks tapped for a moment, so you see where */
+#props label.remote{background:var(--surface-raised);border-color:var(--accent)} /* changed by MCP: looks as if tapped (user 2026-11-24: normal is enough) */
+#modeBox.remote{outline:1px solid var(--accent);outline-offset:2px;border-radius:var(--r-md)}
+@media(prefers-reduced-motion:no-preference){#props label,#modeBox{transition:background .6s,border-color .6s,outline-color .6s}}
 #props select{width:100%;padding:0;border:0;background:transparent;color:var(--text);font-family:var(--font-value);font-size:18px;font-weight:500;appearance:none;-webkit-appearance:none;cursor:pointer}
 #props select option{font-size:14px}
 #props select:disabled{color:var(--disabled);cursor:not-allowed}
@@ -356,7 +369,8 @@ body.webcam{cursor:none;display:flex;align-items:center;justify-content:center}
   #lastShot{bottom:46px;width:22%}
   #recChip{bottom:46px}
   .tb{overflow-x:auto;flex-wrap:nowrap;padding-bottom:4px;-webkit-overflow-scrolling:touch}
-  .tb>*{flex-shrink:0}
+  .tb>*,#lvTools>*{flex-shrink:0}
+  #starRow{flex-wrap:wrap;overflow-x:visible}
   #props{grid-template-columns:repeat(2,minmax(0,1fr))}
   #shutterBox{gap:var(--s2)}
   #timerLab{display:none}
@@ -627,6 +641,7 @@ section h2{margin-bottom:10px;color:#b9bec4;font-size:var(--fs-label);font-weigh
     <span id="autoLvStatus" class="chip" hidden data-feat="lvsize"></span>
     <span class="vsep"></span>
     <span id="lvTools" hidden>
+      <label class="tog" id="starAfLab" data-feat="star_af"><input type="checkbox" id="starAfOn"> <span data-i18n="lv.starAf">Star AF</span></label>
       <span data-feat="loupe"><span id="loupeTools">
         <span id="loupeLabel" class="chip" role="status" style="display:none"></span>
         <span id="loupeMove" class="seg" role="group" hidden data-i18n-aria="lv.loupeMove" aria-label="Move the zoom frame"><button class="w" data-lm="left" data-i18n-aria="lv.left" aria-label="Left">◀</button><button class="w" data-lm="up" data-i18n-aria="lv.up" aria-label="Up">▲</button><button class="w" data-lm="down" data-i18n-aria="lv.down" aria-label="Down">▼</button><button class="w" data-lm="right" data-i18n-aria="lv.right" aria-label="Right">▶</button></span>
@@ -654,11 +669,22 @@ section h2{margin-bottom:10px;color:#b9bec4;font-size:var(--fs-label);font-weigh
     <button class="w" id="lvStart" data-i18n="lv.start">Start live view</button>
     <button id="lvStop" data-i18n="lv.stop">Stop live view</button>
   </div>
+  <div class="tb" id="starRow" hidden>
+    <button class="w" id="starAuto" data-feat="mf_drive" data-i18n="star.auto">Auto Star AF</button>
+    <select id="starPrio" data-feat="mf_drive" data-i18n-aria="star.prioAria" aria-label="Star AF speed or accuracy" data-i18n-title="star.prioHint" title="Speed: quicker. Accuracy: slower, but sharper."><option value="speed" data-i18n="star.speed">Speed</option><option value="accuracy" data-i18n="star.accuracy">Accuracy</option></select>
+    <label class="tog" id="starLockLab" data-feat="mf_drive"><input type="checkbox" id="starLock"> <span id="starLockTxt" data-i18n="star.lock">Lock focus</span></label>
+    <span id="starHfr" class="chip" role="status" data-i18n-title="star.hfrTitle" title="Star size (HFR): smaller is sharper"></span>
+    <span id="starBest" class="mut"></span>
+    <span id="starHyp" class="mut"></span>
+    <button id="starReset" class="mini" data-i18n="star.reset">Reset</button>
+    <span id="starMsg" class="mut"></span>
+  </div>
   <div class="tb" id="ovlRow" hidden>
     <label class="lab"><span data-i18n="lv.overlay">Overlay</span> <input type="range" id="ovlOp" min="0" max="100" value="50"></label>
     <button id="ovlOff" data-i18n="lv.overlayRemove">Remove</button>
   </div>
   <div id="statusLine"><span id="lvSize" class="mut"></span><p id="msg" class="mut" data-i18n="msg.ready">Ready.</p></div>
+  <details id="mcpBox" hidden><summary data-i18n="mcp.title">MCP activity</summary><ol id="mcpLog"></ol></details>
 </div>
 <div id="panels" data-pane="camera">
   <nav id="panelNav" aria-label="Control groups">
@@ -691,7 +717,7 @@ section h2{margin-bottom:10px;color:#b9bec4;font-size:var(--fs-label);font-weigh
       <button class="w" data-mf="far:2" data-i18n="mf.far2">Far 2</button>
       <button class="w" data-mf="far:3" data-i18n="mf.far3">Far 3</button>
     </div></div>
-    <div class="row">
+    <div class="row" id="afShowRow">
       <label><input type="checkbox" id="afShow" checked> <span data-i18n="af.show">Show AF targets</span></label>
       <span id="afInfo" class="mut"></span>
     </div>
@@ -864,6 +890,16 @@ const $=s=>document.querySelector(s);
       Server messages are English; with a key 'srv.<message>' they can be translated.
       Language: localStorage 'omcap.lang', else browser language, else en. */
 const I18N={en:{
+  "mcp.title": "MCP activity",
+  "mcp.did": "MCP: {what}",
+  "mcp.failed": "MCP failed: {what} – {e}",
+  "mcp.liveStart": "Live view started",
+  "mcp.liveStop": "Live view stopped",
+  "mcp.playEnter": "Playback opened",
+  "mcp.playLeave": "Playback closed",
+  "mcp.afField": "AF target row {r}, column {c}",
+  "mcp.starStop": "Star AF stopped",
+  "mcp.shoot": "Take picture",
   "exif.prog.1": "M",
   "exif.prog.2": "P",
   "exif.prog.3": "A",
@@ -1024,6 +1060,34 @@ const I18N={en:{
   "lv.peakBlack": "Black",
   "lv.peakRed": "Red",
   "lv.peakYellow": "Yellow",
+  "lv.starAf": "Star AF",
+  "star.auto": "Auto Star AF",
+  "star.stop": "Stop Star AF",
+  "star.speed": "Speed",
+  "star.accuracy": "Accuracy",
+  "star.prioAria": "Star AF speed or accuracy",
+  "star.prioHint": "Speed: quicker. Accuracy: slower, but sharper.",
+  "star.lock": "Lock focus",
+  "star.locked": "Focus locked",
+  "star.lockHint": "Locks Star AF, MF drive and live-view tap so accidental touches keep focus; click to unlock",
+  "star.autoMf": "AF mode set to MF for Star AF",
+  "star.hfrTitle": "Star size (HFR): smaller is sharper",
+  "star.hfr": "HFR {v} px",
+  "star.hfrClip": "HFR {v} px · clipped",
+  "star.best": "Best {v} px",
+  "star.hyp": "Hyperfocal {h} m ({n} m–∞)",
+  "star.noStar": "No star",
+  "star.tooBright": "Too bright",
+  "star.reset": "Reset",
+  "star.manualHint": "Turn the focus ring until the number is smallest",
+  "star.needMf": "Switch AF mode to MF or S-AF+MF for Auto Star AF",
+  "star.running": "Star AF running",
+  "star.chipTitle": "Star AF is on",
+  "star.boostNote": "Live View Boost On2 on for night view",
+  "star.inFocus": "In focus · HFR {v} px",
+  "star.inFocusMf": "In focus · HFR {v} px · AF mode set to MF",
+  "star.noFocus": "No focus",
+  "star.stopped": "Star AF stopped",
   "lv.roll": "Horizon {a}° · Tilt {b}°",
   "lv.delta": "Δ Horizon {a}° · Δ Tilt {b}° to the held angle",
   "lv.loupeTitle": "The camera's own magnified live view (USB only; Zoom frame AF/zoom AF in the manual). Click = focus, drag = move, wheel or pinch = zoom smoothly; at rest it snaps to the camera's ratios and turns sharp. Starts at the AF target. No AF with Four Thirds lenses while zoomed (manual p.56).",
@@ -1123,6 +1187,7 @@ const I18N={en:{
   "prop.stabilizer": "Image stabilizer",
   "prop.facepriority": "Face priority",
   "prop.focusstacking": "Focus Stacking",
+  "prop.lvboost": "Live View Boost",
   "msg.stackOne": "Only one picture. The camera did not stack.",
   "prop.colortone": "Picture Mode",
   "prop.artfilter": "Art filter",
@@ -1334,6 +1399,9 @@ $('#popPhoto').onclick=()=>popup('photo');
 /* State */
 let leavingPlay=false, wasIndexing=false;
 let fastSeen; // USB: last fast picture number shown
+let propsRev; // last state.props_rev seen: another client (MCP) changed settings, the page reloads them
+let mcpN; // last state.mcp_n seen: the page shows each new MCP action once
+const remoteUntil={}; // setting -> time its tile stops looking changed (renderProps rebuilds the tiles meanwhile)
 let modeAt; // USB: last mode dial turn seen (state.mode_at); undefined until the first tick
 /* USB reports iAUTO, ART, SCN and PHOTO STORY as P (d006 = 2, tested 2026-11-12); they are shown as P
    (maintainer decision). Only the EXIF of the newest shot tells iAUTO apart (ExposureProgram 5) */
@@ -1376,8 +1444,11 @@ function prepareAutoLiveSize(){
   autoLvLabel(size);
   return true;
 }
-function lvSlowNow(){ // too few frames, too many lost, or stalled
-  const perf=st.lvperf||{}, stale=st.lv_age!=null&&st.lv_age>1.5;
+function lvSlowNow(zoomed){ // too few frames, too many lost, or stalled
+  // zoomed (sharp size): sharpness for focusing beats frame rate; 1280x960 over Wi-Fi gives only about 8-15 fps,
+  // so fall back only when the picture nearly stands (user 2026-11-24: Auto kept the zoom blurry while focusing)
+  const perf=st.lvperf||{}, stale=st.lv_age!=null&&st.lv_age>(zoomed?3:1.5);
+  if(zoomed) return stale||(perf.sample_seconds>=4&&perf.fps!=null&&perf.fps<4);
   return stale||(perf.sample_seconds>=4&&((perf.fps!=null&&perf.fps<12)||(perf.drop_ratio!=null&&perf.drop_ratio>.18)));
 }
 async function reduceAutoLiveSize(){
@@ -1385,7 +1456,7 @@ async function reduceAutoLiveSize(){
   if(st.stage>0||st.busy||st.indexing||st.movie!=null||st.take!=null||(st.job&&st.job.running)) return;
   const current=st.lvqty||$('#lvqty').value, i=AUTO_LV_SIZES.indexOf(current);
   if(i<=0) return;
-  if(!lvSlowNow()){autoLvSlowSince=0;return}
+  if(!lvSlowNow(wzSharp())){autoLvSlowSince=0;return}
   if(!autoLvSlowSince){autoLvSlowSince=Date.now();return}
   if(Date.now()-autoLvSlowSince<AUTO_LV_SLOW_MS) return;
   autoLvSlowSince=0;
@@ -1396,6 +1467,81 @@ async function reduceAutoLiveSize(){
   msg(tr('lv.autoReduced',{size:lvSizeText(next)}));
   try{await $('#lvStart').onclick()}finally{autoLvBusy=false}
 }
+function modeSeen(at){ // USB: mode dial turned (state tick or X-Mode-At of a live frame, whichever is first)
+  if(modeAt===undefined) modeAt=at||null; // first look after loading: no message for an old turn
+  else if(at&&at!==modeAt){modeAt=at;usbShotMode=null;props();msg(tr('msg.modeDial'))}
+}
+function propsRevSeen(rev){ // camera busy or a setting list open: the value stays unseen and is looked at again on the next tick
+  if(rev===undefined) return;
+  if(propsRev===undefined){propsRev=rev;return} // first look after loading: the page loads the settings itself
+  const busy=st.stage>0||st.busy||st.indexing||st.movie!=null||st.take!=null||(st.job&&st.job.running)||st.play;
+  const editing=ringDrag||document.activeElement&&document.activeElement.matches('#props select'); // a rebuild would close the open list or end a ring drag
+  if(rev!==propsRev&&!busy&&!editing){propsRev=rev;setTimeout(()=>{const old=lastProps;props().then(()=>flashChanged(old));loadAf()},800)} // Wi-Fi: after a takemode change the camera needs a moment for the new values
+}
+function mcpText(e){ // one MCP action in words, with the page's own names
+  const b=e.body||{}, p=e.path.replace('/api/','');
+  if(p==='set') return tr('prop.'+b.prop,null,b.prop)+' → '+valName(b.prop,String(b.value));
+  if(p==='liveview') return tr(b.action==='start'?'mcp.liveStart':'mcp.liveStop');
+  if(p==='playback') return tr(b.action==='enter'?'mcp.playEnter':'mcp.playLeave');
+  if(p==='afarea'&&b.field){const [r,c]=fieldRC(b.field); return tr('mcp.afField',{r:r+1,c:c+1})}
+  if(p==='afarea'&&b.mode) return tr('panel.af',null,'AF')+' → '+tr('af.'+b.mode,null,b.mode);
+  if(p==='mfdrive') return tr('mf.title')+' → '+tr('mf.'+b.direction+(b.step||1),null,b.direction+' '+(b.step||1));
+  if(p==='staraf') return tr(b.action==='stop'?'mcp.starStop':'star.auto');
+  if(p==='shoot'||(p==='take'&&b.action==='start')) return tr('mcp.shoot');
+  return p+(Object.keys(b).length?' '+Object.entries(b).map(([k,v])=>k+'='+v).join(' '):'');
+}
+function mcpControl(e){ // the control a user would have pressed for this action
+  const b=e.body||{}, p=e.path.replace('/api/',''), q=x=>document.querySelector(x);
+  if(p==='set') return b.prop==='takemode'?q('#modeBox [data-mode="'+b.value+'"]')||$('#modeBox'):q('#props label[data-id="'+b.prop+'"]');
+  if(p==='liveview') return $(b.action==='start'?'#lvStart':'#lvStop');
+  if(p==='playback') return $('#hdrPlay');
+  if(p==='afarea'&&b.mode) return q('[data-af="'+b.mode+'"]');
+  if(p==='mfdrive') return q('[data-mf="'+b.direction+':'+(b.step||1)+'"]');
+  if(p==='staraf') return $('#starAuto');
+  if(p==='shoot'||(p==='take'&&b.action==='start')) return $('#shoot');
+  return null; // an AF field shows in the grid itself (the page reloads the AF area)
+}
+function markRemote(k,ms){remoteUntil[k]=Date.now()+ms; setTimeout(reRemote,ms+20); reRemote()}
+function reRemote(){ // (re)apply the highlight to the current tiles; called after every rebuild
+  const now=Date.now();
+  for(const [k,t] of Object.entries(remoteUntil)){
+    const el=k==='takemode'?$('#modeBox'):document.querySelector('#props label[data-id="'+k+'"]');
+    if(t<=now) delete remoteUntil[k];
+    if(el) el.classList.toggle('remote',t>now);
+  }
+}
+function mcpActive(e){
+  if(e.path==='/api/set'&&e.body.prop){markRemote(e.body.prop,2000);if(e.body.prop!=='takemode')return}
+  const el=mcpControl(e);
+  if(!el||!el.getClientRects().length) return; // hidden control: the message and the list still tell
+  el.classList.add('remote'); setTimeout(()=>el.classList.remove('remote'),2000);
+}
+function mcpSeen(n,log){ // REQ-F35: the user follows on the page what the MCP does to the camera
+  if(n===undefined) return;
+  const ol=$('#mcpLog'), line=e=>{const li=document.createElement('li'), what=mcpText(e);
+    li.textContent=new Date(e.t*1000).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit',second:'2-digit'})+'  '+what+(e.error?' – '+tr('srv.'+e.error,null,e.error):'');
+    if(e.error) li.className='warn'; ol.prepend(li); return what};
+  if(mcpN===undefined){mcpN=n; (log||[]).forEach(line); $('#mcpBox').hidden=!ol.children.length; return} // after loading: the list, no messages
+  if(n===mcpN) return;
+  const fresh=(log||[]).filter(e=>e.n>mcpN); mcpN=n;
+  for(const e of fresh){
+    const what=line(e);
+    msg(e.error?tr('mcp.failed',{what,e:tr('srv.'+e.error,null,e.error)}):tr('mcp.did',{what}),!!e.error);
+    if(!e.error&&e.path==='/api/set'&&lastProps&&lastProps[e.body.prop]&&!ringDrag&&!(st.stage>0||st.busy||st.play)){ // show the new value at once;
+      lastProps[e.body.prop].value=String(e.body.value); renderProps(); // the props_rev reload confirms it a moment later
+    }
+    if(!e.error) mcpActive(e);
+  }
+  while(ol.children.length>10) ol.lastChild.remove();
+  $('#mcpBox').hidden=false;
+}
+function flashChanged(old){ // settings another client changed look tapped for 1.5 s (the page's own changes are already in lastProps)
+  if(!old||!lastProps||lastProps===old) return;
+  for(const k of Object.keys(lastProps)){
+    if(!old[k]||old[k].value===lastProps[k].value) continue;
+    markRemote(k,1500);
+  }
+}
 async function tick(){
   if(view||!connected||quitting) return;
   const liOld=JSON.stringify(st&&st.lvinfo);
@@ -1403,8 +1549,9 @@ async function tick(){
   try{st=await api('/api/state?client='+zId)}catch(e){if(e.message===tr('srv.offline'))msg(e.message,true);return}
   if(JSON.stringify(st.lvinfo)!==liOld) showStatus();
   if(!st.live&&lvl){lvl=null;lvlShown=null;drawLevel()} // live view stopped: clear the level gauge
-  if(modeAt===undefined) modeAt=st.mode_at||null; // first tick after loading: no message for an old turn
-  else if(st.mode_at&&st.mode_at!==modeAt){modeAt=st.mode_at;usbShotMode=null;props();msg(tr('msg.modeDial'))} // USB: mode dial turned
+  modeSeen(st.mode_at);
+  propsRevSeen(st.props_rev);
+  mcpSeen(st.mcp_n,st.mcp_log);
   if(fastSeen===undefined) fastSeen=st.fast_n||0; // first tick after loading: an old shot is not new
   else if(isUsb&&st.fast_n&&st.fast_n!==fastSeen){fastSeen=st.fast_n;showFast()} // REQ-F60: JPEG of the shot before the card lists it
   $('#half').classList.toggle('on',st.stage>=1); $('#half').setAttribute('aria-pressed',st.stage>=1?'true':'false');
@@ -1437,11 +1584,13 @@ async function tick(){
   const dc=$('#dropChip'); dc.hidden=!stale&&!gone; if(stale||gone) dc.textContent=gone||tr('lv.noSignal',{s:Math.round(st.lv_age)});
   $('#lvTools').hidden=!st.live;
   // Zoom AF is not offered while the camera is busy (the server refuses it then, like other commands)
-  zBlock=st.stage>0||st.indexing||st.movie!=null||st.take!=null||!!(st.job&&st.job.running)||st.play;
+  const starRun=!!(st.star_af&&st.star_af.running);
+  zBlock=st.stage>0||st.indexing||st.movie!=null||st.take!=null||!!(st.job&&st.job.running)||starRun||st.play;
   if(usbZoom){
     $('#zoomUsb').hidden=zBlock; $('#loupeTools').style.display=zBlock?'none':''; $('#zoomMap').style.visibility=zBlock?'hidden':''; // busy camera: the map would not react
     loupePoll(ans0);
   }
+  updateStarAfUi();
   $('#reset').hidden=!(features.has('stages')&&(st.stage>0||propsFailed));
   applyContext();
   if(st.stage===0&&focusHit&&focusHit.held) focusHit=null;
@@ -1489,6 +1638,8 @@ const FEATURES={
   facepriority:{show:inMode('P','A','S','M')},
   // Focus Stacking (USB d0cb, FW 4.x): Bracketing is only in P/A/S/M (manual p.82, 174)
   focusstacking:{show:p=>inMode('P','A','S','M')(p)&&!trNoCard}, // the camera merges on the card (refused without one)
+  // Live View Boost (USB d0ea = Others row: P/A/S; E-M1 manual p.176/179; M/Bulb/LiveComp d0e7-d0e9 unmapped; no Wi-Fi CGI)
+  lvboost:{show:inMode('P','A','S')},
   colorphase:{show:p=>p.takemode.value==='ART'?p.artfilter.value==='partcolor':['P','A','S','M'].includes(p.takemode.value)&&p.colortone.value==='partcolor'},
 };
 let lastProps=null,propsFailed=false;
@@ -1587,8 +1738,10 @@ function renderStrip(){
   const ec=g('expcomp'); if(ec!=null&&!mv) out.push(['',/^\d/.test(ec)&&+ec>0?'+'+ec:ec]);
   const iso=g('isospeedvalue'); if(iso&&!mv){out.push(['','ISO '+valName('isospeedvalue',iso)]); if(iso==='Auto'&&li.iso) out.push(['sub',String(li.iso)])}
   const wb=g('wbvalue'); if(wb!=null) out.push(['',tr('strip.wb')+' '+valName('wbvalue',wb)]);
+  // Star AF: show ★AF inline in the live view value strip (user 2026-11-23)
+  if(isStarActive()){const run=!!(st&&st.star_af&&st.star_af.running); out.push([run?'saf run':'saf','★AF',run?tr('star.running'):tr('star.chipTitle')])}
   s.innerHTML='';
-  for(const [c,t] of out){const e=document.createElement('span');if(c)e.className=c;e.textContent=t;s.append(e)}
+  for(const [c,t,ti] of out){const e=document.createElement('span');if(c)e.className=c;if(ti)e.title=ti;e.textContent=t;s.append(e)}
   const w=$('#live').naturalWidth;
   if(st.live&&w){const e=document.createElement('span');e.className='sz';e.textContent=w+'×'+$('#live').naturalHeight;s.append(e)}
   $('#watchValues').textContent=out.slice(0,3).map(x=>x[1]).join(' · ')||'E-M1 · READY';
@@ -1611,7 +1764,7 @@ function renderModeBox(p){
   const seg=document.createElement('div'); seg.className='seg'; seg.setAttribute('role','group'); seg.setAttribute('aria-label',tr('prop.takemode'));
   for(const o of v.enum){
     const b=document.createElement('button'); b.type='button'; b.textContent=MODE_SHORT[o]||valName('takemode',o); b.title=valName('takemode',o);
-    b.classList.toggle('on',o===v.value); b.disabled=!canWrite;
+    b.classList.toggle('on',o===v.value); b.disabled=!canWrite; b.dataset.mode=o;
     b.onclick=()=>api('/api/set',{prop:'takemode',value:o}).then(()=>{v.value=o;msg(tr('prop.takemode')+': '+valName('takemode',o));renderProps();setTimeout(props,800)})
       .catch(e=>msg(tr('prop.takemode')+': '+e.message,true));
     seg.append(b);
@@ -1649,29 +1802,63 @@ $('#propsMore').onclick=()=>{showAllSettings=!showAllSettings;syncSettingsToggle
    REQ-F42): yellow at the top, red right, blue at the bottom, green left (photos of the camera ring 2026-11-15).
    Wi-Fi only (colorphase; not over USB, probe 2026-11-15). Camera-checked over Wi-Fi 2026-11-15: step0 at the top
    (yellow), steps clockwise by 20°, step15 green at 10 o'clock. */
+let ringDrag=false; // a finger or the mouse is on the Partial Color ring: no tile rebuild meanwhile
 function colorRing(value,opts,sel){
   const NS='http://www.w3.org/2000/svg',N=opts.length,svg=document.createElementNS(NS,'svg');
   svg.setAttribute('viewBox','-50 -50 100 100'); svg.setAttribute('class','cring');
   svg.setAttribute('role','radiogroup'); svg.setAttribute('aria-label',tr('prop.colorphase'));
   const pt=(r,a)=>(r*Math.cos(a)).toFixed(2)+' '+(r*Math.sin(a)).toFixed(2), R=47, r=31;
-  let on=null;
+  const segs={}, stepOf=(o,i)=>{const n=parseInt(String(o).replace(/\D/g,''),10); return isNaN(n)?i:n};
   opts.forEach((o,i)=>{
-    const n=parseInt(String(o).replace(/\D/g,''),10), k=isNaN(n)?i:n; // segment centred on its step angle: step0 yellow at 0° (top), step9 blue at 180°
-    const a0=(k-.5)/N*2*Math.PI-Math.PI/2, a1=(k+.5)/N*2*Math.PI-Math.PI/2;
-    const step=k, seg=document.createElementNS(NS,'path');
+    const k=stepOf(o,i); // segment centred on its step angle: step0 yellow at 0° (top), step9 blue at 180°
+    const a0=(k-.5)/N*2*Math.PI-Math.PI/2, a1=(k+.5)/N*2*Math.PI-Math.PI/2, seg=document.createElementNS(NS,'path');
     seg.setAttribute('d',`M${pt(R,a0)}A${R} ${R} 0 0 1 ${pt(R,a1)}L${pt(r,a1)}A${r} ${r} 0 0 0 ${pt(r,a0)}Z`);
-    seg.setAttribute('fill',`hsl(${(60-step*360/N+720)%360} 85% 55%)`); // clockwise from yellow, like the camera
-    seg.setAttribute('class','seg'+(o===value?' on':'')); seg.setAttribute('role','radio');
-    seg.setAttribute('aria-checked',String(o===value)); seg.setAttribute('aria-label',sel.options[i]?sel.options[i].text:String(step));
-    if(canWrite) seg.onclick=e=>{e.preventDefault();e.stopPropagation();sel.value=o;sel.onchange()}; // not the label's own click (it would focus the list)
-    if(o===value) on=seg;
+    seg.setAttribute('fill',`hsl(${(60-k*360/N+720)%360} 85% 55%)`); // clockwise from yellow, like the camera
+    seg.setAttribute('class','seg'); seg.setAttribute('role','radio');
+    seg.setAttribute('aria-label',sel.options[i]?sel.options[i].text:String(k));
+    segs[k]={o,seg,name:sel.options[i]?sel.options[i].text:String(k)};
     svg.append(seg);
   });
-  if(on) svg.append(on); // selected segment on top so its outline is not covered
-  svg.addEventListener('click',e=>e.preventDefault()); // a click between segments must not activate the label either
-  const t=document.createElementNS(NS,'text'), words=(sel.options[sel.selectedIndex]?sel.options[sel.selectedIndex].text:'').split(/[\s-]+/);
-  words.forEach((w,j)=>{const l=document.createElementNS(NS,'tspan');l.setAttribute('x','0');l.setAttribute('y',String((j-(words.length-1)/2)*8.5+2.5));l.textContent=w;t.append(l)});
-  svg.append(t);
+  const t=document.createElementNS(NS,'text'); svg.append(t);
+  const show=o=>{ // mark the colour and write its name in the centre, without rebuilding the ring
+    for(const {o:x,seg} of Object.values(segs)){const on=x===o; seg.classList.toggle('on',on); seg.setAttribute('aria-checked',String(on)); if(on) svg.insertBefore(seg,t)}
+    const s=Object.values(segs).find(x=>x.o===o); t.textContent='';
+    (s?s.name:'').split(/[\s-]+/).forEach((w,j,ws)=>{const l=document.createElementNS(NS,'tspan');l.setAttribute('x','0');l.setAttribute('y',String((j-(ws.length-1)/2)*8.5+2.5));l.textContent=w;t.append(l)});
+  };
+  show(value);
+  svg.addEventListener('click',e=>{e.preventDefault(); // a click on the ring must not activate the label (it would focus the list)
+    const s=Object.values(segs).find(x=>x.seg===e.target);
+    if(canWrite&&s&&e.detail===0){show(s.o); want=s.o; pump()} // a screen reader activates a segment (no pointer): set it
+  });
+  if(!canWrite) return svg;
+  // press and drag around the ring: the camera follows (Wi-Fi: about 0.1 s per colour, 12 per second, measured 2026-11-24);
+  // only the newest colour is sent and one request at a time, so nothing piles up and the colour is right when you let go
+  let sent=value, want=null, busy=false;
+  const pump=async()=>{
+    if(busy) return; busy=true;
+    while(want!==null&&want!==sent){const o=want; try{await api('/api/set',{prop:'colorphase',value:o}); sent=o}catch(e){msg(tr('prop.colorphase')+': '+e.message,true); want=null}}
+    busy=false; want=null;
+    if(!ringDrag) done();
+  };
+  const done=()=>{ // after the drag: keep the page's value and say what it is now
+    if(lastProps&&lastProps.colorphase) lastProps.colorphase.value=sent;
+    sel.value=sent; const s=Object.values(segs).find(x=>x.o===sent); if(s) msg(tr('prop.colorphase')+': '+s.name);
+    show(sent);
+  };
+  const pick=e=>{
+    const b=svg.getBoundingClientRect(), x=e.clientX-b.left-b.width/2, y=e.clientY-b.top-b.height/2;
+    const k=((Math.round((Math.atan2(y,x)+Math.PI/2)/(2*Math.PI)*N)%N)+N)%N, s=segs[k];
+    if(!s) return; show(s.o); want=s.o; pump();
+  };
+  svg.style.touchAction='none'; // the finger turns the ring, it does not scroll the page
+  svg.addEventListener('pointerdown',e=>{
+    const b=svg.getBoundingClientRect(), d=Math.hypot(e.clientX-b.left-b.width/2,e.clientY-b.top-b.height/2)/(b.width/2)*50;
+    if(e.button!==0||d<r*.8||d>R+3) return; // main button only; the centre (colour name) is no handle
+    e.preventDefault(); ringDrag=true; svg.setPointerCapture(e.pointerId); pick(e);
+  });
+  svg.addEventListener('pointermove',e=>{if(ringDrag&&svg.hasPointerCapture(e.pointerId)) pick(e)});
+  const end=()=>{if(!ringDrag) return; ringDrag=false; if(!busy) done()};
+  svg.addEventListener('pointerup',end); svg.addEventListener('pointercancel',end); svg.addEventListener('lostpointercapture',end); // also when a rebuild detaches the ring
   return svg;
 }
 function renderProps(){
@@ -1713,6 +1900,7 @@ function renderProps(){
   box.dataset.primaryCount=String(primaryCount);
   box.querySelectorAll('label[data-quick-order]').forEach(l=>{l.style.order=l.dataset.quickOrder});
   syncSettingsToggle();
+  reRemote();
   applyContext();
 }
 /* Show and hide shooting options depending on the mode (manual p.41, 85) */
@@ -1737,6 +1925,12 @@ function applyContext(){
   // MF drive (USB 0x9487): like the focus ring, so only with AF mode MF or S-AF+MF (manual p.75)
   const fm=lastProps&&lastProps.focusmode&&lastProps.focusmode.value;
   $('#rowMf').hidden=!(features.has('mf_drive')&&canWrite&&['1','32769'].includes(fm));
+  // Star AF: photo shooting modes only, not Movie mode (REQ-F24)
+  $('#starAfLab').classList.toggle('mode-off',mv);
+  // Hide AF Area boxes and 9x9 grid in MF mode or while Star AF is active (user decision 2026-11-23: app zooms via pointer/overview map)
+  const hideAf=fm==='1'||isStarActive();
+  $('#afModes').hidden=hideAf||!features.has('af_modes');
+  $('#afShowRow').hidden=hideAf;
   renderLongSeg(m,sp);
   const sec=$('[data-id=prog]');
   sec.style.display=[...sec.querySelectorAll('.row')].some(r=>!r.hidden)?'':'none';
@@ -3044,7 +3238,7 @@ function loupeUp(e,cancel){
   if(cancel){if(loupeOn&&(d.moved||d.resume)) loupeRest(LOUPE_REST_MS); return} // no tap action
   if(d.moved){if(loupeOn) loupeRest(LOUPE_REST_MS); return}
   if(d.resume) loupeRest(LOUPE_REST_MS);
-  if(loupeOn){if(canWrite) setAf({focus:true})} // a click in the zoomed view only focuses (half press, release without a shot)
+  if(loupeOn){if(canWrite&&!isStarLocked()&&!isStarActive()) setAf({focus:true})} // a click in the zoomed view only focuses (half press, release without a shot)
   else pickField(e); // 1x: the AF target click
 }
 // Overview map: a click moves the view there (glide), a drag moves it live like a drag in the picture; one commit at rest
@@ -3211,7 +3405,18 @@ function showAf(){
   drawAf();
 }
 function pickField(e){
-  if(!af||!canWrite) return;
+  if(isStarLocked()) return;
+  if(isStarActive()){
+    const b=layer.getBoundingClientRect();
+    if(b.width>0&&b.height>0){
+      starPt={x:Math.max(.05,Math.min(.95,(e.clientX-b.left)/b.width)),y:Math.max(.05,Math.min(.95,(e.clientY-b.top)/b.height))};
+      starBestHfr=null; $('#starBest').textContent=''; aidTick();
+      // Over USB with write enabled and MF/S-AF+MF: tapping a star immediately runs Auto Star AF on it (user 2026-11-23)
+      if(canWrite&&features.has('mf_drive')&&isStarMfReady()&&!(st&&st.star_af&&st.star_af.running)&&!zBlock) runStarAuto();
+    }
+    return;
+  }
+  if(curFm()==='1'||!af||!canWrite) return;
   const b=layer.getBoundingClientRect(),a=af.area;
   const x=((e.clientX-b.left)/b.width*a.w-a.x0)/(a.x1-a.x0), y=((e.clientY-b.top)/b.height*a.h-a.y0)/(a.y1-a.y0);
   if(x<0||x>=1||y<0||y>=1){msg(tr('msg.outsideAf'),true);return}
@@ -3234,6 +3439,7 @@ function drawAf(){
   const c=$('#afGrid'),b=vp.getBoundingClientRect(),d=devicePixelRatio||1;
   if(c.width!==Math.round(b.width*d)||c.height!==Math.round(b.height*d)){c.width=Math.round(b.width*d);c.height=Math.round(b.height*d)}
   const g=c.getContext('2d'); g.clearRect(0,0,c.width,c.height);
+  if(isStarActive()||curFm()==='1') return; // no grid and no AF box while Star AF is on and in MF (user 2026-11-23)
   // without the grid ("Show AF targets" off) only the chosen frame shows for a moment after a tap (REQ-F41)
   const grid=$('#afShow').checked, tapOnly=!grid&&Date.now()<afTapShow;
   if(!af||!st.live||(!grid&&!tapOnly)) return;
@@ -3342,7 +3548,7 @@ function edgeThreshold(mag,top,floor){ // threshold such that about the fraction
   return Math.max(floor,b/k);
 }
 // lvlOn: Level gauge switch, off by default and remembered like the other live view aids (user 2026-11-14)
-const AID_KEY='omcap.aids', AID_IDS=['aidHist','aidRgb','aidClip','aidPeak','lvlOn','lvlSound','focusTone'];
+const AID_KEY='omcap.aids', AID_IDS=['aidHist','aidRgb','aidClip','aidPeak','lvlOn','starAfOn','lvlSound','focusTone'];
 const aidOff=document.createElement('canvas'), aidCtx=aidOff.getContext('2d',{willReadFrequently:true});
 const PEAK_RGB={white:[255,255,255],black:[0,0,0],red:[255,40,40],yellow:[255,230,0]};
 function aidSave(){try{const o={col:$('#aidPeakCol').value};AID_IDS.forEach(i=>o[i]=$('#'+i).checked);localStorage.setItem(AID_KEY,JSON.stringify(o))}catch{}}
@@ -3363,12 +3569,185 @@ function drawHist(data){
   g.fillStyle='rgba(255,255,255,.55)';
   for(let i=0;i<256;i++){const hh=Math.min(1,l[i]/mx)*(H-3);g.fillRect(i/255*(W-1),H-hh,Math.max(1,W/256),hh)}
 }
+let starBestHfr=null, starPt=null, starSwitchedMf=false, starWasRunning=false;
+const isMovie=()=>!!(lastProps&&lastProps.takemode&&lastProps.takemode.value==='movie');
+const curFm=()=>lastProps&&lastProps.focusmode&&lastProps.focusmode.value;
+const isStarMfReady=()=>features.has('mf_drive')&&['1','32769'].includes(curFm());
+function isStarActive(){return !isMovie()&&!!($('#starAfOn').checked||(st&&st.star_af&&st.star_af.running))}
+function isStarLocked(){return !isMovie()&&isStarMfReady()&&!!$('#starLock').checked}
+function hyperfocalText(){
+  // MFT circle of confusion 0.015 mm: H = f^2 / (N * c) + f, sharp from H/2 to infinity
+  const f=(st&&st.lvinfo&&st.lvinfo.focal&&st.lvinfo.focal[2])||(lens&&(lens.focal||(lens.focal_min&&lens.focal_min===lens.focal_max?lens.focal_min:null)));
+  const mode=lastProps&&lastProps.takemode&&lastProps.takemode.value;
+  const liveAp=st&&st.lvinfo&&st.lvinfo.aperture;
+  const ap=(liveAp&&!['A','M','B'].includes(mode))?liveAp:(lastProps&&lastProps.focalvalue&&parseFloat(lastProps.focalvalue.value))||liveAp;
+  if(!f||!ap||f<=0||ap<=0) return '';
+  const h=(f*f/(ap*0.015)+f)/1000;
+  return tr('star.hyp',{h:h.toFixed(1),n:(h/2).toFixed(1)});
+}
+function measureStarHfr(gray,w,h,pt){
+  // Search around the chosen star point (or full frame when pt is null); 3x3 mean suppresses hot pixels (REQ-F24)
+  let x0,x1,y0,y1;
+  if(pt){
+    const px=Math.round(pt.x*(w-1)), py=Math.round(pt.y*(h-1));
+    const half=Math.max(12,Math.min(96,w>>1,h>>1));
+    x0=Math.max(0,px-half); x1=Math.min(w,px+half); y0=Math.max(0,py-half); y1=Math.min(h,py+half);
+  }else{
+    const m=Math.max(8,Math.min(24,Math.floor(w/8),Math.floor(h/8)));
+    x0=m; x1=w-m; y0=m; y1=h-m;
+  }
+  const rw=x1-x0,rh=y1-y0; if(rw<11||rh<11) return null;
+  const hist=new Uint32Array(256);
+  for(let y=y0;y<y1;y++) for(let x=x0;x<x1;x++) hist[gray[y*w+x]]++;
+  const mid=(rw*rh)>>1; let acc=0,bg=0;
+  for(let i=0;i<256;i++){acc+=hist[i];if(acc>=mid){bg=i;break}}
+  // Precompute 3x3 mean inside ROI so local-max checks stay fast
+  const sm=new Float32Array(rw*rh);
+  for(let ry=1;ry<rh-1;ry++){
+    const gy=y0+ry, row=gy*w, rOut=ry*rw;
+    for(let rx=1;rx<rw-1;rx++){
+      const gx=x0+rx;
+      sm[rOut+rx]=(gray[row-w+gx-1]+gray[row-w+gx]+gray[row-w+gx+1]
+        +gray[row+gx-1]+gray[row+gx]+gray[row+gx+1]
+        +gray[row+w+gx-1]+gray[row+w+gx]+gray[row+w+gx+1])/9;
+    }
+  }
+  let bestU=0,bxU=-1,byU=-1,bestA=0,bxA=-1,byA=-1;
+  for(let ry=4;ry<rh-4;ry++) for(let rx=4;rx<rw-4;rx++){
+    const s=sm[ry*rw+rx];
+    if(s-bg<8) continue;
+    const gx=x0+rx, gy=y0+ry;
+    if(gray[gy*w+gx]-bg<12) continue;
+    if(s>bestA){bestA=s;bxA=gx;byA=gy}
+    if(!pt&&s>bestU){
+      // Full-frame auto search prefers unsaturated 5x5 local maxima clear of any clipped beacon (r=10)
+      let isPeak=true;
+      for(let dy=-2;dy<=2&&isPeak;dy++) for(let dx=-2;dx<=2;dx++) if(sm[(ry+dy)*rw+(rx+dx)]>s){isPeak=false;break}
+      if(!isPeak) continue;
+      let nearSat=false;
+      const sx0=Math.max(x0,gx-10),sx1=Math.min(x1-1,gx+10),sy0=Math.max(y0,gy-10),sy1=Math.min(y1-1,gy+10);
+      for(let yy=sy0;yy<=sy1&&!nearSat;yy++) for(let xx=sx0;xx<=sx1;xx++) if(gray[yy*w+xx]>=250){nearSat=true;break}
+      if(!nearSat){bestU=s;bxU=gx;byU=gy}
+    }
+  }
+  const useU=!pt&&bxU>=0;
+  const bx=useU?bxU:bxA, by=useU?byU:byA, best=useU?bestU:bestA;
+  if(bx<0||best-bg<8||gray[by*w+bx]-bg<12) return bg>=180?{bright:true}:null;
+  const ap=Math.min(18,bx-x0,by-y0,x1-1-bx,y1-1-by);
+  if(ap<3) return null;
+  let sum=0,sx=0,sy=0;
+  for(let dy=-ap;dy<=ap;dy++) for(let dx=-ap;dx<=ap;dx++){
+    const v=gray[(by+dy)*w+(bx+dx)]-bg; if(v>0){sum+=v;sx+=v*dx;sy+=v*dy}
+  }
+  if(sum<=1) return null;
+  const cx=sx/sum,cy=sy/sum; let rsum=0;
+  for(let dy=-ap;dy<=ap;dy++) for(let dx=-ap;dx<=ap;dx++){
+    const v=gray[(by+dy)*w+(bx+dx)]-bg; if(v>0) rsum+=v*Math.hypot(dx-cx,dy-cy);
+  }
+  let sat=false;
+  for(let dy=-1;dy<=1&&!sat;dy++) for(let dx=-1;dx<=1;dx++) if(gray[(by+dy)*w+(bx+dx)]>=250){sat=true;break}
+  return {hfr:rsum/sum,x:bx+cx,y:by+cy,ap,saturated:sat};
+}
+function starStatusText(sa){
+  if(sa.running) return tr('star.running')+(sa.boost_on?' · '+tr('star.boostNote'):'');
+  if(sa.phase==='done'){
+    const v=(sa.best_hfr!=null?sa.best_hfr:sa.hfr);
+    const key=sa.switched_to_mf?'star.inFocusMf':'star.inFocus';
+    return tr(key,{v:v!=null?Number(v).toFixed(2):'—'});
+  }
+  if(sa.phase==='stopped') return tr('star.stopped');
+  if(sa.phase==='error'){
+    if(sa.code==='bright') return tr('star.noFocus')+' · '+tr('star.tooBright');
+    if(sa.code==='no_star'||sa.code==='lost_star') return tr('star.noFocus')+' · '+tr('star.noStar');
+    return tr('star.noFocus')+(sa.error?' · '+sa.error:'');
+  }
+  if(features.has('mf_drive')) return isStarMfReady()?'':tr('star.needMf');
+  return tr('star.manualHint');
+}
+function updateStarAfUi(){
+  const mv=isMovie(), mfReady=isStarMfReady();
+  const sa=(st&&st.star_af)||{}, run=!!sa.running;
+  // Auto-lock focus once Auto Star AF finishes sharply so accidental taps/MF presses keep focus (user 2026-11-23)
+  if(starWasRunning&&!run&&sa.phase==='done'&&features.has('mf_drive')) $('#starLock').checked=true;
+  const locked=isStarLocked();
+  const on=!!(st&&st.live&&$('#starAfOn').checked&&!mv);
+  const active=on||run;
+  $('#starRow').hidden=!active;
+  $('#viewport').classList.toggle('star',active);
+  const showUsb=features.has('mf_drive')&&(mfReady||run);
+  $('#starAuto').hidden=!showUsb;
+  $('#starPrio').hidden=!showUsb;
+  $('#starLockLab').hidden=!showUsb;
+  document.querySelectorAll('[data-mf]').forEach(b=>b.disabled=!canWrite||locked||run);
+  const roTitle=!canWrite?tr('na.readOnly'):'';
+  const blocked=!canWrite||(!run&&(mv||!mfReady||locked||!st||!st.live||zBlock));
+  const btn=$('#starAuto');
+  btn.textContent=tr(run?'star.stop':'star.auto');
+  btn.classList.toggle('rec',run);
+  btn.disabled=blocked;
+  const prio=$('#starPrio');
+  prio.disabled=!canWrite||run||locked||mv||!mfReady;
+  prio.classList.toggle('na',!canWrite);
+  prio.title=roTitle||tr('star.prioHint');
+  const lk=$('#starLock'), lkLab=$('#starLockLab');
+  lk.disabled=!canWrite||run||mv||!mfReady;
+  lkLab.classList.toggle('na',!canWrite);
+  lkLab.title=roTitle||tr('star.lockHint');
+  $('#starLockTxt').textContent=tr(locked?'star.locked':'star.lock');
+  $('#starHyp').textContent=active?hyperfocalText():'';
+  const m=starStatusText(sa);
+  $('#starMsg').textContent=m;
+  $('#starMsg').className=sa.error?'warn':sa.phase==='done'?'ok':'mut';
+  if(starWasRunning!==run) renderStrip();
+  if(starWasRunning&&!run&&m){
+    msg(m,!!sa.error);
+    if(sa.phase==='done'){focusHit={field:af?af.field:41,until:Date.now()+2000};focusChipUpdate();setTimeout(focusChipUpdate,2050)}
+    else if(sa.phase==='error') showNoFocus();
+  }
+  starWasRunning=run;
+  if(sa.switched_to_mf&&!starSwitchedMf){starSwitchedMf=true;props()}
+  if(!sa.switched_to_mf) starSwitchedMf=false;
+}
+async function ensureStarMf(){
+  if(!features.has('mf_drive')||!canWrite||isMovie()||isStarMfReady()) return;
+  try{
+    await api('/api/set',{prop:'focusmode',value:'1'});
+    if(lastProps&&lastProps.focusmode) lastProps.focusmode.value='1';
+    renderProps();
+    msg(tr('star.autoMf'));
+    props();
+  }catch(e){msg(e.message,true)}
+}
+async function runStarAuto(){
+  const run=!!(st&&st.star_af&&st.star_af.running);
+  try{
+    if(run){await api('/api/staraf',{action:'stop'});return}
+    if(isStarLocked()) return;
+    if(!isStarMfReady()) await ensureStarMf();
+    if(!isStarMfReady()) return;
+    if(!$('#starAfOn').checked){$('#starAfOn').checked=true;aidSave();applyContext();drawAf()}
+    const body={action:'start',zoom:true,boost:true,priority:$('#starPrio').value};
+    if(!loupeOn&&starPt){body.x=starPt.x;body.y=starPt.y}
+    await api('/api/staraf',body);
+    tick();
+  }catch(e){msg(e.message,true)}
+}
+$('#starReset').onclick=()=>{starBestHfr=null;starPt=null;$('#starBest').textContent=''};
+$('#starAuto').onclick=runStarAuto;
+$('#starLock').onchange=updateStarAfUi;
+$('#starAfOn').addEventListener('change',async()=>{
+  if($('#starAfOn').checked) await ensureStarMf();
+  else $('#starLock').checked=false;
+  applyContext();drawAf();renderStrip();updateStarAfUi();
+});
 function aidTick(){
   if(quitting) return;
-  const wantH=$('#aidHist').checked,wantC=$('#aidClip').checked,wantP=$('#aidPeak').checked;
+  const mv=isMovie();
+  const wantH=$('#aidHist').checked,wantC=$('#aidClip').checked,wantP=$('#aidPeak').checked,wantS=$('#starAfOn').checked&&!mv;
   const hc=$('#histCv'),oc=$('#aidCv'),img=$('#live'),nw=img.naturalWidth,nh=img.naturalHeight;
   hc.hidden=!(wantH&&st.live);
-  if(!st.live||document.hidden||!(wantH||wantC||wantP)||!nw||!nh){
+  updateStarAfUi();
+  if(!st.live||document.hidden||!(wantH||wantC||wantP||wantS)||!nw||!nh){
     if(oc.width) oc.getContext('2d').clearRect(0,0,oc.width,oc.height);
     return;
   }
@@ -3380,19 +3759,36 @@ function aidTick(){
   if(wantH) drawHist(data);
   if(oc.width!==w||oc.height!==h){oc.width=w;oc.height=h}
   const og=oc.getContext('2d');
-  if(!wantC&&!wantP){og.clearRect(0,0,w,h);return}
-  const out=og.createImageData(w,h),o=out.data;
-  if(wantC){
-    const m=clipMask(data,250,5);
-    for(let j=0;j<m.length;j++) if(m[j]){const k=j*4;o[k]=m[j]===1?255:30;o[k+1]=m[j]===1?30:80;o[k+2]=m[j]===1?30:255;o[k+3]=200}
+  const gray=(wantP||wantS)?grayOf(data):null;
+  if(wantC||wantP){
+    const out=og.createImageData(w,h),o=out.data;
+    if(wantC){
+      const m=clipMask(data,250,5);
+      for(let j=0;j<m.length;j++) if(m[j]){const k=j*4;o[k]=m[j]===1?255:30;o[k+1]=m[j]===1?30:80;o[k+2]=m[j]===1?30:255;o[k+3]=200}
+    }
+    if(wantP){
+      // fixed floor 150: only really sharp edges light up, so turning the focus ring away makes them go out (a relative
+      // threshold marked the strongest 3 % in any picture, sharp or not); at most 6 % of the picture in very detailed scenes
+      const mag=edgeMagnitude(gray,w,h),t=edgeThreshold(mag,.06,150),c=PEAK_RGB[$('#aidPeakCol').value]||PEAK_RGB.white;
+      for(let j=0;j<mag.length;j++) if(mag[j]>=t){const k=j*4;o[k]=c[0];o[k+1]=c[1];o[k+2]=c[2];o[k+3]=255}
+    }
+    og.putImageData(out,0,0);
+  }else{
+    og.clearRect(0,0,w,h);
   }
-  if(wantP){
-    // fixed floor 150: only really sharp edges light up, so turning the focus ring away makes them go out (a relative
-    // threshold marked the strongest 3 % in any picture, sharp or not); at most 6 % of the picture in very detailed scenes
-    const mag=edgeMagnitude(grayOf(data),w,h),t=edgeThreshold(mag,.06,150),c=PEAK_RGB[$('#aidPeakCol').value]||PEAK_RGB.white;
-    for(let j=0;j<mag.length;j++) if(mag[j]>=t){const k=j*4;o[k]=c[0];o[k+1]=c[1];o[k+2]=c[2];o[k+3]=255}
+  if(wantS){
+    const res=measureStarHfr(gray,w,h,loupeOn?{x:0.5,y:0.5}:starPt),chip=$('#starHfr');
+    if(res&&!res.bright){
+      if(starBestHfr===null||res.hfr<starBestHfr) starBestHfr=res.hfr;
+      chip.textContent=tr(res.saturated?'star.hfrClip':'star.hfr',{v:res.hfr.toFixed(2)});
+      chip.classList.toggle('ok',!res.saturated&&res.hfr<=starBestHfr*1.1);
+      $('#starBest').textContent=tr('star.best',{v:starBestHfr.toFixed(2)});
+      og.strokeStyle=res.saturated?'#FFB020':'#3DDC84'; og.lineWidth=1.5;
+      og.beginPath(); og.arc(res.x,res.y,Math.max(8,res.hfr*2.5),0,Math.PI*2); og.stroke();
+    }else{
+      chip.textContent=tr(res&&res.bright?'star.tooBright':'star.noStar'); chip.classList.remove('ok');
+    }
   }
-  og.putImageData(out,0,0);
 }
 AID_IDS.filter(i=>i!=='lvlOn').concat('aidPeakCol').forEach(i=>$('#'+i).onchange=()=>{aidSave();aidTick()});  // lvlOn has its own handler
 setInterval(aidTick,250); // 4 frames/s are enough and keep the CPU low
@@ -3582,7 +3978,8 @@ function startLiveLoop(img=$('#live')){
         const r=await pending;
         if(!r){await sleep(1000);pending=ask(seq);continue}
         if(r.status!==200){await sleep(r.status===204?20:1000);pending=ask(seq);continue} // 204: no new frame within 3 s
-        seq=+r.headers.get('X-Seq')||0; const info={rev:+r.headers.get('X-Loupe-Rev')||0,on:r.headers.get('X-Loupe')==='1'}; // USB zoom stamp of this frame
+        seq=+r.headers.get('X-Seq')||0; if(img.id==='live'&&connected) modeSeen(+r.headers.get('X-Mode-At')||null);
+        const info={rev:+r.headers.get('X-Loupe-Rev')||0,on:r.headers.get('X-Loupe')==='1'}; // USB zoom stamp of this frame
         pending=ask(seq); // next frame on its way while this one decodes
         const blob=await r.blob(), url=URL.createObjectURL(blob), next=new Image(); next.src=url;
         try{await next.decode()}catch{URL.revokeObjectURL(url);continue} // bad frame: skip it
@@ -3845,7 +4242,19 @@ async function enterApp(){
 // the poll skips while the last one still waits (a slow /api/state must not pile up); explicit tick() calls still run
 let tickBusy=false;
 function tickPoll(){if(tickBusy) return; tickBusy=true; tick().finally(()=>{tickBusy=false})}
-if(!view){init();setInterval(tickPoll,1500)}
+async function mcpWait(){ // the server answers the moment the MCP acts: the page follows at once, like a magic surface
+  const pause=ms=>new Promise(f=>setTimeout(f,ms));
+  let seen=-1;
+  for(;;){
+    try{
+      const r=await fetch('/api/mcpwait?after='+seen); if(!r.ok){await pause(3000);continue}
+      const n=(await r.json()).mcp_n;
+      if(n!==seen&&seen!==-1&&connected) tickPoll(); // tick shows the action (mcpSeen) and its value
+      seen=n;
+    }catch{await pause(3000)} // server gone: try again later
+  }
+}
+if(!view){init();setInterval(tickPoll,1500);mcpWait()}
 </script>
 </body>
 </html>

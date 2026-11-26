@@ -59,11 +59,6 @@ class Revision(unittest.TestCase):
         cam.loupe(False)
         self.assertEqual(cam._c.writes, [("d04b", "2")])  # switching off is a single write
 
-    def test_zoom_off_keeps_the_order_d0cf_point_on(self):
-        cam = make()
-        cam.loupe(True, 7, 0.4, 0.5)
-        self.assertEqual([n for n, _ in cam._c.writes], ["d0cf", "opcode", "d04b"])
-
     def test_bad_ratio_with_the_zoom_on_changes_nothing(self):
         cam = make()
         cam.loupe(True, 5, 0.5, 0.5)
@@ -204,9 +199,7 @@ class CropPosition(unittest.TestCase):
         sent = self.sent_point(0.30, 0.5)[0] / 1024
         self.assertAlmostEqual(0.5 + (sent - 0.5) * ptp.LOUPE_X_GAIN, 0.30, places=2)  # what the camera makes of it
         self.assertAlmostEqual(self.sent_point(0.70, 0.5)[0] / 1024, 1 - sent, places=2)
-
-    def test_gain_constant(self):
-        self.assertEqual(ptp.LOUPE_X_GAIN, 1.135)
+        self.assertEqual(ptp.LOUPE_X_GAIN, 1.135)  # the measured gain itself
 
 
 class CycleStamp(unittest.TestCase):
@@ -266,11 +259,6 @@ class Endpoint(unittest.TestCase):
     def act(self, b):
         return server.Handler._action(server.Handler.__new__(server.Handler), "/api/loupe", b)
 
-    def test_answer_carries_the_revision(self):
-        server.cam, server.conn_type = make(), "usb"
-        self.assertEqual(self.act({"on": True, "ratio": 3, "x": 0.5, "y": 0.5}), {"loupe": True, "rev": 1})
-        self.assertEqual(self.act({"on": False}), {"loupe": False, "rev": 2})
-
     def test_unknown_body_is_refused_not_switched_off(self):
         server.cam, server.conn_type = make(), "usb"
         self.act({"on": True, "ratio": 3})
@@ -280,12 +268,6 @@ class Endpoint(unittest.TestCase):
                 self.act(body)
         self.assertEqual(server.cam._c.writes, [])
         self.assertTrue(server.cam.loupe_on)
-
-    def test_wifi_unchanged(self):
-        server.cam, server.conn_type = object(), "wifi"
-        with self.assertRaises(CameraError):
-            self.act({"on": True})
-        self.assertNotIn("loupe", server.WIFI_FEATURES)
 
 
 class FrameHeaders(unittest.TestCase):

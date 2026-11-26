@@ -186,7 +186,7 @@ class SharpSizeAndPointers(unittest.TestCase):
         r = self.run_js("z=1; st.lvqty='0640x0480'; wzSizeCheck(); JSON.stringify(calls)")
         self.assertEqual(r, [])  # never zoomed: the adaptive logic is left alone
 
-    SLOW = "st.lvperf={sample_seconds:5,fps:5};st.lv_age=0;"
+    SLOW = "st.lvperf={sample_seconds:5,fps:3};st.lv_age=0;"  # zoomed: only a near stall counts as slow
 
     def test_slow_sharp_size_falls_back_and_sets_focus_mode(self):
         r = self.run_js("""
@@ -200,6 +200,16 @@ class SharpSizeAndPointers(unittest.TestCase):
         self.assertTrue(r["focus"])
         self.assertEqual(r["calls"], ["start 0640x0480"])  # the adaptive size from before
         self.assertFalse(r["on"])
+
+    def test_zoomed_sharp_size_stays_at_wifi_1280_frame_rates(self):
+        r = self.run_js("""
+        z=3; wzSizeCheck(); st.lvqty='1280x0960'; autoLvBusy=false; autoLvLastChange=0;
+        st.lvperf={sample_seconds:5,fps:8,drop_ratio:.3}; st.lv_age=0.4;
+        reduceAutoLiveSize(); autoLvSlowSince=Date.now()-5000; reduceAutoLiveSize();
+        JSON.stringify({focus:wzFocusOnly,on:wzSharpOn,since:autoLvSlowSince})""")
+        self.assertFalse(r["focus"])  # 8 fps at 1280x960 is normal over Wi-Fi: stay sharp for focusing (user 2026-11-24)
+        self.assertTrue(r["on"])
+        self.assertEqual(r["since"], 0)
 
     def test_focus_mode_stays_normal_at_rest_and_goes_sharp_on_focus_once(self):
         r = self.run_js("""
@@ -296,7 +306,7 @@ class SharpSizeAndPointers(unittest.TestCase):
         self.assertEqual(r["calls"], ["start 1280x0960", "start 1024x0768"])  # the middle size that belongs to 2x
 
     def test_explicit_size_is_never_stepped_down_at_1x_but_the_sharp_size_falls_back(self):
-        slow = "st.lvperf={sample_seconds:5,fps:5};st.lv_age=0;autoLvLastChange=0;enabled=false;"
+        slow = "st.lvperf={sample_seconds:5,fps:3};st.lv_age=0;autoLvLastChange=0;enabled=false;"
         r = self.run_js(slow + "st.lvqty='1024x0768'; z=1; reduceAutoLiveSize(); JSON.stringify({s:autoLvSlowSince,c:calls.length})")
         self.assertEqual((r["s"], r["c"]), (0, 0))
         r = self.run_js(slow + """z=3; wzSizeCheck(); st.lvqty='1280x0960'; autoLvBusy=false; autoLvLastChange=0;

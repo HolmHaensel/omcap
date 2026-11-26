@@ -321,6 +321,8 @@ recording a movie, read only, Wi-Fi drop-out (last good frame kept, "No signal f
 | AF target (AF Area): All Targets, Single Target, Small Target, Group Target | "Choosing a focus target (AF Area)", same four names | p.54–55 |
 | Displayed Grid | Displayed Grid (options shown as icons; the app names them Rule of thirds, Crosshair, Grid) | p.95 |
 | Histogram, Highlight&Shadow, Peaking | Histogram Settings, Highlight&Shadow, MF Assist › Peaking, Peaking Settings | p.95, p.102, p.176 |
+| Live View Boost (Off / On1 / On2) | Live View Boost (Custom menu D) | p.95, p.176, p.179 |
+| Star AF (app function, not a camera mode): Auto Star AF, Lock focus, Speed/Accuracy, HFR (star size) | app function, no manual page; MF Assist > Magnify (frame set by the AF target) | p.102 |
 | Anti-Shock, Silent, Noise Reduct., BULB/TIME Timer, Digital Tele-converter | same | menus |
 | Time lapse, AE BKT, LIVE TIME, LIVECOMP | Time Lapse Settings, AE BKT, LIVE TIME, LIVECOMP | p.41, p.85, menus |
 | Press halfway / Take picture | "press the shutter button halfway" / "press fully" | p.20 |

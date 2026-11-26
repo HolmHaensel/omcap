@@ -32,6 +32,10 @@ GP_ERROR, GP_ERROR_NOT_SUPPORTED, GP_ERROR_IO = -1, -6, -7
 EV_OBJECT_ADDED = (0x4002, 0xC002, 0xC102)  # standard and Olympus OM-D "object added"
 EV_PROP_CHANGED = (0xC008, 0xC108)
 FOLDER_FORMAT = 0x3001
+# Properties polled with 0x9486 (all in OM Capture's own poll list): the mode d006 and what the page shows
+# (UsbCamera.PROPS), Focus Stacking helpers and the lens limits. Only codes the camera lists are sent.
+POLL_CODES = (0xD006, 0xD01C, 0xD002, 0xD008, 0xD007, 0xD01E, 0xD009, 0xD010, 0xD003, 0xD004, 0xD005, 0xD00D,
+              0xD01B, 0xD01D, 0xD01A, 0xD0CB, 0xD0CE, 0xD0A6, 0xD07F, 0xD080)
 INDEX_VERSION = 1
 
 
@@ -293,6 +297,8 @@ class Camera:
         self._ptp = None
         self._model = None
         self._types = {}  # property code -> PTP data type, for get_prop_value
+        self._polled = {}  # property code -> descriptor from the last 0x9486 poll (fresher than 0x1014)
+        self.polling = False  # the camera took the poll list: poll_props() follows camera-side changes
         self._index = CardIndex(Camera.index_cache)
 
     @_wrap
@@ -309,7 +315,8 @@ class Camera:
         cam = ptp.PtpCamera(transport)
         try:
             cam.open()
-            self._model = cam.device_info()["model"]
+            info = cam.device_info()
+            self._model = info["model"]
             lap("session")
             # Card index first: GetObjectInfo takes 10-12 ms in camera mode but ~26 ms under PC control
             # (measured 2026-11-13, 2948 files: ~30 s instead of 88 s; with the disk cache well under 1 s)
@@ -322,12 +329,38 @@ class Camera:
             if not cam.pc_mode(True):
                 raise ptp.PtpError("camera did not switch to computer control")
             lap("PC control")
+            self.polling = self._start_poll(cam, info)
+            lap("poll list")
             print("USB connect: " + ", ".join("%s %.1f s" % st for st in steps)
                   + " (camera answer %.1f s)" % cam.pc_answer_s, flush=True)
         except Exception:
             transport.close()
             raise
         self._ptp = cam
+
+    def _start_poll(self, cam, info):
+        """Set the 0x9486 poll list and read it once; False (fallback: session rebuild) if the camera refuses."""
+        codes = [c for c in POLL_CODES if c in info["properties"]] \
+            if ptp.OP_CHANGED_PROPS in info["operations"] and ptp.OP_SET_POLL_LIST in info["operations"] else []
+        if not codes:
+            return False
+        try:
+            # not gated by --allow-write: 0x9489 only chooses what 0x9486 reports, no camera setting changes
+            cam.set_poll_list(codes)
+            self._polled = cam.changed_props()
+        except (ptp.PtpError, struct.error, IndexError, KeyError, ValueError) as e:
+            print("USB: no change poll (%s), a mode dial turn rebuilds the session" % e, flush=True)
+            self._polled = {}
+            return False
+        return ptp.DPC_MODE in self._polled
+
+    @_wrap
+    def poll_props(self):
+        """Current descriptors of the poll list (0x9486, not a gphoto2 method); later reads of these
+        properties (get_single_config) use them instead of the stale session-start descriptor."""
+        descs = self._cam().changed_props()
+        self._polled.update(descs)
+        return descs
 
     def exit(self):
         cam, self._ptp = self._ptp, None
@@ -385,7 +418,7 @@ class Camera:
         if name == "opcode":
             return Widget(name, "0x1001,0xparam1,0xparam2", wtype=GP_WIDGET_TEXT)
         code, text, wtype = self._lookup(name)
-        desc = cam.prop_desc(code)
+        desc = self._polled.get(code) or cam.prop_desc(code)
         dtype = desc["type"]
         values = desc.get("enum", [])
         if name == "liveviewsize":
@@ -419,7 +452,7 @@ class Camera:
             cam.transact(code, tuple(params))
             return
         code, text, _ = self._lookup(name)
-        desc = cam.prop_desc(code)
+        desc = self._polled.get(code) or cam.prop_desc(code)  # 0x1014 keeps the session-start choices
         dtype = desc["type"]
         # the raw value whose text is the wanted one (as libgphoto2 does); else a number for dXXX
         raw = next((v for v in desc.get("enum", []) if text(v, dtype) == value), None)
@@ -431,6 +464,8 @@ class Camera:
         while True:
             try:
                 cam.set_prop(code, raw, dtype)
+                if code in self._polled:  # until the next poll: the value just written
+                    self._polled[code] = dict(self._polled[code], value=raw)
                 return
             except ptp.PtpError as e:  # busy shortly after a shot (noise reduction, saving)
                 if e.code != ptp.RC_BUSY or time.monotonic() > end:

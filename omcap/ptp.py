@@ -41,6 +41,12 @@ OP_DS_INFO, OP_DS_PART = 0x9495, 0x9493
 DS_CHUNK = 0x200000  # piece size OM Capture used
 OP_GET_IMAGE = 0x9485  # OMD_GetImage: JPEG of the shot just taken, before the card lists it (traced from OM Capture)
 DPC_CONTROL_MODE = 0xD052  # 1 = PC control, 2 = camera
+DPC_MODE = 0xD006  # shooting mode (mode dial)
+# Change poll (traced from OM Capture, round_c 2026-11-22): 0x9489 SetProperties chooses a list of properties
+# (UINT32 count, UINT16 codes), then 0x9486 ChangedProperties returns their current descriptors (UINT32 count,
+# DevicePropDescs back to back) - also after a mode dial turn, which 0x1014 only shows in a new session.
+# OM Capture polls it every 0.6 s (~26 ms each). Without 0x9489 the E-M1 returns only d052.
+OP_SET_POLL_LIST, OP_CHANGED_PROPS = 0x9489, 0x9486
 
 # Zoom frame AF / Zoom AF (the camera's own magnified live view, E-M1 manual p.56), from OM Capture traces
 # and confirmed on the camera 2026-11-16 (out/research/loupe_protocol.md): d0cf = ratio, 0x9483 = point
@@ -137,8 +143,23 @@ def parse_object_info(buf):
 
 
 def parse_prop_desc(buf):
-    code, dtype, getset = struct.unpack_from("<HHB", buf, 0)
-    off = 5
+    return _prop_desc_at(buf, 0)[0]
+
+
+def parse_prop_descs(buf):
+    """0x9486 answer: UINT32 count, then DevicePropDescs back to back -> {code: descriptor}."""
+    n = struct.unpack_from("<I", buf, 0)[0]
+    off, out = 4, {}
+    for _ in range(n):
+        desc, off = _prop_desc_at(buf, off)
+        out[desc["code"]] = desc
+    return out
+
+
+def _prop_desc_at(buf, off):
+    """One DevicePropDesc starting at `off`: (descriptor, offset after it)."""
+    code, dtype, getset = struct.unpack_from("<HHB", buf, off)
+    off += 5
     default, off = read_value(buf, off, dtype)
     current, off = read_value(buf, off, dtype)
     form = buf[off] if off < len(buf) else 0
@@ -157,7 +178,7 @@ def parse_prop_desc(buf):
             v, off = read_value(buf, off, dtype)
             values.append(v)
         out["enum"] = values
-    return out
+    return out, off
 
 
 def pack_value(value, dtype):
@@ -569,6 +590,14 @@ class PtpCamera:
 
     def set_prop(self, code, value, dtype, timeout=5000):
         self.transact(OP_SET_PROP, (code,), data=pack_value(value, dtype), timeout=timeout)
+
+    def set_poll_list(self, codes):
+        """0x9489: the properties 0x9486 reports (sends a list, changes no setting)."""
+        self.transact(OP_SET_POLL_LIST, data=struct.pack("<I%dH" % len(codes), len(codes), *codes))
+
+    def changed_props(self):
+        """0x9486: current descriptors of the poll list, {code: descriptor}."""
+        return parse_prop_descs(self.transact(OP_CHANGED_PROPS, want_data=True)[0] or b"\0\0\0\0")
 
     def pc_mode(self, on=True, wait=5.0):
         """Camera control mode d052: 1 = PC control (needed for live view and shooting), 2 = camera.

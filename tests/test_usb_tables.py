@@ -17,6 +17,7 @@ class Tables(unittest.TestCase):
         t = usb_camera.USB_TABLES
         self.assertEqual((t["d004"]["2"], t["d00d"]["290"], t["d01a"]["32772"], t["d005"]["2"]),
                          ("Center weighted", "LN+RAW", "Face & L. Eye Priority On", "Flash Off"))
+        self.assertEqual((t["d0ea"]["2"], t["d0ea"]["1"], t["d0ea"]["3"]), ("Off", "On1", "On2"))
 
 
 if __name__ == "__main__":

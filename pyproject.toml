@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "em1-capture"
-version = "0.7.9"
+version = "0.8.1"
 description = "Local web app to control an Olympus OM-D E-M1 (Mark I) over Wi-Fi or USB"
 readme = "README.md"
 license = { text = "GPL-3.0-or-later" }
@@ -28,6 +28,7 @@ film = ["numpy", "rawpy", "imageio"]
 
 [project.scripts]
 em1-capture = "omcap.server:main"
+em1-capture-mcp = "omcap.mcp_server:main"
 
 [tool.setuptools]
 packages = ["omcap"]

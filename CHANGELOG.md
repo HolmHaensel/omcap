@@ -1,15 +1,31 @@
 # Changelog
 
-## Unreleased
+## 0.8.1 – 2026-11-26
 
-- HSL copy in float32: half the memory, within 1 step of 16 bit.
-- `develop.py` moved to `tools/` (English).
-- Disconnecting during a running request answers "Not connected" (409) instead of an internal error; caches and live view counters are thread-safe.
-- USB Focus Stacking no longer writes d020; the camera sets it itself, like OM Capture (REQ-F69).
-- Quit and Open in OM Workspace only from the computer itself (hidden on a phone over --lan); Quit waits for a running connect (REQ-Q10).
-- USB Focus Stacking: waits out the camera's silence while merging; switching Off retries while the camera is busy after a shot (REQ-F69). USB-tested 2026-11-23 (busy retry unit-tested).
-- The page's status poll no longer piles up when the camera answers slowly.
-- USB Focus Stacking: sets and restores Bracketing (d0a6); one-frame shot ends early with a note (REQ-F69). USB-tested.
+- Tests tidied: duplicates dropped, USB/Wi-Fi flag table, 6 source-text checks now run the code; suite 15.5 → 13.9 s (REQ-F24, REQ-F35, REQ-F53, REQ-Q10). No behaviour change.
+- Partial Color: press and drag around the colour ring, the camera follows live (Wi-Fi about 0.1 s per colour, measured 2026-11-24); only the newest colour is sent (REQ-F42). Browser-tested without camera.
+- MCP actions show on the page: the control the MCP used looks pressed for a moment and the value changes, as if an invisible user worked the app; a message "MCP: …" and a list of the last 10 actions, failures in red (REQ-F35). Offline- and browser-tested, not camera-tested.
+- Wi-Fi zoom stays sharp while focusing: with Auto the sharp live view size (1024/1280) falls back only when the picture nearly stands (under 4 fps), not at the usual 8–15 fps of 1280×960 (REQ-F55). Offline-tested.
+- Settings changed by the MCP server look tapped on the page for 1.5 s, so you see what changed (REQ-F35). Wi-Fi camera-tested (ISO and exposure compensation).
+- MCP `camera_settings`: in P, A and other modes where the camera picks the time, `shutspeedvalue` carries `shutter_live` (time in use from the Wi-Fi live view) and a note; without a fresh live view (USB, live view off) `shutter_live` is null with a note (REQ-F35). Offline-tested.
+- Settings changed by the MCP server (or another page) appear on the open page within about 2 s: `/api/state` carries `props_rev`; not while busy or a setting list is open (REQ-F35). Wi-Fi camera-tested.
+- Wi-Fi: outer AF grid fields focus where tapped instead of 1–2 fields further in; the camera accepts points outside its touch area (REQ-F04). Wi-Fi camera-tested (corners at 800×600 and 1280×960, Take picture at an outer field).
+- HSL over USB tested: HSL button (JPG 2.1 s, ORF + 16-bit TIFF 2.6 s) and the automatic copy on save (REQ-I01, I04).
+
+## 0.8.0 – 2026-11-24
+
+- MCP full control (REQ-F35): with `--allow-write`, `--allow-shutter`, `--allow-erase` an assistant can focus, run live view, Playback, connect, shoot, record and erase; every camera change is a dry-run first and needs `confirm=true`. USB- and Wi-Fi-tested; time lapse, AE BKT, long exposure and erase offline-tested.
+- MCP: any wish in words (scene, look, problem) becomes a settings plan from what the camera offers now (`camera_settings choices=true`, body-only steps), pro M-mode thinking, a verdict on the attached lens and which lens fits better; WB in kelvin also over Wi-Fi (REQ-F35) USB-tested.
+- README easier to read: grouped highlights, short feature table; all details moved to FEATURES.md.
+- Star AF (REQ-F24): live star-size (HFR) focus aid and hyperfocal readout in photo modes (USB and Wi-Fi), plus USB Auto Star AF (auto-switches to MF, tap-on-star focuses and auto-locks focus) and Live View Boost (Others, P/A/S). 9×9 grid and AF Area hidden while Star AF is on and in MF; "★AF" shown in the live view value strip. Camera-tested over USB 2026-11-23.
+- MCP Photo Coach server (`em1-capture-mcp`): read-only tools and coach prompts; `--allow-write` adds a dry-run `camera_configure` (REQ-F35). USB- and Wi-Fi-tested.
+- MCP cross-review fixes: WB in USB Movie, movie exposure by name, Focus stacking "ON" and Off first, 0.8 s wait after a Wi-Fi mode change (REQ-F35).
+- USB mode dial shows in under 1 s: change poll 0x9489/0x9486 as OM Capture, no session rebuild; rebuild stays the fallback (REQ-F30). USB-tested.
+- USB Focus Stacking sets itself up: Bracketing (d0a6), Focus BKT, stacking; no d020; waits while the camera merges; Off retries while busy; one-frame note (REQ-F69). USB-tested.
+- Quit and Open in OM Workspace only from the computer itself, hidden on a phone (REQ-Q10).
+- Disconnect during a request answers "Not connected" instead of an error; status poll no longer piles up.
+- HSL copy in float32 (half the memory); `develop.py` moved to `tools/`.
+- Test suite 42 s → 15 s.
 
 ## 0.7.9 – 2026-11-22
 
