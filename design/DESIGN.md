@@ -1,7 +1,149 @@
 # E-M1 Capture – design
 
-Design canvas (private to the maintainer, ask for access): Live View, 2026-11-11.
-Tokens: [`tokens.css`](tokens.css). Implemented in version 0.4.0 (2026-11-11); the build order below is done.
+Design canvas (private to the maintainer, ask for access): Live View, 2026-11-11; design system board
+"Quiet Precision" v0.2, 2026-11-26.
+Tokens: [`tokens.css`](tokens.css) (production values, implemented in version 0.4.0 on 2026-11-11; the build
+order at the end of this file is done). The confirmed 1.0 direction below is recorded here first; the page and
+`tokens.css` are not yet migrated to it.
+
+## Design system 1.0: Quiet Precision (v0.2, confirmed direction 2026-11-26)
+
+**Timeless hardware. Evolving intelligence.** Camera Control keeps the camera's own language and direct
+operation. Computational Extension uses available sensor data within the limits of optics, signal, exposure and
+the body. Intelligent Assistance (MCP) helps the photographer understand and apply supported choices. People
+who know the E-M1 take a first shot without onboarding; task shortcuts (e.g. preparing a macro series) shorten
+repeated work while each camera control stays within reach.
+
+Authority: the maintainer confirms design decisions. The E-M1 manual defines terms and intended operations; the
+USB/Wi-Fi parity table and tests on the real camera decide what a body, firmware, connection and mode actually
+support. This section records decisions only. Nothing in the page changes until a migration step is agreed.
+
+### Status of each decision
+
+| Status | Covers |
+|---|---|
+| **Confirmed** | Master Reference 01 (composition), Dark palette and roles, Inter hierarchy, Aperture scale correction, Center Lock as preferred scale model (Fixed Range as alternative), Precision Color Control V9, Snap to Reality, iconography direction, Control View / Fullscreen with Fit and Fill, MCP approval flow |
+| Studies | Scale model per parameter, V9 reconstructions, device layouts (60/40 landscape split, richer Watch controls) |
+| To validate | Long value lists and their ends, colour capability per body, Color All and Monochrome semantics, keyboard and touch, native reach, Watch sizing, Daylight and Astro Red themes, contrast over real live view, orientation and AF mapping |
+| **Open (not built)** | The individual photographic glyphs of the icon family (see Iconography). Not implemented until the maintainer confirms them. |
+
+### Master Reference 01
+
+The control view shows live view, the shutter and the current working context together. The active
+photographic value gets the most weight: a large light numeral for the value being adjusted (e.g. the aperture),
+legible smaller secondary values, fine visible ticks, a restrained status line and **one bright shutter**. Space
+groups controls; borders and icons are there only where they do a job. The active AF area stays usable.
+
+### Foundations (Dark is primary)
+
+| Role | Value | Use |
+|---|---|---|
+| Canvas | `#141414` | main work area |
+| Surface | `#282828` | control surfaces |
+| Warm White | `#F1EFE8` | primary text and the primary action, including the bright shutter |
+| Muted Silver | `#BDBDB7` | readable secondary values and labels |
+| Amber | `#D4AA62` | active selection, adjustment, scale indicator |
+| Focus Green | `#7EB89A` | confirmed focus or connection, always with a second cue |
+| Signal Red | `#D65C5C` | recording and critical states, always with a second cue |
+
+Contrast on Surface: Warm White 12.81:1, Muted Silver 7.81:1, Amber 6.83:1, Focus Green 6.47:1, Signal Red
+3.89:1, so red never carries text alone (light label next to a red indicator); normal text needs at least 4.5:1.
+Daylight and Astro Red are field-validation candidates.
+
+**Change against the production tokens:** today `--accent` (amber) marks both the shutter and the selection.
+In 1.0 the shutter is Warm White and amber marks selection and adjustment only. Map the roles before any
+migration and reuse existing token names where the role still matches.
+
+Type: Inter, tabular numerals for changing camera values (IBM Plex Mono stays optional for technical
+measurements). Medium with slight tracking for small labels, light weights only at large sizes, no regular use
+of 11 px. The hierarchy is confirmed; the numbers are working tokens until checked on devices.
+
+| Style | Size | Weight | Tracking |
+|---|---:|---:|---:|
+| Display XL / L / M | 80 / 64 / 48 px | 300 | −0.04 / −0.04 / −0.025 em |
+| Value L / M / S / XS | 32 / 28 / 24 / 22 px | 400 | −0.01 em / 0 / 0 / 0 |
+| Section | 18 px | 500 | 0 |
+| Body | 16 px | 400 | 0 |
+| Navigation | 15 px | 500 | 0 |
+| Label L / M / S | 14 / 13 / 12 px | 500 | +0.07 / +0.06 / +0.05 em |
+| Status | 13 px | 400 | 0 |
+
+Kept: spacing 4/8/12/16/20/32 px, 44 px web hit area, preferred 56 × 56 px mobile target, 64 px shutter
+height, motion 120/200 ms with reduced-motion support. Native and Watch sizes are validated separately.
+
+### Precision Scale
+
+Center Lock (indicator fixed in the centre, scale moves beneath) is the preferred default; Fixed Range (scale
+fixed, indicator moves) stays the alternative. Both use the same tokens, only real camera stops and the same
+state rules. Aperture correction: labels closer to the marks, 12 px Medium labels, 1.25 px Muted Silver minor
+ticks, 2 px Amber active tick; other scales keep their current treatment. To test: long ISO, white balance and
+shutter-speed lists, ends of the list, one-step changes, tap vs. drag vs. keyboard vs. wheel, and the return to
+the confirmed value after a rejected write. Digital Crown and haptics are platform hypotheses.
+
+### Precision Color Control V9
+
+Preferred direction for the colour tools: one instrument; the active colour, its name and the requested value
+grouped in the centre; directly draggable handles; detailed measurement on the active axis; Color All inside
+the ring, no second slider or duplicate readout.
+
+| Variant | Behaviour |
+|---|---|
+| Color Profile Control | twelve hue regions with a connected contour; radial drag changes the selected hue's saturation in discrete steps; Color All inside the ring |
+| Color Creator | one handle: angle = hue, radius = saturation |
+| Monochrome Profile Control | pick a filter, set its strength radially in the same family |
+
+The PEN-F manual (p.39) gives 12 hue regions at −5…+5 (Color Profile) and 30 hue × 8 saturation positions
+(Color Creator) for that body. Monochrome steps, Color All semantics and availability per body, firmware, USB
+and Wi-Fi are still to verify on the E-M1. Camera Picture Modes stay distinct from software preview looks.
+
+### Snap to Reality
+
+Selectable values come from the current camera mapping; a tap or drag lands on a real stop; intermediate
+values only where the camera supports them. The page distinguishes requested/preview, pending,
+camera-confirmed and error. After a rejection or an unclear result it re-reads the camera where it can and says
+what is known. Capabilities are recomputed when body, lens, connection, mode or prerequisites change. This
+matches principles 6 and 7 below (hide what the connection or mode cannot do; disabled with a reason only for
+missing write permission); after a context change the page says why an action disappeared and the next step.
+
+### Control View, Fullscreen, Fit and Fill
+
+Control View keeps live view and the shutter available. Fullscreen is a deliberate composition view with an
+obvious way back to Control View. Desktop: large preview, separate controls. Phone portrait: thumb reach;
+landscape: the picture and clearance for the hot-shoe mount. Watch: reduced companion. Fit shows the whole
+frame (padding if needed) and is the default; Fill is a deliberate crop of the preview only. Capture geometry
+is independent; focus taps map through the displayed transform, taps in the padding are ignored. After a lost
+connection the last picture is marked as stale.
+
+### MCP approval
+
+The Intelligent Camera Operator, Personal Photo Coach and Computational Assistant are offered on demand. Before
+a write the page shows current and proposed state, target camera, exact scope and consequences; explicit
+approval and active write permission are required, a changed scope or target needs a fresh approval. Outcomes
+are read back as done, failed, partial or uncertain. The photographer keeps the creative decision.
+
+### Iconography (direction confirmed, glyphs open)
+
+Fine, legible photographic symbols with clean geometry, optical weight matched to Inter. Normal icons Warm
+White or Muted Silver; Amber only for an active state together with a second cue. Photo Coach: a sparkle symbol
+with a clear label. Sizes 16 (status), 24 (standard), 28–32 px (primary); stroke 1.5 px at 24 px with optical
+correction; optical size separate from the hit area; 8–12 px between targets; labels 12–14 px Medium at
++0.03…+0.05 em.
+
+**Open, not to be built yet:** the individual glyphs (AF, Star AF, Focus Stacking, Live Composite, Live Time,
+bracketing, Super Control Panel, the exact Photo Coach glyph). They are designed and confirmed with the
+maintainer first; until then the page keeps its current icons.
+
+### Evidence to keep
+
+The decisions from real use stay valid: the comparison overlay removal, the calendar hierarchy, capture and
+focus feedback, the hold-angle level, the USB Zoom AF (REQ-F54) vs. Wi-Fi view zoom (REQ-F55) distinction with
+pointer-centred zoom, overview map and keyboard arrows (sections below). Keep the stock camera paths and test
+the first unassisted shot; compare the existing path with each task shortcut for time, steps, errors and
+comprehension.
+
+## Incumbent design (0.4.0 – 0.8.x, still implemented)
+
+Everything below describes the page as built today and stays binding until a migration step replaces it.
 
 ## Task-led redesign prototype
 
