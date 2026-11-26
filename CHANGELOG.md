@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Star AF by ear: **HFR tone** (smaller star = higher tone, two beeps at the best value) and the words Sharper / Softer – turn back / At best while you turn the focus ring (USB and Wi-Fi, REQ-F24). USB camera-tested 2026-11-26, Wi-Fi not tested.
+
 ## 0.8.1 – 2026-11-26
 
 - Tests tidied: duplicates dropped, USB/Wi-Fi flag table, 6 source-text checks now run the code; suite 15.5 → 13.9 s (REQ-F24, REQ-F35, REQ-F53, REQ-Q10). No behaviour change.

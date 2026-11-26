@@ -675,6 +675,8 @@ section h2{margin-bottom:10px;color:#b9bec4;font-size:var(--fs-label);font-weigh
     <label class="tog" id="starLockLab" data-feat="mf_drive"><input type="checkbox" id="starLock"> <span id="starLockTxt" data-i18n="star.lock">Lock focus</span></label>
     <span id="starHfr" class="chip" role="status" data-i18n-title="star.hfrTitle" title="Star size (HFR): smaller is sharper"></span>
     <span id="starBest" class="mut"></span>
+    <label class="tog" data-i18n-title="star.toneHint" title="Beeps while Star AF sees a star: the smaller the star, the higher the tone; two beeps at the best value"><input type="checkbox" id="starTone"> <span data-i18n="star.tone">HFR tone</span></label>
+    <span id="starTrend" class="mut" aria-live="polite"></span>
     <span id="starHyp" class="mut"></span>
     <button id="starReset" class="mini" data-i18n="star.reset">Reset</button>
     <span id="starMsg" class="mut"></span>
@@ -1075,6 +1077,11 @@ const I18N={en:{
   "star.hfr": "HFR {v} px",
   "star.hfrClip": "HFR {v} px · clipped",
   "star.best": "Best {v} px",
+  "star.tone": "HFR tone",
+  "star.toneHint": "Beeps while Star AF sees a star: the smaller the star, the higher the tone; two beeps at the best value",
+  "star.sharper": "Sharper",
+  "star.softer": "Softer – turn back",
+  "star.atBest": "At best",
   "star.hyp": "Hyperfocal {h} m ({n} m–∞)",
   "star.noStar": "No star",
   "star.tooBright": "Too bright",
@@ -3299,7 +3306,7 @@ let lvlTarget=(()=>{try{return JSON.parse(localStorage.getItem(LVL_KEY))}catch{r
 let lvlWasOk=false,lvlBeepAt=0,lvlAudio=null;
 const lvlFmt=v=>(v>0?'+':'')+v.toFixed(1);
 function lvlAudioInit(){  // create and unlock audio on a click (browsers block sound started from timers)
-  try{lvlAudio=lvlAudio||new (window.AudioContext||window.webkitAudioContext)();if(lvlAudio.state==='suspended')lvlAudio.resume()}catch{}
+  try{lvlAudio=lvlAudio||new (window.AudioContext||window.webkitAudioContext)();if(lvlAudio.state!=='running')lvlAudio.resume()}catch{}
 }
 function lvlBeep(freq=1320,len=.08,wave='sine'){
   try{lvlAudioInit();
@@ -3410,7 +3417,7 @@ function pickField(e){
     const b=layer.getBoundingClientRect();
     if(b.width>0&&b.height>0){
       starPt={x:Math.max(.05,Math.min(.95,(e.clientX-b.left)/b.width)),y:Math.max(.05,Math.min(.95,(e.clientY-b.top)/b.height))};
-      starBestHfr=null; $('#starBest').textContent=''; aidTick();
+      starBestHfr=null; $('#starBest').textContent=''; starAidReset(); aidTick();
       // Over USB with write enabled and MF/S-AF+MF: tapping a star immediately runs Auto Star AF on it (user 2026-11-23)
       if(canWrite&&features.has('mf_drive')&&isStarMfReady()&&!(st&&st.star_af&&st.star_af.running)&&!zBlock) runStarAuto();
     }
@@ -3732,7 +3739,43 @@ async function runStarAuto(){
     tick();
   }catch(e){msg(e.message,true)}
 }
-$('#starReset').onclick=()=>{starBestHfr=null;starPt=null;$('#starBest').textContent=''};
+$('#starReset').onclick=()=>{starBestHfr=null;starPt=null;$('#starBest').textContent='';starAidReset()};
+$('#starTone').onchange=()=>{if($('#starTone').checked) lvlAudioInit()}; // browsers allow sound only after a click
+// Manual Star AF by ear (REQ-F24): while the focus ring turns, tone and words say whether the star gets smaller
+let starHist=[],starPassed=false,starSmBest=null,starMiss=0,starSeen='',starCalm=0,starBeepAt=0,starWord='';
+const median=a=>[...a].sort((x,y)=>x-y)[a.length>>1];
+function starFreq(hfr){return Math.round(Math.max(220,Math.min(1760,1760/Math.pow(Math.max(hfr,1),.9))))} // smaller star, higher tone
+function starTrendOf(hist,best,passed){ // hist: the last HFR samples, newest last; passed: it got softer again after the best; '' while nothing clearly changes
+  if(hist.length<6) return '';
+  const now=median(hist.slice(-3)), before=median(hist.slice(-6,-3));
+  if(passed&&now<=best*1.08) return 'atBest'; // only after going past it: while approaching, every value is the best so far
+  if(now<before*.9) return 'sharper'; // 10 %: stars flicker by a few percent at rest
+  if(now>before*1.1) return 'softer';
+  return '';
+}
+function starAidReset(){starHist=[];starPassed=false;starSmBest=null;starMiss=0;starSeen='';starCalm=0;starWord='';$('#starTrend').textContent=''}
+function starStep(hfr){ // state only: one sample (or null: no usable star in this frame)
+  if(hfr===null){if(++starMiss>=3) starAidReset(); return} // a single flicker or clipped frame keeps the history
+  starMiss=0; starHist.push(hfr); if(starHist.length>6) starHist.shift();
+  if(starHist.length<3) return;
+  const now=median(starHist.slice(-3)); // smoothed: one lucky sample must not become the unreachable "best"
+  if(starSmBest===null||now<starSmBest*.92){starSmBest=now; starPassed=false} // a clearly better value: that peak is still ahead
+  else{starSmBest=Math.min(starSmBest,now); if(now>starSmBest*1.2) starPassed=true}
+  const w=starTrendOf(starHist,starSmBest,starPassed);
+  if(w&&w===starSeen){starWord=w; starCalm=0} // a word needs two samples in a row
+  else if(!w&&++starCalm>=8) starWord=''; // 2 s without a clear change: say nothing
+  if(starWord==='atBest'&&now>starSmBest*1.15) starWord='';
+  starSeen=w;
+}
+function starAid(hfr){ // 4 times per second from the live view
+  if(st&&st.star_af&&st.star_af.running){starAidReset();return}
+  starStep(hfr);
+  $('#starTrend').textContent=starWord?tr('star.'+starWord):'';
+  if(hfr===null||!starHist.length||!$('#starTone').checked||Date.now()-starBeepAt<450) return;
+  starBeepAt=Date.now();
+  const f=starFreq(median(starHist.slice(-3))); lvlBeep(f,.09);
+  if(starWord==='atBest') setTimeout(()=>lvlBeep(f,.09),140);
+}
 $('#starAuto').onclick=runStarAuto;
 $('#starLock').onchange=updateStarAfUi;
 $('#starAfOn').addEventListener('change',async()=>{
@@ -3747,6 +3790,7 @@ function aidTick(){
   const hc=$('#histCv'),oc=$('#aidCv'),img=$('#live'),nw=img.naturalWidth,nh=img.naturalHeight;
   hc.hidden=!(wantH&&st.live);
   updateStarAfUi();
+  if((!wantS||!st.live)&&starHist.length) starAidReset();
   if(!st.live||document.hidden||!(wantH||wantC||wantP||wantS)||!nw||!nh){
     if(oc.width) oc.getContext('2d').clearRect(0,0,oc.width,oc.height);
     return;
@@ -3785,8 +3829,9 @@ function aidTick(){
       $('#starBest').textContent=tr('star.best',{v:starBestHfr.toFixed(2)});
       og.strokeStyle=res.saturated?'#FFB020':'#3DDC84'; og.lineWidth=1.5;
       og.beginPath(); og.arc(res.x,res.y,Math.max(8,res.hfr*2.5),0,Math.PI*2); og.stroke();
+      starAid(res.saturated?null:res.hfr); // a clipped star says nothing about focus
     }else{
-      chip.textContent=tr(res&&res.bright?'star.tooBright':'star.noStar'); chip.classList.remove('ok');
+      chip.textContent=tr(res&&res.bright?'star.tooBright':'star.noStar'); chip.classList.remove('ok'); starAid(null);
     }
   }
 }
