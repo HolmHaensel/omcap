@@ -2,7 +2,10 @@
 
 ## Unreleased
 
-- Star AF by ear: **HFR tone** (smaller star = higher tone, two beeps at the best value) and the words Sharper / Softer – turn back / At best while you turn the focus ring (USB and Wi-Fi, REQ-F24). Offline- and browser-tested, not camera-tested.
+- Star AF by ear: **HFR tone** (smaller star = higher tone, two beeps at the best value) and the words Sharper / Softer – turn back / At best while you turn the focus ring (USB and Wi-Fi, REQ-F24). USB camera-tested 2026-11-26, Wi-Fi not tested.
+
+## 0.8.1 – 2026-11-26
+
 - Tests tidied: duplicates dropped, USB/Wi-Fi flag table, 6 source-text checks now run the code; suite 15.5 → 13.9 s (REQ-F24, REQ-F35, REQ-F53, REQ-Q10). No behaviour change.
 - Partial Color: press and drag around the colour ring, the camera follows live (Wi-Fi about 0.1 s per colour, measured 2026-11-24); only the newest colour is sent (REQ-F42). Browser-tested without camera.
 - MCP actions show on the page: the control the MCP used looks pressed for a moment and the value changes, as if an invisible user worked the app; a message "MCP: …" and a list of the last 10 actions, failures in red (REQ-F35). Offline- and browser-tested, not camera-tested.
@@ -11,6 +14,7 @@
 - MCP `camera_settings`: in P, A and other modes where the camera picks the time, `shutspeedvalue` carries `shutter_live` (time in use from the Wi-Fi live view) and a note; without a fresh live view (USB, live view off) `shutter_live` is null with a note (REQ-F35). Offline-tested.
 - Settings changed by the MCP server (or another page) appear on the open page within about 2 s: `/api/state` carries `props_rev`; not while busy or a setting list is open (REQ-F35). Wi-Fi camera-tested.
 - Wi-Fi: outer AF grid fields focus where tapped instead of 1–2 fields further in; the camera accepts points outside its touch area (REQ-F04). Wi-Fi camera-tested (corners at 800×600 and 1280×960, Take picture at an outer field).
+- HSL over USB tested: HSL button (JPG 2.1 s, ORF + 16-bit TIFF 2.6 s) and the automatic copy on save (REQ-I01, I04).
 
 ## 0.8.0 – 2026-11-24
 

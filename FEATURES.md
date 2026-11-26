@@ -29,7 +29,7 @@ Every feature over Wi-Fi and USB, with test status and details. Short overview: 
 | "In focus" / "No focus" chip | ✅ | ✅ | Wi-Fi after a tap; USB also after Press halfway and Take picture. With S-AF the camera only releases in focus |
 | AF Area (All Targets, Single Target, Small Target, Group Target) | – | ✅ | no Wi-Fi command |
 | Focus ring (MF): Near/Far in three step sizes | – | ✅ | AF mode MF or S-AF+MF; no Wi-Fi command |
-| Star AF (manual): live star-size (HFR) focus aid, clipping/bright warning and hyperfocal readout, HFR tone and Sharper/Softer words while turning the ring (photo modes) | 🟡 | ✅ | browser-side live view measurement on computer and phone; while Star AF is on, tapping the live view picks the star instead of an AF target; 9×9 grid and AF Area hidden while Star AF is on and in MF (also over Wi-Fi); USB camera-tested 2026-11-23, Wi-Fi not tried (REQ-F24) |
+| Star AF (manual): live star-size (HFR) focus aid, clipping/bright warning and hyperfocal readout, HFR tone and Sharper/Softer words while turning the ring (photo modes) | 🟡 | ✅ | browser-side live view measurement on computer and phone; while Star AF is on, tapping the live view picks the star instead of an AF target; 9×9 grid and AF Area hidden while Star AF is on and in MF (also over Wi-Fi); USB camera-tested 2026-11-23 (tone and words 2026-11-26), Wi-Fi not tried (REQ-F24) |
 | Star AF (automatic) & Focus Lock: auto-switches to MF, tap a star or click Auto Star AF (Speed/Accuracy, ×10 zoom, temporary Live View Boost), auto-locks focus when sharp | – | ✅ | needs photo mode and `--allow-write` (no Wi-Fi focus drive command); triggerable from a phone over `--lan`; click `Focus locked` to unlock; USB-tested 2026-11-23; Four Thirds lenses at ×10 untested (REQ-F24) |
 | Focus Stacking On/Off (8 frames, merged in the camera, P/A/S/M) | – | ✅ | no Wi-Fi command; USB sets Bracketing, Focus BKT and stacking together; needs a card, hidden without one |
 
@@ -70,7 +70,7 @@ Every feature over Wi-Fi and USB, with test status and details. Short overview: 
 | Shooting data (Overall display), line on thumbnails | ✅ | ✅ | |
 | Pinch zoom and swipe between pictures (phone, trackpad, Magic Mouse, Shift + wheel) | ✅ | 🟡 | same page code; not tried separately over USB |
 | Open in OM Workspace (macOS, if installed) | 🟡 | ✅ | |
-| HSL color profiles (HSL button, before/after) | ✅ | 🟡 | |
+| HSL color profiles (HSL button, before/after) | ✅ | ✅ | runs on the computer |
 | Share Order: show, save all, reset | ✅ | – | no USB counterpart known |
 | Erase selected pictures from the card (Select → Erase, JPG and ORF together, asks first) | – | ✅ | no Wi-Fi command; protected pictures are refused by the camera and kept; tested with the own USB layer, libgphoto2 not tested |
 | Fast last-shot picture right after the release (REQ-F60) | ✅ | ✅ | Wi-Fi: `getrecview`/`getlastjpg`. USB: PTP 0x9485 OMD_GetImage, shown before the card lists the file; camera-tested once without a card: JPEG 0.9 s after the release; with card, RAW-only, held button pending; own USB layer only (libgphoto2 keeps the card path); independent of the Rec View setting (E-M1 manual p.91); not for self-timer, Focus Stacking, Bulb/Time/Live Composite, movie |
