@@ -10,12 +10,13 @@ The values were determined on the real camera:
 """
 import re
 import subprocess
+import sys
 import threading
 import time
 
 from .camera import CameraError, WriteBlocked
 from .ptp import (LOUPE_X_GAIN, LOUPE_MOVES, LOUPE_OFF, LOUPE_ON, LOUPE_RATIOS, OP_LOUPE_MOVE, OP_LOUPE_POINT,
-                  loupe_grid, loupe_point)
+                  loupe_grid, loupe_point, trim_jpeg)
 
 
 def _check_usb_path(path):
@@ -125,13 +126,24 @@ def _gp():
 
 
 def detect_name():
-    """Name of the first camera on USB according to libgphoto2 (e.g. "Olympus E-M1") or None.
+    """Name of the first camera on USB, or None.
+
+    libgphoto2 answers first when it is installed (macOS, Linux). On Windows there is no libgphoto2, so the
+    own libusb layer enumerates the Olympus vendor id instead - otherwise the start screen said "not found"
+    for a camera the app can drive (E-M1 Mark II, Windows, 2026-11-24).
 
     Does not claim the camera.
     """
     try:
         found = _gp().Camera.autodetect()
-        return found.get_name(0) if found.count() > 0 else None
+        name = found.get_name(0) if found.count() > 0 else None
+        if name:
+            return name
+    except Exception:
+        pass
+    try:
+        from . import ptp
+        return ptp.usb_model_name()
     except Exception:
         return None
 
@@ -489,8 +501,10 @@ class UsbCamera:
     def _open(self, tries=4):
         error = None
         for _ in range(tries):
-            # The macOS service ptpcamerad claims the camera as soon as it is plugged in.
-            subprocess.run(["killall", "-9", "ptpcamerad"], capture_output=True)
+            # The macOS service ptpcamerad claims the camera as soon as it is plugged in. Windows has no
+            # killall, and calling it aborted every USB connect there (E-M1 Mark II, 2026-11-24).
+            if sys.platform == "darwin":
+                subprocess.run(["killall", "-9", "ptpcamerad"], capture_output=True)
             try:
                 self._c.init()
                 self._c.get_single_config("d00c")  # session fully established?
@@ -839,6 +853,7 @@ class UsbCamera:
             try:
                 f = self._c.capture_preview()
                 data = bytes(memoryview(f.get_data_and_size()))
+                data = trim_jpeg(data) if data[:2] == b"\xff\xd8" else data
                 # no valid images during and right after shooting
                 ok = data[:2] == b"\xff\xd8" and b"\xff\xd9" in data[-64:]
                 self.lv_reason = None if ok else "incomplete JPEG (%d bytes)" % len(data)

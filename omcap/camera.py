@@ -75,7 +75,12 @@ def parse_capacity(raw):
         text = next((e.text.strip() for e in root.iter()
                      if len(e) == 0 and e.text and re.fullmatch(r"\s*\d+\s*", e.text)), "")
     m = re.fullmatch(r"\d+", text)
-    return int(text) if m else None
+    if not m:
+        return None
+    value = int(text)
+    # 0xFFFFFFFF (and the 64-bit form) is the error sentinel, not a capacity: the E-M1 Mark II answers it
+    # over Wi-Fi before the card is mounted (seen 2026-11-24). 0 free bytes is a real answer.
+    return None if value in (0xFFFFFFFF, 0xFFFFFFFFFFFFFFFF) else value
 
 
 def parse_rsvimglist(text):
@@ -204,7 +209,22 @@ class Camera:
         return ET.fromstring(self.get("get_caminfo")).findtext("model")
 
     def props(self):
-        root = ET.fromstring(self.get("get_camprop", com="desc", propname="desclist"))
+        try:
+            raw = self.get("get_camprop", com="desc", propname="desclist")
+        except CameraError as e:
+            if e.code != 520:
+                raise
+            # E-M1 Mark II answers the property table only in REC mode (playback: 520/1001); the Mark I
+            # answers anywhere. Switching is a write, so only with --allow-write, and never while pressing
+            # (that would drop the half press).
+            if not self.allow_write:
+                raise CameraError("Settings can only be read in shooting mode: start the live view once "
+                                  "(needs --allow-write), then reload", e.code)
+            if self.stage:
+                raise
+            self.set_mode("rec", self.lvqty)
+            raw = self.get("get_camprop", com="desc", propname="desclist")
+        root = ET.fromstring(raw)
         out = {}
         for d in root.iter("desc"):
             out[d.findtext("propname")] = {
