@@ -237,8 +237,9 @@ LIVE TIME, LIVE COMP) as words at 0.6 em (0.5 em in compact slots) in the weight
   300 px use 3 (SCP) / 2×2 (QCP) columns, under 220 px 2 SCP columns; the large value steps to Display M under 260 px.
   Never below 15 px.
 - Deviation: EV zero is written ±0.0 everywhere (the Figma QCP showed 0.0, the SCP ±0.0).
-- Risk: Inter is installed on the development Mac but not bundled with the app; other devices fall back to the system
-  font. Bundling the font file (SIL OFL) needs a decision.
+- Inter 4.1 variable is bundled (`omcap/web/ds/fonts/InterVariable.woff2`, 352 KB, from the official rsms/inter v4.1
+  release, SIL OFL 1.1 in `fonts/Inter-OFL.txt`) and loaded by `tokens.css` via `@font-face`; the server serves
+  `.woff2` and `.txt` under `/ds/` only. The page `index.html` still names Inter without the file until it migrates.
 - QA (browser, no camera; Dark, Daylight, Astro Red): no layout shift in QCP and SCP over 4 value sets (250/8000/60"/
   LIVE COMP, 400/25600/AUTO/LOW, ±0.0/−4.7/+5.0/−0.3, ƒ2.8-ƒ22) at 600, 343 and 168 px panels; nothing clipped; smallest
   digits 15 px; stress table of 13 audit cases in 7 sizes without wrapping. Not on real devices yet.

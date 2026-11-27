@@ -76,6 +76,12 @@ class Tokens(unittest.TestCase):
         # tabular figures must survive a later `font:` shorthand: doubled class selector
         self.assertIn(".qp-num.qp-num", css)
 
+    def test_inter_is_bundled_with_its_licence(self):
+        with open(os.path.join(DS, "fonts", "InterVariable.woff2"), "rb") as f:
+            self.assertEqual(f.read(4), b"wOF2")
+        self.assertIn("SIL Open Font License", read("fonts/Inter-OFL.txt"))
+        self.assertIn('url("fonts/InterVariable.woff2")', read("tokens.css"))
+
     def test_components_use_tokens_not_raw_colours(self):
         css = read("components.css")
         raw = [h for h in re.findall(r"#[0-9a-fA-F]{3,8}\b", css) if h.lower() not in ("#000",)]
@@ -101,7 +107,7 @@ class Icons(unittest.TestCase):
 class Route(unittest.TestCase):
     def test_serves_known_files(self):
         for name in ("tokens.css", "components.css", "precision.js", "views.js", "detent.js", "icons.svg", "gallery.html",
-                     "fixtures/em1-capabilities-sample.json"):
+                     "fixtures/em1-capabilities-sample.json", "fonts/InterVariable.woff2", "fonts/Inter-OFL.txt"):
             self.assertTrue(server.ds_path(name), name)
 
     def test_refuses_traversal_and_unknown_types(self):

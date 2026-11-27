@@ -1368,7 +1368,8 @@ def note_mcp(path, body, err=None):
 # --- HTTP --------------------------------------------------------------------
 DS_DIR = os.path.join(ROOT, "web", "ds")
 DS_TYPES = {".css": "text/css; charset=utf-8", ".js": "text/javascript; charset=utf-8",
-            ".svg": "image/svg+xml", ".html": "text/html; charset=utf-8", ".json": "application/json"}
+            ".svg": "image/svg+xml", ".html": "text/html; charset=utf-8", ".json": "application/json",
+            ".woff2": "font/woff2", ".txt": "text/plain; charset=utf-8"}
 
 
 def ds_path(rel):

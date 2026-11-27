@@ -6,6 +6,7 @@
 - Design system: Precision Instrument Library V2.0 (every tick one real camera value, main values per parameter, AUTO/LOW/BULB as semantic values; Selector, Axis and Relative control; QCP and SCP share one value source; WB presets and Custom WB from the body's lists) and Color Controls V9.1 for Dark, Daylight and Astro Red (REQ-D06). Browser-tested without camera; 674 + 23 tests.
 - Design system: Precision Detent Feedback (Instrument Library V2.1): one detent engine for drag, wheel, keyboard, touch and crown, one click/haptic pulse per detent and none at the limits, sound and haptic switchable, at most one camera command in flight with the newest wish winning, crown routing per context (REQ-D06). Browser-tested without camera.
 - Design system: Typography Refinement V1.1 (optical spacing for the aperture sign, display and label tracking, real minus and one EV sign rule, smaller Kelvin unit, camera words as words, Color Controls value 70 px); tabular figures now really active; values fit their slots from 600 px down to watch width (REQ-D06). Browser-tested without camera.
+- Design system: Inter 4.1 (variable, SIL OFL 1.1) bundled for the design system so every device shows the same type; licence in `omcap/web/ds/fonts/` and the README (REQ-D06).
 - Star AF by ear: **HFR tone** (smaller star = higher tone, two beeps at the best value) and the words Sharper / Softer – turn back / At best while you turn the focus ring (USB and Wi-Fi, REQ-F24). USB camera-tested 2026-11-26, Wi-Fi not tested.
 
 ## 0.8.1 – 2026-11-26

@@ -7,6 +7,16 @@
    Prefix --qp- keeps these apart from the production tokens in index.html until the page migrates.
    One component set for all themes: set data-qp-theme="dark|daylight|astro" on any container. */
 
+/* Inter 4.1 variable (rsms/inter, SIL Open Font License 1.1, see fonts/Inter-OFL.txt), bundled so every device shows
+   the same type (weights 300/400/500, tabular figures). The bundled file comes first, so the version is fixed. */
+@font-face {
+  font-family: "Inter";
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url("fonts/InterVariable.woff2") format("woff2");
+}
+
 :root,
 [data-qp-theme="dark"] {
   /* Semantic colour (Theme System V1.0, Dark: primary theme) */
