@@ -32,7 +32,11 @@
   .g-log { font: 12px/1.5 ui-monospace, Menlo, monospace; color: var(--qp-muted); background: var(--qp-surface);
     border-radius: 8px; padding: 10px 12px; height: 150px; overflow: auto; white-space: pre-wrap; }
   .g-sim { font: var(--qp-status); color: var(--qp-muted); display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
-  .g-sim label { display: inline-flex; gap: 6px; align-items: center; min-height: 40px; }
+  .g-sim label { display: inline-flex; gap: 8px; align-items: center; min-height: 40px; }
+  .g-sim input[type="checkbox"] { appearance: none; -webkit-appearance: none; width: 18px; height: 18px; margin: 0; flex: none;
+    border: 1.5px solid var(--qp-muted); border-radius: 4px; background: var(--qp-ground); color: inherit; cursor: pointer; }
+  .g-sim input[type="checkbox"]:checked { background: var(--qp-accent); border-color: var(--qp-accent); }
+  .g-sim input[type="checkbox"]:focus-visible { outline: 2px solid var(--qp-accent); outline-offset: 2px; }
   .g-shell { height: 460px; border: 1px solid var(--qp-surface); border-radius: 12px; overflow: hidden; }
   .g-frame { background: linear-gradient(160deg, #7f958f 0 58%, #4d635d 58% 74%, #2f423d 74%); }
   .g-frame::after { content: "4:3 test frame (no camera)"; position: absolute; left: 8px; bottom: 6px; font: 11px var(--qp-font); color: #fff; opacity: .7; }
@@ -44,6 +48,9 @@
   .g-color figcaption small { display: block; font: var(--qp-status); color: var(--qp-muted); margin-top: 4px; }
   .g-badge { font: var(--qp-label-s); letter-spacing: var(--qp-track-label); padding: 6px 12px; border-radius: 999px; border: 1px solid var(--qp-surface); color: var(--qp-muted); }
   .g-states span { margin-right: 18px; font: var(--qp-value-s); }
+  .g-chip { font: var(--qp-label-m); letter-spacing: var(--qp-track-label); color: var(--qp-text); background: var(--qp-ground);
+    border: 1px solid var(--qp-surface); border-radius: 8px; padding: 6px 12px; }
+  #scpWb, #relHost { gap: 18px; }
   @media (max-width: 640px) { .g h1 { font: var(--qp-value-l); } .g-shell { height: 520px; } }
 </style>
 </head>
@@ -76,10 +83,10 @@
   <div class="g-states qp-num"><span class="qp-state-requested">ƒ4.0 requested</span><span class="qp-state-pending" aria-busy="true">ƒ4.0 pending</span><span class="qp-state-confirmed">ƒ4.0 confirmed</span><span class="qp-state-failed">ƒ4.0 failed</span></div>
 
   <h2>Iconography V4.0</h2>
-  <p class="note">47 glyphs exported from Figma (43 core, 4 V3.2 extensions used by the SCP). 24 px, 1.5 px stroke, currentColor.</p>
+  <p class="note">60 glyphs exported from Figma (43 core, 4 V3.2 extensions used by the SCP, 13 V3.4 white balance). 1.5 px stroke, currentColor.</p>
   <div class="g-icons" id="icons"></div>
 
-  <h2>Precision Scale</h2>
+  <h2>Adaptive Precision Scale V2.0</h2>
   <div class="g-sim">
     <span class="g-seg" id="variantSeg" role="group" aria-label="Scale variant">
       <button data-v="center" aria-pressed="true">Center Lock</button><button data-v="fixed">Fixed Range</button>
@@ -87,19 +94,26 @@
     <label><input type="checkbox" id="simRefuse"> Simulated camera refuses the next value</label>
     <label><input type="checkbox" id="simSlow" checked> Slow readback (900 ms)</label>
   </div>
-  <p class="note">Swipe, drag or tap the scale; arrow keys work when it has focus. Snaps only to the listed camera stops.
-    Fixed Range uses the same stops; with long lists (shutter: 61 stops) its ticks get dense, which is why Center Lock is preferred.</p>
+  <p class="note">Every tick is one value from the camera's own list; long ticks with labels are main values (full stops,
+    ISO doublings, whole EV, every 1000 K), short ticks real intermediate stops. AUTO, LOW, BULB and LIVE modes are semantic
+    values set apart by a gap. Nothing is added at the ends. Swipe, drag, tap or arrow keys.</p>
   <div class="g-row"><div class="g-col g-scales" id="scales"></div></div>
 
   <h2>QCP · SCP</h2>
+  <p class="note">Both panels read the same value objects: a change in one shows in the other with the same precision.
+    QCP: WB preset selector (entry placement provisional). SCP: presets, Custom WB in Kelvin and the correction axes.</p>
   <div class="g-row">
     <div class="g-col" id="qcp"></div>
     <div class="g-col" id="scp"></div>
   </div>
+  <div class="g-row" style="margin-top:24px">
+    <div class="g-col"><div class="qp-panel" id="scpWb"><div class="qp-kicker" style="margin-top:0">SCP · WHITE BALANCE</div></div></div>
+    <div class="g-col"><div class="qp-panel" id="relHost"><div class="qp-kicker" style="margin-top:0">RELATIVE CONTROL · FOCUS</div></div></div>
+  </div>
 
-  <h2>Precision Color Controls V9</h2>
-  <p class="note">Static reference in Figma; drag/snap, active axis and Color All still need interaction validation.
-    Capability per E-M1 Mark I under each instrument.</p>
+  <h2>Precision Color Controls V9.1</h2>
+  <p class="note">One instrument in all three themes; only the paint changes. Astro Red identifies sectors by index, hue number or
+    filter initial. Capability per E-M1 Mark I under each instrument.</p>
   <div class="g-color" id="color"></div>
 
   <h2>View architecture</h2>
@@ -114,13 +128,15 @@
 </div>
 
 <script type="module">
-import { ValueState, mountScale, mountQCP, mountSCP, mountColorRing, icon, QCP_PARAMS } from "/ds/precision.js";
+import { ValueState, stopsFor, mountScale, mountQCP, mountSCP, mountSelector, mountAxis, mountRelative, mountColorRing,
+  icon, QCP_PARAMS } from "/ds/precision.js";
 import { initialState, createViewStore, mountViewShell, VIEWS, SCALING, CAMERA_ORIENTATION } from "/ds/views.js";
 
 const $ = (s) => document.querySelector(s);
 const g = $("#g");
 const logEl = $("#log");
 const log = (m) => { logEl.textContent += `${new Date().toLocaleTimeString()}  ${m}\n`; logEl.scrollTop = 1e9; };
+const cameraWrites = [];
 
 function segButtons(host, onPick) {
   host.addEventListener("click", (e) => {
@@ -131,7 +147,7 @@ function segButtons(host, onPick) {
   });
 }
 
-// Theme
+// Theme: display only; logged so the log shows that no camera write follows
 segButtons($("#themeSeg"), (t) => { g.dataset.qpTheme = t; store.dispatch({ type: "theme", theme: t }); renderSwatches(); });
 
 function renderSwatches() {
@@ -152,7 +168,9 @@ const ICONS = ["aperture", "shutter", "ev", "tracking", "s-af", "c-af", "mf", "s
   "af-small", "af-group", "iso", "wb", "metering", "drive", "self-timer", "flash", "picture-mode", "histogram", "level",
   "zoom-af", "peaking", "lock-focus", "focus-stacking", "ae-bracketing", "live-composite", "live-time", "time-lapse",
   "multiple-exposure", "color-profile", "color-creator", "monochrome", "super-control", "capture", "review",
-  "photo-coach", "voice", "fullscreen", "settings", "usb", "wifi", "stabilizer", "tone", "aspect", "face-af"];
+  "photo-coach", "voice", "fullscreen", "settings", "usb", "wifi", "stabilizer", "tone", "aspect", "face-af",
+  "wb-auto", "wb-daylight", "wb-shade", "wb-cloudy", "wb-tungsten", "wb-fluorescent", "wb-underwater", "wb-flash",
+  "wb-kelvin", "wb-custom-1", "wb-custom-2", "wb-custom-3", "wb-custom-4"];
 for (const n of ICONS) {
   const f = document.createElement("figure");
   f.appendChild(icon(n));
@@ -162,63 +180,76 @@ for (const n of ICONS) {
   $("#icons").appendChild(f);
 }
 
-// Simulated camera (page only): sends after a request, reads back after a delay, can refuse.
+// Camera capability data (the camera's own lists) and a simulated camera (page only)
 const caps = await (await fetch("/ds/fixtures/em1-capabilities-sample.json")).json();
 const P = caps.props;
-const shutterStops = P.shutspeedvalue.values.filter((v) => !/^live/.test(v));
+const WB = caps.wb;
 const states = {
-  aperture: new ValueState(P.focalvalue.values.filter((v) => +v >= 2.8 && +v <= 22), "5.6"), // e.g. a f/2.8 zoom; lens decides at run time
-  shutter: new ValueState(shutterStops, P.shutspeedvalue.current),
-  iso: new ValueState(P.isospeedvalue.values.filter((v) => v !== "Auto" && v !== "Low"), "400"),
-  ev: new ValueState(P.expcomp.values, P.expcomp.current),
+  // aperture: the body table limited to an example f/2.8 zoom; at run time the lens decides the subset
+  aperture: new ValueState(stopsFor("aperture", P.focalvalue.values.filter((v) => +v >= 2.8 && +v <= 22)), "5.6"),
+  shutter: new ValueState(stopsFor("shutter", P.shutspeedvalue.values), P.shutspeedvalue.current),
+  iso: new ValueState(stopsFor("iso", P.isospeedvalue.values), "400"),
+  ev: new ValueState(stopsFor("ev", P.expcomp.values), P.expcomp.current),
+  wb: new ValueState(WB.presets.map((p) => p.key), "auto"),
+  kelvin: new ValueState(stopsFor("kelvin", WB.custom_kelvin.values.map(String), (v) => v), "5400"),
 };
 const views = new Set();
+const refresh = () => views.forEach((r) => r());
 function simulateCamera(key) {
   const st = states[key];
   const v = st.send();
   if (v === null) return;
+  cameraWrites.push([key, v]);
   log(`camera(sim) <- ${key} = ${v}  (pending)`);
-  views.forEach((r) => r());
+  refresh();
   const refuse = $("#simRefuse").checked;
   setTimeout(() => {
     if (refuse) { st.fail("refused by camera (simulated)"); $("#simRefuse").checked = false; log(`camera(sim) -> ${key}: refused, stays ${st.confirmed}`); }
     else { st.confirm(v); log(`camera(sim) -> ${key} = ${v}  (confirmed readback)`); }
-    views.forEach((r) => r());
+    refresh();
   }, $("#simSlow").checked ? 900 : 120);
 }
+window.__qp = { states, cameraWrites };
 
 const scaleApis = [];
 for (const p of QCP_PARAMS) {
   const box = document.createElement("div");
-  box.innerHTML = `<span class="qp-param-label">${p.label} · ${states[p.key].stops.length} stops</span>`;
+  const st = states[p.key];
+  box.innerHTML = `<span class="qp-param-label">${p.label} · ${st.stops.length} camera values · ${st.stops.filter((s) => s.major).length} main · ${st.stops.filter((s) => s.special).length} special</span>`;
   $("#scales").appendChild(box);
-  const api = mountScale(box, { state: states[p.key], label: p.label, format: p.scaleFmt, onRequest: () => simulateCamera(p.key) });
+  const api = mountScale(box, { state: st, label: p.label, format: p.scaleFmt, onRequest: () => simulateCamera(p.key) });
   scaleApis.push(api);
   views.add(api.render);
 }
 
+const wbOptions = WB.presets.map((p) => ({ value: p.key, label: p.label, short: p.short, icon: p.icon, kelvin: p.kelvin }));
+const wbDisplay = (op) => ({
+  big: op.kelvin === "custom" ? `${states.kelvin.shown} K` : op.kelvin ? `${op.kelvin} K` : (op.short || op.label).toUpperCase(),
+  sub: op.label,
+});
 const qcp = mountQCP($("#qcp"), {
-  connection: { kind: "wifi" }, values: states,
+  connection: { kind: "wifi" }, values: states, wb: { state: states.wb, options: wbOptions, display: wbDisplay },
   onRequest: (k) => simulateCamera(k),
   onAction: (a) => log(`QCP action "${a}" (gallery: logged only, no camera call)`),
 });
 views.add(qcp.render);
 segButtons($("#variantSeg"), (v) => { scaleApis.forEach((s) => s.setVariant(v)); qcp.setVariant(v); });
 
-// SCP: Figma reference state (31:438); the app fills tiles from the capability mapping.
-mountSCP($("#scp"), {
+// SCP: exposure and WB read the same ValueState objects as the QCP; other tiles are the Figma reference state (31:438).
+const fmt = Object.fromEntries(QCP_PARAMS.map((p) => [p.key, p.fmt]));
+const scp = mountSCP($("#scp"), {
   connection: { kind: "usb" },
   exposure: [
     { key: "mode", label: "MODE", value: "M", available: false },
-    { key: "shutter", label: "SHUTTER", value: "1/250", available: true },
-    { key: "aperture", label: "APERTURE", value: "ƒ2.8", available: true },
-    { key: "iso", label: "ISO", value: "400", available: true },
-    { key: "ev", label: "EV", value: "±0.0", available: true },
+    { key: "shutter", label: "SHUTTER", state: states.shutter, fmt: fmt.shutter, available: true },
+    { key: "aperture", label: "APERTURE", state: states.aperture, fmt: fmt.aperture, available: true },
+    { key: "iso", label: "ISO", state: states.iso, fmt: fmt.iso, available: true },
+    { key: "ev", label: "EV", state: states.ev, fmt: fmt.ev, available: true },
   ],
   tiles: [
     { key: "afmode", icon: "s-af", value: "S-AF", label: "AF MODE", available: true },
     { key: "aftarget", icon: "af-single", value: "Single", label: "AF TARGET", available: true },
-    { key: "wb", icon: "wb", value: "Auto", label: "WHITE BALANCE", available: true },
+    { key: "wb", icon: "wb", state: states.wb, fmt: (s) => (wbOptions.find((o) => o.value === s.value).short || wbOptions.find((o) => o.value === s.value).label), label: "WHITE BALANCE", available: true },
     { key: "metering", icon: "metering", value: "ESP", label: "METERING", available: true },
     { key: "drive", icon: "drive", value: "Single", label: "DRIVE MODE", available: true },
     { key: "flash", icon: "flash", value: "Off", label: "FLASH", available: true },
@@ -232,17 +263,38 @@ mountSCP($("#scp"), {
   footer: { left: "RAW + JPEG", right: "842 frames" },
   onOpen: (k) => log(`SCP: open precision control "${k}" (gallery: logged only)`),
 });
+views.add(scp.render);
+
+// SCP white balance depth: presets, Custom WB (Kelvin from the body's USB list), correction axes (not mapped)
+const wbSel = mountSelector($("#scpWb"), { state: states.wb, options: wbOptions, display: wbDisplay, label: "WHITE BALANCE", onRequest: () => simulateCamera("wb") });
+views.add(wbSel.render);
+const kBox = document.createElement("div");
+kBox.innerHTML = `<span class="qp-param-label">CUSTOM WB · ${states.kelvin.stops.length} values from the body (USB) · Wi-Fi: no Kelvin property</span>`;
+$("#scpWb").appendChild(kBox);
+const kScale = mountScale(kBox, { state: states.kelvin, label: "Custom WB", format: (s) => s.label, onRequest: () => simulateCamera("kelvin") });
+views.add(kScale.render);
+views.add(() => { kBox.querySelector(".qp-param-label").dataset.k = states.kelvin.shown; });
+for (const [label, ends] of [["WB CORRECTION A–B", ["A", "B"]], ["WB CORRECTION G–M", ["G", "M"]]]) {
+  mountAxis($("#scpWb"), { state: null, label, ends, reason: "Range not mapped: no USB or Wi-Fi property known, no values invented" });
+}
+
+// Relative focus: USB has MF drive steps 1-3 (tested), Wi-Fi has no command
+const rel = caps.focus.relative;
+mountRelative($("#relHost"), { label: "FOCUS · USB", steps: rel.usb.steps, directions: rel.usb.directions, available: true,
+  onStep: (d, s) => { log(`focus(sim) ${d} ${s} (gallery: not sent)`); return new Promise((r) => setTimeout(r, 300)); } });
+mountRelative($("#relHost"), { label: "FOCUS · WI-FI", steps: rel.usb.steps, directions: rel.usb.directions, available: false,
+  reason: "Wi-Fi: no command for the MF drive" });
 
 // Colour instruments with the E-M1 capability noted
-const hues12 = Array.from({ length: 12 }, (_, i) => ({ name: `${i * 30}°`, hue: i * 30 })); // names are a design question (Figma shows "BLUE")
 const C = caps.color;
+const hues12 = Array.from({ length: 12 }, (_, i) => ({ name: `${i * 30}°`, hue: i * 30 })); // names are a design question (Figma shows "BLUE")
 const colorDefs = [
   { kind: "profile", title: "Color Profile", segments: hues12, values: [0, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0], active: 8, min: C.profile.range[0], max: C.profile.range[1],
     cap: "Not an E-M1 function: software only (app HSL on captured files)." },
-  { kind: "creator", title: "Color Creator", segments: Array.from({ length: C.creator.hues }, (_, i) => ({ name: `Hue ${i}`, hue: (i * 360) / C.creator.hues })),
-    values: { hue: 6, value: 0 }, min: C.creator.saturation[0], max: C.creator.saturation[1],
+  { kind: "creator", title: "Color Creator", segments: Array.from({ length: C.creator.hues }, (_, i) => ({ name: `Hue ${i + 1}`, hue: (i * 360) / C.creator.hues })),
+    values: { hue: 5, value: 0 }, min: C.creator.saturation[0], max: C.creator.saturation[1],
     cap: "E-M1 picture mode; set on the camera (no USB/Wi-Fi property). Hue 30 steps, saturation −4…+3 from firmware analysis, not validated." },
-  { kind: "mono", title: "Monochrome", segments: C.mono.filters.map((n) => ({ name: n, short: { Neutral: "N", Yellow: "Ye", Orange: "Or", Red: "R", Green: "G" }[n], hue: { Neutral: null, Yellow: 52, Orange: 28, Red: 0, Green: 140 }[n] })),
+  { kind: "mono", title: "Monochrome", segments: C.mono.filters.map((n, i) => ({ name: n, short: C.mono.filters_short[i], hue: { Neutral: null, Yellow: 52, Orange: 28, Red: 0, Green: 140 }[n] })),
     values: [0, 0, 0, 0, 0], active: 1, min: 0, max: 0, noValue: true,
     cap: "E-M1 B&W Filter (Monotone): N/Ye/Or/R/G, no strength (manual p.80). Not mapped remotely yet." },
 ];
@@ -260,24 +312,23 @@ for (const d of colorDefs) {
 
 // View shell
 const store = createViewStore(initialState(innerWidth < 700 ? "mobile" : "desktop", innerHeight > innerWidth ? "portrait" : "landscape"), "qp.gallery.view");
-store.subscribe((s, a) => log(`view: ${a.type} -> view=${s.view} scaling=${s.scaling} split=${s.split.toFixed(2)} (no camera action)`));
+store.subscribe((s, a) => log(`view: ${a.type} -> view=${s.view} scaling=${s.scaling} theme=${s.theme} split=${s.split.toFixed(2)} (no camera action)`));
 const live = document.createElement("div");
 live.className = "g-frame";
 const panelHost = document.createElement("div");
 const fullOverlay = document.createElement("div");
-fullOverlay.className = "qp-overlay";
-fullOverlay.style.cssText = "right:12px;top:10px;font:var(--qp-label-s);color:#fff;letter-spacing:var(--qp-track-label)";
+fullOverlay.className = "qp-overlay g-chip";
+fullOverlay.style.cssText = "right:12px;top:10px";
 const shell = mountViewShell($("#shellHost"), { store, live, panel: panelHost, frame: { w: 4, h: 3 } });
 fullOverlay.textContent = "FIT";
 shell.el.querySelector(".qp-stage").appendChild(fullOverlay);
 const back = document.createElement("button");
-back.className = "qp-overlay qp-return";
+back.className = "qp-overlay qp-return g-chip";
 back.textContent = "Show controls";
-back.style.cssText = "left:12px;top:10px;font:var(--qp-label-m);min-height:44px;padding:0 12px;border-radius:8px;border:1px solid #fff6;color:#fff;background:#0006;cursor:pointer";
+back.style.cssText = "left:12px;top:10px;cursor:pointer;min-height:44px";
 back.addEventListener("click", () => store.dispatch({ type: "clean" }));
 shell.el.querySelector(".qp-stage").appendChild(back);
-const miniStates = { aperture: states.aperture, shutter: states.shutter, iso: states.iso, ev: states.ev };
-const mini = mountQCP(panelHost, { connection: { kind: "wifi" }, values: miniStates, onRequest: (k) => simulateCamera(k), onAction: (a) => log(`panel action "${a}" (logged only)`) });
+const mini = mountQCP(panelHost, { connection: { kind: "wifi" }, values: states, onRequest: (k) => simulateCamera(k), onAction: (a) => log(`panel action "${a}" (logged only)`) });
 views.add(mini.render);
 store.subscribe((s) => { fullOverlay.textContent = s.scaling.toUpperCase(); });
 

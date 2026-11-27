@@ -54,6 +54,11 @@
 .qp-tick.major::before { height: var(--qp-tick-major); }
 .qp-tick-label { position: absolute; top: 46px; left: -24px; width: 72px; text-align: center; font: var(--qp-label-m); color: var(--qp-muted); }
 .qp-tick.active .qp-tick-label { color: var(--qp-accent); }
+/* Minor ticks carry no label; majors and semantic values do (Every tick has a purpose) */
+.qp-tick:not(.major):not(.special) .qp-tick-label { display: none; }
+.qp-tick.special::before { width: 5px; height: 5px; border-radius: 50%; left: 10px; top: 21px; }
+.qp-tick.special .qp-tick-label { font: var(--qp-label-s); letter-spacing: var(--qp-track-label); }
+.qp-tick.active::before { background: var(--qp-accent); }
 .qp-scale-marker { position: absolute; top: 12px; left: 0; width: var(--qp-tick-active-w); height: var(--qp-tick-major);
   margin-left: -1px; background: var(--qp-accent); pointer-events: none; }
 .qp-scale[data-variant="fixed"] .qp-scale-marker { transition: transform var(--qp-t-fast); }
@@ -88,8 +93,16 @@
 .qp-color-value { font: var(--qp-display-l); }
 .qp-color-name { font: var(--qp-label-l); letter-spacing: var(--qp-track-label); color: var(--qp-muted); margin-top: 2px; }
 /* Astro Red: red-only UI, colour swatches become the theme's muted red */
+/* V9.1: active sector stands out by stroke width in every theme (not by colour alone) */
+.qp-color-seg.active { stroke-width: 8; }
+.qp-color-id { font: 500 11px/1 var(--qp-font); fill: var(--qp-muted); text-anchor: middle; dominant-baseline: middle; display: none; }
+.qp-color-id.active { fill: var(--qp-accent); }
+/* Astro Red: red-only. Sectors become red and are identified by index, hue number or filter initial. */
 [data-qp-theme="astro"] .qp-color-seg { stroke: var(--qp-muted); }
-[data-qp-theme="astro"] .qp-color-grip { fill: var(--qp-muted); }
+[data-qp-theme="astro"] .qp-color-seg.active { stroke: var(--qp-accent); }
+[data-qp-theme="astro"] .qp-color-id { display: inline; }
+[data-qp-theme="astro"] .qp-color-grip { fill: var(--qp-ground); stroke: var(--qp-accent); stroke-width: 2.5; }
+[data-qp-theme="astro"] .qp-color-poly { stroke: var(--qp-text); }
 
 /* View shell (Adaptive View Architecture V1.0): live view + side panel, divider, Clean View hides overlays */
 .qp-shell { position: relative; display: grid; grid-template-columns: var(--qp-split, 65%) 12px minmax(0, 1fr);
@@ -122,3 +135,54 @@
   .qp-big { font: var(--qp-display-l); letter-spacing: var(--qp-track-display); min-height: 78px; }
 }
 @media (max-width: 480px) { .qp-panel { padding: 18px 14px; } }
+
+/* Precision Axis (independent correction axis, e.g. WB A-B / G-M) */
+.qp-axis { display: grid; gap: 4px; }
+.qp-axis-scale { padding: 0 12px; }
+.qp-axis-end { position: absolute; top: 46px; font: var(--qp-label-m); color: var(--qp-muted); }
+.qp-axis-end.left { left: 0; } .qp-axis-end.right { right: 0; }
+.qp-axis-empty { display: flex; align-items: center; justify-content: space-between; gap: var(--qp-s3); min-height: 56px;
+  padding: 0 var(--qp-s3); border: 1px dashed var(--qp-panel-line); border-radius: 8px; }
+.qp-axis-empty .qp-axis-end { position: static; }
+.qp-axis-note { font: var(--qp-status); color: var(--qp-muted); text-align: center; }
+
+/* Precision Selector (categorical: WB presets, AF, metering, picture mode) */
+.qp-selector { display: grid; gap: 18px; }
+.qp-selector-head { display: grid; justify-items: center; gap: 6px; }
+.qp-selector-head .qp-active-label { margin-top: 12px; }
+.qp-selector-icon { min-height: 32px; display: grid; place-items: center; }
+.qp-icon-primary { width: var(--qp-icon-primary); height: var(--qp-icon-primary); }
+.qp-selector-big { font: var(--qp-display-l); letter-spacing: var(--qp-track-display); }
+.qp-selector-sub { font: var(--qp-body); color: var(--qp-muted); min-height: 1.4em; }
+.qp-selector-row { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(var(--qp-touch-min), 1fr); gap: 2px; overflow-x: auto;
+  touch-action: pan-y; scrollbar-width: none; overscroll-behavior-x: contain; }
+/* Scrolling row: fade at the edge shows there is more */
+.qp-selector-row.scrolls { -webkit-mask-image: linear-gradient(90deg, #000 85%, transparent); mask-image: linear-gradient(90deg, #000 85%, transparent); }
+.qp-option { display: grid; justify-items: center; align-content: end; gap: 10px; min-height: var(--qp-touch); padding: 4px 0;
+  color: var(--qp-text); }
+.qp-option-icon { width: 28px; height: 28px; }
+.qp-option-text { font: var(--qp-label-s); letter-spacing: var(--qp-track-label); }
+.qp-option-tick { width: 1px; height: var(--qp-tick-minor); background: var(--qp-muted); }
+.qp-option.active .qp-option-tick { width: 2px; height: var(--qp-tick-major); background: var(--qp-accent); }
+.qp-option.active, .qp-option.hover { color: var(--qp-accent); }
+.qp-selector.qp-state-pending .qp-option.active .qp-option-tick { opacity: .55; }
+.qp-selector.qp-state-failed .qp-option.active .qp-option-tick { background: var(--qp-recording); }
+.qp-selector.qp-state-requested, .qp-selector.qp-state-pending, .qp-selector.qp-state-failed { text-decoration: none; }
+.qp-selector.qp-state-requested .qp-selector-big { text-decoration: underline dashed var(--qp-muted) 1px; text-underline-offset: 8px; }
+.qp-selector.qp-state-pending .qp-selector-big { text-decoration: underline dotted var(--qp-accent) 2px; text-underline-offset: 8px; }
+
+/* QCP white balance entry (placement provisional until the Application Map decides it) */
+.qp-wb-entry { display: flex; justify-content: center; margin-top: 6px; }
+.qp-wb-btn { display: inline-flex; align-items: center; gap: var(--qp-optical); min-height: var(--qp-touch-min); padding: 0 14px;
+  border: 1px solid var(--qp-panel-line) !important; border-radius: 999px; }
+.qp-wb-btn.selected { border-color: var(--qp-accent) !important; color: var(--qp-accent); }
+.qp-wb-btn .qp-icon { width: 20px; height: 20px; }
+
+/* Relative control (focus steps; no absolute position) */
+.qp-relative { display: grid; gap: 8px; }
+.qp-relative-row { display: flex; align-items: center; justify-content: center; gap: var(--qp-target-gap); flex-wrap: wrap; }
+.qp-rel-btn { min-width: var(--qp-touch-min); min-height: var(--qp-touch-min); padding: 0 10px; border-radius: 8px;
+  border: 1px solid var(--qp-panel-line); background: none; color: var(--qp-text); font: var(--qp-label-l); cursor: pointer; }
+.qp-rel-btn:disabled { color: var(--qp-muted); cursor: not-allowed; border-style: dashed; }
+.qp-rel-name { font: var(--qp-label-s); letter-spacing: var(--qp-track-label); color: var(--qp-muted); padding: 0 6px; }
+.qp-relative[aria-busy="true"] .qp-rel-btn { opacity: .55; }

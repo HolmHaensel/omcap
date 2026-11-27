@@ -20,6 +20,8 @@
   /* Capture button (Control / Capture / Ready): ring = text, disk per theme */
   --qp-capture-ring: var(--qp-text);
   --qp-capture-fill: var(--qp-text);
+  /* Colour-wheel swatches (V9.1): saturation and lightness of the hue segments per theme */
+  --qp-seg-s: 55%; --qp-seg-l: 58%;
   color-scheme: dark;
 }
 
@@ -34,6 +36,7 @@
   --qp-recording: #AD3434;
   --qp-capture-ring: var(--qp-text);
   --qp-capture-fill: var(--qp-text);
+  --qp-seg-s: 60%; --qp-seg-l: 40%;  /* darker swatches for contrast on the light ground (V9.1) */
   color-scheme: light;
 }
 

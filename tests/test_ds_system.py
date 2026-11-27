@@ -54,6 +54,14 @@ class Tokens(unittest.TestCase):
         self.assertEqual(b["astro"]["capture-fill"], "var(--qp-surface)")
         self.assertEqual(b["dark"]["capture-fill"], "var(--qp-text)")
 
+    def test_astro_red_is_red_only(self):
+        """No green, blue or white UI paint in Astro Red: every colour token has red dominant, green = blue."""
+        for k, v in self.blocks()["astro"].items():
+            if not v.startswith("#"):
+                continue
+            r, g, b = (int(v[i:i + 2], 16) for i in (1, 3, 5))
+            self.assertTrue(r > g and r > b and abs(g - b) <= 4, f"{k} {v}")
+
     def test_components_use_tokens_not_raw_colours(self):
         css = read("components.css")
         raw = [h for h in re.findall(r"#[0-9a-fA-F]{3,8}\b", css) if h.lower() not in ("#000",)]
@@ -63,7 +71,7 @@ class Tokens(unittest.TestCase):
 class Icons(unittest.TestCase):
     def test_gallery_icons_exist_in_sprite(self):
         ids = set(re.findall(r'<symbol id="i-([a-z0-9-]+)"', read("icons.svg")))
-        self.assertEqual(len(ids), 47)
+        self.assertEqual(len(ids), 60)
         gallery = re.search(r"const ICONS = \[(.*?)\];", read("gallery.html"), re.S).group(1)
         used = set(re.findall(r'"([a-z0-9-]+)"', gallery))
         self.assertEqual(used - ids, set())
@@ -98,6 +106,19 @@ class Fixture(unittest.TestCase):
         cam = {d.findtext("propname"): (d.findtext("enum") or "").split() for d in ET.parse(xml).getroot().iter("desc")}
         for k, v in fx["props"].items():
             self.assertEqual(v["values"], cam[k], k)
+
+
+class KelvinFixture(unittest.TestCase):
+    def test_custom_wb_list_is_the_bodys_usb_list(self):
+        import json
+        fx = json.loads(read("fixtures/em1-capabilities-sample.json"))
+        summ = os.path.join(ROOT, "camera", "summary.txt")
+        if not os.path.exists(summ):
+            self.skipTest("camera/summary.txt is local only")
+        with open(summ, encoding="utf-8", errors="replace") as f:
+            m = re.search(r"d00e rw u16\): Enumeration \[([^\]]*)\]", f.read())
+        self.assertEqual(fx["wb"]["custom_kelvin"]["values"], [int(x) for x in m.group(1).split(",")])
+        self.assertIsNone(fx["wb"]["correction"]["range"])  # not mapped: nothing invented
 
 
 @unittest.skipUnless(shutil.which("node"), "node not installed")

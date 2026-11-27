@@ -149,7 +149,7 @@ talks to the camera. Gallery for design QA: `http://127.0.0.1:<port>/ds/gallery.
 | File (`omcap/web/ds/`) | Content | Figma source |
 |---|---|---|
 | `tokens.css` | `--qp-*` semantic colours for Dark, Daylight, Astro Red (one component set, `data-qp-theme`), type scale, spacing, optical spacing, hit areas, scale and capture geometry, value states | Theme System V1.0 (32:482), Foundations (2:19), Typography (8:16), SCP & QCP (31:438) |
-| `icons.svg` | 47 symbols: 43 core V4.0 glyphs + 4 V3.2 extensions the SCP uses (stabilizer, tone, aspect, face AF); geometry unchanged, `currentColor` | Iconography Library (13:2, 18:x) |
+| `icons.svg` | 60 symbols: 43 core V4.0 glyphs, 4 V3.2 extensions the SCP uses (stabilizer, tone, aspect, face AF), 13 V3.4 white balance glyphs; geometry unchanged, `currentColor` | Iconography Library (13:2, 18:x, 24:x) |
 | `precision.js` | value model (requested, pending, confirmed, failed), Precision Scale (Center Lock, Fixed Range), QCP, SCP, Color Profile, Color Creator, Monochrome | SCP & QCP, Control Panel Components, Precision Color Controls V9 (12:2) |
 | `views.js` | view state model (Full, Clean, Panel; Fit, Fill; split; device, display and camera orientation as independent axes) and the resizable shell | Adaptive View Architecture V1.0 (34:967) |
 | `components.css`, `gallery.html`, `fixtures/` | component styles (tokens only), gallery, the camera's own Wi-Fi value lists from `camera/desclist.xml` | – |
@@ -164,16 +164,39 @@ wish; no view change produces a camera action (tested); capture, AF and Review o
 2. Split limits 40-80 % are a proposal (Figma: 65/35 start, exact constraints open). Phone portrait Panel View
    stacks live view over the panel (45 %), no divider.
 3. Swipe momentum (release speed x 120 ms) and the 160 ms snap animation are implementation values.
-4. Fixed Range spreads all stops over the width; with long lists (shutter: 58 stops without Live modes) ticks get
-   dense. Center Lock stays the default.
+4. Fixed Range spreads all stops over the width; with long lists (shutter: 61 values including the Live modes) ticks
+   get dense. Center Lock stays the default.
 5. Colour-ring hue names: Figma shows "BLUE"; the code shows degrees until names are decided. Color Creator
-   shows hue 00-29 and saturation; Monochrome on the E-M1 has the B&W filter N/Ye/Or/R/G without strength
+   shows hue 01-30 and saturation; Monochrome on the E-M1 has the B&W filter N/Ye/Or/R/G without strength
    (manual p.80), so the ring is selection-only.
 6. Astro Red: colour swatches in the rings turn muted red (red-only rule); the brightness token dims instruments
    only, not the live view. The optional image filter is not built.
 7. Only 4 of the V3.2-V3.4 family glyphs are exported (export limit 48 KB per call; families are still studies).
 8. Narrow panels (container width up to 460 px) step the exposure values from Value L to Value S and the large
    value from Display XL to Display L so five values fit at 375 px.
+
+**Precision Instrument Library V2.0 and Color Controls V9.1 (change request 2026-11-27, Figma 45:1180, 46:1125):**
+
+- Adaptive Precision Scale: every tick is one value of the camera's list (`stopsFor`), in camera order, nothing added at
+  the ends. Main values per parameter, independent of the 1/3, 1/2 or 1 EV step: full aperture stops, full shutter
+  stops, ISO doublings from 200, whole EV, every 1000 K. Minor ticks carry no label. AUTO, LOW, BULB, LIVE TIME and
+  LIVE COMP are semantic stops (dot, word label) set apart by a 3/4-step gap. Center Lock stays the default.
+- Five instrument types in `precision.js`: Scale (`mountScale`), Selector (`mountSelector`), Wheel (`mountColorRing`),
+  Axis (`mountAxis`), Relative (`mountRelative`). QCP and SCP read the same `ValueState` objects.
+- White balance from the body's own data: 13 presets (manual p.58; Wi-Fi `wbvalue` codes and USB `d01e` 1-13),
+  Custom WB from the USB `d00e` list (56 values, 2000-14000 K in 50/100/200/400/1000 K steps; the body has no 8000 K).
+  Wi-Fi has no Kelvin property. WB correction A-B / G-M: the range is not in the E-M1 manual text and no USB or Wi-Fi
+  property is known, so the axes render "not mapped" instead of a range.
+- Relative focus: USB MF drive steps 1-3 near/far (tested 2026-11-13); Wi-Fi shows the control disabled with the reason.
+  No absolute focus position. No lens zoom control exists for this body.
+- V9.1 themes: swatch lightness per theme (`--qp-seg-l`); the active sector is thicker in every theme; Astro Red paints
+  sectors in red, shows indices 01-12 (Color Profile), every fifth hue number plus the active one (Color Creator) and
+  filter initials (Monochrome), and an outlined grip. A theme switch writes nothing (tested in the gallery).
+
+**More decisions needed:** QCP WB entry placement (provisional: a WB chip under the four positions); 13 presets do not
+fit 375 px at 44 px targets, so the row scrolls natively and is picked by tap (swipe-pick only when the row fits);
+Monochrome initials Y/O follow Figma, the E-M1 manual writes Ye/Or; Color Creator numbers hues 01-30 (Figma "HUE 06");
+Color All has no visual reference in the frames read and is not built.
 
 **Capability notes (E-M1 Mark I, fw 4.6):** Color Creator is a picture mode of the body, but hue/saturation have
 no USB or Wi-Fi property (firmware study 2026-11-24); Color Profile and the Monochrome filter strength are PEN-F
