@@ -1,0 +1,160 @@
+/* Quiet Precision V4.0 design tokens (E-M1 Capture 1.0 design system).
+   Source: Figma "OMCAP Design System" (file 0EUgCC0dBZl2MsOUtnkLWs), read 2026-11-27:
+   Theme System V1.0 (32:482), Foundations (2:19), Typography and iconography (8:16),
+   SCP & QCP (31:438). Values are copied, not invented; anything marked PROPOSAL is an
+   implementation choice that still needs a design decision (see design/DESIGN.md).
+
+   Prefix --qp- keeps these apart from the production tokens in index.html until the page migrates.
+   One component set for all themes: set data-qp-theme="dark|daylight|astro" on any container. */
+
+/* Inter 4.1 variable (rsms/inter, SIL Open Font License 1.1, see fonts/Inter-OFL.txt), bundled so every device shows
+   the same type (weights 300/400/500, tabular figures). The bundled file comes first, so the version is fixed. */
+@font-face {
+  font-family: "Inter";
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url("fonts/InterVariable.woff2") format("woff2");
+}
+
+:root,
+[data-qp-theme="dark"] {
+  /* Semantic colour (Theme System V1.0, Dark: primary theme) */
+  --qp-ground: #141414;
+  --qp-surface: #282828;
+  --qp-text: #F1EFE8;      /* Warm White: primary text and the bright capture button */
+  --qp-muted: #BDBDB7;     /* Muted Silver: secondary values, labels, minor ticks */
+  --qp-accent: #D4AA62;    /* Amber: selection, adjustment, scale marker */
+  --qp-focus: #7EB89A;     /* confirmed focus or connection, always with a second cue */
+  --qp-recording: #D65C5C; /* recording and critical states, always with a second cue */
+  /* Capture button (Control / Capture / Ready): ring = text, disk per theme */
+  --qp-capture-ring: var(--qp-text);
+  --qp-capture-fill: var(--qp-text);
+  /* Colour-wheel swatches (V9.1): saturation and lightness of the hue segments per theme */
+  --qp-seg-s: 55%; --qp-seg-l: 58%;
+  color-scheme: dark;
+}
+
+[data-qp-theme="daylight"] {
+  /* Daylight: high contrast, outdoor validation pending */
+  --qp-ground: #F5F4F0;
+  --qp-surface: #E7E5DF;
+  --qp-text: #181818;
+  --qp-muted: #595959;
+  --qp-accent: #87560F;
+  --qp-focus: #256847;
+  --qp-recording: #AD3434;
+  --qp-capture-ring: var(--qp-text);
+  --qp-capture-fill: var(--qp-text);
+  --qp-seg-s: 60%; --qp-seg-l: 40%;  /* darker swatches for contrast on the light ground (V9.1) */
+  color-scheme: light;
+}
+
+[data-qp-theme="astro"] {
+  /* Astro Red: red-only UI, no white or green light; capture is outlined */
+  --qp-ground: #080000;
+  --qp-surface: #210606;
+  --qp-text: #E45A5A;
+  --qp-muted: #D25252;
+  --qp-accent: #FF7777;
+  --qp-focus: #E45A5A;
+  --qp-recording: #FF7777;
+  --qp-capture-ring: var(--qp-text);
+  --qp-capture-fill: var(--qp-surface);
+  color-scheme: dark;
+  /* Separate brightness control (Figma: implementation requirement). 1 = full; the app may lower it.
+     Applied as opacity on the themed container, never on the camera image itself. */
+  --qp-astro-brightness: 1;
+}
+
+:root, [data-qp-theme] {
+  /* Derived roles, declared on every theme container so they resolve to that theme's colours */
+  --qp-panel-bg: var(--qp-ground);   /* QCP/SCP panel fill */
+  --qp-panel-line: var(--qp-surface); /* panel border and dividers (1 px) */
+}
+
+:root {
+
+  /* Type (Typography and iconography V4.0): Inter, tabular numerals for changing values */
+  --qp-font: Inter, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --qp-num: tabular-nums;
+  --qp-display-xl: 300 80px/1.2 var(--qp-font);
+  --qp-display-l: 300 64px/1.2 var(--qp-font);
+  --qp-display-m: 300 48px/1.2 var(--qp-font);
+  --qp-value-l: 400 32px/1.2 var(--qp-font);
+  --qp-value-m: 400 28px/1.2 var(--qp-font);
+  --qp-value-s: 400 24px/1.2 var(--qp-font);
+  --qp-value-xs: 400 22px/1.2 var(--qp-font);
+  --qp-section: 500 18px/1.3 var(--qp-font);
+  --qp-body: 400 16px/1.4 var(--qp-font);
+  --qp-nav: 500 15px/1.3 var(--qp-font);
+  --qp-label-l: 500 14px/1.2 var(--qp-font);
+  --qp-label-m: 500 13px/1.2 var(--qp-font);
+  --qp-label-s: 500 12px/1.2 var(--qp-font);
+  --qp-status: 400 13px/1.2 var(--qp-font);
+  /* Tracking, Typography Refinement V1.1 (variant C, Optical Spacing; Figma Typography Audit 52:1312) */
+  --qp-track-label-l: 0.07em;  /* Label L 14 px */
+  --qp-track-label-m: 0.06em;  /* Label M 13 px */
+  --qp-track-label-s: 0.05em;  /* Label S 12 px */
+  --qp-track-label: var(--qp-track-label-s);
+  --qp-track-display: -0.01em; /* numeric display values 48-80 px (was -4 %) */
+  --qp-track-value: 0;         /* compact values 22-32 px */
+  --qp-track-prefix: 0.05em;   /* the aperture sign: its own optical space before the digits */
+  --qp-track-scale: 0;         /* numeric scale labels: neutral */
+  --qp-unit-size: 0.6em;       /* units (K) set smaller than the value they follow */
+  --qp-color-value: 300 70px/1.1 var(--qp-font); /* Color Controls central value (kept at 70 px) */
+
+  /* Space (Foundations: 4/8/12/16/20/32) and optical spacing V4.0 */
+  --qp-s1: 4px; --qp-s2: 8px; --qp-s3: 12px; --qp-s4: 16px; --qp-s5: 20px; --qp-s6: 32px;
+  --qp-optical: 6px;          /* between value elements / icon and modifier */
+  --qp-target-gap: 8px;       /* 8-12 px between touch targets */
+
+  /* Hit areas */
+  --qp-touch-min: 44px;       /* web minimum */
+  --qp-touch: 56px;           /* preferred mobile target */
+
+  /* Icons: 16 status, 24 standard, 28-32 primary; 1.5 px stroke at 24 px */
+  --qp-icon-status: 16px; --qp-icon: 24px; --qp-icon-primary: 32px;
+
+  /* Shape */
+  --qp-radius-panel: 12px;
+
+  /* Precision Scale / Center Lock (Control / Precision Scale / Center Lock) */
+  --qp-tick-step: 41px;       /* distance between neighbouring camera stops */
+  --qp-tick-minor: 12px;      /* 1 px wide, muted */
+  --qp-tick-major: 22px;      /* 1 px wide, muted, labelled */
+  --qp-tick-active-w: 2px;    /* active marker: 2 x 22 px, accent */
+
+  /* Capture button (76 px slot, 68 px ring at 1.5 px, 56 px disk) */
+  --qp-capture-slot: 76px; --qp-capture-ring-d: 68px; --qp-capture-disk-d: 56px;
+
+  /* Motion (PROPOSAL: kept from the production tokens) */
+  --qp-t-fast: 120ms; --qp-t-sheet: 200ms;
+  /* Precision detent (V2.1): one short step transition between two valid values; final value set by
+     Motion & Feedback design. 0 under Reduced Motion. */
+  --qp-detent-ms: 70ms;
+}
+
+/* Value states (Figma: "Distinguish requested, pending and confirmed").
+   The cue per state is a PROPOSAL until the design is confirmed:
+   requested = muted dashed underline (user intent, nothing sent yet),
+   pending   = accent dotted underline + aria-busy (sent, no readback yet),
+   confirmed = plain value (camera readback matches). Colour is never the only cue. */
+.qp-state-requested { text-decoration: underline dashed var(--qp-muted) 1px; text-underline-offset: 6px; }
+.qp-state-pending { text-decoration: underline dotted var(--qp-accent) 2px; text-underline-offset: 6px; }
+.qp-state-confirmed { text-decoration: none; }
+.qp-state-failed { text-decoration: underline wavy var(--qp-recording) 1px; text-underline-offset: 6px; }
+
+.qp-theme-root { background: var(--qp-ground); color: var(--qp-text); font: var(--qp-body); }
+/* Astro brightness dims the instruments only, never the live view (that is a separate, optional filter). */
+[data-qp-theme="astro"] .qp-panel { opacity: var(--qp-astro-brightness); }
+.qp-icon { width: var(--qp-icon); height: var(--qp-icon); flex: none; color: inherit; }
+/* Tabular figures for changing values. Doubled class so a later `font:` shorthand cannot reset it. */
+.qp-num.qp-num, .qp-num .qp-num { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.qp-prefix { letter-spacing: var(--qp-track-prefix); }
+.qp-unit { font-size: var(--qp-unit-size); letter-spacing: 0; margin-left: 0.2em; }
+/* Semantic camera words (AUTO, LOW, BULB, LIVE TIME, LIVECOMP) in a value slot: set as a word, not as a number */
+.qp-word { font-size: var(--qp-word-size, 0.6em); font-weight: inherit; letter-spacing: var(--qp-track-label-s); }
+@media (prefers-reduced-motion: reduce) { :root { --qp-t-fast: 0ms; --qp-t-sheet: 0ms; --qp-detent-ms: 0ms; } }
+/* App setting "motion off" (feedback settings) sets data-qp-motion="off" on any container */
+[data-qp-motion="off"] { --qp-detent-ms: 0ms; }

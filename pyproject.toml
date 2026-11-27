@@ -34,4 +34,4 @@ em1-capture-mcp = "omcap.mcp_server:main"
 packages = ["omcap"]
 
 [tool.setuptools.package-data]
-omcap = ["web/*.html", "data/*.xml", "data/*.json"]
+omcap = ["web/*.html", "web/ds/*.*", "web/ds/fixtures/*.json", "web/ds/fonts/*", "data/*.xml", "data/*.json"]

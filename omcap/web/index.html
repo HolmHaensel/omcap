@@ -29,7 +29,9 @@
   /* Type */
   --font-ui: Inter, system-ui, -apple-system, "Segoe UI", sans-serif;
   --font-value: "IBM Plex Mono", ui-monospace, Menlo, monospace; /* camera values: 1/250 F4.0 ISO 200 */
-  --fs-title: 16px; --fs-body: 14px; --fs-label: 12px; --fs-value: 22px; --fs-shutter: 18px;
+  --fs-display: 28px; --fs-title: 17px; --fs-heading: 15px; --fs-body: 14px;
+  --fs-label: 11px; --fs-meta: 12px; --fs-value: 22px; --fs-shutter: 16px;
+  --tracking-label: 0.09em;
 
   /* Space and shape */
   --s1: 4px; --s2: 8px; --s3: 12px; --s4: 16px; --s5: 20px; --s6: 32px;
@@ -167,6 +169,13 @@ button:disabled{color:var(--disabled);opacity:.6;cursor:not-allowed}
 #props label.ro strong{font-family:var(--font-value);font-size:18px;font-weight:500;color:var(--text)}
 #props label.ro{grid-column:1/-1;border-style:dashed;border-color:var(--line-strong)}
 #props label.wide{grid-column:1/-1}
+#props:not(.expanded) label.advanced{display:none!important}
+#props label.quick-primary{border-color:var(--accent-line);background:var(--accent-soft)}
+#props[data-primary-count="1"] label.quick-primary{grid-column:1/-1;min-height:78px}
+#props[data-primary-count="1"] label.quick-primary select{font-size:24px}
+#workflowHint{min-height:34px;margin:-2px 0 9px;padding:0 2px;color:var(--muted);font-size:var(--fs-meta);line-height:1.35}
+.section-actions{display:flex;align-items:center;gap:4px}
+#propsMore{font-size:10px;padding:3px 8px;background:transparent;color:var(--muted);white-space:nowrap}
 .cring{display:block;width:min(200px,100%);margin:6px auto 2px} /* Partial Color: colour ring like on the camera (REQ-F42) */
 .cring .seg{stroke:var(--ground);stroke-width:1;cursor:pointer}
 .cring .seg:hover{opacity:.8}
@@ -286,6 +295,36 @@ dialog h2{margin-top:12px}
 
 #viewer button{background:var(--surface);color:var(--text);border-color:var(--line)}
 #viewer button.on{background:var(--accent);color:var(--accent-ink)}
+.sr-only{position:absolute!important;width:1px!important;height:1px!important;padding:0!important;margin:-1px!important;overflow:hidden!important;clip:rect(0,0,0,0)!important;white-space:nowrap!important;border:0!important}
+#galBody{padding:12px;touch-action:pan-y;overscroll-behavior:contain}
+#galOv .galbar{min-height:54px;padding:8px 14px;background:#111315}
+#galOv .galbar strong{font-size:var(--fs-heading);letter-spacing:-.02em}
+#galCount{font-size:var(--fs-meta);white-space:nowrap}
+.gallery-icon{position:relative;width:36px!important;min-width:36px;height:36px!important;padding:0!important;font-size:0!important;display:inline-flex;align-items:center;justify-content:center}
+.gallery-icon::before,.gallery-icon::after{content:"";position:absolute;display:block}
+.gallery-icon svg{width:19px;height:19px;display:block}
+.icon-index::before,.icon-index::after,.icon-calendar::before,.icon-calendar::after,.icon-fit::before,.icon-fit::after{display:none}
+.icon-info::before{content:"i";position:static;font:700 16px/1 var(--font-value)}
+.icon-select::before{width:14px;height:14px;border:1.5px solid currentColor;border-radius:50%}
+.icon-select::after{width:6px;height:3px;border:solid currentColor;border-width:0 0 1.5px 1.5px;transform:rotate(-45deg);top:15px}
+.icon-share::before{width:14px;height:12px;border:1.5px solid currentColor;border-radius:2px;bottom:8px}
+.icon-share::after{content:"↑";position:static;font:16px/1 var(--font-ui);transform:translateY(-4px)}
+.icon-reload::before{content:"↻";position:static;font:18px/1 var(--font-ui)}
+.icon-close::before{content:"×";position:static;font:22px/1 var(--font-ui)}
+.icon-download::before{content:"↓";position:static;font:18px/1 var(--font-ui)}
+.icon-overlay::before{width:13px;height:13px;border:1.5px solid currentColor;border-radius:2px;box-shadow:4px -4px 0 -2px #111315,4px -4px 0 -1px currentColor}
+.grid-size{font-size:0!important}
+.grid-size::after{font:600 10px/1 var(--font-value)}
+.grid-size[data-sz="4"]::after{content:"2×2"}
+.grid-size[data-sz="9"]::after{content:"3×3"}
+.grid-size[data-sz="25"]::after{content:"5×5"}
+#galExifTog{width:36px;padding:0;justify-content:center}
+#galExifTog .icon-info{display:flex;align-items:center;justify-content:center}
+#galExifTog .icon-info::before{content:"i";font:700 16px/1 var(--font-value)}
+.gidx{transform-origin:center top;transition:opacity var(--t-fast),transform var(--t-fast)}
+#viewer .galbar{min-height:54px;border-color:#2a2d31;background:rgba(10,11,13,.94);flex-wrap:nowrap}
+#viewer #vInfo{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:var(--fs-meta);color:var(--muted)}
+#viewer .gallery-icon{flex:0 0 38px}
 .chip{display:inline-flex;gap:6px;align-items:center;background:var(--surface);border:1px solid var(--line);border-radius:var(--r-pill);padding:3px 10px;font-size:var(--fs-label)}
 body.single{background:#000;height:100vh;overflow:hidden}
 body.webcam{cursor:none;display:flex;align-items:center;justify-content:center}
@@ -362,6 +401,160 @@ body.webcam{cursor:none;display:flex;align-items:center;justify-content:center}
   #shutRow #half{height:var(--touch)}
   .tb{flex-wrap:wrap}
 }
+
+/* 2026 task-led redesign: OM camera clarity with an action-first capture flow. */
+body{background:#0b0c0e;font-size:var(--fs-body);letter-spacing:-.005em}
+header{min-height:68px;padding:10px clamp(16px,2.2vw,32px);gap:10px;background:rgba(14,15,17,.96);border-color:#23262b}
+.brand{display:flex;flex-direction:column;justify-content:center;min-width:154px;line-height:1.05}
+.brand .eyebrow{color:var(--muted);font-size:9px;font-weight:700;letter-spacing:.16em;text-transform:uppercase}
+.brand h1{margin-top:5px;font-size:var(--fs-title);font-weight:650;letter-spacing:-.025em}
+.status-cluster,.header-actions{display:flex;align-items:center;gap:8px}
+.header-actions{margin-left:auto}
+header>.sp{display:none}
+#status{font-size:var(--fs-meta)}
+#hdrInfo{padding-left:10px;border-left:1px solid var(--line)}
+.hbtn{height:38px;border-color:transparent;background:transparent;color:var(--muted)}
+.hbtn:hover{background:var(--surface-raised);color:var(--text)}
+#hdrPlay{background:var(--surface-raised);border-color:var(--line);color:var(--text)}
+main{grid-template-columns:minmax(560px,1fr) 388px;width:100%;max-width:1600px;margin:0 auto;gap:20px;padding:20px clamp(16px,2.2vw,32px) 24px}
+#liveCol{gap:12px}
+#viewport{border:1px solid #23262b;border-radius:16px;box-shadow:0 18px 50px rgba(0,0,0,.28)}
+#valStrip{height:56px;gap:clamp(12px,2.2vw,30px);padding:10px 20px 8px;font-size:clamp(14px,1.4vw,19px);font-weight:550}
+#valStrip .m{display:inline-flex;align-items:center;justify-content:center;min-width:34px;height:28px;padding:0 8px;border-radius:6px;background:var(--accent);color:var(--accent-ink)}
+.tb{padding:2px 0;gap:6px}
+.tb button,.tb select,.tb .tog{height:36px}
+.tb .vsep{margin:0 6px}
+#statusLine{min-height:22px;align-items:center;padding:0 2px;font-size:var(--fs-meta)}
+#panels{gap:10px;min-width:0}
+#panelNav{display:grid;grid-template-columns:repeat(4,1fr);gap:4px;padding:4px;background:var(--surface);border:1px solid var(--line);border-radius:14px;position:sticky;top:0;z-index:8}
+#panelNav button{display:flex;min-width:0;height:52px;padding:6px 4px;flex-direction:column;align-items:center;justify-content:center;gap:3px;border:0;background:transparent;color:var(--muted);font-size:10px;font-weight:650;letter-spacing:.02em}
+#panelNav button svg{width:18px;height:18px}
+#panelNav button[aria-selected=true]{background:var(--surface-raised);color:var(--text);box-shadow:inset 0 0 0 1px var(--line)}
+#panels[data-pane=camera]>section:not([data-pane=camera]):not([data-pane=primary]),
+#panels[data-pane=focus]>section:not([data-pane=focus]):not([data-pane=primary]),
+#panels[data-pane=tools]>section:not([data-pane=tools]):not([data-pane=primary]),
+#panels[data-pane=files]>section:not([data-pane=files]):not([data-pane=primary]){display:none!important}
+section{border-color:#25292e;border-radius:14px;padding:14px;background:#141619}
+section h2{margin-bottom:10px;color:#b9bec4;font-size:var(--fs-label);font-weight:700;letter-spacing:var(--tracking-label);text-transform:uppercase}
+#props{gap:7px}
+#props label{min-height:66px;padding:9px 11px;border-radius:10px;background:#0f1113}
+#props label>select,#props label.ro strong{margin-top:2px;font-size:19px;letter-spacing:-.03em}
+#modeBox .seg{padding:3px;background:#0f1113;border:0}
+#modeBox .seg button{height:36px;border:0;border-radius:7px}
+#modeBox .seg button+button{border-left:0}
+#shutterBox{gap:10px}
+#timerSeg{padding:3px;background:#0f1113;border:0}
+#timerSeg button{height:34px;border:0;border-radius:7px}
+#timerSeg button+button{border-left:0}
+#shutRow{grid-template-columns:minmax(0,1fr) 76px;align-items:center}
+#shutRow button{height:56px}
+#shutRow #shoot{width:76px;height:76px;padding:0;border:7px solid #101214;border-radius:50%;outline:2px solid var(--accent);font-size:0;line-height:1;box-shadow:0 0 0 1px var(--accent-line);display:inline-flex;align-items:center;justify-content:center}
+#shutRow #shoot::after{content:"";width:20px;height:20px;border:2px solid currentColor;border-radius:50%}
+#shutRow #shoot:active{transform:scale(.96)}
+#shutRow #shoot.cancel{font-size:11px;line-height:1.05;padding:8px}
+#shutRow #shoot.cancel::after{display:none}
+#shutRow #shoot:disabled{outline-color:var(--line);box-shadow:none}
+#shutRow #shoot:disabled::after{border-color:var(--disabled)}
+#shutRow #half{border-radius:28px}
+#panels>[data-id=shutter]{background:#181a1e}
+#panels>[data-id=shutter]::before{content:"CAPTURE";display:block;margin-bottom:8px;color:var(--muted);font-size:9px;font-weight:700;letter-spacing:.14em}
+#afModes{gap:6px}
+#afModes button{min-height:46px}
+#watchDock{display:none}
+
+@media(min-width:1101px){
+  #app:not([hidden]){background:#0b0c0e}
+  #panels{max-height:calc(100vh - 108px);padding-right:6px}
+  #panels>[data-id=shutter]{top:auto;bottom:0;order:99!important;box-shadow:0 -12px 28px #0b0c0e}
+  #viewport{width:min(100%,calc((100vh - 216px) * 4 / 3))}
+}
+@media(max-width:1100px){
+  main{grid-template-columns:minmax(0,1fr);max-width:820px;padding-bottom:calc(var(--bottomUi,218px) + 12px)}
+  #liveCol{position:relative;top:auto}
+  #viewport{width:min(100%,calc(52vh * 4 / 3))}
+  /* sits on the tab bar, which grows by the iPhone home indicator area (safe area): before, it covered the tab icons */
+  #panels>[data-id=shutter]{bottom:var(--navH,calc(62px + env(safe-area-inset-bottom,0px)));padding-bottom:var(--s2);border:1px solid var(--line);border-radius:16px 16px 0 0}
+  #panelNav{position:fixed;left:0;right:0;bottom:0;top:auto;border-width:1px 0 0;border-radius:0;padding:4px 8px calc(4px + env(safe-area-inset-bottom,0px));background:rgba(20,22,25,.98)}
+}
+@media(max-width:700px){
+  header{min-height:58px;padding:8px 12px;flex-wrap:nowrap}
+  .brand{min-width:0}
+  .brand .eyebrow{display:none}
+  .brand h1{margin:0;font-size:15px}
+  .status-cluster{min-width:0}
+  #status,#writeChip,#hdrInfo,#hdrCard,#hdrBat{display:none!important}
+  .header-actions .hbtn:not(#hdrPlay):not(#poweroff){display:none} /* phone: Playback and Turn off camera only (user 2026-11-15) */
+  #hdrPlay{width:40px;padding:0;font-size:0}
+  #hdrPlay::after{content:"▦";font-size:20px}
+  main{padding:10px 10px calc(var(--bottomUi,218px) + 12px);gap:12px}
+  #viewport{width:100%;border-radius:12px}
+  #valStrip{height:44px;padding:6px 12px;gap:12px;font-size:13px}
+  #valStrip span:nth-child(n+5){display:none}
+  .tb{overflow-x:auto;flex-wrap:nowrap;scrollbar-width:none}
+  .tb::-webkit-scrollbar{display:none}
+  .tb .vsep,.tb .sp,#popLive,#popCam{display:none}
+  label[data-feat=lvsize]{display:none!important}
+  #panels{gap:8px}
+  #panelNav button{height:50px}
+  #galOv .galbar{gap:5px;padding:7px 8px}
+  #galCount{max-width:180px;overflow:hidden;text-overflow:ellipsis}
+  #galEraseAsk{flex-basis:100%} /* the erase question gets its own row (layout only) */
+  #galOv .galbar>.sp{display:block;flex-basis:100%;height:0;margin:0}
+  #galBody{padding:8px}
+  .gidx{gap:4px}
+  .dayh{margin-top:14px}
+  .tile .cap{font-size:9px;padding:1px 4px}
+  #viewer .galbar{padding:6px 8px;gap:4px}
+  #viewer #vInfo{position:absolute;left:12px;right:12px;bottom:10px;z-index:3;padding:5px 8px;border-radius:var(--r-pill);background:rgba(10,11,13,.78);text-align:center}
+  #viewer .galbar>.sp{margin-left:auto}
+  section{padding:12px}
+  #props label{min-height:62px}
+  #shutRow{display:flex;justify-content:center;gap:14px}
+  #shutRow #half{width:min(45vw,180px)}
+  #shutRow #shoot{flex:0 0 76px}
+}
+/* Apple Watch-sized web companion: glanceable status, live frame, focus and shutter. */
+@media(max-width:430px) and (max-height:550px){
+  html,body{height:100%;overflow:hidden;background:#000}
+  #app:not([hidden]){height:100%;display:block}
+  #app>header,#panels,.tb,#statusLine{display:none!important}
+  main{display:block;height:100%;padding:0}
+  #liveCol{height:100%;display:block}
+  #viewport{width:100vw;height:auto;max-height:calc(100vh - 92px);aspect-ratio:4/3;border:0;border-radius:0;box-shadow:none}
+  #valStrip{height:34px;padding:4px 8px;gap:8px;font-size:10px}
+  #valStrip .m{min-width:24px;height:22px;padding:0 5px}
+  #valStrip span:nth-child(n+4){display:none}
+  #focusChip{top:7px;height:25px;padding:0 9px;font-size:10px}
+  #lastShot{display:none!important}
+  #watchDock{position:fixed;left:0;right:0;bottom:0;display:grid;grid-template-columns:46px 1fr 64px;align-items:center;gap:8px;height:92px;padding:8px 10px max(8px,env(safe-area-inset-bottom,0px));background:#0d0e10;border-top:1px solid #26292d;z-index:50}
+  #watchValues{min-width:0;color:var(--muted);font:10px/1.2 var(--font-value);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  #watchHalf,#watchShoot{display:flex;align-items:center;justify-content:center;padding:0}
+  #watchHalf{width:44px;height:44px;border-radius:50%;font-size:0}
+  #watchHalf::after{content:"AF";font:700 11px var(--font-value)}
+  #watchShoot{width:60px;height:60px;border:6px solid #0d0e10;border-radius:50%;outline:2px solid var(--accent);background:var(--accent);color:var(--accent-ink);font-size:0}
+  #watchShoot::after{content:"";width:15px;height:15px;border:2px solid currentColor;border-radius:50%}
+}
+/* Phone in landscape (last, so it wins over the stacked rules above): two fixed columns, live view and its tools on
+   the left, the panels on the right. Before, the columns followed their content, so the live view changed size with
+   every tab, and the live column covered the tab bar (user 2026-11-15). Layout only. */
+@media(orientation:landscape) and (max-height:520px) and (max-width:1100px){
+  /* the live view is the main element: 60 % of the width and the full screen height; the tab bar only spans the
+     panel column, so it takes no height from the live view */
+  main{grid-template-columns:minmax(0,3fr) minmax(0,2fr);max-width:none;gap:12px;padding:8px 12px calc(var(--bottomUi,62px) + 12px)}
+  #liveCol{grid-column:1;grid-row:1/span 30;align-self:start;position:sticky;top:8px;z-index:5;max-height:calc(100vh - 16px);max-height:calc(100dvh - 16px);overflow-y:auto;overscroll-behavior:contain}
+  #liveCol>*{flex-shrink:0} /* scroll the column instead of squeezing the live view (it was letterboxed) */
+  #panels>*:not(#panelNav){grid-column:2!important;grid-row:auto!important}
+  #viewport{width:min(100%,calc((100vh - 16px) * 4 / 3));width:min(100%,calc((100dvh - 16px) * 4 / 3));height:auto;max-height:none;aspect-ratio:4/3}
+  #hdrLocal{display:none} /* phone: Turn off camera instead of On the computer (user 2026-11-15) */
+  #panelNav{z-index:25;left:calc(18px + (100vw - 36px) * .6)} /* above the live column (5), below Playback and the viewer (30) */
+  /* Press halfway left, Take picture right, as in portrait (an older landscape rule put the shutter first) */
+  #shutRow{display:flex;justify-content:space-between;align-items:center;gap:14px}
+  #shutRow #half{order:1;flex:1 1 auto;max-width:200px}
+  #shutRow #shoot{order:2;flex:0 0 76px;height:76px}
+}
+@media(prefers-reduced-motion:reduce){
+  *,*::before,*::after{scroll-behavior:auto!important;transition-duration:0s!important;animation-duration:0s!important}
+}
 </style>
 </head>
 <body>
@@ -389,22 +582,25 @@ body.webcam{cursor:none;display:flex;align-items:center;justify-content:center}
 <div id="stopped" hidden><p data-i18n="app.stopped">E-M1 Capture has stopped. You can close this tab.</p></div>
 <div id="app" hidden>
 <header>
-  <h1>E-M1 Capture</h1>
-  <span id="connChip" class="chip ok" hidden><span class="dot"></span><span id="connText"></span></span>
-  <span id="writeChip" class="chip" hidden></span>
-  <span id="status" class="mut" data-i18n="app.connecting">connecting …</span>
-  <span id="hdrInfo"><span id="lensText"></span></span>
-  <span class="sp"></span>
-  <span id="hdrCard" class="mut" style="font-family:var(--font-value);font-size:13px"></span>
-  <span id="hdrBat" class="mut" style="font-family:var(--font-value);font-size:13px"></span>
-  <button id="hdrPlay" class="hbtn" data-feat="playback" data-i18n="panel.card">Playback</button>
-  <button id="hdrLocal" class="hbtn" data-i18n="local.title">On the computer</button>
-  <button id="layoutBtn" class="hbtn quiet" data-i18n="app.layout">Customize layout</button>
-  <button id="reset" class="hbtn w" data-i18n="app.reset" data-i18n-title="app.resetTitle">Reset camera</button>
-  <button id="phoneBtn" class="hbtn quiet" hidden data-i18n="phone.btn">Phone</button>
-  <button id="discon" class="hbtn quiet" data-i18n="app.disconnect">Disconnect</button>
-  <button class="hbtn quiet quitBtn" data-i18n="app.quit">Quit E-M1 Capture</button>
-  <button id="poweroff" class="hbtn icon w" data-feat="poweroff" data-i18n-aria="app.poweroff" data-i18n-title="app.poweroff"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 3v8"/><path d="M6.3 7.2a8 8 0 1 0 11.4 0"/></svg></button>
+  <div class="brand"><span class="eyebrow">OM SYSTEM · REMOTE</span><h1>E-M1 Capture</h1></div>
+  <div class="status-cluster">
+    <span id="connChip" class="chip ok" hidden><span class="dot"></span><span id="connText"></span></span>
+    <span id="writeChip" class="chip" hidden></span>
+    <span id="status" class="mut" data-i18n="app.connecting">connecting …</span>
+    <span id="hdrInfo"><span id="lensText"></span></span>
+  </div>
+  <div class="header-actions">
+    <span id="hdrCard" class="mut" style="font-family:var(--font-value);font-size:13px"></span>
+    <span id="hdrBat" class="mut" style="font-family:var(--font-value);font-size:13px"></span>
+    <button id="hdrPlay" class="hbtn" data-feat="playback" data-i18n="panel.card">Playback</button>
+    <button id="hdrLocal" class="hbtn" data-i18n="local.title">On the computer</button>
+    <button id="layoutBtn" class="hbtn quiet" data-i18n="app.layout">Customize layout</button>
+    <button id="reset" class="hbtn w" data-i18n="app.reset" data-i18n-title="app.resetTitle">Reset camera</button>
+    <button id="phoneBtn" class="hbtn quiet" hidden data-i18n="phone.btn">Phone</button>
+    <button id="discon" class="hbtn quiet" data-i18n="app.disconnect">Disconnect</button>
+    <button class="hbtn quiet quitBtn" data-i18n="app.quit">Quit E-M1 Capture</button>
+    <button id="poweroff" class="hbtn icon w" data-feat="poweroff" data-i18n-aria="app.poweroff" data-i18n-title="app.poweroff"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 3v8"/><path d="M6.3 7.2a8 8 0 1 0 11.4 0"/></svg></button>
+  </div>
 </header>
 <main>
 <div id="liveCol">
@@ -492,14 +688,21 @@ body.webcam{cursor:none;display:flex;align-items:center;justify-content:center}
   <div id="statusLine"><span id="lvSize" class="mut"></span><p id="msg" class="mut" data-i18n="msg.ready">Ready.</p></div>
   <details id="mcpBox" hidden><summary data-i18n="mcp.title">MCP activity</summary><ol id="mcpLog"></ol></details>
 </div>
-<div id="panels">
-  <section data-id="scp" data-label="LV super control panel" data-i18n-label="panel.scp">
-    <h2 class="hrow"><span data-i18n="panel.scp">LV super control panel</span> <button id="propsReload" class="mini" data-i18n="scp.reload">reload</button></h2>
+<div id="panels" data-pane="camera">
+  <nav id="panelNav" aria-label="Control groups">
+    <button type="button" data-panel-nav="camera" aria-selected="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="12" cy="12" r="7"/><circle cx="12" cy="12" r="2"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg><span data-i18n="nav.camera">Shoot</span></button>
+    <button type="button" data-panel-nav="focus" aria-selected="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M8 3H3v5M16 3h5v5M8 21H3v-5M16 21h5v-5"/><circle cx="12" cy="12" r="3"/></svg><span data-i18n="nav.focus">Focus</span></button>
+    <button type="button" data-panel-nav="tools" aria-selected="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round" aria-hidden="true"><path d="M8 8h11v10H8z"/><path d="M10 5h11v10M6 11H4M6 14H2M6 17H4"/></svg><span data-i18n="nav.tools">Sequence</span></button>
+    <button type="button" data-panel-nav="files" aria-selected="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="m7 16 3-3 2 2 3-4 3 5"/></svg><span data-i18n="nav.files">Review</span></button>
+  </nav>
+  <section data-id="scp" data-pane="camera" data-label="LV super control panel" data-i18n-label="panel.scp">
+    <h2 class="hrow"><span data-i18n="quick.title">Quick controls</span><span class="section-actions"><button id="propsMore" type="button" hidden data-i18n="quick.all">All settings</button><button id="propsReload" class="mini" data-i18n="scp.reload">reload</button></span></h2>
     <div id="modeBox"></div>
+    <div id="workflowHint"></div>
     <div id="props"></div>
     <div id="roProps" hidden></div>
   </section>
-  <section data-id="af" data-label="AF target (AF Area)" data-i18n-label="panel.af" data-feat="af_area">
+  <section data-id="af" data-pane="focus" data-label="AF target (AF Area)" data-i18n-label="panel.af" data-feat="af_area">
     <h2 data-i18n="panel.af">AF target (AF Area)</h2>
     <div class="row" id="afModes" data-feat="af_modes">
       <button class="w" data-af="33024" data-i18n="af.33024">All Targets</button>
@@ -521,7 +724,7 @@ body.webcam{cursor:none;display:flex;align-items:center;justify-content:center}
       <span id="afInfo" class="mut"></span>
     </div>
   </section>
-  <section data-id="movie" data-label="Movie" data-i18n-label="panel.movie" data-feat="movie">
+  <section data-id="movie" data-pane="tools" data-label="Movie" data-i18n-label="panel.movie" data-feat="movie">
     <h2 data-i18n="panel.movie">Movie</h2>
     <div class="row">
       <button class="w" id="movStart" data-i18n="movie.start">Start recording</button>
@@ -530,7 +733,7 @@ body.webcam{cursor:none;display:flex;align-items:center;justify-content:center}
     </div>
     <div class="row"><span id="movQuality" class="mut"></span></div>
   </section>
-  <section data-id="prog" data-label="Shooting options" data-i18n-label="panel.prog">
+  <section data-id="prog" data-pane="tools" data-label="Shooting options" data-i18n-label="panel.prog">
     <h2 data-i18n="panel.prog">Shooting options</h2>
     <div class="row" id="rowIv" hidden>
       <span data-i18n="prog.timelapse">Time lapse shooting</span>
@@ -559,7 +762,7 @@ body.webcam{cursor:none;display:flex;align-items:center;justify-content:center}
       <span id="takeInfo" class="mut"></span>
     </div>
   </section>
-  <section data-id="shutter" data-label="Shutter button" data-i18n-label="panel.shutter">
+  <section data-id="shutter" data-pane="primary" data-label="Shutter button" data-i18n-label="panel.shutter">
     <div id="shutterBox">
       <div>
         <div id="timerLab"><span data-i18n="timer.label">Self-timer</span></div>
@@ -574,7 +777,7 @@ body.webcam{cursor:none;display:flex;align-items:center;justify-content:center}
       </div>
     </div>
   </section>
-  <section data-id="transfer" data-label="Save to" data-i18n-label="panel.transfer">
+  <section data-id="transfer" data-pane="files" data-label="Save to" data-i18n-label="panel.transfer">
     <h2 data-i18n="panel.transfer">Save to</h2>
     <div class="row">
       <label id="trCopyLbl"><input type="checkbox" id="trCopy"> <span data-i18n="transfer.copy">Copy to computer</span></label>
@@ -601,13 +804,18 @@ body.webcam{cursor:none;display:flex;align-items:center;justify-content:center}
     <div class="mut hint" data-i18n="hsl.autoHint">HSL is the colour profile of the PEN-F camera. It makes a copy of your photo with other colours. Your original stays as it is. The copy is saved as ..._hsl.jpg in the folder out/hsl.</div>
     <div id="trErr" class="warn"></div>
   </section>
-  <section data-id="card" data-label="Playback" data-i18n-label="panel.card" data-feat="playback">
+  <section data-id="card" data-pane="files" data-label="Playback" data-i18n-label="panel.card" data-feat="playback">
     <h2 data-i18n="panel.card">Playback</h2>
     <div class="row"><button id="galOpen" data-i18n="card.index">Index display</button><button id="reload" data-i18n="card.reload">Reload</button><span id="count" class="mut"></span></div>
     <div id="gal"></div>
   </section>
 </div>
 </main>
+<div id="watchDock" aria-label="Watch capture controls">
+  <button id="watchHalf" type="button" aria-label="Autofocus"></button>
+  <div id="watchValues">E-M1 · READY</div>
+  <button id="watchShoot" type="button" aria-label="Take picture"></button>
+</div>
 </div>
 <div id="galOv" hidden>
   <div class="galbar">
@@ -616,20 +824,20 @@ body.webcam{cursor:none;display:flex;align-items:center;justify-content:center}
     <span id="galChip" class="chip" hidden></span>
     <span class="sp"></span>
     <div class="seg" role="group" data-i18n-aria="card.display" aria-label="Display">
-      <button data-v="index" data-i18n="card.index">Index display</button><button data-v="cal" data-i18n="card.calendar">Calendar display</button>
+      <button class="gallery-icon icon-index" data-v="index" data-i18n-title="card.index"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="1.5"/><path d="M9 5v14M15 5v14M3 12h18"/></svg><span class="sr-only" data-i18n="card.index">Index display</span></button><button class="gallery-icon icon-calendar" data-v="cal" data-i18n-title="card.calendar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><rect x="3" y="5" width="15" height="13" rx="1.5"/><path d="M8 5v13M13 5v13M3 11h15"/><circle cx="17.5" cy="16.5" r="4" fill="var(--surface)"/><path d="M17.5 14.2v2.5l1.7 1"/></svg><span class="sr-only" data-i18n="card.calendar">Calendar display</span></button>
     </div>
     <div class="seg" role="group" data-i18n-aria="card.sizes" aria-label="Thumbnail size">
-      <button data-sz="25" data-i18n="card.sizeS">S</button><button data-sz="9" data-i18n="card.sizeM">M</button><button data-sz="4" data-i18n="card.sizeL">L</button>
+      <button class="grid-size" data-sz="25" data-i18n-aria="card.grid5">5×5</button><button class="grid-size" data-sz="9" data-i18n-aria="card.grid3">3×3</button><button class="grid-size" data-sz="4" data-i18n-aria="card.grid2">2×2</button>
     </div>
-    <label class="tog" id="galExifTog"><input type="checkbox" id="galExif"> <span data-i18n="card.exifLine">Shooting data</span></label>
-    <button id="galSelect" data-i18n="card.select">Select</button>
+    <label class="tog" id="galExifTog"><input type="checkbox" id="galExif"><span class="icon-info" aria-hidden="true"></span><span class="sr-only" data-i18n="card.exifLine">Shooting data</span></label>
+    <button id="galSelect" class="gallery-icon icon-select" data-i18n-title="card.select">Select</button>
     <button id="galSaveSel" hidden data-i18n="card.saveSel">Save selected</button>
     <button id="galErase" class="w" data-feat="erase" data-i18n="card.erase" hidden>Erase</button>
-    <button id="galShare" data-feat="share_order" data-i18n="card.share">Share Order</button>
+    <button id="galShare" class="gallery-icon icon-share" data-feat="share_order" data-i18n-title="card.share">Share Order</button>
     <button id="galShareSave" data-feat="share_order" data-i18n="card.shareSave" hidden>Save all to computer</button>
     <button id="galShareReset" data-feat="share_order" data-i18n="card.shareReset" hidden>Reset Share Order</button>
-    <button id="galReload" data-i18n="card.reload">Reload</button>
-    <button id="galClose" data-i18n="card.close">Close</button>
+    <button id="galReload" class="gallery-icon icon-reload" data-i18n-title="card.reload">Reload</button>
+    <button id="galClose" class="gallery-icon icon-close" data-i18n-title="card.close">Close</button>
   </div>
   <div id="galBody"></div>
 </div>
@@ -638,9 +846,9 @@ body.webcam{cursor:none;display:flex;align-items:center;justify-content:center}
     <button id="vPrev" aria-label="Previous picture" data-i18n-aria="card.prev">‹</button><button id="vNext" aria-label="Next picture" data-i18n-aria="card.next">›</button>
     <span id="vInfo"></span>
     <span class="sp"></span>
-    <button id="vInfoBtn" data-i18n-title="info.title"></button>
-    <button id="vFit" data-i18n="view.fit">Fit</button>
-    <button id="vGet" data-i18n="card.saveToMac">Save to computer</button><button id="vHsl" data-i18n="hsl.btn">HSL</button><button id="vWs" hidden data-i18n="view.ws">Open in OM Workspace</button><button id="vOvl" hidden data-i18n="card.overlay">Overlay</button><button id="vClose" data-i18n="card.close">Close</button>
+    <button id="vInfoBtn" class="gallery-icon icon-info" data-i18n-title="info.title"></button>
+    <button id="vFit" class="gallery-icon icon-fit" data-i18n-title="view.fit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="14" height="12" rx="1.5"/><path d="m5.5 14 3-3 2.5 2 2-2 2 3"/><circle cx="17.5" cy="7.5" r="3.5" fill="var(--surface)"/><path d="M17.5 5.8v3.4M15.8 7.5h3.4"/></svg><span class="sr-only" data-i18n="view.fit">Fit</span></button>
+    <button id="vGet" class="gallery-icon icon-download" data-i18n-title="card.saveToMac">Save to computer</button><button id="vHsl" data-i18n="hsl.btn">HSL</button><button id="vWs" hidden data-i18n="view.ws">Open in OM Workspace</button><button id="vOvl" hidden class="gallery-icon icon-overlay" data-i18n-title="card.overlay">Overlay</button><button id="vClose" class="gallery-icon icon-close" data-i18n-title="card.close">Close</button>
   </div>
   <div id="vBody">
     <div id="vImgBox"><img id="vImg" alt="" draggable="false"><div id="vStrip" hidden></div></div>
@@ -728,6 +936,9 @@ const I18N={en:{
   "card.sizeS": "S",
   "card.sizeM": "M",
   "card.sizeL": "L",
+  "card.grid5": "Five-column grid",
+  "card.grid3": "Three-column grid",
+  "card.grid2": "Two-column grid",
   "card.exifLine": "Shooting data",
   "card.select": "Select",
   "card.selectDone": "Done",
@@ -1095,7 +1306,22 @@ const I18N={en:{
   "layout.panels": "Panels",
   "layout.settings": "Settings",
   "layout.close": "Close",
-  "layout.reset": "Reset"
+  "layout.reset": "Reset",
+  "nav.camera": "Shoot",
+  "nav.focus": "Focus",
+  "nav.tools": "Sequence",
+  "nav.files": "Review",
+  "quick.title": "Quick controls",
+  "quick.all": "All settings",
+  "quick.less": "Quick only",
+  "quick.hint.iAuto": "Frame, focus and shoot. The camera chooses the exposure.",
+  "quick.hint.P": "Set brightness. The camera balances shutter speed and aperture.",
+  "quick.hint.A": "Choose depth of field. The camera selects the shutter speed.",
+  "quick.hint.S": "Choose motion. The camera selects the aperture.",
+  "quick.hint.M": "Choose shutter speed and aperture directly.",
+  "quick.hint.ART": "Choose the look first, then fine-tune brightness.",
+  "quick.hint.movie": "Choose movie exposure before recording. Values lock while recording.",
+  "quick.hint.default": "Only controls available in this shooting mode are shown."
 }};
 const LANG=(()=>{try{const l=localStorage.getItem('omcap.lang');if(l&&I18N[l])return l}catch{}
   const n=(navigator.language||'en').slice(0,2);return I18N[n]?n:'en'})();
@@ -1113,6 +1339,16 @@ function applyI18n(root=document){
   root.querySelectorAll('[data-i18n-label]').forEach(e=>e.dataset.label=tr(e.dataset.i18nLabel));
 }
 applyI18n();
+const PANE_KEY='omcap.pane';
+function setPane(pane){
+  const panels=document.querySelector('#panels');
+  if(!panels||!['camera','focus','tools','files'].includes(pane)) return;
+  panels.dataset.pane=pane;
+  document.querySelectorAll('[data-panel-nav]').forEach(b=>b.setAttribute('aria-selected',String(b.dataset.panelNav===pane)));
+  try{localStorage.setItem(PANE_KEY,pane)}catch{}
+}
+document.querySelectorAll('[data-panel-nav]').forEach(b=>b.onclick=()=>setPane(b.dataset.panelNav));
+try{setPane(localStorage.getItem(PANE_KEY)||'camera')}catch{setPane('camera')}
 const params=new URLSearchParams(location.search);
 async function api(path,body){
   let r;
@@ -1515,6 +1751,7 @@ function renderStrip(){
   for(const [c,t,ti] of out){const e=document.createElement('span');if(c)e.className=c;if(ti)e.title=ti;e.textContent=t;s.append(e)}
   const w=$('#live').naturalWidth;
   if(st.live&&w){const e=document.createElement('span');e.className='sz';e.textContent=w+'×'+$('#live').naturalHeight;s.append(e)}
+  $('#watchValues').textContent=out.slice(0,3).map(x=>x[1]).join(' · ')||'E-M1 · READY';
   s.hidden=!out.length||!st.live;
 }
 /* Shooting mode: segmented control (Wi-Fi) or read-only card (USB: the mode dial decides) */
@@ -1541,6 +1778,33 @@ function renderModeBox(p){
   }
   box.append(seg);
 }
+let showAllSettings=false;
+function workflowFor(p){
+  const mode=p.takemode&&p.takemode.value;
+  const movieMode=mode==='movie'&&p.exposemovie&&p.exposemovie.value;
+  let primary=[];
+  if(mode==='movie') primary=['exposemovie'];
+  else if(mode==='A') primary=['focalvalue'];
+  else if(mode==='S') primary=['shutspeedvalue'];
+  else if(mode==='M') primary=['shutspeedvalue','focalvalue'];
+  else if(mode==='ART') primary=['artfilter'];
+  else if(['P','S','A'].includes(mode)) primary=['expcomp'];
+  const quick=[...primary,'isospeedvalue','wbvalue'];
+  if(['P','A','S','ART'].includes(mode)||['P','A','S'].includes(movieMode)) quick.push('expcomp');
+  if(movieMode==='A') quick.push('focalvalue');
+  if(movieMode==='S') quick.push('shutspeedvalue');
+  if(movieMode==='M') quick.push('shutspeedvalue','focalvalue');
+  if(mode==='iAuto') quick.push('drivemode');
+  return{mode,primary,quick:[...new Set(quick)]};
+}
+function syncSettingsToggle(){
+  const box=$('#props'),button=$('#propsMore'),hasAdvanced=!!box.querySelector('label.advanced');
+  box.classList.toggle('expanded',showAllSettings);
+  button.hidden=!hasAdvanced;
+  button.textContent=tr(showAllSettings?'quick.less':'quick.all');
+  button.setAttribute('aria-expanded',String(showAllSettings));
+}
+$('#propsMore').onclick=()=>{showAllSettings=!showAllSettings;syncSettingsToggle()};
 /* Partial Color: the 18 colour steps as a ring to click, laid out like the camera's colour ring (manual p.45,
    REQ-F42): yellow at the top, red right, blue at the bottom, green left (photos of the camera ring 2026-11-15).
    Wi-Fi only (colorphase; not over USB, probe 2026-11-15). Camera-checked over Wi-Fi 2026-11-15: step0 at the top
@@ -1612,6 +1876,8 @@ function renderProps(){
   renderRo();
   box.innerHTML='';
   renderModeBox(p);
+  const workflow=workflowFor(p);
+  $('#workflowHint').textContent=tr('quick.hint.'+workflow.mode,null,tr('quick.hint.default'));
   for(const [k,f] of Object.entries(FEATURES)){
     const v=p[k];
     if(k==='takemode') continue; // own control above the tiles (renderModeBox)
@@ -1619,6 +1885,9 @@ function renderProps(){
     // Value names: table (val.<setting>.<value>) before the camera names and from FEATURES
     const name=o=>tr('val.'+k+'.'+o,null,'')||(v.names&&v.names[o])||(f.names&&f.names[o])||o;
     const l=document.createElement('label'); l.textContent=tr('prop.'+k); l.dataset.id=k; l.dataset.label=tr('prop.'+k);
+    l.classList.toggle('quick-primary',workflow.primary.includes(k));
+    l.classList.toggle('advanced',!workflow.quick.includes(k));
+    l.dataset.quickOrder=String((workflow.quick.indexOf(k)+1||100)+100);
     const sel=document.createElement('select'); sel.disabled=!canWrite;
     const opts=v.enum.filter(o=>!(f.skip&&f.skip(o,p)));
     if(!opts.includes(v.value)) opts.unshift(v.value);
@@ -1634,6 +1903,10 @@ function renderProps(){
     if(k==='isospeedvalue'){const a=document.createElement('span');a.id='isoAuto';a.className='isoAuto';l.append(a);updateIsoAuto()}
   }
   applyLayout();
+  const primaryCount=box.querySelectorAll('label.quick-primary:not([hidden])').length;
+  box.dataset.primaryCount=String(primaryCount);
+  box.querySelectorAll('label[data-quick-order]').forEach(l=>{l.style.order=l.dataset.quickOrder});
+  syncSettingsToggle();
   reRemote();
   applyContext();
 }
@@ -1784,8 +2057,10 @@ function renderStrip12(){
       The camera works through requests one by one, hence at most two at a time. */
 const GAL_KEY='omcap.gallery', MONTHS=tr('months').split(',');
 function loadGal(){try{return JSON.parse(localStorage.getItem(GAL_KEY))||{}}catch{return{}}}
+const GAL_LEVELS=[4,9,25]; // 5×5, 3×3, 2×2 as on main (user 2026-11-15)
 const gv={n:9,mode:'index',day:null,month:null,exif:false,info:'simple',...loadGal(),day:null};
-if(![4,9,25].includes(gv.n)) gv.n=gv.n>25?25:9; // older versions also had 100 per page
+if(gv.n===16) gv.n=25; // saved by the earlier 4×4 grid
+if(!GAL_LEVELS.includes(gv.n)) gv.n=9;
 if(!['image','simple','overall'].includes(gv.info)) gv.info='simple';
 function saveGal(){try{localStorage.setItem(GAL_KEY,JSON.stringify({n:gv.n,mode:gv.mode,exif:gv.exif,info:gv.infoSet?gv.info:undefined,infoSet:gv.infoSet}))}catch{}}
 /* Shooting data (EXIF) per path, one request each; the server reads only the start of each file */
@@ -1934,7 +2209,7 @@ function renderGal(){
     const t=makeTile(s.preview);
     t.classList.toggle('sel',selSet.has(s.preview.path));
     const bd=document.createElement('div'); bd.className='bd'; bd.textContent=s.types; t.append(bd);
-    if(gv.n<=25){const c=document.createElement('div');c.className='cap';c.textContent=`${s.name} · ${tr('date.short',{mon:MONTHS[s.dt.m-1].slice(0,3),d:s.dt.d,time:pad(s.dt.h)+':'+pad(s.dt.mi)})}`;t.append(c)}
+    if(gv.n<=9){const c=document.createElement('div');c.className='cap';c.textContent=s.name;t.append(c)}
     t.onclick=()=>{
       if(selMode){const k=s.preview.path;selSet.has(k)?selSet.delete(k):selSet.add(k);t.classList.toggle('sel',selSet.has(k));
         $('#galSaveSel').textContent=tr('card.saveSel',{n:selSet.size});$('#galSaveSel').disabled=!selSet.size;setErase();return}
@@ -2069,16 +2344,28 @@ document.querySelectorAll('[data-v]').forEach(b=>b.onclick=()=>{
   saveGal();renderGal();
 });
 document.querySelectorAll('[data-sz]').forEach(b=>b.onclick=()=>{gv.n=+b.dataset.sz;saveGal();renderGal()});
+function zoomGallery(direction){
+  if(!cardShots) return;
+  if(gv.mode==='cal'){
+    if(direction>0){gv.mode='index';gv.n=25;saveGal();renderGal()}
+    return;
+  }
+  const i=GAL_LEVELS.indexOf(gv.n);
+  if(direction>0&&i>0) gv.n=GAL_LEVELS[i-1];
+  else if(direction<0&&i<GAL_LEVELS.length-1) gv.n=GAL_LEVELS[i+1];
+  else if(direction<0&&i===GAL_LEVELS.length-1){gv.mode='cal';gv.day=null}
+  else return;
+  saveGal();renderGal();
+}
 /* Pinch in Index display (phone), smooth like a photo library: the grid scales with the fingers around the point
-   between them, and on release it settles on the nearest size (S 5x5, M 3x3, L 2x2; pinching in beyond 5x5 opens
-   Calendar display, spreading in Calendar display goes back to 5x5, as in the redesign) and the new grid fades in.
+   between them, and on release it settles on the nearest size (5x5, 3x3, 2x2; pinching in beyond 5x5 opens Calendar display, spreading in Calendar display goes back to 5x5) and the new grid fades in.
    Touch events, not pointer events: iOS Safari turns a two-finger move in a scrolling area into scrolling and
    cancels the pointers (seen on an iPhone 2026-11-14); the grid is rebuilt only after the gesture, because iOS keeps
    sending the moves to the touched tile. One finger keeps scrolling. */
 const calm=matchMedia('(prefers-reduced-motion:reduce)'); // shared by the Playback gestures
 (()=>{
   const body=$('#galBody'), sizes=[25,9,4], cols={25:5,9:3,4:2};
-  let g=null, pend=null; // pend: the size change still gliding after the last gesture // gesture: start distance, scale
+  let g=null, pend=null; // g: the gesture (start distance, scale); pend: the size change still gliding after the last one
   const dist=t=>Math.hypot(t[0].clientX-t[1].clientX,t[0].clientY-t[1].clientY);
   const setT=(sc,ms)=>{body.style.transition=ms?`transform ${ms}ms ease-out`:'none';body.style.transform=sc===1?'':`scale(${sc})`};
   body.addEventListener('touchstart',e=>{
@@ -2119,6 +2406,7 @@ const calm=matchMedia('(prefers-reduced-motion:reduce)'); // shared by the Playb
   };
   body.addEventListener('touchend',end); body.addEventListener('touchcancel',end);
 })();
+$('#galBody').addEventListener('wheel',e=>{if(!e.ctrlKey)return;e.preventDefault();zoomGallery(e.deltaY<0?1:-1)},{passive:false}); // trackpad pinch on the computer
 /* Single image */
 let vToken=0;
 function viewerUrl(f){
@@ -2170,7 +2458,7 @@ function prefetchNeighbors(){
 /* Picture information: Image only -> Simplified display -> Overall display (INFO button, manual p.62) */
 // INFO button order: details first (users expect them on the first click; the camera shows Simplified first)
 const INFO_MODES=['image','overall','simple'];
-function infoButton(){$('#vInfoBtn').textContent=tr('info.'+gv.info);$('#vInfoBtn').classList.toggle('on',gv.info==='overall')} // highlighted only while the details panel is open
+function infoButton(){const b=$('#vInfoBtn'),text=tr('info.'+gv.info);b.title=text;b.setAttribute('aria-label',text);b.classList.toggle('on',gv.info==='overall')} // highlighted only while the details panel is open
 function drawVHist(){
   const im=$('#vImg'),c=$('#vHist'),g=c.getContext('2d');
   g.clearRect(0,0,c.width,c.height);
@@ -2223,7 +2511,8 @@ async function showInfo(s,token){
 }
 $('#vInfoBtn').onclick=()=>{gv.info=INFO_MODES[(INFO_MODES.indexOf(gv.info)+1)%3];gv.infoSet=true;saveGal();if(vList[vIdx])showInfo(vList[vIdx],vToken)};
 $('#vImg').onload=()=>{if(gv.info==='overall')drawVHist()};
-$('#vFit').onclick=()=>{vZoomReset();const b=$('#vImgBox');b.classList.toggle('full');$('#vFit').textContent=tr(b.classList.contains('full')?'view.full':'view.fit')};
+function fitButton(){const full=$('#vImgBox').classList.contains('full'),b=$('#vFit'),text=tr(full?'view.full':'view.fit');b.title=text;b.setAttribute('aria-label',text)}
+$('#vFit').onclick=()=>{vZoomReset();const b=$('#vImgBox');b.classList.toggle('full');fitButton()};
 /* Pinch to zoom in the single-frame view (phone), pan with one finger while zoomed, double tap 1x / 2.5x,
    mouse wheel on the computer (user 2026-11-14). Only in the fitted view; "Fit" (1:1) keeps scrolling. */
 const vZoom={s:1,x:0,y:0}, vPtrs=new Map();
@@ -2305,7 +2594,7 @@ function vCentre(e){const b=$('#vImgBox').getBoundingClientRect();return {x:e.cl
     if(side) return;
     const c=vCentre(e);vZoomTo(vZoom.s*Math.exp(-e.deltaY/300),c.x,c.y)},{passive:false});
 })();
-function openViewer(list,i){vList=list;vIdx=i;$('#viewer').hidden=false;$('#vImgBox').classList.remove('full');$('#vFit').textContent=tr('view.fit');showShot()}
+function openViewer(list,i){vList=list;vIdx=i;$('#viewer').hidden=false;$('#vImgBox').classList.remove('full');fitButton();showShot()}
 function closeViewer(){vZoomReset();vToken++;$('#viewer').hidden=true;$('#vImg').removeAttribute('src');pump()}
 function stepViewer(d){const n=vIdx+d;if(n>=0&&n<vList.length){vIdx=n;showShot()}}
 /* Swipe: slide the picture out to the side, show the next one and let it slide in from the other side */
@@ -3611,6 +3900,19 @@ function commit(){saveLayout(layout);applyLayout();renderLayout()}
 $('#layoutBtn').onclick=()=>{renderLayout();$('#layoutDlg').showModal()};
 $('#layoutReset').onclick=()=>{layout={};commit()};
 
+/* Phone and narrow window: the shutter block sits on the fixed tab bar and the page keeps room for both.
+   Their heights are measured (font size, safe area of the iPhone home indicator), not guessed. Layout only. */
+(()=>{
+  const dock=document.querySelector('#panels>[data-id=shutter]'), nav=$('#panelNav'), root=document.documentElement.style;
+  if(!dock||!nav||!window.ResizeObserver) return;
+  const fit=()=>{
+    const fixed=el=>getComputedStyle(el).position==='fixed';
+    const n=fixed(nav)?nav.getBoundingClientRect().height:0, d=fixed(dock)?dock.getBoundingClientRect().height:0;
+    if(n) root.setProperty('--navH',n+'px'); else root.removeProperty('--navH');
+    if(n||d) root.setProperty('--bottomUi',(n+d)+'px'); else root.removeProperty('--bottomUi');
+  };
+  new ResizeObserver(fit).observe(dock); new ResizeObserver(fit).observe(nav); addEventListener('resize',fit); fit();
+})();
 /* Buttons */
 $('#lvStart').onclick=async()=>{
   try{await api('/api/liveview',{action:'start',lvqty:isUsb&&!lvPicked?null:$('#lvqty').value});startLiveLoop();msg(tr('msg.lvRunning'));await tick();if(features.has('af_area'))loadAf();setTimeout(props,1500)}catch(e){msg(e.message,true)}};
@@ -3780,6 +4082,8 @@ $('#half').onclick=async()=>{
   if(!hit) showNoFocus();
   drawAf();
 };
+$('#watchShoot').onclick=()=>$('#shoot').click();
+$('#watchHalf').onclick=()=>$('#half').click();
 $('#reset').onclick=()=>act(tr('msg.reset'),'/api/mode',{mode:'rec'});
 $('#ivStart').onclick=()=>act(tr('msg.tlStarted'),'/api/interval',{count:+$('#ivCount').value,seconds:+$('#ivSec').value});
 $('#brStart').onclick=()=>act(tr('msg.bktStarted'),'/api/bracket',{frames:+$('#brFrames').value,step:+$('#brStep').value});

@@ -349,3 +349,6 @@ Camera test reports, bug reports, ideas, translations and code are welcome. See
 ## License
 
 GPL-3.0-or-later, see [LICENSE](LICENSE).
+
+Bundled font: [Inter](https://github.com/rsms/inter) 4.1 (variable), SIL Open Font License 1.1, see
+[omcap/web/ds/fonts/Inter-OFL.txt](omcap/web/ds/fonts/Inter-OFL.txt).
