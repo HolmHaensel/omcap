@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Design system 1.0 (Quiet Precision) as isolated code beside the page: tokens for Dark, Daylight and Astro Red, Figma icons, precision instruments (scale, selector, axis, relative focus, colour instruments) on one detent engine with click/haptic feedback, QCP and SCP on one value source, view model (Full/Clean/Panel, Fit/Fill, resizable split), refined typography with bundled Inter 4.1 (SIL OFL) and a component gallery at `/ds/gallery.html`; the page is not migrated yet (REQ-D06). Browser-tested without camera.
 - Star AF by ear: **HFR tone** (smaller star = higher tone, two beeps at the best value) and the words Sharper / Softer – turn back / At best while you turn the focus ring (USB and Wi-Fi, REQ-F24). USB camera-tested 2026-11-26, Wi-Fi not tested.
 
 ## 0.8.1 – 2026-11-26
