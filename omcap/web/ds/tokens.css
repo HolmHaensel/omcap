@@ -111,6 +111,9 @@
 
   /* Motion (PROPOSAL: kept from the production tokens) */
   --qp-t-fast: 120ms; --qp-t-sheet: 200ms;
+  /* Precision detent (V2.1): one short step transition between two valid values; final value set by
+     Motion & Feedback design. 0 under Reduced Motion. */
+  --qp-detent-ms: 70ms;
 }
 
 /* Value states (Figma: "Distinguish requested, pending and confirmed").
@@ -128,4 +131,6 @@
 [data-qp-theme="astro"] .qp-panel { opacity: var(--qp-astro-brightness); }
 .qp-icon { width: var(--qp-icon); height: var(--qp-icon); flex: none; color: inherit; }
 .qp-num { font-variant-numeric: var(--qp-num); }
-@media (prefers-reduced-motion: reduce) { :root { --qp-t-fast: 0ms; --qp-t-sheet: 0ms; } }
+@media (prefers-reduced-motion: reduce) { :root { --qp-t-fast: 0ms; --qp-t-sheet: 0ms; --qp-detent-ms: 0ms; } }
+/* App setting "motion off" (feedback settings) sets data-qp-motion="off" on any container */
+[data-qp-motion="off"] { --qp-detent-ms: 0ms; }

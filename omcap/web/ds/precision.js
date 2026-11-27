@@ -4,6 +4,10 @@
 // caller (camera capability mapping) and report the user's wish through onRequest. The caller sends it to
 // the camera and feeds the readback back in with confirm(). Every tick is one real camera value.
 
+// All input runs through the Precision Detent Engine: one detent per valid value, no gliding values,
+// no kinetic scrolling, one feedback pulse per detent passed.
+import { createDetent } from "./detent.js";
+
 // ---------------------------------------------------------------------------------------------
 // Value model: requested -> pending -> confirmed (or failed). Pure, no DOM, testable in node.
 // ---------------------------------------------------------------------------------------------
@@ -50,15 +54,15 @@ export class ValueState {
   }
 
   get phase() {
+    if (this.requested !== null) return "requested"; // newest local selection, not sent yet (an older one may be in flight)
     if (this.error) return "failed";
     if (this.pending !== null) return "pending";
-    if (this.requested !== null) return "requested";
     return "confirmed";
   }
 
-  /** The value to show: the wish while one is open, otherwise the camera's value. */
+  /** The value to show: the newest local selection, else the one in flight, else the camera's value. */
   get shown() {
-    return this.pending ?? this.requested ?? this.confirmed;
+    return this.requested ?? this.pending ?? this.confirmed;
   }
 
   get shownIndex() {
@@ -70,7 +74,8 @@ export class ValueState {
   request(value) {
     const v = String(value);
     if (indexOfValue(this.stops, v) < 0) return false;
-    if (this.pending === null && v === this.confirmed) { this.requested = null; this.error = null; return true; }
+    // Back to what the camera has (or to what is already on its way): nothing new to send.
+    if ((this.pending === null && v === this.confirmed) || v === this.pending) { this.requested = null; this.error = null; return true; }
     this.requested = v;
     this.error = null;
     return true;
@@ -252,7 +257,8 @@ const reducedMotion = () => typeof matchMedia === "function" && matchMedia("(pre
  *   variant:    "center" (Center Lock, standard) or "fixed" (Fixed Range, alternative)
  *   ends:       optional [left, right] end labels (Precision Axis)
  *   onRequest:  called with the requested camera value after a tap, drag/swipe end or key press.
- * Direct operation only: drag, swipe (flick) and tap on the scale, arrow keys; no extra slider.
+ * Direct operation only: drag, swipe, tap, wheel/trackpad, arrow keys and crown on the scale; no extra slider.
+ * Detents only: the scale never rests between two values and does not coast after release.
  */
 export function mountScale(host, opts) {
   const o = { variant: "center", format: (s) => s.label, label: "Value", ...opts };
@@ -271,11 +277,23 @@ export function mountScale(host, opts) {
   host.appendChild(root);
 
   let xs = [];          // strip position of every stop (px)
-  let posX = 0;         // strip position currently under the marker
-  let drag = null;
-  let raf = 0;
+  let pointer = null;   // {x, startX, moved, target}
 
   const step = () => parseFloat(getComputedStyle(root).getPropertyValue("--qp-tick-step")) || 41;
+
+  // One detent per camera value. A detent changes value display, scale position and marker together.
+  const engine = createDetent({
+    count: o.state.stops.length,
+    index: Math.max(0, o.state.shownIndex),
+    config: o.detent,
+    onDetent: (i, dir, source) => {
+      o.feedback?.pulse(source);
+      const s = o.state.stops[i];
+      o.state.request(s.value);
+      render();
+      o.onRequest?.(s.value, source);
+    },
+  });
 
   function computeXs() {
     const base = scaleLayout(o.state.stops, step());
@@ -299,10 +317,14 @@ export function mountScale(host, opts) {
     computeXs();
   }
 
-  function layout(x) {
+  function layout(i) {
     const w = root.clientWidth;
     const ticks = strip.children;
-    for (let i = 0; i < ticks.length; i++) ticks[i].style.transform = `translateX(${xs[i]}px)`;
+    for (let k = 0; k < ticks.length; k++) {
+      ticks[k].style.transform = `translateX(${xs[k]}px)`;
+      ticks[k].classList.toggle("active", k === i);
+    }
+    const x = xs[i] ?? 0;
     if (o.variant === "fixed") {
       strip.style.transform = "";
       marker.style.transform = `translateX(${x}px)`;
@@ -310,14 +332,12 @@ export function mountScale(host, opts) {
       strip.style.transform = `translateX(${centerLockOffset(x, w)}px)`;
       marker.style.transform = `translateX(${w / 2}px)`;
     }
-    const n = nearestStop(xs, x);
-    for (let i = 0; i < ticks.length; i++) ticks[i].classList.toggle("active", i === n);
   }
 
   function render() {
     const i = o.state.shownIndex;
-    if (!drag && i >= 0) posX = xs[i];
-    root.className = `qp-scale ${o.ends ? "qp-axis-scale " : ""}${stateClass(o.state.phase)}`;
+    if (i >= 0 && i !== engine.index) engine.set(i); // readback or list change: no pulse
+    root.className = `qp-scale ${o.ends ? "qp-axis-scale " : ""}${stateClass(o.state.phase)}${pointer?.moved ? " dragging" : ""}`;
     root.dataset.phase = o.state.phase;
     root.setAttribute("aria-valuemin", 0);
     root.setAttribute("aria-valuemax", o.state.stops.length - 1);
@@ -325,80 +345,44 @@ export function mountScale(host, opts) {
     const s = o.state.stops[i];
     root.setAttribute("aria-valuetext", s ? `${o.format(s)}, ${o.state.phase}` : "unknown");
     root.setAttribute("aria-busy", o.state.phase === "pending" ? "true" : "false");
-    layout(posX);
-  }
-
-  function requestIndex(i) {
-    const s = o.state.stops[clampIndex(o.state.stops, i)];
-    if (o.state.request(s.value)) {
-      render();
-      if (o.state.phase === "requested") o.onRequest?.(s.value);
-    }
-  }
-
-  function animateTo(i) {
-    cancelAnimationFrame(raf);
-    const from = posX;
-    const to = xs[i];
-    const t0 = performance.now();
-    const dur = reducedMotion() ? 0 : 160;
-    const tick = (now) => {
-      const k = dur ? Math.min(1, (now - t0) / dur) : 1;
-      posX = from + (to - from) * (1 - (1 - k) ** 3);
-      layout(posX);
-      if (k < 1) raf = requestAnimationFrame(tick);
-    };
-    raf = requestAnimationFrame(tick);
+    layout(engine.index);
   }
 
   root.addEventListener("pointerdown", (e) => {
     if (e.button !== 0) return;
     root.setPointerCapture(e.pointerId);
-    drag = { x: e.clientX, startX: posX, moved: false, samples: [[e.timeStamp, e.clientX]], target: e.target };
+    pointer = { x: e.clientX, startX: xs[engine.index], moved: false, target: e.target };
   });
   root.addEventListener("pointermove", (e) => {
-    if (!drag) return;
-    const dx = e.clientX - drag.x;
-    if (Math.abs(dx) > 4) drag.moved = true;
-    if (!drag.moved) return;
-    drag.samples.push([e.timeStamp, e.clientX]);
-    if (drag.samples.length > 5) drag.samples.shift();
-    const lo = xs[0] - step() * 0.4;
-    const hi = xs[xs.length - 1] + step() * 0.4;
-    posX = Math.max(lo, Math.min(hi, dragToX(drag.startX, dx, o.variant)));
-    layout(posX);
+    if (!pointer) return;
+    const dx = e.clientX - pointer.x;
+    if (!pointer.moved && Math.abs(dx) <= 4) return;
+    pointer.moved = true;
+    // The finger position picks the nearest real stop; every stop in between is passed as a detent.
+    engine.dragToIndex(nearestStop(xs, dragToX(pointer.startX, dx, o.variant)), e.pointerType === "touch" ? "touch" : "drag");
   });
-  root.addEventListener("pointerup", () => {
-    if (!drag) return;
-    const d = drag;
-    drag = null;
-    if (!d.moved) {
-      // Tap: a tick (stop) jumps there; a tap elsewhere on the scale does nothing.
-      const t = d.target.closest?.(".qp-tick");
-      if (t) { const i = +t.dataset.i; animateTo(i); requestIndex(i); }
-      return;
+  const end = () => {
+    if (!pointer) return;
+    const p = pointer;
+    pointer = null;
+    if (!p.moved) {
+      const t = p.target.closest?.(".qp-tick"); // tap on a tick: one jump; elsewhere: nothing
+      if (t) engine.jump(+t.dataset.i, "tap");
     }
-    // Swipe: carry on with the release velocity, then snap to the nearest real stop.
-    const [a, b] = [d.samples[0], d.samples[d.samples.length - 1]];
-    const v = b[0] > a[0] ? (b[1] - a[1]) / (b[0] - a[0]) : 0; // px per ms
-    const flick = Math.abs(v) > 0.3 ? v * 120 : 0;
-    const i = nearestStop(xs, o.variant === "fixed" ? posX + flick : posX - flick);
-    animateTo(i);
-    requestIndex(i);
-  });
-  root.addEventListener("pointercancel", () => { drag = null; render(); });
-  root.addEventListener("keydown", (e) => {
-    const i = Math.max(0, o.state.shownIndex);
-    const k = { ArrowRight: 1, ArrowUp: 1, ArrowLeft: -1, ArrowDown: -1 }[e.key];
-    let to = null;
-    if (k) to = i + k;
-    else if (e.key === "Home") to = 0;
-    else if (e.key === "End") to = o.state.stops.length - 1;
-    if (to === null) return;
+    render();
+  };
+  root.addEventListener("pointerup", end);
+  root.addEventListener("pointercancel", end);
+  root.addEventListener("wheel", (e) => {
     e.preventDefault();
-    to = clampIndex(o.state.stops, to);
-    animateTo(to);
-    requestIndex(to);
+    const d = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
+    engine.wheel(e.deltaMode === 1 ? d * 16 : d, "wheel");
+  }, { passive: false });
+  root.addEventListener("keydown", (e) => {
+    const k = { ArrowRight: 1, ArrowUp: 1, ArrowLeft: -1, ArrowDown: -1 }[e.key];
+    if (k) { e.preventDefault(); engine.step(k, "key"); }
+    else if (e.key === "Home") { e.preventDefault(); engine.jump(0, "key"); }
+    else if (e.key === "End") { e.preventDefault(); engine.jump(o.state.stops.length - 1, "key"); }
   });
   const ro = new ResizeObserver(() => { computeXs(); render(); });
   ro.observe(root);
@@ -408,9 +392,12 @@ export function mountScale(host, opts) {
   return {
     el: root,
     render,
-    setStops(stops) { o.state.setStops(stops); build(); render(); },
+    engine,
+    /** Digital Crown or another rotary input; native=true when the platform already gives crown haptics. */
+    crown(delta, native = false) { return engine.crown(delta, native ? "crown-native" : "crown"); },
+    setStops(stops) { o.state.setStops(stops); engine.setCount(o.state.stops.length, Math.max(0, o.state.shownIndex)); build(); render(); },
     setVariant(v) { o.variant = v; root.dataset.variant = v; build(); render(); },
-    destroy() { ro.disconnect(); cancelAnimationFrame(raf); root.remove(); },
+    destroy() { ro.disconnect(); root.remove(); },
   };
 }
 
@@ -430,8 +417,9 @@ export function mountAxis(host, opts) {
     root.appendChild(empty);
     return { el: root, render() {}, destroy() { root.remove(); } };
   }
-  const scale = mountScale(root, { state: opts.state, label: opts.label, variant: "fixed", ends: opts.ends, onRequest: opts.onRequest });
-  return { el: root, render: scale.render, destroy() { scale.destroy(); root.remove(); } };
+  const scale = mountScale(root, { state: opts.state, label: opts.label, variant: "fixed", ends: opts.ends,
+    feedback: opts.feedback, detent: opts.detent, onRequest: opts.onRequest });
+  return { el: root, render: scale.render, crown: scale.crown, destroy() { scale.destroy(); root.remove(); } };
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -480,6 +468,7 @@ export function mountSelector(host, opts) {
 
   function render() {
     const i = o.state.shownIndex;
+    if (engine && i >= 0 && i !== engine.index) engine.set(i); // readback: no pulse
     const op = i >= 0 ? byValue.get(o.state.stops[i].value) : null;
     const d = op ? o.display(op) : { big: "–", sub: "" };
     big.textContent = d.big;
@@ -494,55 +483,69 @@ export function mountSelector(host, opts) {
     });
   }
 
-  function pick(i) {
-    const s = o.state.stops[clampIndex(o.state.stops, i)];
-    if (o.state.request(s.value)) {
+  const engine = createDetent({
+    count: o.state.stops.length,
+    index: Math.max(0, o.state.shownIndex),
+    config: o.detent,
+    onDetent: (i, dir, source) => {
+      o.feedback?.pulse(source);
+      const s = o.state.stops[i];
+      o.state.request(s.value);
       render();
-      if (o.state.phase === "requested") o.onRequest?.(s.value);
-    }
-  }
+      o.onRequest?.(s.value, source);
+    },
+  });
 
-  // A row wider than its box scrolls natively (tap to pick); a row that fits picks by swiping across it.
+  // A row wider than its box scrolls natively (tap to pick); a row that fits picks by dragging across it.
   const overflows = () => row.scrollWidth > row.clientWidth + 1;
   const fitMode = () => { row.style.touchAction = overflows() ? "pan-x pan-y" : "pan-y"; row.classList.toggle("scrolls", overflows()); };
   const ro = typeof ResizeObserver === "function" ? new ResizeObserver(fitMode) : null;
   ro?.observe(row);
+  const hitIndex = (x) => btns.findIndex((b) => { const r = b.getBoundingClientRect(); return x >= r.left && x < r.right; });
 
   let drag = null;
   row.addEventListener("pointerdown", (e) => {
     if (e.button !== 0) return;
-    if (!overflows()) row.setPointerCapture(e.pointerId);
-    drag = { x: e.clientX, moved: false, scroll: overflows() };
+    const scroll = overflows();
+    if (!scroll) row.setPointerCapture(e.pointerId);
+    drag = { x: e.clientX, moved: false, scroll, target: e.target };
   });
   row.addEventListener("pointermove", (e) => {
-    if (!drag || drag.scroll) { if (drag && Math.abs(e.clientX - drag.x) > 6) drag.moved = true; return; }
+    if (!drag) return;
     if (Math.abs(e.clientX - drag.x) > 6) drag.moved = true;
-    if (!drag.moved) return;
-    const hit = btns.findIndex((b) => { const r = b.getBoundingClientRect(); return e.clientX >= r.left && e.clientX < r.right; });
-    btns.forEach((b, k) => b.classList.toggle("hover", k === hit));
-    drag.hit = hit;
+    if (!drag.moved || drag.scroll) return;
+    const hit = hitIndex(e.clientX);
+    if (hit >= 0) engine.dragToIndex(hit, e.pointerType === "touch" ? "touch" : "drag"); // one detent per option passed
   });
-  row.addEventListener("pointerup", (e) => {
+  row.addEventListener("pointerup", () => {
     if (!drag) return;
     const d = drag;
     drag = null;
-    btns.forEach((b) => b.classList.remove("hover"));
-    if (d.moved) { if (!d.scroll && d.hit >= 0) pick(d.hit); return; }
-    const b = e.target.closest(".qp-option");
-    if (b) pick(+b.dataset.i);
+    if (d.moved) return;
+    const b = d.target.closest?.(".qp-option");
+    if (b) engine.jump(+b.dataset.i, "tap");
   });
+  row.addEventListener("pointercancel", () => { drag = null; });
+  row.addEventListener("wheel", (e) => {
+    if (overflows() && Math.abs(e.deltaX) > Math.abs(e.deltaY)) return; // horizontal trackpad scrolls the row
+    e.preventDefault();
+    engine.wheel(e.deltaMode === 1 ? e.deltaY * 16 : e.deltaY, "wheel");
+  }, { passive: false });
   row.addEventListener("keydown", (e) => {
     const k = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 }[e.key];
     if (!k) return;
     e.preventDefault();
-    const i = clampIndex(o.state.stops, Math.max(0, o.state.shownIndex) + k);
-    pick(i);
-    btns[i].focus();
+    engine.step(k, "key");
+    btns[engine.index].focus();
   });
 
   render();
   fitMode();
-  return { el: root, render, destroy() { ro?.disconnect(); root.remove(); } };
+  return {
+    el: root, render, engine,
+    crown(delta, native = false) { return engine.crown(delta, native ? "crown-native" : "crown"); },
+    destroy() { ro?.disconnect(); root.remove(); },
+  };
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -604,7 +607,7 @@ export const QCP_PARAMS = [
 ];
 
 /**
- * mountQCP(host, {title, connection, values, active, wb, onRequest, onAction})
+ * mountQCP(host, {title, connection, values, active, wb, feedback, detent, onRequest, onAction})
  *   values:     {aperture: ValueState|null, shutter, iso, ev}; null = not available in this mode/connection
  *   wb:         optional {state, options, display} for the WB preset selector
  *   onRequest(key, value): user wish for a camera value (key "wb" for the selector)
@@ -669,12 +672,14 @@ export function mountQCP(host, opts) {
       inst?.destroy();
       inst = null;
       if (isWb) {
-        inst = mountSelector(scaleHost, { ...o.wb, label: "WHITE BALANCE", onRequest: (v) => { o.onRequest?.("wb", v); render(false); } });
+        inst = mountSelector(scaleHost, { ...o.wb, label: "WHITE BALANCE", feedback: o.feedback, detent: o.detent,
+          onRequest: (v, src) => { o.onRequest?.("wb", v, src); render(false); } });
       } else if (o.values[o.active]) {
         const p = QCP_PARAMS.find((x) => x.key === o.active);
         inst = mountScale(scaleHost, {
           state: o.values[o.active], label: p.label, variant: o.variant || "center", format: p.scaleFmt,
-          onRequest: (v) => { o.onRequest?.(p.key, v); render(false); },
+          feedback: o.feedback, detent: o.detent,
+          onRequest: (v, src) => { o.onRequest?.(p.key, v, src); render(false); },
         });
       }
     } else inst.render();
@@ -715,6 +720,9 @@ export function mountQCP(host, opts) {
     render: () => render(false),
     setActive(k) { o.active = k; render(true); },
     setVariant(v) { o.variant = v; render(true); },
+    /** Digital Crown in the instrument view: changes the active parameter only. */
+    crown(delta, native = false) { return inst?.crown?.(delta, native) ?? 0; },
+    get active() { return o.active; },
     setConnection(c) { head.lastChild.replaceWith(connectionBadge(c)); },
     destroy() { inst?.destroy(); root.remove(); },
   };
@@ -845,7 +853,7 @@ export function ringLabels(kind, segments, active) {
 }
 
 /**
- * mountColorRing(host, {kind, segments, values, active, min, max, noValue, onRequest})
+ * mountColorRing(host, {kind, segments, values, active, min, max, noValue, axis, feedback, detent, onRequest})
  *   kind:     "profile" (polygon of per-segment values), "creator" (hue position + one value),
  *             "mono" (filter segments)
  *   segments: [{name, hue, short?}] from the capability mapping (hue in degrees for the swatch only)
@@ -865,7 +873,8 @@ export function mountColorRing(host, opts) {
   const centre = el("div", "qp-color-centre");
   const val = el("output", "qp-color-value qp-num");
   const name = el("div", "qp-color-name");
-  centre.append(val, name);
+  const axisCue = el("div", "qp-color-axis");
+  centre.append(val, name, axisCue);
   root.append(svg, centre);
   host.appendChild(root);
   const R = 118;
@@ -917,7 +926,9 @@ export function mountColorRing(host, opts) {
       svg.appendChild(poly);
     }
     // Grip at the active segment
-    const r = o.kind === "profile" ? valueToRadius(getVal(act), o.min, o.max) * (R - 14) : R - 28;
+    // Grip radius shows the level on the radial axis (Creator: saturation between 40 and R-10), never in between.
+    const r = o.kind === "profile" ? valueToRadius(getVal(act), o.min, o.max) * (R - 14)
+      : o.kind === "creator" ? 40 + ((getVal(act) - o.min) / (o.max - o.min || 1)) * (R - 50) : R - 28;
     const [gx, gy] = polar(segmentAngle(act, n), r);
     const g = document.createElementNS(SVGNS, "circle");
     g.setAttribute("cx", gx);
@@ -930,66 +941,108 @@ export function mountColorRing(host, opts) {
     // noValue: the camera has only the choice, no level (E-M1 B&W Filter); show the initial instead.
     val.textContent = o.noValue ? (o.segments[act].short ?? "") : o.kind === "creator" ? String(v).padStart(2, "0") : fmtSigned(v);
     name.textContent = o.kind === "creator" ? `HUE ${String(act + 1).padStart(2, "0")}` : o.segments[act].name.toUpperCase();
-    root.setAttribute("aria-valuetext", `${name.textContent} ${val.textContent}`);
-    root.className = `qp-color qp-color-${o.kind} ${stateClass(o.phase || "confirmed")}`;
+    axisCue.textContent = o.axis === "radial" ? (o.kind === "mono" ? "STRENGTH" : "SATURATION") : o.kind === "creator" ? "HUE" : o.kind === "mono" ? "FILTER" : "COLOUR";
+    root.setAttribute("aria-valuetext", `${name.textContent} ${val.textContent}, ${axisCue.textContent.toLowerCase()} active`);
+    root.className = `qp-color qp-color-${o.kind} ${stateClass(o.phase || "confirmed")} axis-${o.axis}`;
   }
 
-  function emit(segment, value) {
-    const v = o.noValue ? 0 : Math.max(o.min, Math.min(o.max, value));
-    if (o.kind === "creator") { o.values = { hue: segment, value: v }; }
-    else { o.values = o.values.slice(); o.values[segment] = v; o.active = segment; }
+  // Two detent axes per instrument (V2.1): the angle picks a sector / hue (runs round), the radius a level.
+  //   profile: angle = colour sector, radius = saturation level of that sector
+  //   creator: angle = hue, radius = saturation
+  //   mono:    angle = filter; radius = filter strength only where the body has it (E-M1: none -> noValue)
+  // Touch near the ring selects the angle axis, inside the ring the radial axis; wheel, keys and crown change
+  // only the active axis. Each detent pulses once; values never fall between two valid steps.
+  const hasRadial = !o.noValue;
+  o.axis = o.axis || (o.kind === "creator" || !hasRadial ? "angle" : "radial");
+  const levels = hasRadial ? o.max - o.min + 1 : 1;
+  const angle = createDetent({
+    count: n, index: activeIndex(), wrap: true, config: o.detent,
+    onDetent: (i, dir, source) => {
+      o.feedback?.pulse(source);
+      if (o.kind === "creator") o.values = { hue: i, value: o.values.value };
+      else o.active = i;
+      radial.set(getVal(i) - o.min);
+      changed(i, source);
+    },
+  });
+  const radial = createDetent({
+    count: levels, index: hasRadial ? getVal(activeIndex()) - o.min : 0, config: o.detent,
+    onDetent: (k, dir, source) => {
+      o.feedback?.pulse(source);
+      const i = activeIndex();
+      const v = o.min + k;
+      if (o.kind === "creator") o.values = { hue: o.values.hue, value: v };
+      else { o.values = o.values.slice(); o.values[i] = v; }
+      changed(i, source);
+    },
+  });
+
+  function changed(i, source) {
     o.phase = "requested";
     draw();
-    o.onRequest?.({ segment, value: v });
+    o.onRequest?.({ segment: i, value: o.noValue ? 0 : getVal(i), axis: o.axis, source });
+  }
+
+  function setAxis(a) {
+    if (a === "radial" && !hasRadial) a = "angle";
+    if (o.axis !== a) { o.axis = a; draw(); }
   }
 
   let drag = null;
+  const geom = (e) => {
+    const b = svg.getBoundingClientRect();
+    const x = ((e.clientX - b.left) / b.width) * 300 - 150;
+    const y = ((e.clientY - b.top) / b.height) * 300 - 150;
+    return { deg: (Math.atan2(x, -y) * 180) / Math.PI, r: Math.hypot(x, y) };
+  };
+  const radialIndex = (r) => {
+    // profile: the polygon radius; creator: inner circle (66) to ring (R); both snap to whole levels
+    const lo = o.kind === "profile" ? 0.45 * (R - 14) : 40;
+    const hi = o.kind === "profile" ? R - 14 : R - 10;
+    return Math.round(Math.max(0, Math.min(1, (r - lo) / (hi - lo))) * (levels - 1));
+  };
   root.addEventListener("pointerdown", (e) => {
     if (e.button !== 0) return;
     root.setPointerCapture(e.pointerId);
-    drag = true;
+    const g = geom(e);
+    // Near the ring: angle axis. Inside: radial axis (Profile: the polygon; Creator: inside the inner circle area).
+    const onRing = g.r > R - 22;
+    setAxis(onRing || !hasRadial ? "angle" : "radial");
+    drag = { src: e.pointerType === "touch" ? "touch" : "drag" };
     move(e);
   });
   root.addEventListener("pointermove", (e) => { if (drag) move(e); });
   root.addEventListener("pointerup", () => { drag = null; });
   root.addEventListener("pointercancel", () => { drag = null; });
   function move(e) {
-    const b = svg.getBoundingClientRect();
-    const x = ((e.clientX - b.left) / b.width) * 300 - 150;
-    const y = ((e.clientY - b.top) / b.height) * 300 - 150;
-    const deg = (Math.atan2(x, -y) * 180) / Math.PI;
-    const r = Math.hypot(x, y) / (R - 14);
-    const seg = angleToSegment(deg, n);
-    if (o.kind === "creator") {
-      if (seg !== o.values.hue) emit(seg, o.values.value);
-    } else if (o.kind === "profile" && !o.noValue) {
-      emit(seg, radiusToValue(r, o.min, o.max));
-    } else if (seg !== o.active) {
-      if (o.noValue) emit(seg, 0);
-      else { o.active = seg; draw(); }
-    }
+    const g = geom(e);
+    if (o.axis === "angle") angle.dragToIndex(angleToSegment(g.deg, n), drag.src);
+    else radial.dragToIndex(radialIndex(g.r), drag.src);
   }
   root.addEventListener("keydown", (e) => {
-    const i = activeIndex();
-    const v = getVal(i);
-    if (e.key === "ArrowRight") emit((i + 1) % n, o.kind === "creator" ? v : getVal((i + 1) % n));
-    else if (e.key === "ArrowLeft") emit((i - 1 + n) % n, o.kind === "creator" ? v : getVal((i - 1 + n) % n));
-    else if (e.key === "ArrowUp" && !o.noValue) emit(i, v + 1);
-    else if (e.key === "ArrowDown" && !o.noValue) emit(i, v - 1);
+    if (e.key === "ArrowRight" || e.key === "ArrowLeft") { setAxis("angle"); angle.step(e.key === "ArrowRight" ? 1 : -1, "key"); }
+    else if ((e.key === "ArrowUp" || e.key === "ArrowDown") && hasRadial) { setAxis("radial"); radial.step(e.key === "ArrowUp" ? 1 : -1, "key"); }
     else return;
     e.preventDefault();
   });
+  const activeEngine = () => (o.axis === "angle" ? angle : radial);
   root.addEventListener("wheel", (e) => {
-    if (o.noValue) return;
     e.preventDefault();
-    const i = activeIndex();
-    emit(i, getVal(i) + (e.deltaY < 0 ? 1 : -1));
+    activeEngine().wheel(-(e.deltaMode === 1 ? e.deltaY * 16 : e.deltaY), "wheel");
   }, { passive: false });
 
   draw();
   return {
     el: root,
-    confirm(values) { o.values = values; o.phase = "confirmed"; draw(); },
+    get axis() { return o.axis; },
+    setAxis,
+    /** Digital Crown: changes only the active axis (Profile: saturation, Creator: active axis, Mono: filter). */
+    crown(delta, native = false) {
+      // Profile: touch picks the colour, the crown sets its level. Creator: active axis. Mono: strength if any, else filter.
+      const eng = o.kind === "creator" ? activeEngine() : hasRadial ? radial : angle;
+      return eng.crown(delta, native ? "crown-native" : "crown");
+    },
+    confirm(values) { o.values = values; o.phase = "confirmed"; angle.set(activeIndex()); radial.set(hasRadial ? getVal(activeIndex()) - o.min : 0); draw(); },
     setPhase(p) { o.phase = p; draw(); },
     destroy() { root.remove(); },
   };

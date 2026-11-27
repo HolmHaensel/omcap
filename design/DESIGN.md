@@ -198,6 +198,31 @@ fit 375 px at 44 px targets, so the row scrolls natively and is picked by tap (s
 Monochrome initials Y/O follow Figma, the E-M1 manual writes Ye/Or; Color Creator numbers hues 01-30 (Figma "HUE 06");
 Color All has no visual reference in the frames read and is not built.
 
+**Precision Detent Feedback (Instrument Library V2.1, 2026-11-28):** `detent.js` is the one interaction core for Scale,
+Selector, colour instruments and the crown. Every valid value is one detent; drag, wheel/trackpad, keyboard, touch and
+crown move detent by detent (no gliding values, no coasting, no overshoot); value, scale position and marker change
+together. One pulse per detent passed, none at the limits; a camera readback never pulses. Rings wrap round and take
+the short way. Colour instruments have two detent axes: angle (sector, hue, filter) and radius (level, saturation;
+Monochrome strength only where the body has it, the E-M1 has none). Touch near the ring picks the angle axis, inside the
+radial axis; arrows left/right = angle, up/down = radial.
+
+- Feedback (`createFeedback`): sound, haptic and motion switch independently (saved per viewer); defaults by platform
+  (fine pointer: click sound; touch with `navigator.vibrate`: haptic); Reduced Motion sets the detent motion to 0;
+  silent shooting mutes sound only. The click is synthesised with WebAudio (no file); without support the visual
+  detent stays. iOS Safari has no web vibration API, so web haptics work on Android only; native apps use their APIs.
+- Command gate (`createCommandGate`): one camera command in flight per value; newer detents replace the waiting
+  wish; turning back to the value on its way sends nothing. State shows the newest local selection (requested) even
+  while an older value is in flight; pending, confirmed and failed stay distinct.
+- Digital Crown (`crownTarget` in `views.js`): live view = zoom; instrument = active parameter; Color Profile = level of
+  the selected colour; Color Creator = active axis; Monochrome = strength where available, else filter; timer = next
+  valid step; review = image or zoom. watchOS: SwiftUI `digitalCrownRotation(_:from:through:by:sensitivity:isContinuous:
+  isHapticFeedbackEnabled:)` bound to the index of the capability list (`from: 0, through: count - 1, by: 1`,
+  `isContinuous` only for rings) gives native detent haptics; the app then reports the source `crown-native` and adds
+  no haptic of its own (tested in the engine). Per developer forum, the `by` stride needs a watch with haptic crown
+  (Series 4 and later); to be checked in Xcode when the watch app starts.
+- Tunable (Motion & Feedback design decides): `--qp-detent-ms` (70 ms proposal), `DETENT_DEFAULTS` (wheel 40 px,
+  drag = tick spacing, crown 1 unit per detent, at most 12 detents per event), click volume 0.18 and timbre, haptic 8 ms.
+
 **Capability notes (E-M1 Mark I, fw 4.6):** Color Creator is a picture mode of the body, but hue/saturation have
 no USB or Wi-Fi property (firmware study 2026-11-24); Color Profile and the Monochrome filter strength are PEN-F
 functions and would be computed by the app (software HSL), never written to the camera.

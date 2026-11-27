@@ -116,6 +116,21 @@
     filter initial. Capability per E-M1 Mark I under each instrument.</p>
   <div class="g-color" id="color"></div>
 
+  <h2>Precision Detent Feedback</h2>
+  <p class="note">One detent engine for mouse, wheel/trackpad, keyboard, touch and crown: every valid value is one detent, no
+    gliding, no coasting; one pulse per detent passed, none at the limits; a camera readback does not pulse again. Fast
+    turning sends at most one command at a time; the newest wish replaces the waiting one.</p>
+  <div class="g-sim" id="fbCtl"></div>
+  <div class="g-sim"><output id="pulseCount" class="g-badge" aria-live="off">0 detent pulses</output></div>
+  <div class="g-sim" id="crownPad" style="gap:12px">
+    <strong style="font:var(--qp-label-m);letter-spacing:var(--qp-track-label)">CROWN SIMULATOR</strong>
+    <button class="g-chip" id="crownDown" style="cursor:pointer;min-height:44px">− 1</button>
+    <button class="g-chip" id="crownUp" style="cursor:pointer;min-height:44px">+ 1</button>
+    <label><input type="checkbox" id="crownNative"> Native crown haptic (watchOS)</label>
+    <span class="note" style="margin:0">Scroll here or press the buttons; acts on the instrument last touched. Colour Profile target:
+      <code id="crownTarget"></code></span>
+  </div>
+
   <h2>View architecture</h2>
   <div class="g-sim" id="viewCtl"></div>
   <p class="note">Full View: whole viewport, essential overlays. Clean View: overlays hidden, explicit way back. Panel View: live
@@ -130,7 +145,8 @@
 <script type="module">
 import { ValueState, stopsFor, mountScale, mountQCP, mountSCP, mountSelector, mountAxis, mountRelative, mountColorRing,
   icon, QCP_PARAMS } from "/ds/precision.js";
-import { initialState, createViewStore, mountViewShell, VIEWS, SCALING, CAMERA_ORIENTATION } from "/ds/views.js";
+import { initialState, createViewStore, mountViewShell, crownTarget, VIEWS, SCALING, CAMERA_ORIENTATION } from "/ds/views.js";
+import { createFeedback, createCommandGate } from "/ds/detent.js";
 
 const $ = (s) => document.querySelector(s);
 const g = $("#g");
@@ -195,21 +211,31 @@ const states = {
 };
 const views = new Set();
 const refresh = () => views.forEach((r) => r());
-function simulateCamera(key) {
-  const st = states[key];
-  const v = st.send();
-  if (v === null) return;
-  cameraWrites.push([key, v]);
-  log(`camera(sim) <- ${key} = ${v}  (pending)`);
-  refresh();
-  const refuse = $("#simRefuse").checked;
-  setTimeout(() => {
-    if (refuse) { st.fail("refused by camera (simulated)"); $("#simRefuse").checked = false; log(`camera(sim) -> ${key}: refused, stays ${st.confirmed}`); }
-    else { st.confirm(v); log(`camera(sim) -> ${key} = ${v}  (confirmed readback)`); }
+
+// Multisensory feedback: one pulse per detent. Defaults follow the platform (desktop sound, phone haptic).
+const fb = createFeedback({ env: {
+  coarsePointer: matchMedia("(pointer: coarse)").matches,
+  canVibrate: typeof navigator.vibrate === "function",
+  reducedMotion: matchMedia("(prefers-reduced-motion: reduce)").matches,
+} });
+
+// Simulated camera behind one command gate per value: one command in flight, newer detents replace the waiting
+// wish, so fast turning never builds a queue of stale commands.
+function fakeCamera(key) {
+  return (v) => new Promise((resolve, reject) => {
+    cameraWrites.push([key, v]);
+    log(`camera(sim) <- ${key} = ${v}  (pending)`);
     refresh();
-  }, $("#simSlow").checked ? 900 : 120);
+    const refuse = $("#simRefuse").checked;
+    setTimeout(() => {
+      if (refuse) { $("#simRefuse").checked = false; log(`camera(sim) -> ${key}: refused, stays ${states[key].confirmed}`); reject(new Error("refused by camera (simulated)")); }
+      else { log(`camera(sim) -> ${key} = ${v}  (confirmed readback)`); resolve(v); }
+    }, $("#simSlow").checked ? 900 : 120);
+  });
 }
-window.__qp = { states, cameraWrites };
+const gates = Object.fromEntries(Object.keys(states).map((k) => [k, createCommandGate(states[k], fakeCamera(k), { onReadback: refresh, onError: refresh })]));
+function simulateCamera(key) { gates[key].wish().then(refresh); refresh(); }
+window.__qp = { states, cameraWrites, fb, gates };
 
 const scaleApis = [];
 for (const p of QCP_PARAMS) {
@@ -217,7 +243,8 @@ for (const p of QCP_PARAMS) {
   const st = states[p.key];
   box.innerHTML = `<span class="qp-param-label">${p.label} · ${st.stops.length} camera values · ${st.stops.filter((s) => s.major).length} main · ${st.stops.filter((s) => s.special).length} special</span>`;
   $("#scales").appendChild(box);
-  const api = mountScale(box, { state: st, label: p.label, format: p.scaleFmt, onRequest: () => simulateCamera(p.key) });
+  const api = mountScale(box, { state: st, label: p.label, format: p.scaleFmt, feedback: fb, onRequest: () => simulateCamera(p.key) });
+  box.addEventListener("pointerdown", () => { crownFocus = api; }); box.addEventListener("focusin", () => { crownFocus = api; });
   scaleApis.push(api);
   views.add(api.render);
 }
@@ -228,7 +255,7 @@ const wbDisplay = (op) => ({
   sub: op.label,
 });
 const qcp = mountQCP($("#qcp"), {
-  connection: { kind: "wifi" }, values: states, wb: { state: states.wb, options: wbOptions, display: wbDisplay },
+  connection: { kind: "wifi" }, values: states, wb: { state: states.wb, options: wbOptions, display: wbDisplay }, feedback: fb,
   onRequest: (k) => simulateCamera(k),
   onAction: (a) => log(`QCP action "${a}" (gallery: logged only, no camera call)`),
 });
@@ -266,12 +293,12 @@ const scp = mountSCP($("#scp"), {
 views.add(scp.render);
 
 // SCP white balance depth: presets, Custom WB (Kelvin from the body's USB list), correction axes (not mapped)
-const wbSel = mountSelector($("#scpWb"), { state: states.wb, options: wbOptions, display: wbDisplay, label: "WHITE BALANCE", onRequest: () => simulateCamera("wb") });
+const wbSel = mountSelector($("#scpWb"), { state: states.wb, options: wbOptions, display: wbDisplay, label: "WHITE BALANCE", feedback: fb, onRequest: () => simulateCamera("wb") });
 views.add(wbSel.render);
 const kBox = document.createElement("div");
 kBox.innerHTML = `<span class="qp-param-label">CUSTOM WB · ${states.kelvin.stops.length} values from the body (USB) · Wi-Fi: no Kelvin property</span>`;
 $("#scpWb").appendChild(kBox);
-const kScale = mountScale(kBox, { state: states.kelvin, label: "Custom WB", format: (s) => s.label, onRequest: () => simulateCamera("kelvin") });
+const kScale = mountScale(kBox, { state: states.kelvin, label: "Custom WB", format: (s) => s.label, feedback: fb, onRequest: () => simulateCamera("kelvin") });
 views.add(kScale.render);
 views.add(() => { kBox.querySelector(".qp-param-label").dataset.k = states.kelvin.shown; });
 for (const [label, ends] of [["WB CORRECTION A–B", ["A", "B"]], ["WB CORRECTION G–M", ["G", "M"]]]) {
@@ -301,10 +328,11 @@ const colorDefs = [
 for (const d of colorDefs) {
   const f = document.createElement("figure");
   $("#color").appendChild(f);
-  const api = mountColorRing(f, { ...d, onRequest: (r) => {
-    log(`${d.title}: requested segment ${r.segment}${d.noValue ? "" : ` value ${r.value}`} (gallery: not sent)`);
+  const api = mountColorRing(f, { ...d, feedback: fb, onRequest: (r) => {
+    log(`${d.title}: requested segment ${r.segment}${d.noValue ? "" : ` value ${r.value}`} via ${r.source} (gallery: not sent)`);
     setTimeout(() => api.setPhase("confirmed"), 300);
   } });
+  f.addEventListener("pointerdown", () => { crownFocus = api; }); f.addEventListener("focusin", () => { crownFocus = api; });
   const c = document.createElement("figcaption");
   c.innerHTML = `${d.title}<small>${d.cap}</small>`;
   f.appendChild(c);
@@ -328,7 +356,7 @@ back.textContent = "Show controls";
 back.style.cssText = "left:12px;top:10px;cursor:pointer;min-height:44px";
 back.addEventListener("click", () => store.dispatch({ type: "clean" }));
 shell.el.querySelector(".qp-stage").appendChild(back);
-const mini = mountQCP(panelHost, { connection: { kind: "wifi" }, values: states, onRequest: (k) => simulateCamera(k), onAction: (a) => log(`panel action "${a}" (logged only)`) });
+const mini = mountQCP(panelHost, { connection: { kind: "wifi" }, values: states, feedback: fb, onRequest: (k) => simulateCamera(k), onAction: (a) => log(`panel action "${a}" (logged only)`) });
 views.add(mini.render);
 store.subscribe((s) => { fullOverlay.textContent = s.scaling.toUpperCase(); });
 
@@ -346,6 +374,36 @@ const mk = (label, list, key, act) => {
 mk("View", VIEWS, "view", (v) => ({ type: "view", view: v }));
 mk("Scaling", SCALING, "scaling", (v) => ({ type: "scaling", scaling: v }));
 mk("Camera orientation", CAMERA_ORIENTATION, "cameraOrientation", (v) => ({ type: "cameraOrientation", deg: +v }));
+
+// Feedback settings (independent switches) and pulse counter
+let crownFocus = null;
+const fbCtl = $("#fbCtl");
+for (const [k, label] of [["sound", "Click sound"], ["haptic", "Haptic"], ["motion", "Detent motion"]]) {
+  const l = document.createElement("label");
+  l.innerHTML = `<input type="checkbox" data-k="${k}"${fb.settings[k] ? " checked" : ""}> ${label}`;
+  fbCtl.appendChild(l);
+}
+const sl = document.createElement("label");
+sl.innerHTML = `<input type="checkbox" data-k="silent"> Silent shooting (no sound)`;
+fbCtl.appendChild(sl);
+const applyMotion = () => { g.dataset.qpMotion = fb.settings.motion ? "on" : "off"; };
+applyMotion();
+fbCtl.addEventListener("change", (e) => {
+  const k = e.target.dataset.k;
+  if (k === "silent") fb.setSilent(e.target.checked); else fb.set({ [k]: e.target.checked });
+  applyMotion();
+  log(`feedback: ${k} ${e.target.checked ? "on" : "off"} (no camera action)`);
+});
+const pulseOut = $("#pulseCount");
+setInterval(() => { pulseOut.textContent = `${fb.log.length} detent pulses · ${cameraWrites.length} camera commands`; }, 250);
+
+// Digital Crown simulator: rotary input to the instrument last touched or focused (or the QCP)
+const crownPad = $("#crownPad");
+const crown = (d) => { const t = crownFocus || qcp; const n = t.crown(d, $("#crownNative").checked); log(`crown ${d > 0 ? "+" : ""}${d} -> ${n} detent(s)${$("#crownNative").checked ? " (native haptic, no extra pulse haptic)" : ""}`); };
+crownPad.addEventListener("wheel", (e) => { e.preventDefault(); crown(e.deltaY > 0 ? 1 : -1); }, { passive: false });
+$("#crownUp").addEventListener("click", () => crown(1));
+$("#crownDown").addEventListener("click", () => crown(-1));
+$("#crownTarget").textContent = JSON.stringify(crownTarget(store.get(), { screen: "instrument", instrument: { kind: "profile" } }));
 </script>
 </body>
 </html>

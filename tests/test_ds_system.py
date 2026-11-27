@@ -86,7 +86,7 @@ class Icons(unittest.TestCase):
 
 class Route(unittest.TestCase):
     def test_serves_known_files(self):
-        for name in ("tokens.css", "components.css", "precision.js", "views.js", "icons.svg", "gallery.html",
+        for name in ("tokens.css", "components.css", "precision.js", "views.js", "detent.js", "icons.svg", "gallery.html",
                      "fixtures/em1-capabilities-sample.json"):
             self.assertTrue(server.ds_path(name), name)
 
@@ -123,6 +123,16 @@ class KelvinFixture(unittest.TestCase):
 
 @unittest.skipUnless(shutil.which("node"), "node not installed")
 class NodeTests(unittest.TestCase):
+    def test_modules_resolve_their_imports(self):
+        """Every ds module imports what it uses (a missing import only fails when a component is mounted)."""
+        ds = DS
+        for name in ("precision.js", "views.js", "detent.js"):
+            src = read(name)
+            used = set(re.findall(r"\b(createDetent|createFeedback|createCommandGate)\(", src))
+            defined = set(re.findall(r"export function (\w+)", src)) | set(
+                n.strip() for m in re.findall(r"import \{([^}]*)\}", src) for n in m.split(","))
+            self.assertEqual(used - defined, set(), name)
+
     def test_component_logic(self):
         r = subprocess.run(["node", "--test", os.path.join(ROOT, "tests", "ds")], capture_output=True, text=True, timeout=60)
         self.assertEqual(r.returncode, 0, r.stdout[-2000:] + r.stderr[-2000:])

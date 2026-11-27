@@ -47,7 +47,7 @@
   -webkit-mask-image: linear-gradient(90deg, transparent, #000 12%, #000 88%, transparent); mask-image: linear-gradient(90deg, transparent, #000 12%, #000 88%, transparent); }
 .qp-scale[data-variant="fixed"] { -webkit-mask-image: none; mask-image: none; }
 .qp-scale:active { cursor: grabbing; }
-.qp-scale-strip { position: absolute; inset: 0; will-change: transform; }
+.qp-scale-strip { position: absolute; inset: 0; }
 .qp-tick { position: absolute; top: 0; left: 0; width: 24px; height: 88px; margin-left: -12px; padding: 0; border: 0;
   background: none; color: inherit; font: inherit; cursor: inherit; -webkit-appearance: none; appearance: none; }
 .qp-tick::before { content: ""; position: absolute; left: 12px; top: 12px; width: 1px; height: var(--qp-tick-minor); background: var(--qp-muted); }
@@ -61,7 +61,7 @@
 .qp-tick.active::before { background: var(--qp-accent); }
 .qp-scale-marker { position: absolute; top: 12px; left: 0; width: var(--qp-tick-active-w); height: var(--qp-tick-major);
   margin-left: -1px; background: var(--qp-accent); pointer-events: none; }
-.qp-scale[data-variant="fixed"] .qp-scale-marker { transition: transform var(--qp-t-fast); }
+.qp-scale-strip, .qp-scale-marker { transition: transform var(--qp-detent-ms) cubic-bezier(.2, 0, 0, 1); }
 .qp-scale.qp-state-pending .qp-scale-marker { opacity: .55; }
 .qp-scale.qp-state-failed .qp-scale-marker { background: var(--qp-recording); }
 .qp-scale.qp-state-requested, .qp-scale.qp-state-pending, .qp-scale.qp-state-failed { text-decoration: none; }
@@ -186,3 +186,9 @@
 .qp-rel-btn:disabled { color: var(--qp-muted); cursor: not-allowed; border-style: dashed; }
 .qp-rel-name { font: var(--qp-label-s); letter-spacing: var(--qp-track-label); color: var(--qp-muted); padding: 0 6px; }
 .qp-relative[aria-busy="true"] .qp-rel-btn { opacity: .55; }
+
+/* Colour instruments: active axis cue (V2.1). Angle axis: the active sector; radial axis: the grip. */
+.qp-color-axis { font: var(--qp-label-s); letter-spacing: var(--qp-track-label); color: var(--qp-accent); margin-top: 4px; }
+.qp-color.axis-radial .qp-color-grip { stroke-width: 4; }
+.qp-color.axis-angle .qp-color-seg.active { stroke-width: 9; }
+.qp-color-grip, .qp-color-poly { transition: all var(--qp-detent-ms) cubic-bezier(.2, 0, 0, 1); }

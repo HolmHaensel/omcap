@@ -205,3 +205,31 @@ export function mountViewShell(host, { store, live, panel, frame }) {
   apply();
   return { el: root, apply, destroy() { unsub(); ro.disconnect(); root.remove(); } };
 }
+
+// ---------------------------------------------------------------------------------------------
+// Digital Crown routing (Precision Instrument Library V2.1): the crown changes exactly one parameter,
+// chosen by context. Multi-axis instruments use the axis last selected by touch.
+// ---------------------------------------------------------------------------------------------
+
+/**
+ * crownTarget(viewState, ctx) -> {target, axis?}
+ *   ctx.screen: "live" | "instrument" | "timer" | "review"
+ *   ctx.instrument: {kind: "scale"|"selector"|"axis"|"profile"|"creator"|"mono", axis?: "angle"|"radial", hasStrength?}
+ *   ctx.reviewZoomed: boolean
+ * Targets: "zoom" (live view or zoomed review), "value" (active scale/selector/axis), "saturation" (Color Profile:
+ * level of the selected colour), "hue" / "saturation" (Color Creator: active axis), "strength" / "filter"
+ * (Monochrome: strength where the body has it, else the filter), "timer" (next valid time step), "image" (review).
+ */
+export function crownTarget(s, ctx = {}) {
+  const screen = ctx.screen || (s.view === "panel" ? "instrument" : "live");
+  if (screen === "live") return { target: "zoom" };
+  if (screen === "timer") return { target: "timer" };
+  if (screen === "review") return { target: ctx.reviewZoomed ? "zoom" : "image" };
+  const ins = ctx.instrument || { kind: "scale" };
+  switch (ins.kind) {
+    case "profile": return { target: "saturation", axis: "radial" };
+    case "creator": return ins.axis === "radial" ? { target: "saturation", axis: "radial" } : { target: "hue", axis: "angle" };
+    case "mono": return ins.hasStrength ? { target: "strength", axis: "radial" } : { target: "filter", axis: "angle" };
+    default: return { target: "value" };
+  }
+}
