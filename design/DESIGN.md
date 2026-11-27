@@ -447,7 +447,7 @@ recording a movie, read only, Wi-Fi drop-out (last good frame kept, "No signal f
 | White balance presets: Auto, Sunny, Shade, Cloudy, Tungsten, Fluorescent, Underwater, Flash, One-touch WB 1–4, Custom WB (CWB 2000–14000 K) | same; CWB = custom white balance in Kelvin | p.58 |
 | Color Creator (hue, saturation) | Color Creator, front dial hue, rear dial saturation | p.60 |
 | Monotone · B&W Filter N / Ye / Or / R / G | Monotone, B&W Filter N, Ye, Or, R, G (the design system ring shows N, Y, O, R, G per Figma V9.1: open design decision) | p.70, p.80 |
-| Image stabilizer (S-IS AUTO, S-IS 1–3, S-IS Off) | Image stabilizer / IS Mode | p.68 |
+| Image stabilizer: OFF, S-IS1 (Auto), S-IS2 (Vertical IS), S-IS3 (Horizontal IS), S-IS AUTO | Image stabilizer / IS Mode | p.68 |
 | Face priority | Face priority | p.55 |
 | Color Profile, Monochrome strength | app terms (no E-M1 equivalent; PEN-F functions), computed in software only | – |
 
