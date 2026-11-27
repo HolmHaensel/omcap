@@ -1366,6 +1366,21 @@ def note_mcp(path, body, err=None):
 
 
 # --- HTTP --------------------------------------------------------------------
+DS_DIR = os.path.join(ROOT, "web", "ds")
+DS_TYPES = {".css": "text/css; charset=utf-8", ".js": "text/javascript; charset=utf-8",
+            ".svg": "image/svg+xml", ".html": "text/html; charset=utf-8", ".json": "application/json"}
+
+
+def ds_path(rel):
+    """File of the 1.0 design system (tokens, icons, components, gallery) under web/ds, or None.
+    Only known file types, no way out of the folder (REQ-D06)."""
+    p = os.path.realpath(os.path.join(DS_DIR, rel))
+    if not p.startswith(os.path.realpath(DS_DIR) + os.sep) or os.path.splitext(p)[1] not in DS_TYPES:
+        return None
+    return p if os.path.isfile(p) else None
+
+
+
 class Handler(BaseHTTPRequestHandler):
     timing = False  # --timing: print each API request with its duration (performance checks)
 
@@ -1469,6 +1484,12 @@ class Handler(BaseHTTPRequestHandler):
             if u.path == "/":
                 with open(os.path.join(ROOT, "web", "index.html"), "rb") as f:
                     return self._send(f.read(), "text/html; charset=utf-8")
+            if u.path.startswith("/ds/"):  # design system files and component gallery (REQ-D06)
+                p = ds_path(urllib.parse.unquote(u.path[len("/ds/"):]) or "gallery.html")
+                if not p:
+                    return self._send({"error": "Not found"}, code=404)
+                with open(p, "rb") as f:
+                    return self._send(f.read(), DS_TYPES[os.path.splitext(p)[1]])
             if u.path == "/api/app":
                 # Lets a second start recognise that this app already runs on the port.
                 return self._send({"app": APP_ID, "version": __version__,

@@ -4,7 +4,7 @@ Design canvas (private to the maintainer, ask for access): Live View, 2026-11-11
 "Quiet Precision" v0.2, 2026-11-26.
 Tokens: [`tokens.css`](tokens.css) (production values, implemented in version 0.4.0 on 2026-11-11; the build
 order at the end of this file is done). The confirmed 1.0 direction below is recorded here first; the page and
-`tokens.css` are not yet migrated to it.
+`tokens.css` are not yet migrated to it. V4.0 tokens and components exist isolated in `omcap/web/ds/` (section below).
 
 ## Design system 1.0: Quiet Precision (v0.2, confirmed direction 2026-11-26)
 
@@ -140,6 +140,44 @@ focus feedback, the hold-angle level, the USB Zoom AF (REQ-F54) vs. Wi-Fi view z
 pointer-centred zoom, overview map and keyboard arrows (sections below). Keep the stock camera paths and test
 the first unassisted shot; compare the existing path with each task shortcut for time, steps, errors and
 comprehension.
+
+## Design system V4.0 in code (branch `claude/design-system-v4`, 2026-11-27)
+
+Built from the Figma file "OMCAP Design System" read on 2026-11-27. Isolated: the page `index.html` is **not** migrated; nothing here
+talks to the camera. Gallery for design QA: `http://127.0.0.1:<port>/ds/gallery.html` (served by the app).
+
+| File (`omcap/web/ds/`) | Content | Figma source |
+|---|---|---|
+| `tokens.css` | `--qp-*` semantic colours for Dark, Daylight, Astro Red (one component set, `data-qp-theme`), type scale, spacing, optical spacing, hit areas, scale and capture geometry, value states | Theme System V1.0 (32:482), Foundations (2:19), Typography (8:16), SCP & QCP (31:438) |
+| `icons.svg` | 47 symbols: 43 core V4.0 glyphs + 4 V3.2 extensions the SCP uses (stabilizer, tone, aspect, face AF); geometry unchanged, `currentColor` | Iconography Library (13:2, 18:x) |
+| `precision.js` | value model (requested, pending, confirmed, failed), Precision Scale (Center Lock, Fixed Range), QCP, SCP, Color Profile, Color Creator, Monochrome | SCP & QCP, Control Panel Components, Precision Color Controls V9 (12:2) |
+| `views.js` | view state model (Full, Clean, Panel; Fit, Fill; split; device, display and camera orientation as independent axes) and the resizable shell | Adaptive View Architecture V1.0 (34:967) |
+| `components.css`, `gallery.html`, `fixtures/` | component styles (tokens only), gallery, the camera's own Wi-Fi value lists from `camera/desclist.xml` | – |
+
+Contracts kept: snap only to stops handed in by the capability mapping; the camera readback always wins over the
+wish; no view change produces a camera action (tested); capture, AF and Review only report `onAction`.
+
+**Deviations from Figma and implementation choices (need a design decision):**
+
+1. Value-state cues are a proposal: requested = muted dashed underline, pending = accent dotted underline (marker
+   at 55 % on the scale), failed = red wavy underline with the camera value shown. Figma names the states only.
+2. Split limits 40-80 % are a proposal (Figma: 65/35 start, exact constraints open). Phone portrait Panel View
+   stacks live view over the panel (45 %), no divider.
+3. Swipe momentum (release speed x 120 ms) and the 160 ms snap animation are implementation values.
+4. Fixed Range spreads all stops over the width; with long lists (shutter: 58 stops without Live modes) ticks get
+   dense. Center Lock stays the default.
+5. Colour-ring hue names: Figma shows "BLUE"; the code shows degrees until names are decided. Color Creator
+   shows hue 00-29 and saturation; Monochrome on the E-M1 has the B&W filter N/Ye/Or/R/G without strength
+   (manual p.80), so the ring is selection-only.
+6. Astro Red: colour swatches in the rings turn muted red (red-only rule); the brightness token dims instruments
+   only, not the live view. The optional image filter is not built.
+7. Only 4 of the V3.2-V3.4 family glyphs are exported (export limit 48 KB per call; families are still studies).
+8. Narrow panels (container width up to 460 px) step the exposure values from Value L to Value S and the large
+   value from Display XL to Display L so five values fit at 375 px.
+
+**Capability notes (E-M1 Mark I, fw 4.6):** Color Creator is a picture mode of the body, but hue/saturation have
+no USB or Wi-Fi property (firmware study 2026-11-24); Color Profile and the Monochrome filter strength are PEN-F
+functions and would be computed by the app (software HSL), never written to the camera.
 
 ## Incumbent design (0.4.0 – 0.8.x, still implemented)
 

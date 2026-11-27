@@ -1,0 +1,300 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Quiet Precision Gallery</title>
+<link rel="stylesheet" href="/ds/tokens.css">
+<link rel="stylesheet" href="/ds/components.css">
+<style>
+  /* Gallery page only; the components use tokens.css + components.css */
+  body { margin: 0; }
+  .g { min-height: 100vh; padding: 24px 16px 64px; max-width: 1320px; margin: 0 auto; box-sizing: border-box; }
+  .g-bar { position: sticky; top: 0; z-index: 5; display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center;
+    padding: 12px 0; background: var(--qp-ground); border-bottom: 1px solid var(--qp-surface); }
+  .g h1 { font: var(--qp-display-m); margin: 8px 0 4px; }
+  .g h2 { font: var(--qp-section); margin: 40px 0 6px; }
+  .g p.note { font: var(--qp-status); color: var(--qp-muted); margin: 0 0 16px; max-width: 72ch; }
+  .g-seg { display: inline-flex; border: 1px solid var(--qp-surface); border-radius: 8px; overflow: hidden; }
+  .g-seg button { font: var(--qp-label-m); color: var(--qp-text); background: none; border: 0; padding: 0 12px; min-height: 40px; cursor: pointer; }
+  .g-seg button[aria-pressed="true"] { background: var(--qp-surface); color: var(--qp-accent); }
+  .g-row { display: flex; flex-wrap: wrap; gap: 24px; align-items: flex-start; }
+  .g-col { flex: 1 1 360px; min-width: 0; max-width: 600px; }
+  .g-icons { display: grid; grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: 8px; }
+  .g-icons figure { margin: 0; display: grid; justify-items: center; gap: 8px; padding: 12px 4px; border: 1px solid var(--qp-surface); border-radius: 8px; }
+  .g-icons figcaption { font: var(--qp-label-s); color: var(--qp-muted); text-align: center; }
+  .g-type div { display: flex; gap: 16px; align-items: baseline; border-bottom: 1px solid var(--qp-surface); padding: 6px 0; }
+  .g-type span:first-child { width: 170px; flex: none; font: var(--qp-label-s); color: var(--qp-muted); }
+  .g-swatches { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 8px; }
+  .g-swatches div { border: 1px solid var(--qp-surface); border-radius: 8px; overflow: hidden; font: var(--qp-label-s); }
+  .g-swatches i { display: block; height: 44px; }
+  .g-swatches span { display: block; padding: 6px 8px; color: var(--qp-muted); }
+  .g-log { font: 12px/1.5 ui-monospace, Menlo, monospace; color: var(--qp-muted); background: var(--qp-surface);
+    border-radius: 8px; padding: 10px 12px; height: 150px; overflow: auto; white-space: pre-wrap; }
+  .g-sim { font: var(--qp-status); color: var(--qp-muted); display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+  .g-sim label { display: inline-flex; gap: 6px; align-items: center; min-height: 40px; }
+  .g-shell { height: 460px; border: 1px solid var(--qp-surface); border-radius: 12px; overflow: hidden; }
+  .g-frame { background: linear-gradient(160deg, #7f958f 0 58%, #4d635d 58% 74%, #2f423d 74%); }
+  .g-frame::after { content: "4:3 test frame (no camera)"; position: absolute; left: 8px; bottom: 6px; font: 11px var(--qp-font); color: #fff; opacity: .7; }
+  .g-scales > div { margin-bottom: 14px; }
+  .g-scales .qp-param-label { display: block; margin-bottom: 2px; }
+  .g-color { display: flex; flex-wrap: wrap; gap: 32px; }
+  .g-color figure { margin: 0; display: grid; justify-items: center; gap: 10px; }
+  .g-color figcaption { font: var(--qp-body); text-align: center; max-width: 280px; }
+  .g-color figcaption small { display: block; font: var(--qp-status); color: var(--qp-muted); margin-top: 4px; }
+  .g-badge { font: var(--qp-label-s); letter-spacing: var(--qp-track-label); padding: 3px 8px; border-radius: 999px; border: 1px solid var(--qp-surface); color: var(--qp-muted); }
+  .g-states span { margin-right: 18px; font: var(--qp-value-s); }
+  @media (max-width: 640px) { .g h1 { font: var(--qp-value-l); } .g-shell { height: 520px; } }
+</style>
+</head>
+<body>
+<div class="g qp-theme-root" id="g" data-qp-theme="dark">
+  <div class="g-bar">
+    <strong style="font:var(--qp-nav)">Quiet Precision V4.0</strong>
+    <span class="g-seg" id="themeSeg" role="group" aria-label="Theme">
+      <button data-v="dark" aria-pressed="true">Dark</button><button data-v="daylight">Daylight</button><button data-v="astro">Astro Red</button>
+    </span>
+    <span class="g-badge">Component gallery · design QA · no camera connection</span>
+  </div>
+
+  <h1>Component Gallery</h1>
+  <p class="note">Isolated components of the 1.0 design system. Every camera action goes to a simulated camera on this page
+    (log at the bottom); nothing is sent to a real camera. Values come from the E-M1's own Wi-Fi value lists
+    (<code>camera/desclist.xml</code>). Source of truth for look: Figma file "OMCAP Design System".</p>
+
+  <h2>Theme tokens</h2>
+  <p class="note">Same components, same interaction; only the semantic colours change. Daylight and Astro Red await field validation.</p>
+  <div class="g-swatches" id="swatches"></div>
+
+  <h2>Typography</h2>
+  <p class="note">Inter, tabular numerals for changing camera values.</p>
+  <div class="g-type" id="type"></div>
+
+  <h2>Value states</h2>
+  <p class="note">Requested, pending, confirmed and failed stay distinguishable without colour alone. The cue per state is an
+    implementation proposal awaiting a design decision.</p>
+  <div class="g-states qp-num"><span class="qp-state-requested">ƒ4.0 requested</span><span class="qp-state-pending" aria-busy="true">ƒ4.0 pending</span><span class="qp-state-confirmed">ƒ4.0 confirmed</span><span class="qp-state-failed">ƒ4.0 failed</span></div>
+
+  <h2>Iconography V4.0</h2>
+  <p class="note">47 glyphs exported from Figma (43 core, 4 V3.2 extensions used by the SCP). 24 px, 1.5 px stroke, currentColor.</p>
+  <div class="g-icons" id="icons"></div>
+
+  <h2>Precision Scale</h2>
+  <div class="g-sim">
+    <span class="g-seg" id="variantSeg" role="group" aria-label="Scale variant">
+      <button data-v="center" aria-pressed="true">Center Lock</button><button data-v="fixed">Fixed Range</button>
+    </span>
+    <label><input type="checkbox" id="simRefuse"> Simulated camera refuses the next value</label>
+    <label><input type="checkbox" id="simSlow" checked> Slow readback (900 ms)</label>
+  </div>
+  <p class="note">Swipe, drag or tap the scale; arrow keys work when it has focus. Snaps only to the listed camera stops.
+    Fixed Range uses the same stops; with long lists (shutter: 61 stops) its ticks get dense, which is why Center Lock is preferred.</p>
+  <div class="g-row"><div class="g-col g-scales" id="scales"></div></div>
+
+  <h2>QCP · SCP</h2>
+  <div class="g-row">
+    <div class="g-col" id="qcp"></div>
+    <div class="g-col" id="scp"></div>
+  </div>
+
+  <h2>Precision Color Controls V9</h2>
+  <p class="note">Static reference in Figma; drag/snap, active axis and Color All still need interaction validation.
+    Capability per E-M1 Mark I under each instrument.</p>
+  <div class="g-color" id="color"></div>
+
+  <h2>View architecture</h2>
+  <div class="g-sim" id="viewCtl"></div>
+  <p class="note">Full View: whole viewport, essential overlays. Clean View: overlays hidden, explicit way back. Panel View: live
+    view beside the instruments, divider draggable (keyboard: focus the divider, left/right). Fit shows the whole frame; Fill
+    crops the preview only. No view change produces a camera action (see log).</p>
+  <div class="g-shell" id="shellHost"></div>
+
+  <h2>Event log</h2>
+  <div class="g-log" id="log" role="log" aria-live="polite"></div>
+</div>
+
+<script type="module">
+import { ValueState, mountScale, mountQCP, mountSCP, mountColorRing, icon, QCP_PARAMS } from "/ds/precision.js";
+import { initialState, createViewStore, mountViewShell, VIEWS, SCALING, CAMERA_ORIENTATION } from "/ds/views.js";
+
+const $ = (s) => document.querySelector(s);
+const g = $("#g");
+const logEl = $("#log");
+const log = (m) => { logEl.textContent += `${new Date().toLocaleTimeString()}  ${m}\n`; logEl.scrollTop = 1e9; };
+
+function segButtons(host, onPick) {
+  host.addEventListener("click", (e) => {
+    const b = e.target.closest("button[data-v]");
+    if (!b) return;
+    host.querySelectorAll("button").forEach((x) => x.setAttribute("aria-pressed", x === b ? "true" : "false"));
+    onPick(b.dataset.v);
+  });
+}
+
+// Theme
+segButtons($("#themeSeg"), (t) => { g.dataset.qpTheme = t; store.dispatch({ type: "theme", theme: t }); renderSwatches(); });
+
+function renderSwatches() {
+  const cs = getComputedStyle(g);
+  $("#swatches").innerHTML = ["ground", "surface", "text", "muted", "accent", "focus", "recording"].map((k) =>
+    `<div><i style="background:var(--qp-${k})"></i><span>${k}<br>${cs.getPropertyValue(`--qp-${k}`).trim()}</span></div>`).join("");
+}
+renderSwatches();
+
+$("#type").innerHTML = [
+  ["Display XL 80/300", "display-xl", "ƒ2.8"], ["Display M 48/300", "display-m", "1/250"], ["Value L 32/400", "value-l", "ISO 400"],
+  ["Value S 24/400", "value-s", "±0.0"], ["Section 18/500", "section", "Section"], ["Body 16/400", "body", "Body text"],
+  ["Navigation 15/500", "nav", "Navigation"], ["Label L 14/500", "label-l", "APERTURE"], ["Label S 12/500", "label-s", "AF MODE"],
+  ["Status 13/400", "status", "Status line"],
+].map(([n, t, s]) => `<div><span>${n}</span><span class="qp-num" style="font:var(--qp-${t});${t.startsWith("label") ? "letter-spacing:var(--qp-track-label)" : ""}">${s}</span></div>`).join("");
+
+const ICONS = ["aperture", "shutter", "ev", "tracking", "s-af", "c-af", "mf", "s-af-mf", "star-af", "af-all", "af-single",
+  "af-small", "af-group", "iso", "wb", "metering", "drive", "self-timer", "flash", "picture-mode", "histogram", "level",
+  "zoom-af", "peaking", "lock-focus", "focus-stacking", "ae-bracketing", "live-composite", "live-time", "time-lapse",
+  "multiple-exposure", "color-profile", "color-creator", "monochrome", "super-control", "capture", "review",
+  "photo-coach", "voice", "fullscreen", "settings", "usb", "wifi", "stabilizer", "tone", "aspect", "face-af"];
+for (const n of ICONS) {
+  const f = document.createElement("figure");
+  f.appendChild(icon(n));
+  const c = document.createElement("figcaption");
+  c.textContent = n;
+  f.appendChild(c);
+  $("#icons").appendChild(f);
+}
+
+// Simulated camera (page only): sends after a request, reads back after a delay, can refuse.
+const caps = await (await fetch("/ds/fixtures/em1-capabilities-sample.json")).json();
+const P = caps.props;
+const shutterStops = P.shutspeedvalue.values.filter((v) => !/^live/.test(v));
+const states = {
+  aperture: new ValueState(P.focalvalue.values.filter((v) => +v >= 2.8 && +v <= 22), "5.6"), // e.g. a f/2.8 zoom; lens decides at run time
+  shutter: new ValueState(shutterStops, P.shutspeedvalue.current),
+  iso: new ValueState(P.isospeedvalue.values.filter((v) => v !== "Auto" && v !== "Low"), "400"),
+  ev: new ValueState(P.expcomp.values, P.expcomp.current),
+};
+const views = new Set();
+function simulateCamera(key) {
+  const st = states[key];
+  const v = st.send();
+  if (v === null) return;
+  log(`camera(sim) <- ${key} = ${v}  (pending)`);
+  views.forEach((r) => r());
+  const refuse = $("#simRefuse").checked;
+  setTimeout(() => {
+    if (refuse) { st.fail("refused by camera (simulated)"); $("#simRefuse").checked = false; log(`camera(sim) -> ${key}: refused, stays ${st.confirmed}`); }
+    else { st.confirm(v); log(`camera(sim) -> ${key} = ${v}  (confirmed readback)`); }
+    views.forEach((r) => r());
+  }, $("#simSlow").checked ? 900 : 120);
+}
+
+const scaleApis = [];
+for (const p of QCP_PARAMS) {
+  const box = document.createElement("div");
+  box.innerHTML = `<span class="qp-param-label">${p.label} · ${states[p.key].stops.length} stops</span>`;
+  $("#scales").appendChild(box);
+  const api = mountScale(box, { state: states[p.key], label: p.label, format: p.scaleFmt, onRequest: () => simulateCamera(p.key) });
+  scaleApis.push(api);
+  views.add(api.render);
+}
+
+const qcp = mountQCP($("#qcp"), {
+  connection: { kind: "wifi" }, values: states,
+  onRequest: (k) => simulateCamera(k),
+  onAction: (a) => log(`QCP action "${a}" (gallery: logged only, no camera call)`),
+});
+views.add(qcp.render);
+segButtons($("#variantSeg"), (v) => { scaleApis.forEach((s) => s.setVariant(v)); qcp.setVariant(v); });
+
+// SCP: Figma reference state (31:438); the app fills tiles from the capability mapping.
+mountSCP($("#scp"), {
+  connection: { kind: "usb" },
+  exposure: [
+    { key: "mode", label: "MODE", value: "M", available: false },
+    { key: "shutter", label: "SHUTTER", value: "1/250", available: true },
+    { key: "aperture", label: "APERTURE", value: "ƒ2.8", available: true },
+    { key: "iso", label: "ISO", value: "400", available: true },
+    { key: "ev", label: "EV", value: "±0.0", available: true },
+  ],
+  tiles: [
+    { key: "afmode", icon: "s-af", value: "S-AF", label: "AF MODE", available: true },
+    { key: "aftarget", icon: "af-single", value: "Single", label: "AF TARGET", available: true },
+    { key: "wb", icon: "wb", value: "Auto", label: "WHITE BALANCE", available: true },
+    { key: "metering", icon: "metering", value: "ESP", label: "METERING", available: true },
+    { key: "drive", icon: "drive", value: "Single", label: "DRIVE MODE", available: true },
+    { key: "flash", icon: "flash", value: "Off", label: "FLASH", available: true },
+    { key: "aspect", icon: "aspect", value: "4:3", label: "ASPECT RATIO", available: true },
+    { key: "is", icon: "stabilizer", value: "S-IS AUTO", label: "STABILIZER", available: true },
+    { key: "picture", icon: "picture-mode", value: "Natural", label: "PICTURE MODE", available: true },
+    { key: "tone", icon: "tone", value: "±0", label: "TONE", available: false, reason: "Example of an unavailable function: shown, marked, not operable" },
+    { key: "face", icon: "face-af", value: "Off", label: "FACE AF", available: true },
+    { key: "stack", icon: "focus-stacking", value: "Off", label: "STACKING", available: true },
+  ],
+  footer: { left: "RAW + JPEG", right: "842 frames" },
+  onOpen: (k) => log(`SCP: open precision control "${k}" (gallery: logged only)`),
+});
+
+// Colour instruments with the E-M1 capability noted
+const hues12 = Array.from({ length: 12 }, (_, i) => ({ name: `${i * 30}°`, hue: i * 30 })); // names are a design question (Figma shows "BLUE")
+const C = caps.color;
+const colorDefs = [
+  { kind: "profile", title: "Color Profile", segments: hues12, values: [0, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0], active: 8, min: C.profile.range[0], max: C.profile.range[1],
+    cap: "Not an E-M1 function: software only (app HSL on captured files)." },
+  { kind: "creator", title: "Color Creator", segments: Array.from({ length: C.creator.hues }, (_, i) => ({ name: `Hue ${i}`, hue: (i * 360) / C.creator.hues })),
+    values: { hue: 6, value: 0 }, min: C.creator.saturation[0], max: C.creator.saturation[1],
+    cap: "E-M1 picture mode; set on the camera (no USB/Wi-Fi property). Hue 30 steps, saturation −4…+3 from firmware analysis, not validated." },
+  { kind: "mono", title: "Monochrome", segments: C.mono.filters.map((n) => ({ name: n, short: { Neutral: "N", Yellow: "Ye", Orange: "Or", Red: "R", Green: "G" }[n], hue: { Neutral: null, Yellow: 52, Orange: 28, Red: 0, Green: 140 }[n] })),
+    values: [0, 0, 0, 0, 0], active: 1, min: 0, max: 0, noValue: true,
+    cap: "E-M1 B&W Filter (Monotone): N/Ye/Or/R/G, no strength (manual p.80). Not mapped remotely yet." },
+];
+for (const d of colorDefs) {
+  const f = document.createElement("figure");
+  $("#color").appendChild(f);
+  const api = mountColorRing(f, { ...d, onRequest: (r) => {
+    log(`${d.title}: requested segment ${r.segment}${d.noValue ? "" : ` value ${r.value}`} (gallery: not sent)`);
+    setTimeout(() => api.setPhase("confirmed"), 300);
+  } });
+  const c = document.createElement("figcaption");
+  c.innerHTML = `${d.title}<small>${d.cap}</small>`;
+  f.appendChild(c);
+}
+
+// View shell
+const store = createViewStore(initialState(innerWidth < 700 ? "mobile" : "desktop", innerHeight > innerWidth ? "portrait" : "landscape"), "qp.gallery.view");
+store.subscribe((s, a) => log(`view: ${a.type} -> view=${s.view} scaling=${s.scaling} split=${s.split.toFixed(2)} (no camera action)`));
+const live = document.createElement("div");
+live.className = "g-frame";
+const panelHost = document.createElement("div");
+const fullOverlay = document.createElement("div");
+fullOverlay.className = "qp-overlay";
+fullOverlay.style.cssText = "right:12px;top:10px;font:var(--qp-label-s);color:#fff;letter-spacing:var(--qp-track-label)";
+const shell = mountViewShell($("#shellHost"), { store, live, panel: panelHost, frame: { w: 4, h: 3 } });
+fullOverlay.textContent = "FIT";
+shell.el.querySelector(".qp-stage").appendChild(fullOverlay);
+const back = document.createElement("button");
+back.className = "qp-overlay qp-return";
+back.textContent = "Show controls";
+back.style.cssText = "left:12px;top:10px;font:var(--qp-label-m);min-height:44px;padding:0 12px;border-radius:8px;border:1px solid #fff6;color:#fff;background:#0006;cursor:pointer";
+back.addEventListener("click", () => store.dispatch({ type: "clean" }));
+shell.el.querySelector(".qp-stage").appendChild(back);
+const miniStates = { aperture: states.aperture, shutter: states.shutter, iso: states.iso, ev: states.ev };
+const mini = mountQCP(panelHost, { connection: { kind: "wifi" }, values: miniStates, onRequest: (k) => simulateCamera(k), onAction: (a) => log(`panel action "${a}" (logged only)`) });
+views.add(mini.render);
+store.subscribe((s) => { fullOverlay.textContent = s.scaling.toUpperCase(); });
+
+const ctl = $("#viewCtl");
+const mk = (label, list, key, act) => {
+  const seg = document.createElement("span");
+  seg.className = "g-seg";
+  seg.setAttribute("role", "group");
+  seg.setAttribute("aria-label", label);
+  seg.innerHTML = list.map((v) => `<button data-v="${v}" aria-pressed="${store.get()[key] === v}">${v}</button>`).join("");
+  segButtons(seg, (v) => store.dispatch(act(v)));
+  store.subscribe((s) => seg.querySelectorAll("button").forEach((b) => b.setAttribute("aria-pressed", String(String(s[key]) === b.dataset.v))));
+  ctl.appendChild(seg);
+};
+mk("View", VIEWS, "view", (v) => ({ type: "view", view: v }));
+mk("Scaling", SCALING, "scaling", (v) => ({ type: "scaling", scaling: v }));
+mk("Camera orientation", CAMERA_ORIENTATION, "cameraOrientation", (v) => ({ type: "cameraOrientation", deg: +v }));
+</script>
+</body>
+</html>
