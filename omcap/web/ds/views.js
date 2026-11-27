@@ -195,6 +195,7 @@ export function mountViewShell(host, { store, live, panel, frame }) {
   divider.addEventListener("pointerdown", (e) => { drag = root.getBoundingClientRect(); divider.setPointerCapture(e.pointerId); });
   divider.addEventListener("pointermove", (e) => { if (drag) store.dispatch({ type: "split", split: (e.clientX - drag.left) / drag.width }); });
   divider.addEventListener("pointerup", () => { drag = null; });
+  divider.addEventListener("pointercancel", () => { drag = null; });
   divider.addEventListener("keydown", (e) => {
     const d = { ArrowLeft: -0.05, ArrowRight: 0.05 }[e.key];
     if (d) { e.preventDefault(); store.dispatch({ type: "split", split: store.get().split + d }); }

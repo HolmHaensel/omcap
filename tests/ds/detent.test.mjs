@@ -47,21 +47,6 @@ test("slow and fast wheel input: deltas accumulate to whole detents, nothing in 
   assert.equal(d.index, 34);
 });
 
-test("drag follows the finger detent by detent and does not coast after release", () => {
-  const { d, pulses } = rig(20, 5, { config: { dragPxPerDetent: 41 } });
-  d.dragStart(100);
-  d.dragMove(141);
-  d.dragMove(223);   // +3 detents in total
-  assert.equal(d.index, 8);
-  assert.equal(pulses.length, 3);
-  assert.equal(d.dragEnd(), true);
-  assert.equal(d.index, 8);    // no momentum
-  d.dragStart(0);
-  d.dragMove(-41 * 30);        // beyond the start: stops at 0, edge only
-  assert.equal(d.index, 0);
-  assert.equal(pulses.length, 3 + 8);
-});
-
 test("dragToIndex passes every value between; a tap jumps with one pulse", () => {
   const { d, pulses } = rig(30, 0);
   d.dragToIndex(4);

@@ -126,7 +126,7 @@ test("AUTO, LOW, BULB and LIVE modes are semantic values, set apart, never major
   const iso = stopsFor("iso", wifi.isospeedvalue.values);
   assert.deepEqual(iso.filter((s) => s.special).map((s) => s.label), ["AUTO", "LOW"]);
   const sh = stopsFor("shutter", wifi.shutspeedvalue.values);
-  assert.deepEqual(sh.filter((s) => s.special).map((s) => s.label), ["LIVE COMP", "LIVE TIME", "BULB"]);
+  assert.deepEqual(sh.filter((s) => s.special).map((s) => s.label), ["LIVECOMP", "LIVE TIME", "BULB"]);
   assert.ok(sh.filter((s) => s.special).every((s) => !s.major));
   const xs = scaleLayout(iso, 40);
   assert.equal(xs[1] - xs[0], 40);        // AUTO -> LOW: both special, normal step

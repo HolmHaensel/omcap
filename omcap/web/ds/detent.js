@@ -7,7 +7,6 @@
 /** Tunable values (Motion & Feedback design decides the final numbers). */
 export const DETENT_DEFAULTS = {
   wheelPxPerDetent: 40,     // accumulated wheel/trackpad delta (px) for one detent
-  dragPxPerDetent: 41,      // pointer travel for one detent (the tick spacing of the scale)
   crownPerDetent: 1,        // Digital Crown rotation units for one detent (watchOS: crown delta)
   maxDetentsPerEvent: 12,   // a single input event never jumps further (fast flick of a wheel)
 };
@@ -19,7 +18,8 @@ export const DETENT_DEFAULTS = {
  *   onDetent(index, direction, source): called once per detent passed (selection changed)
  *   onEdge(direction, source): called once when an input pushes against a limit (no pulse, optional cue)
  *   wrap:      true for rings (colour sectors): no limits, the index runs round
- * Inputs: step(n, source), wheel(delta, source), crown(delta, source), dragStart/dragMove(px)/dragEnd, set(index).
+ * Inputs: step(n, source), wheel(delta, source), crown(delta, source), dragToIndex(i) for pointers, jump(i) for taps,
+ * set(index) for readbacks.
  */
 export function createDetent(opts) {
   const cfg = { ...DETENT_DEFAULTS, ...(opts.config || {}) };
@@ -27,7 +27,6 @@ export function createDetent(opts) {
   let index = Math.max(0, Math.min(count - 1, opts.index ?? 0));
   let wheelAcc = 0;
   let crownAcc = 0;
-  let drag = null;
   let edgeHeld = false; // pushing against a limit reports the edge once, not per event
 
   const wrap = !!opts.wrap;
@@ -93,21 +92,6 @@ export function createDetent(opts) {
       [crownAcc, n] = accumulate(crownAcc, delta, cfg.crownPerDetent);
       return step(n, source);
     },
-    /** Pointer drag: the index follows the finger detent by detent; releasing does not coast. */
-    dragStart(px, source = "drag") { drag = { px, start: index, source }; },
-    dragMove(px, sign = 1) {
-      if (!drag) return 0;
-      const n = Math.round(((px - drag.px) * sign) / cfg.dragPxPerDetent);
-      const target = drag.start + n;
-      if (target === index) return 0;
-      const clamped = Math.max(0, Math.min(count - 1, target));
-      if (clamped === index) {
-        if (!edgeHeld) opts.onEdge?.(Math.sign(target - index), drag.source);
-        edgeHeld = true;
-        return 0;
-      }
-      return stepTo(clamped, drag.source);
-    },
     /** Pointer that maps straight to a detent (drag over ticks, angle on a ring): passes every detent between. */
     dragToIndex(i, source = "drag") { return stepTo(wrap ? index + ringDelta(index, i) : i, source); },
     /** Tap on a value: one jump, one pulse (nothing is traversed). */
@@ -119,7 +103,6 @@ export function createDetent(opts) {
       opts.onDetent?.(index, dir, source);
       return 1;
     },
-    dragEnd() { const moved = drag && index !== drag.start; drag = null; edgeHeld = false; return !!moved; },
   };
 }
 
@@ -159,7 +142,12 @@ export function createFeedback(opts = {}) {
   let lastSound = -1e9;
 
   const playClick = opts.audio || makeClick();
-  const buzz = opts.vibrate || ((ms) => (typeof navigator !== "undefined" && navigator.vibrate ? navigator.vibrate(ms) : false));
+  // Browsers allow vibration only after a real user gesture; before that the call would be refused (and logged).
+  const buzz = opts.vibrate || ((ms) => {
+    if (typeof navigator === "undefined" || !navigator.vibrate) return false;
+    if (navigator.userActivation && !navigator.userActivation.hasBeenActive) return false;
+    return navigator.vibrate(ms);
+  });
 
   return {
     get settings() { return { ...settings }; },

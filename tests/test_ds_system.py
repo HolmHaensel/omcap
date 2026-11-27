@@ -22,6 +22,19 @@ FIGMA = {
 }
 
 
+def camera_dir():
+    """camera/ is local only (not in git); a worktree finds it next to the main checkout."""
+    here = os.path.join(ROOT, "camera")
+    if os.path.isdir(here):
+        return here
+    try:
+        common = subprocess.run(["git", "rev-parse", "--git-common-dir"], cwd=ROOT, capture_output=True,
+                                text=True, timeout=10).stdout.strip()
+    except (OSError, subprocess.SubprocessError):
+        return here
+    return os.path.join(os.path.dirname(os.path.abspath(os.path.join(ROOT, common))), "camera")
+
+
 def read(name):
     with open(os.path.join(DS, name), encoding="utf-8") as f:
         return f.read()
@@ -120,7 +133,7 @@ class Fixture(unittest.TestCase):
         import json
         import xml.etree.ElementTree as ET
         fx = json.loads(read("fixtures/em1-capabilities-sample.json"))
-        xml = os.path.join(ROOT, "camera", "desclist.xml")
+        xml = os.path.join(camera_dir(), "desclist.xml")
         if not os.path.exists(xml):
             self.skipTest("camera/desclist.xml is local only")
         cam = {d.findtext("propname"): (d.findtext("enum") or "").split() for d in ET.parse(xml).getroot().iter("desc")}
@@ -132,7 +145,7 @@ class KelvinFixture(unittest.TestCase):
     def test_custom_wb_list_is_the_bodys_usb_list(self):
         import json
         fx = json.loads(read("fixtures/em1-capabilities-sample.json"))
-        summ = os.path.join(ROOT, "camera", "summary.txt")
+        summ = os.path.join(camera_dir(), "summary.txt")
         if not os.path.exists(summ):
             self.skipTest("camera/summary.txt is local only")
         with open(summ, encoding="utf-8", errors="replace") as f:

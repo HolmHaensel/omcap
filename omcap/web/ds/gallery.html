@@ -281,7 +281,8 @@ const wbDisplay = (op) => ({
   sub: op.label,
 });
 const qcp = mountQCP($("#qcp"), {
-  connection: { kind: "wifi" }, values: states, wb: { state: states.wb, options: wbOptions, display: wbDisplay }, feedback: fb,
+  // Sample shooting mode M: exposure compensation is not available in M (manual p.51), so the EV position is off
+  connection: { kind: "wifi" }, values: { ...states, ev: null }, wb: { state: states.wb, options: wbOptions, display: wbDisplay }, feedback: fb,
   onRequest: (k) => simulateCamera(k),
   onAction: (a) => log(`QCP action "${a}" (gallery: logged only, no camera call)`),
 });
@@ -297,7 +298,7 @@ const scp = mountSCP($("#scp"), {
     { key: "shutter", label: "SHUTTER", state: states.shutter, kind: "shutter", available: true },
     { key: "aperture", label: "APERTURE", state: states.aperture, kind: "aperture", available: true },
     { key: "iso", label: "ISO", state: states.iso, kind: "iso", available: true },
-    { key: "ev", label: "EV", state: states.ev, kind: "ev", available: true },
+    { key: "ev", label: "EV", state: states.ev, kind: "ev", available: false }, // M mode: no exposure compensation (manual p.51)
   ],
   tiles: [
     { key: "afmode", icon: "s-af", value: "S-AF", label: "AF MODE", available: true },
@@ -307,11 +308,11 @@ const scp = mountSCP($("#scp"), {
     { key: "drive", icon: "drive", value: "Single", label: "DRIVE MODE", available: true },
     { key: "flash", icon: "flash", value: "Off", label: "FLASH", available: true },
     { key: "aspect", icon: "aspect", value: "4:3", label: "ASPECT RATIO", available: true },
-    { key: "is", icon: "stabilizer", value: "S-IS AUTO", label: "STABILIZER", available: true },
+    { key: "is", icon: "stabilizer", value: "S-IS AUTO", label: "IMAGE STABILIZER", available: true },
     { key: "picture", icon: "picture-mode", value: "Natural", label: "PICTURE MODE", available: true },
     { key: "tone", icon: "tone", value: "±0", label: "TONE", available: false, reason: "Example of an unavailable function: shown, marked, not operable" },
-    { key: "face", icon: "face-af", value: "Off", label: "FACE AF", available: true },
-    { key: "stack", icon: "focus-stacking", value: "Off", label: "STACKING", available: true },
+    { key: "face", icon: "face-af", value: "Off", label: "FACE PRIORITY", available: true },
+    { key: "stack", icon: "focus-stacking", value: "Off", label: "FOCUS STACKING", available: true },
   ],
   footer: { left: "RAW + JPEG", right: "842 frames" },
   onOpen: (k) => log(`SCP: open precision control "${k}" (gallery: logged only)`),
@@ -347,7 +348,7 @@ const colorDefs = [
   { kind: "creator", title: "Color Creator", segments: Array.from({ length: C.creator.hues }, (_, i) => ({ name: `Hue ${i + 1}`, hue: (i * 360) / C.creator.hues })),
     values: { hue: 5, value: 0 }, min: C.creator.saturation[0], max: C.creator.saturation[1],
     cap: "E-M1 picture mode; set on the camera (no USB/Wi-Fi property). Hue 30 steps, saturation −4…+3 from firmware analysis, not validated." },
-  { kind: "mono", title: "Monochrome", segments: C.mono.filters.map((n, i) => ({ name: n, short: C.mono.filters_short[i], hue: { Neutral: null, Yellow: 52, Orange: 28, Red: 0, Green: 140 }[n] })),
+  { kind: "mono", title: "Monotone · B&W Filter", segments: C.mono.filters.map((n, i) => ({ name: n, short: C.mono.filters_short[i], hue: { Neutral: null, Yellow: 52, Orange: 28, Red: 0, Green: 140 }[n] })),
     values: [0, 0, 0, 0, 0], active: 1, min: 0, max: 0, noValue: true,
     cap: "E-M1 B&W Filter (Monotone): N/Ye/Or/R/G, no strength (manual p.80). Not mapped remotely yet." },
 ];
@@ -382,7 +383,7 @@ back.textContent = "Show controls";
 back.style.cssText = "left:12px;top:10px;cursor:pointer;min-height:44px";
 back.addEventListener("click", () => store.dispatch({ type: "clean" }));
 shell.el.querySelector(".qp-stage").appendChild(back);
-const mini = mountQCP(panelHost, { connection: { kind: "wifi" }, values: states, feedback: fb, onRequest: (k) => simulateCamera(k), onAction: (a) => log(`panel action "${a}" (logged only)`) });
+const mini = mountQCP(panelHost, { connection: { kind: "wifi" }, values: { ...states, ev: null }, feedback: fb, onRequest: (k) => simulateCamera(k), onAction: (a) => log(`panel action "${a}" (logged only)`) });
 views.add(mini.render);
 store.subscribe((s) => { fullOverlay.textContent = s.scaling.toUpperCase(); });
 

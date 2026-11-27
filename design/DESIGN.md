@@ -180,7 +180,7 @@ wish; no view change produces a camera action (tested); capture, AF and Review o
 - Adaptive Precision Scale: every tick is one value of the camera's list (`stopsFor`), in camera order, nothing added at
   the ends. Main values per parameter, independent of the 1/3, 1/2 or 1 EV step: full aperture stops, full shutter
   stops, ISO doublings from 200, whole EV, every 1000 K. Minor ticks carry no label. AUTO, LOW, BULB, LIVE TIME and
-  LIVE COMP are semantic stops (dot, word label) set apart by a 3/4-step gap. Center Lock stays the default.
+  LIVECOMP are semantic stops (dot, word label) set apart by a 3/4-step gap. Center Lock stays the default.
 - Five instrument types in `precision.js`: Scale (`mountScale`), Selector (`mountSelector`), Wheel (`mountColorRing`),
   Axis (`mountAxis`), Relative (`mountRelative`). QCP and SCP read the same `ValueState` objects.
 - White balance from the body's own data: 13 presets (manual p.58; Wi-Fi `wbvalue` codes and USB `d01e` 1-13),
@@ -228,7 +228,7 @@ Display Light 300 (80/64/48 px), Values Regular 400 (32/28/24/22 px), Labels Med
 Tracking tokens: display digits −1 %, compact values 0 %, aperture sign +5 % (its own span), Label L/M/S +7/+6/+5 %,
 numeric scale labels neutral. One formatter (`formatValue`) for QCP, SCP, scales and selectors: ƒ prefix, `1/8000` and
 `60"`, real minus and one EV sign rule (+0.3, ±0.0, −0.3), Kelvin unit at 0.6 em, camera words (AUTO, LOW, BULB,
-LIVE TIME, LIVE COMP) as words at 0.6 em (0.5 em in compact slots) in the weight of their slot. Values never wrap.
+LIVE TIME, LIVECOMP) as words at 0.6 em (0.5 em in compact slots) in the weight of their slot. Values never wrap.
 
 - Fixed on the way: tabular figures were not active anywhere (a later `font:` shorthand reset `.qp-num`); now a
   doubled-class rule keeps them (checked: equal widths for 1/1000 and 1/8000, 1.2 and 8.0, 1250 and 8000).
@@ -241,8 +241,16 @@ LIVE TIME, LIVE COMP) as words at 0.6 em (0.5 em in compact slots) in the weight
   release, SIL OFL 1.1 in `fonts/Inter-OFL.txt`) and loaded by `tokens.css` via `@font-face`; the server serves
   `.woff2` and `.txt` under `/ds/` only. The page `index.html` still names Inter without the file until it migrates.
 - QA (browser, no camera; Dark, Daylight, Astro Red): no layout shift in QCP and SCP over 4 value sets (250/8000/60"/
-  LIVE COMP, 400/25600/AUTO/LOW, ±0.0/−4.7/+5.0/−0.3, ƒ2.8-ƒ22) at 600, 343 and 168 px panels; nothing clipped; smallest
+  LIVECOMP, 400/25600/AUTO/LOW, ±0.0/−4.7/+5.0/−0.3, ƒ2.8-ƒ22) at 600, 343 and 168 px panels; nothing clipped; smallest
   digits 15 px; stress table of 13 audit cases in 7 sizes without wrapping. Not on real devices yet.
+
+**Wiring requirements for the page migration (merge-gate QA 2026-11-28):** the components hold no mode map; the page
+supplies it from the existing `FEATURES` / `inMode(...)` sets (one source, no copy): shutter only in S and M (movie S/M),
+aperture only in A and M, EV not in iAUTO, M or SCN (p.51), ISO as `FEATURES`; BULB, LIVE TIME and LIVECOMP only in M
+(p.41), so the shutter list is re-stopped (`setStops`) without them outside M. A mode change sets unavailable values to
+`null` (QCP) / `available: false` (SCP) and re-renders. Over USB iAUTO, ART, SCN and PHOTO STORY read as P. Tiles that
+only one connection can set (AF mode, metering, stabilizer: USB only) are hidden on the other connection; the relative
+focus control is hidden on Wi-Fi on the real page (the gallery shows it disabled for review only).
 
 **Capability notes (E-M1 Mark I, fw 4.6):** Color Creator is a picture mode of the body, but hue/saturation have
 no USB or Wi-Fi property (firmware study 2026-11-24); Color Profile and the Monochrome filter strength are PEN-F
@@ -436,6 +444,12 @@ recording a movie, read only, Wi-Fi drop-out (last good frame kept, "No signal f
 | Index display, Calendar display, single-frame playback, close-up playback | same | p.31–33, p.63 |
 | Image only / Simplified display / Overall display | INFO button cycle during playback | p.62 |
 | View zoom 1×–4× (smooth; buttons 1×/2×/4×) | not a camera function (the camera's own is Magnify / Zoom frame AF, ×3–×14); label it as the app's view zoom | – |
+| White balance presets: Auto, Sunny, Shade, Cloudy, Tungsten, Fluorescent, Underwater, Flash, One-touch WB 1–4, Custom WB (CWB 2000–14000 K) | same; CWB = custom white balance in Kelvin | p.58 |
+| Color Creator (hue, saturation) | Color Creator, front dial hue, rear dial saturation | p.60 |
+| Monotone · B&W Filter N / Ye / Or / R / G | Monotone, B&W Filter N, Ye, Or, R, G (the design system ring shows N, Y, O, R, G per Figma V9.1: open design decision) | p.70, p.80 |
+| Image stabilizer (S-IS AUTO, S-IS 1–3, S-IS Off) | Image stabilizer / IS Mode | p.68 |
+| Face priority | Face priority | p.55 |
+| Color Profile, Monochrome strength | app terms (no E-M1 equivalent; PEN-F functions), computed in software only | – |
 
 ## Build order for `omcap/web/index.html` (done in 0.4.0; kept as record)
 

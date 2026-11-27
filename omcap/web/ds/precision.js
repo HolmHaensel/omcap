@@ -7,6 +7,7 @@
 // All input runs through the Precision Detent Engine: one detent per valid value, no gliding values,
 // no kinetic scrolling, one feedback pulse per detent passed.
 import { createDetent } from "./detent.js";
+import { crownTarget } from "./views.js";
 
 // ---------------------------------------------------------------------------------------------
 // Value model: requested -> pending -> confirmed (or failed). Pure, no DOM, testable in node.
@@ -124,7 +125,7 @@ const near = (x, tol) => Math.abs(x - Math.round(x)) < tol;
 
 /** Special (non-numeric) camera values and their display label. Values are the camera's own strings. */
 export const SPECIAL_LABELS = {
-  auto: "AUTO", low: "LOW", livebulb: "BULB", bulb: "BULB", livetime: "LIVE TIME", livecomp: "LIVE COMP",
+  auto: "AUTO", low: "LOW", livebulb: "BULB", bulb: "BULB", livetime: "LIVE TIME", livecomp: "LIVECOMP",
 };
 
 /** Shutter value string (Wi-Fi style: '250' = 1/250 s, '2"' = 2 s) in seconds, or null if special. */
@@ -286,7 +287,6 @@ function stateClass(phase) {
   return `qp-state-${phase}`;
 }
 
-const reducedMotion = () => typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches;
 
 // ---------------------------------------------------------------------------------------------
 // Precision Scale (Center Lock default, Fixed Range alternative)
@@ -297,7 +297,8 @@ const reducedMotion = () => typeof matchMedia === "function" && matchMedia("(pre
  *   state:      ValueState; its stops carry major/special flags (see stopsFor)
  *   variant:    "center" (Center Lock, standard) or "fixed" (Fixed Range, alternative)
  *   ends:       optional [left, right] end labels (Precision Axis)
- *   onRequest:  called with the requested camera value after a tap, drag/swipe end or key press.
+ *   onRequest:  called with the requested camera value on every detent (tap, drag, wheel, key, crown); the caller
+ *               sends it through a command gate, so fast turning does not queue stale commands.
  * Direct operation only: drag, swipe, tap, wheel/trackpad, arrow keys and crown on the scale; no extra slider.
  * Detents only: the scale never rests between two values and does not coast after release.
  */
@@ -481,8 +482,7 @@ export function mountSelector(host, opts) {
   const head = el("div", "qp-selector-head");
   const lab = el("div", "qp-active-label", o.label);
   const ic = el("div", "qp-selector-icon");
-  const big = el("output", "qp-selector-big qp-num");
-  big.setAttribute("aria-live", "polite");
+  const big = el("output", "qp-selector-big qp-num"); // the radio group announces the choice
   const sub = el("div", "qp-selector-sub");
   head.append(lab, ic, big, sub);
   const row = el("div", "qp-selector-row");
@@ -662,8 +662,7 @@ export function mountQCP(host, opts) {
   head.append(el("span", "qp-brand", o.title), connectionBadge(o.connection));
   const kicker = el("div", "qp-kicker", "QUICK CONTROL PANEL");
   const activeLabel = el("div", "qp-active-label");
-  const big = el("output", "qp-big qp-num");
-  big.setAttribute("aria-live", "polite");
+  const big = el("output", "qp-big qp-num"); // no aria-live: the focused scale announces its value itself
   const scaleHost = el("div", "qp-scale-host");
   const params = el("div", "qp-params");
   params.setAttribute("role", "tablist");
@@ -812,10 +811,15 @@ export function mountSCP(host, opts) {
     const f = x.kind ? formatValue(x.kind, s) : { prefix: "", text: x.fmt ? x.fmt(s) : s.label, unit: "" };
     return { f, phase: x.state.phase };
   };
-  const valueEl = (cls, v) => { const e = el("span", `${cls} ${stateClass(v.phase)}`); setValue(e, v.f); return e; };
+  const fillValue = (e, cls, v) => { e.className = `${cls} ${stateClass(v.phase)}`; setValue(e, v.f); };
 
-  function render() {
+  // Built once (and again only when the set of items changes); readbacks update the existing nodes in place,
+  // so keyboard focus stays on the item the user is on.
+  let shape = "";
+  const items = new Map();
+  function build() {
     root.textContent = "";
+    items.clear();
     const head = el("header", "qp-panel-head");
     head.append(el("span", "qp-brand", o.title), connectionBadge(o.connection));
     const expo = el("div", "qp-scp-expo");
@@ -823,28 +827,44 @@ export function mountSCP(host, opts) {
       const b = el("button", "qp-scp-expo-item");
       b.type = "button";
       b.dataset.key = x.key;
-      b.disabled = !x.available;
-      const v = shown(x);
-      b.append(el("span", "qp-param-label", x.label), valueEl("qp-scp-expo-value qp-num", v));
+      const val = el("span");
+      b.append(el("span", "qp-param-label", x.label), val);
       expo.appendChild(b);
+      items.set(`e:${x.key}`, { b, val, cls: "qp-scp-expo-value qp-num" });
     }
     const grid = el("div", "qp-scp-grid");
     for (const t of o.tiles || []) {
       const b = el("button", "qp-scp-tile");
       b.type = "button";
       b.dataset.key = t.key;
-      if (!t.available) {
-        b.classList.add("unavailable");
-        b.setAttribute("aria-disabled", "true");
-        b.title = t.reason || "Not available";
-      }
-      const v = shown(t);
-      b.append(icon(t.icon), valueEl("qp-scp-tile-value", v), el("span", "qp-scp-tile-label", t.label));
+      const val = el("span");
+      b.append(icon(t.icon), val, el("span", "qp-scp-tile-label", t.label));
       grid.appendChild(b);
+      items.set(`t:${t.key}`, { b, val, cls: "qp-scp-tile-value" });
     }
     const foot = el("footer", "qp-scp-foot");
-    foot.append(el("span", "", o.footer?.left ?? ""), el("span", "qp-num", o.footer?.right ?? ""));
+    foot.append(el("span", "", ""), el("span", "qp-num", ""));
     root.append(head, el("div", "qp-kicker", "SUPER CONTROL PANEL"), expo, grid, foot);
+  }
+
+  function render() {
+    const next = JSON.stringify([o.title, o.connection, (o.exposure || []).map((x) => [x.key, x.label]), (o.tiles || []).map((t) => [t.key, t.icon, t.label])]);
+    if (next !== shape) { shape = next; build(); }
+    for (const x of o.exposure || []) {
+      const it = items.get(`e:${x.key}`);
+      it.b.disabled = !x.available;
+      fillValue(it.val, it.cls, shown(x));
+    }
+    for (const t of o.tiles || []) {
+      const it = items.get(`t:${t.key}`);
+      it.b.classList.toggle("unavailable", !t.available);
+      if (t.available) { it.b.removeAttribute("aria-disabled"); it.b.removeAttribute("title"); }
+      else { it.b.setAttribute("aria-disabled", "true"); it.b.title = t.reason || "Not available"; }
+      fillValue(it.val, it.cls, shown(t));
+    }
+    const foot = root.querySelector(".qp-scp-foot");
+    foot.children[0].textContent = o.footer?.left ?? "";
+    foot.children[1].textContent = o.footer?.right ?? "";
   }
   root.addEventListener("click", (e) => {
     const b = e.target.closest("button[data-key]");
@@ -911,7 +931,7 @@ export function mountColorRing(host, opts) {
   const root = el("div", `qp-color qp-color-${o.kind}`);
   root.tabIndex = 0;
   root.setAttribute("role", "group");
-  root.setAttribute("aria-label", { profile: "Color Profile", creator: "Color Creator", mono: "Monochrome Profile" }[o.kind]);
+  root.setAttribute("aria-label", { profile: "Color Profile (app, software)", creator: "Color Creator", mono: "Monotone B&W Filter" }[o.kind]);
   const svg = document.createElementNS(SVGNS, "svg");
   svg.setAttribute("viewBox", "-150 -150 300 300");
   svg.setAttribute("class", "qp-color-svg");
@@ -1083,8 +1103,9 @@ export function mountColorRing(host, opts) {
     setAxis,
     /** Digital Crown: changes only the active axis (Profile: saturation, Creator: active axis, Mono: filter). */
     crown(delta, native = false) {
-      // Profile: touch picks the colour, the crown sets its level. Creator: active axis. Mono: strength if any, else filter.
-      const eng = o.kind === "creator" ? activeEngine() : hasRadial ? radial : angle;
+      // One routing rule for every surface (views.js crownTarget): Profile level, Creator active axis, Mono strength or filter.
+      const t = crownTarget({ view: "panel" }, { screen: "instrument", instrument: { kind: o.kind, axis: o.axis, hasStrength: hasRadial } });
+      const eng = t.axis === "radial" && hasRadial ? radial : angle;
       return eng.crown(delta, native ? "crown-native" : "crown");
     },
     confirm(values) { o.values = values; o.phase = "confirmed"; angle.set(activeIndex()); radial.set(hasRadial ? getVal(activeIndex()) - o.min : 0); draw(); },
