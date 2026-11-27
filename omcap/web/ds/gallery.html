@@ -48,6 +48,9 @@
   .g-color figcaption small { display: block; font: var(--qp-status); color: var(--qp-muted); margin-top: 4px; }
   .g-badge { font: var(--qp-label-s); letter-spacing: var(--qp-track-label); padding: 6px 12px; border-radius: 999px; border: 1px solid var(--qp-surface); color: var(--qp-muted); }
   .g-states span { margin-right: 18px; font: var(--qp-value-s); }
+  .g-stress { display: grid; gap: 4px; overflow-x: auto; }
+  .g-stress div { display: flex; align-items: baseline; gap: 28px; border-bottom: 1px solid var(--qp-surface); padding: 4px 0; min-width: max-content; }
+  .g-stress div > span:first-child { width: 120px; flex: none; font: var(--qp-label-s); letter-spacing: var(--qp-track-label-s); color: var(--qp-muted); }
   .g-chip { font: var(--qp-label-m); letter-spacing: var(--qp-track-label); color: var(--qp-text); background: var(--qp-ground);
     border: 1px solid var(--qp-surface); border-radius: 8px; padding: 6px 12px; }
   #scpWb, #relHost { gap: 18px; }
@@ -76,6 +79,11 @@
   <h2>Typography</h2>
   <p class="note">Inter, tabular numerals for changing camera values.</p>
   <div class="g-type" id="type"></div>
+
+  <h2>Value typography V1.1 · stress cases</h2>
+  <p class="note">Variant C, Optical Spacing: aperture sign +5 %, display digits −1 %, compact values 0 %, real minus sign,
+    one EV sign rule, Kelvin unit set smaller. Tabular figures on all changing values.</p>
+  <div id="stress" class="g-stress"></div>
 
   <h2>Value states</h2>
   <p class="note">Requested, pending, confirmed and failed stay distinguishable without colour alone. The cue per state is an
@@ -143,7 +151,7 @@
 </div>
 
 <script type="module">
-import { ValueState, stopsFor, mountScale, mountQCP, mountSCP, mountSelector, mountAxis, mountRelative, mountColorRing,
+import { formatValue, setValue, ValueState, stopsFor, mountScale, mountQCP, mountSCP, mountSelector, mountAxis, mountRelative, mountColorRing,
   icon, QCP_PARAMS } from "/ds/precision.js";
 import { initialState, createViewStore, mountViewShell, crownTarget, VIEWS, SCALING, CAMERA_ORIENTATION } from "/ds/views.js";
 import { createFeedback, createCommandGate } from "/ds/detent.js";
@@ -179,6 +187,24 @@ $("#type").innerHTML = [
   ["Navigation 15/500", "nav", "Navigation"], ["Label L 14/500", "label-l", "APERTURE"], ["Label S 12/500", "label-s", "AF MODE"],
   ["Status 13/400", "status", "Status line"],
 ].map(([n, t, s]) => `<div><span>${n}</span><span class="qp-num" style="font:var(--qp-${t});${t.startsWith("label") ? "letter-spacing:var(--qp-track-label)" : ""}">${s}</span></div>`).join("");
+
+// Stress cases from the Typography Audit at every display and value size
+const STRESS = [["aperture", "1.2"], ["aperture", "2.8"], ["aperture", "16"], ["aperture", "22"], ["shutter", "8000"], ["shutter", '60"'],
+  ["iso", "Auto", true], ["iso", "Low", true], ["iso", "25600"], ["ev", "-0.3"], ["ev", "0.0"], ["ev", "+1.7"], ["kelvin", "5600"]];
+for (const [size, font, track] of [["Display XL 80", "display-xl", "display"], ["Display L 64", "display-l", "display"], ["Display M 48", "display-m", "display"],
+  ["Value L 32", "value-l", "value"], ["Value M 28", "value-m", "value"], ["Value S 24", "value-s", "value"], ["Value XS 22", "value-xs", "value"]]) {
+  const row = document.createElement("div");
+  row.innerHTML = `<span>${size}</span>`;
+  for (const [kind, v, special] of STRESS) {
+    const e = document.createElement("span");
+    e.className = "qp-num";
+    e.style.cssText = `font:var(--qp-${font});letter-spacing:var(--qp-track-${track})`;
+    e.dataset.kind = kind;
+    setValue(e, formatValue(kind, { value: v, label: special ? v.toUpperCase() : v, special: !!special }));
+    row.appendChild(e);
+  }
+  $("#stress").appendChild(row);
+}
 
 const ICONS = ["aperture", "shutter", "ev", "tracking", "s-af", "c-af", "mf", "s-af-mf", "star-af", "af-all", "af-single",
   "af-small", "af-group", "iso", "wb", "metering", "drive", "self-timer", "flash", "picture-mode", "histogram", "level",
@@ -251,7 +277,7 @@ for (const p of QCP_PARAMS) {
 
 const wbOptions = WB.presets.map((p) => ({ value: p.key, label: p.label, short: p.short, icon: p.icon, kelvin: p.kelvin }));
 const wbDisplay = (op) => ({
-  big: op.kelvin === "custom" ? `${states.kelvin.shown} K` : op.kelvin ? `${op.kelvin} K` : (op.short || op.label).toUpperCase(),
+  big: op.kelvin === "custom" ? { text: states.kelvin.shown, unit: "K" } : op.kelvin ? { text: String(op.kelvin), unit: "K" } : (op.short || op.label).toUpperCase(),
   sub: op.label,
 });
 const qcp = mountQCP($("#qcp"), {
@@ -268,10 +294,10 @@ const scp = mountSCP($("#scp"), {
   connection: { kind: "usb" },
   exposure: [
     { key: "mode", label: "MODE", value: "M", available: false },
-    { key: "shutter", label: "SHUTTER", state: states.shutter, fmt: fmt.shutter, available: true },
-    { key: "aperture", label: "APERTURE", state: states.aperture, fmt: fmt.aperture, available: true },
-    { key: "iso", label: "ISO", state: states.iso, fmt: fmt.iso, available: true },
-    { key: "ev", label: "EV", state: states.ev, fmt: fmt.ev, available: true },
+    { key: "shutter", label: "SHUTTER", state: states.shutter, kind: "shutter", available: true },
+    { key: "aperture", label: "APERTURE", state: states.aperture, kind: "aperture", available: true },
+    { key: "iso", label: "ISO", state: states.iso, kind: "iso", available: true },
+    { key: "ev", label: "EV", state: states.ev, kind: "ev", available: true },
   ],
   tiles: [
     { key: "afmode", icon: "s-af", value: "S-AF", label: "AF MODE", available: true },

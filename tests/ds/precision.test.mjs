@@ -3,7 +3,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { ValueState, normStops, indexOfValue, clampIndex, centerLockOffset, dragToX, fitLayout, scaleLayout, nearestStop,
-  stopsFor, isMainValue, shutterSeconds, stopIsMajor, ringLabels,
+  stopsFor, isMainValue, shutterSeconds, stopIsMajor, ringLabels, formatValue, valueText,
   angleToSegment, segmentAngle, radiusToValue, valueToRadius } from "../../omcap/web/ds/precision.js";
 
 const FX = JSON.parse(readFileSync(new URL("../../omcap/web/ds/fixtures/em1-capabilities-sample.json", import.meta.url)));
@@ -180,4 +180,23 @@ test("colour ring geometry", () => {
   assert.equal(radiusToValue(1, -5, 5), 5);
   assert.equal(radiusToValue(0.2, -5, 5), -5);
   assert.equal(radiusToValue(valueToRadius(3, -5, 5), -5, 5), 3);
+});
+
+// ---- Typography Refinement V1.1: value formatting ----
+
+
+test("value typography: aperture sign as prefix, one EV sign rule with a real minus, Kelvin unit, camera words", () => {
+  const t = (kind, value, special = false) => valueText(formatValue(kind, { value, label: special ? value.toUpperCase() : value, special }));
+  assert.deepEqual(formatValue("aperture", { value: "2.8", label: "2.8" }), { prefix: "ƒ", text: "2.8", unit: "" });
+  assert.equal(t("aperture", "22"), "ƒ22");
+  assert.equal(t("shutter", "8000"), "1/8000");
+  assert.equal(t("shutter", '60"'), '60"');
+  assert.equal(t("ev", "-0.3"), "−0.3");   // real minus sign
+  assert.equal(t("ev", "0.0"), "±0.0");
+  assert.equal(t("ev", "+1.7"), "+1.7");
+  assert.equal(t("kelvin", "5600"), "5600 K");
+  assert.equal(formatValue("iso", { value: "Auto", label: "AUTO", special: true }).word, true);
+  // the camera value is untouched: only the display changes
+  const ev = stopsFor("ev", ["-0.3", "0.0"]);
+  assert.deepEqual(ev.map((s) => s.value), ["-0.3", "0.0"]);
 });

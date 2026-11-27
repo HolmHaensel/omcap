@@ -216,6 +216,47 @@ export function fitLayout(xs, width, pad) {
 }
 
 // ---------------------------------------------------------------------------------------------
+// Value typography (Typography Refinement V1.1): one formatter for every view of a camera value.
+// The camera value itself never changes; only its display: aperture sign as its own part, a real minus
+// sign and one sign rule for EV (+0.3, ±0.0, −0.3), the Kelvin unit as a smaller part.
+// ---------------------------------------------------------------------------------------------
+
+const MINUS = "\u2212";
+
+/** formatValue(kind, stop) -> {prefix, text, unit, word}; special values (AUTO, LOW, BULB ...) are words (word: true). */
+export function formatValue(kind, stop) {
+  const label = stop.label;
+  if (stop.special) return { prefix: "", text: label, unit: "", word: true };
+  switch (kind) {
+    case "aperture": return { prefix: "ƒ", text: label, unit: "" };
+    case "shutter": return { prefix: "", text: /"$/.test(label) ? label : `1/${label}`, unit: "" };
+    case "ev": {
+      const n = parseFloat(stop.value);
+      if (!Number.isFinite(n)) return { prefix: "", text: label, unit: "" };
+      const a = Math.abs(n).toFixed(1);
+      return { prefix: "", text: n === 0 ? `±${a}` : n < 0 ? `${MINUS}${a}` : `+${a}`, unit: "" };
+    }
+    case "kelvin": return { prefix: "", text: label, unit: "K" };
+    default: return { prefix: "", text: label, unit: "" };
+  }
+}
+
+/** Plain text of a formatted value (titles, aria, tests). */
+export function valueText(f) {
+  return `${f.prefix}${f.text}${f.unit ? ` ${f.unit}` : ""}`;
+}
+
+/** Write a formatted value into an element as prefix / digits / unit parts (no line break inside). */
+export function setValue(target, f) {
+  target.textContent = "";
+  if (f.prefix) { const p = document.createElement("span"); p.className = "qp-prefix"; p.textContent = f.prefix; target.appendChild(p); }
+  if (f.word) { const w = document.createElement("span"); w.className = "qp-word"; w.textContent = f.text; target.appendChild(w); }
+  else target.appendChild(document.createTextNode(f.text));
+  if (f.unit) { const u = document.createElement("span"); u.className = "qp-unit"; u.textContent = f.unit; target.appendChild(u); }
+  target.setAttribute("aria-label", valueText(f));
+}
+
+// ---------------------------------------------------------------------------------------------
 // DOM helpers
 // ---------------------------------------------------------------------------------------------
 
@@ -430,7 +471,7 @@ export function mountAxis(host, opts) {
 /**
  * mountSelector(host, {state, options, label, display, onRequest})
  *   options: [{value, label, short?, icon?}] in camera order; state.stops must hold the same values
- *   display(option) -> {big, sub}: the large value and the name under it
+ *   display(option) -> {big, sub}: the large value (string, or {text, unit} for a smaller unit) and the name under it
  */
 export function mountSelector(host, opts) {
   const o = { display: (op) => ({ big: op.short || op.label, sub: op.label }), ...opts };
@@ -471,7 +512,7 @@ export function mountSelector(host, opts) {
     if (engine && i >= 0 && i !== engine.index) engine.set(i); // readback: no pulse
     const op = i >= 0 ? byValue.get(o.state.stops[i].value) : null;
     const d = op ? o.display(op) : { big: "–", sub: "" };
-    big.textContent = d.big;
+    if (typeof d.big === "object") setValue(big, { prefix: "", unit: "", ...d.big }); else big.textContent = d.big;
     sub.textContent = d.sub;
     ic.textContent = "";
     if (op?.icon) ic.appendChild(icon(op.icon, "qp-icon qp-icon-primary"));
@@ -600,11 +641,11 @@ export function mountRelative(host, opts) {
 // ---------------------------------------------------------------------------------------------
 
 export const QCP_PARAMS = [
-  { key: "aperture", label: "APERTURE", fmt: (s) => (s.special ? s.label : `ƒ${s.label}`), scaleFmt: (s) => s.label },
-  { key: "shutter", label: "SHUTTER", fmt: (s) => (s.special ? s.label : /"$/.test(s.label) ? s.label : `1/${s.label}`), scaleFmt: (s) => s.label },
-  { key: "iso", label: "ISO", fmt: (s) => s.label, scaleFmt: (s) => s.label },
-  { key: "ev", label: "EV", fmt: (s) => s.label, scaleFmt: (s) => s.label },
-];
+  { key: "aperture", label: "APERTURE", kind: "aperture", scaleFmt: (s) => s.label },
+  { key: "shutter", label: "SHUTTER", kind: "shutter", scaleFmt: (s) => s.label },
+  { key: "iso", label: "ISO", kind: "iso", scaleFmt: (s) => s.label },
+  { key: "ev", label: "EV", kind: "ev", scaleFmt: (s) => formatValue("ev", s).text },
+].map((p) => ({ ...p, fmt: (s) => valueText(formatValue(p.kind, s)) }));
 
 /**
  * mountQCP(host, {title, connection, values, active, wb, feedback, detent, onRequest, onAction})
@@ -688,7 +729,7 @@ export function mountQCP(host, opts) {
       const st = o.values[o.active];
       activeLabel.textContent = p.label;
       const s = st?.stops[st.shownIndex];
-      big.textContent = s ? p.fmt(s) : "–";
+      if (s) setValue(big, formatValue(p.kind, s)); else big.textContent = "–";
       big.className = `qp-big qp-num ${st ? stateClass(st.phase) : ""}`;
     }
     for (const q of QCP_PARAMS) {
@@ -700,7 +741,7 @@ export function mountQCP(host, opts) {
       b.classList.toggle("selected", q.key === o.active);
       const v = b.querySelector(".qp-param-value");
       const stop = s?.stops[s.shownIndex];
-      v.textContent = stop ? q.fmt(stop) : "–";
+      if (stop) setValue(v, formatValue(q.kind, stop)); else v.textContent = "–";
       v.className = `qp-param-value qp-num ${s ? stateClass(s.phase) : ""}`;
     }
     if (wbBtn) {
@@ -753,7 +794,8 @@ function connectionBadge(c) {
 
 /**
  * mountSCP(host, {title, connection, exposure, tiles, footer, onOpen})
- *   exposure: [{key, label, state?: ValueState, fmt?, value?, available}] - state wins over a fixed value
+ *   exposure: [{key, label, state?: ValueState, kind?, fmt?, value?, available}] - state wins over a fixed value;
+ *             kind (aperture, shutter, iso, ev, kelvin) uses the shared value typography
  *   tiles:    [{key, icon, value | state+fmt, label, available, reason?}]
  *   footer:   {left, right}
  */
@@ -764,10 +806,13 @@ export function mountSCP(host, opts) {
   host.appendChild(root);
 
   const shown = (x) => {
-    if (!x.state) return { text: x.value ?? "–", phase: x.phase || "confirmed" };
+    if (!x.state) return { f: { prefix: "", text: x.value ?? "–", unit: "" }, phase: x.phase || "confirmed" };
     const s = x.state.stops[x.state.shownIndex];
-    return { text: s ? (x.fmt ? x.fmt(s) : s.label) : "–", phase: x.state.phase };
+    if (!s) return { f: { prefix: "", text: "–", unit: "" }, phase: x.state.phase };
+    const f = x.kind ? formatValue(x.kind, s) : { prefix: "", text: x.fmt ? x.fmt(s) : s.label, unit: "" };
+    return { f, phase: x.state.phase };
   };
+  const valueEl = (cls, v) => { const e = el("span", `${cls} ${stateClass(v.phase)}`); setValue(e, v.f); return e; };
 
   function render() {
     root.textContent = "";
@@ -780,7 +825,7 @@ export function mountSCP(host, opts) {
       b.dataset.key = x.key;
       b.disabled = !x.available;
       const v = shown(x);
-      b.append(el("span", "qp-param-label", x.label), el("span", `qp-scp-expo-value qp-num ${stateClass(v.phase)}`, v.text));
+      b.append(el("span", "qp-param-label", x.label), valueEl("qp-scp-expo-value qp-num", v));
       expo.appendChild(b);
     }
     const grid = el("div", "qp-scp-grid");
@@ -794,7 +839,7 @@ export function mountSCP(host, opts) {
         b.title = t.reason || "Not available";
       }
       const v = shown(t);
-      b.append(icon(t.icon), el("span", `qp-scp-tile-value ${stateClass(v.phase)}`, v.text), el("span", "qp-scp-tile-label", t.label));
+      b.append(icon(t.icon), valueEl("qp-scp-tile-value", v), el("span", "qp-scp-tile-label", t.label));
       grid.appendChild(b);
     }
     const foot = el("footer", "qp-scp-foot");
@@ -883,7 +928,7 @@ export function mountColorRing(host, opts) {
 
   const activeIndex = () => (o.kind === "creator" ? o.values.hue : o.active);
   const getVal = (i) => (o.kind === "creator" ? o.values.value : o.values[i]);
-  const fmtSigned = (v) => (v > 0 ? `+${v}` : `${v}`);
+  const fmtSigned = (v) => (v > 0 ? `+${v}` : v < 0 ? `${MINUS}${-v}` : "±0");
 
   function draw() {
     svg.textContent = "";

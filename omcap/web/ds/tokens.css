@@ -82,8 +82,17 @@
   --qp-label-m: 500 13px/1.2 var(--qp-font);
   --qp-label-s: 500 12px/1.2 var(--qp-font);
   --qp-status: 400 13px/1.2 var(--qp-font);
-  --qp-track-label: 0.05em;   /* labels +0.03 to +0.05 em; Figma components use 5 % */
-  --qp-track-display: -0.04em; /* large instrument value (QCP: 80 px Light, -4 %) */
+  /* Tracking, Typography Refinement V1.1 (variant C, Optical Spacing; Figma Typography Audit 52:1312) */
+  --qp-track-label-l: 0.07em;  /* Label L 14 px */
+  --qp-track-label-m: 0.06em;  /* Label M 13 px */
+  --qp-track-label-s: 0.05em;  /* Label S 12 px */
+  --qp-track-label: var(--qp-track-label-s);
+  --qp-track-display: -0.01em; /* numeric display values 48-80 px (was -4 %) */
+  --qp-track-value: 0;         /* compact values 22-32 px */
+  --qp-track-prefix: 0.05em;   /* the aperture sign: its own optical space before the digits */
+  --qp-track-scale: 0;         /* numeric scale labels: neutral */
+  --qp-unit-size: 0.6em;       /* units (K) set smaller than the value they follow */
+  --qp-color-value: 300 70px/1.1 var(--qp-font); /* Color Controls central value (kept at 70 px) */
 
   /* Space (Foundations: 4/8/12/16/20/32) and optical spacing V4.0 */
   --qp-s1: 4px; --qp-s2: 8px; --qp-s3: 12px; --qp-s4: 16px; --qp-s5: 20px; --qp-s6: 32px;
@@ -130,7 +139,12 @@
 /* Astro brightness dims the instruments only, never the live view (that is a separate, optional filter). */
 [data-qp-theme="astro"] .qp-panel { opacity: var(--qp-astro-brightness); }
 .qp-icon { width: var(--qp-icon); height: var(--qp-icon); flex: none; color: inherit; }
-.qp-num { font-variant-numeric: var(--qp-num); }
+/* Tabular figures for changing values. Doubled class so a later `font:` shorthand cannot reset it. */
+.qp-num.qp-num, .qp-num .qp-num { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.qp-prefix { letter-spacing: var(--qp-track-prefix); }
+.qp-unit { font-size: var(--qp-unit-size); letter-spacing: 0; margin-left: 0.2em; }
+/* Semantic camera words (AUTO, LOW, BULB, LIVE TIME, LIVE COMP) in a value slot: set as a word, not as a number */
+.qp-word { font-size: var(--qp-word-size, 0.6em); font-weight: inherit; letter-spacing: var(--qp-track-label-s); }
 @media (prefers-reduced-motion: reduce) { :root { --qp-t-fast: 0ms; --qp-t-sheet: 0ms; --qp-detent-ms: 0ms; } }
 /* App setting "motion off" (feedback settings) sets data-qp-motion="off" on any container */
 [data-qp-motion="off"] { --qp-detent-ms: 0ms; }

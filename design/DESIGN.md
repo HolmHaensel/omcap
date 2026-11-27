@@ -223,6 +223,26 @@ radial axis; arrows left/right = angle, up/down = radial.
 - Tunable (Motion & Feedback design decides): `--qp-detent-ms` (70 ms proposal), `DETENT_DEFAULTS` (wheel 40 px,
   drag = tick spacing, crown 1 unit per detent, at most 12 detents per event), click volume 0.18 and timbre, haptic 8 ms.
 
+**Typography Refinement V1.1 (variant C, Optical Spacing; Figma Typography Audit 52:1312, 2026-11-28):** Inter kept;
+Display Light 300 (80/64/48 px), Values Regular 400 (32/28/24/22 px), Labels Medium 500; Color Controls value 70 px Light.
+Tracking tokens: display digits −1 %, compact values 0 %, aperture sign +5 % (its own span), Label L/M/S +7/+6/+5 %,
+numeric scale labels neutral. One formatter (`formatValue`) for QCP, SCP, scales and selectors: ƒ prefix, `1/8000` and
+`60"`, real minus and one EV sign rule (+0.3, ±0.0, −0.3), Kelvin unit at 0.6 em, camera words (AUTO, LOW, BULB,
+LIVE TIME, LIVE COMP) as words at 0.6 em (0.5 em in compact slots) in the weight of their slot. Values never wrap.
+
+- Fixed on the way: tabular figures were not active anywhere (a later `font:` shorthand reset `.qp-num`); now a
+  doubled-class rule keeps them (checked: equal widths for 1/1000 and 1/8000, 1.2 and 8.0, 1250 and 8000).
+- Deviation: compact values scale with the panel width (`clamp(15px, 4.9cqi, 32px)` SCP, `clamp(15px, 5.6cqi, 24px)`
+  QCP), because 1/8000 in Value L 32 px is wider than an SCP column even at the Figma width of 600 px. Panels under
+  300 px use 3 (SCP) / 2×2 (QCP) columns, under 220 px 2 SCP columns; the large value steps to Display M under 260 px.
+  Never below 15 px.
+- Deviation: EV zero is written ±0.0 everywhere (the Figma QCP showed 0.0, the SCP ±0.0).
+- Risk: Inter is installed on the development Mac but not bundled with the app; other devices fall back to the system
+  font. Bundling the font file (SIL OFL) needs a decision.
+- QA (browser, no camera; Dark, Daylight, Astro Red): no layout shift in QCP and SCP over 4 value sets (250/8000/60"/
+  LIVE COMP, 400/25600/AUTO/LOW, ±0.0/−4.7/+5.0/−0.3, ƒ2.8-ƒ22) at 600, 343 and 168 px panels; nothing clipped; smallest
+  digits 15 px; stress table of 13 audit cases in 7 sizes without wrapping. Not on real devices yet.
+
 **Capability notes (E-M1 Mark I, fw 4.6):** Color Creator is a picture mode of the body, but hue/saturation have
 no USB or Wi-Fi property (firmware study 2026-11-24); Color Profile and the Monochrome filter strength are PEN-F
 functions and would be computed by the app (software HSL), never written to the camera.

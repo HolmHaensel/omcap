@@ -62,6 +62,20 @@ class Tokens(unittest.TestCase):
             r, g, b = (int(v[i:i + 2], 16) for i in (1, 3, 5))
             self.assertTrue(r > g and r > b and abs(g - b) <= 4, f"{k} {v}")
 
+    def test_typography_v11_tokens(self):
+        css = read("tokens.css")
+        want = {"track-label-l": "0.07em", "track-label-m": "0.06em", "track-label-s": "0.05em",
+                "track-display": "-0.01em", "track-value": "0", "track-prefix": "0.05em", "track-scale": "0"}
+        for k, v in want.items():
+            self.assertRegex(css, rf"--qp-{k}:\s*{re.escape(v)};", k)
+        self.assertIn("300 70px", css)                               # Color Controls value kept at 70 px
+        for size in ("80px", "64px", "48px"):
+            self.assertRegex(css, rf"--qp-display-\w+: 300 {size}")
+        for size in ("32px", "28px", "24px", "22px"):
+            self.assertRegex(css, rf"--qp-value-\w+: 400 {size}")
+        # tabular figures must survive a later `font:` shorthand: doubled class selector
+        self.assertIn(".qp-num.qp-num", css)
+
     def test_components_use_tokens_not_raw_colours(self):
         css = read("components.css")
         raw = [h for h in re.findall(r"#[0-9a-fA-F]{3,8}\b", css) if h.lower() not in ("#000",)]
